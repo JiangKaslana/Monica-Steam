@@ -2021,6 +2021,7 @@ fun SteamScreen(
                                 onNotificationOpened = viewModel::markSteamNotificationRead,
                                 onOpenWeb = { showGiftInbox = true },
                                 onOpenStoreApp = onOpenStoreApp,
+                                onRefresh = viewModel::refreshSteamNotifications,
                                 modifier = Modifier.fillMaxSize()
                             )
                             SteamSection.TRADE_OFFERS -> SteamTradeOffersContent(

@@ -24,6 +24,7 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.domain.SteamFriendsFilter
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.steam.token.presentation.SteamViewModel
+import takagi.ru.monica.ui.gestures.PullToRefresh
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 
@@ -104,16 +105,23 @@ fun SteamFriendsScreen(
                     onStartChat = { onStartChat(animatedFriend.steamId) }
                 )
             } else {
-                SteamFriendsListContent(
-                    state = state,
-                    query = searchQuery,
-                    filter = filter,
-                    onFilterChange = { filterName = it.name },
-                    onOpenFriend = { onSelectedFriendIdChange(it.steamId) },
-                    onRespondToInvite = friendsViewModel::respondToInvite,
-                    onRetry = friendsViewModel::refresh,
+                PullToRefresh(
+                    isRefreshing = state.loading || state.refreshing,
+                    onRefresh = friendsViewModel::refresh,
+                    enabled = selectedAccount?.hasRealSteamId == true,
                     modifier = Modifier.fillMaxSize()
-                )
+                ) {
+                    SteamFriendsListContent(
+                        state = state,
+                        query = searchQuery,
+                        filter = filter,
+                        onFilterChange = { filterName = it.name },
+                        onOpenFriend = { onSelectedFriendIdChange(it.steamId) },
+                        onRespondToInvite = friendsViewModel::respondToInvite,
+                        onRetry = friendsViewModel::refresh,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
         SnackbarHost(

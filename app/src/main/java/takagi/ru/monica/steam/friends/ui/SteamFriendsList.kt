@@ -1,7 +1,6 @@
 package takagi.ru.monica.steam.friends.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,7 +15,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,18 +50,6 @@ internal fun SteamFriendsListContent(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (state.refreshing) {
-            item(key = "friends-refreshing") {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    Text(
-                        text = stringResource(R.string.steam_friends_syncing),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
         if (state.fromCache && snapshot != null) {
             item(key = "friends-cache") { FriendsCacheBanner(snapshot.fetchedAt) }
         }

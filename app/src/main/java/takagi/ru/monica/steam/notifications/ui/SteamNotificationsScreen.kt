@@ -64,6 +64,7 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.gifts.domain.*
 import takagi.ru.monica.steam.notifications.domain.*
+import takagi.ru.monica.ui.gestures.PullToRefresh
 
 private enum class SteamNotificationFilter {
     ALL,
@@ -81,6 +82,7 @@ fun SteamNotificationsScreen(
     onNotificationOpened: (String) -> Unit,
     onOpenWeb: () -> Unit,
     onOpenStoreApp: (Int) -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var filterName by rememberSaveable(account?.id) {
@@ -118,13 +120,19 @@ fun SteamNotificationsScreen(
     )
     val context = LocalContext.current
 
-    LazyColumn(
-            modifier = modifier.fillMaxSize(),
+    PullToRefresh(
+        isRefreshing = state.loading,
+        onRefresh = onRefresh,
+        enabled = account?.hasRealSteamId == true,
+        modifier = modifier.fillMaxSize()
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 top = 12.dp,
                 end = 16.dp,
-            bottom = 16.dp
+                bottom = 16.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -220,6 +228,7 @@ fun SteamNotificationsScreen(
                 }
             }
         }
+    }
 
     selectedNotification?.let { notification ->
         val relatedGift = snapshot?.pendingGifts.orEmpty().firstOrNull { gift ->
