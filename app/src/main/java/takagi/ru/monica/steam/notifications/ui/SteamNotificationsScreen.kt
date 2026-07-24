@@ -78,6 +78,7 @@ fun SteamNotificationsScreen(
     state: SteamNotificationsUiState,
     searchQuery: String,
     onGiftAction: (SteamPendingGift, SteamGiftAction) -> Unit,
+    onNotificationOpened: (String) -> Unit,
     onOpenWeb: () -> Unit,
     onOpenStoreApp: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -199,7 +200,10 @@ fun SteamNotificationsScreen(
             ) { _, notification ->
                 SteamNotificationListCard(
                     notification = notification,
-                    onClick = { selectedNotification = notification }
+                    onClick = {
+                        selectedNotification = notification
+                        onNotificationOpened(notification.id)
+                    }
                 )
             }
 
@@ -613,6 +617,22 @@ private fun notificationDisplayTitle(notification: SteamNotification): String {
             SteamNotificationKind.ASYNC_GAME -> R.string.steam_notification_kind_game_update
             SteamNotificationKind.CHAT_MESSAGE -> R.string.steam_notification_kind_chat_message
             SteamNotificationKind.MODERATOR_MESSAGE -> R.string.steam_notification_kind_moderator_message
+            SteamNotificationKind.PARENTAL_FEATURE_REQUEST -> R.string.steam_notification_kind_parental_feature_request
+            SteamNotificationKind.FAMILY_INVITE -> R.string.steam_notification_kind_family_invite
+            SteamNotificationKind.FAMILY_PURCHASE_REQUEST -> R.string.steam_notification_kind_family_purchase_request
+            SteamNotificationKind.PARENTAL_PLAYTIME_REQUEST -> R.string.steam_notification_kind_parental_playtime_request
+            SteamNotificationKind.FAMILY_PURCHASE_RESPONSE -> R.string.steam_notification_kind_family_purchase_response
+            SteamNotificationKind.PARENTAL_FEATURE_RESPONSE -> R.string.steam_notification_kind_parental_feature_response
+            SteamNotificationKind.PARENTAL_PLAYTIME_RESPONSE -> R.string.steam_notification_kind_parental_playtime_response
+            SteamNotificationKind.REQUESTED_GAME_ADDED -> R.string.steam_notification_kind_requested_game_added
+            SteamNotificationKind.SEND_TO_PHONE -> R.string.steam_notification_kind_send_to_phone
+            SteamNotificationKind.CLIP_DOWNLOADED -> R.string.steam_notification_kind_clip_downloaded
+            SteamNotificationKind.TWO_FACTOR_PROMPT -> R.string.steam_notification_kind_two_factor_prompt
+            SteamNotificationKind.MOBILE_CONFIRMATION -> R.string.steam_notification_kind_mobile_confirmation
+            SteamNotificationKind.PARTNER_EVENT -> R.string.steam_notification_kind_partner_event
+            SteamNotificationKind.PLAYTEST_INVITE -> R.string.steam_notification_kind_playtest_invite
+            SteamNotificationKind.TRADE_REVERSAL -> R.string.steam_notification_kind_trade_reversal
+            SteamNotificationKind.REPORTED_CONTENT_ACTION -> R.string.steam_notification_kind_reported_content_action
             SteamNotificationKind.FAMILY -> R.string.steam_notification_kind_family
             SteamNotificationKind.PARENTAL -> R.string.steam_notification_kind_parental
             SteamNotificationKind.GAME_INVITE -> R.string.steam_notification_kind_game_invite
@@ -636,6 +656,22 @@ private fun SteamNotification.usesFallbackTitle(): Boolean = title == when (kind
     SteamNotificationKind.ASYNC_GAME -> "Game update"
     SteamNotificationKind.CHAT_MESSAGE -> "Chat message"
     SteamNotificationKind.MODERATOR_MESSAGE -> "Moderator message"
+    SteamNotificationKind.PARENTAL_FEATURE_REQUEST -> "Parental feature request"
+    SteamNotificationKind.FAMILY_INVITE -> "Steam Family invitation"
+    SteamNotificationKind.FAMILY_PURCHASE_REQUEST -> "Family purchase request"
+    SteamNotificationKind.PARENTAL_PLAYTIME_REQUEST -> "Playtime request"
+    SteamNotificationKind.FAMILY_PURCHASE_RESPONSE -> "Family purchase response"
+    SteamNotificationKind.PARENTAL_FEATURE_RESPONSE -> "Parental feature response"
+    SteamNotificationKind.PARENTAL_PLAYTIME_RESPONSE -> "Playtime request update"
+    SteamNotificationKind.REQUESTED_GAME_ADDED -> "Requested game added"
+    SteamNotificationKind.SEND_TO_PHONE -> "Sent to phone"
+    SteamNotificationKind.CLIP_DOWNLOADED -> "Clip downloaded"
+    SteamNotificationKind.TWO_FACTOR_PROMPT -> "Steam sign-in request"
+    SteamNotificationKind.MOBILE_CONFIRMATION -> "Mobile confirmation"
+    SteamNotificationKind.PARTNER_EVENT -> "Steam event"
+    SteamNotificationKind.PLAYTEST_INVITE -> "Playtest invitation"
+    SteamNotificationKind.TRADE_REVERSAL -> "Trade reversed"
+    SteamNotificationKind.REPORTED_CONTENT_ACTION -> "Reported content update"
     SteamNotificationKind.FAMILY -> "Steam Family"
     SteamNotificationKind.PARENTAL -> "Parental controls"
     SteamNotificationKind.GAME_INVITE -> "Game invitation"

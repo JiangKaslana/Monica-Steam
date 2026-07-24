@@ -80,7 +80,9 @@ import takagi.ru.monica.steam.notifications.data.SteamNotificationCache
 import takagi.ru.monica.steam.notifications.data.SteamNotificationContentService
 import takagi.ru.monica.steam.notifications.data.SteamNotificationPreferencesCache
 import takagi.ru.monica.steam.notifications.data.SteamNotificationService
+import takagi.ru.monica.steam.notifications.domain.SteamNotificationSnapshot
 import takagi.ru.monica.steam.notifications.domain.SteamNotificationsUiState
+import takagi.ru.monica.steam.notifications.domain.markSteamNotificationsRead
 import takagi.ru.monica.steam.store.data.SteamStoreCache
 import takagi.ru.monica.steam.store.data.SteamStoreService
 import takagi.ru.monica.steam.organization.SteamAccountOrganizationRules
@@ -251,6 +253,7 @@ class SteamViewModel(
     private var accountRequestGeneration: Long = 0L
     private var authorizedDevicesLoadGeneration: Long = 0L
     private var storageSourceLoadGeneration: Long = 0L
+    private val locallyReadNotificationIds = linkedSetOf<String>()
 
     init {
         SteamDiagLogger.initialize(appContext.applicationContext)
@@ -931,8 +934,9 @@ class SteamViewModel(
                 _uiState.value.notifications.snapshot == null &&
                 cached != null
             ) {
+                val visibleCached = applyLocallyReadNotifications(cached)
                 updateNotifications {
-                    it.copy(snapshot = cached, fromCache = true, error = null)
+                    it.copy(snapshot = visibleCached, fromCache = true, error = null)
                 }
             }
             if (!accountRequestIsCurrent(account.id, generation)) return@launch
@@ -959,18 +963,21 @@ class SteamViewModel(
                     val merged = freshSnapshot.copy(
                         pendingGifts = giftResult.getOrElse { cached?.pendingGifts.orEmpty() }
                     )
-                    notificationCache.save(freshAccount.steamId, merged)
                     merged to giftResult.exceptionOrNull()
                 }
             }.onSuccess { (snapshot, giftError) ->
                 if (!accountRequestIsCurrent(account.id, generation)) return@onSuccess
+                val visibleSnapshot = applyLocallyReadNotifications(snapshot)
                 updateNotifications {
                     it.copy(
-                        snapshot = snapshot,
+                        snapshot = visibleSnapshot,
                         loading = false,
                         fromCache = false,
                         error = giftError?.message
                     )
+                }
+                viewModelScope.launch(Dispatchers.IO) {
+                    notificationCache.save(account.steamId, visibleSnapshot)
                 }
             }.onFailure { error ->
                 if (!accountRequestIsCurrent(account.id, generation)) return@onFailure
@@ -981,6 +988,43 @@ class SteamViewModel(
                             ?: appContext.getString(R.string.steam_notifications_load_failed)
                     )
                 }
+            }
+        }
+    }
+
+    fun markSteamNotificationRead(notificationId: String) {
+        val notification = _uiState.value.notifications.snapshot?.notifications
+            ?.firstOrNull { it.id == notificationId }
+            ?: return
+        if (notification.read || notification.id.isBlank()) return
+        val account = selectedAccount() ?: return
+        val generation = accountRequestGeneration
+        if (!locallyReadNotificationIds.add(notification.id)) return
+
+        val updatedSnapshot = _uiState.value.notifications.snapshot?.let { snapshot ->
+            markSteamNotificationsRead(snapshot, setOf(notification.id))
+        }
+        if (updatedSnapshot != null) {
+            updateNotifications { it.copy(snapshot = updatedSnapshot) }
+            viewModelScope.launch(Dispatchers.IO) {
+                notificationCache.save(account.steamId, updatedSnapshot)
+            }
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                val freshAccount = ensureSteamSession(account)
+                    ?: throw IllegalStateException(
+                        appContext.getString(R.string.steam_notifications_session_required)
+                    )
+                withContext(Dispatchers.IO) {
+                    notificationService.markRead(freshAccount, listOf(notification.id))
+                }
+            }.onFailure { error ->
+                if (!accountRequestIsCurrent(account.id, generation)) return@onFailure
+                SteamDiagLogger.append(
+                    "notification_mark_read failed type=${error::class.java.simpleName}"
+                )
             }
         }
     }
@@ -2523,6 +2567,20 @@ class SteamViewModel(
         )
     }
 
+    private fun applyLocallyReadNotifications(
+        snapshot: SteamNotificationSnapshot
+    ): SteamNotificationSnapshot {
+        val currentIds = snapshot.notifications.mapTo(linkedSetOf()) { it.id }
+        locallyReadNotificationIds.retainAll(currentIds)
+        locallyReadNotificationIds.removeAll(
+            snapshot.notifications.asSequence()
+                .filter { it.read }
+                .map { it.id }
+                .toSet()
+        )
+        return markSteamNotificationsRead(snapshot, locallyReadNotificationIds)
+    }
+
     private suspend fun saveMaFilePayload(payload: SteamMaFilePayload) {
         when (val source = _uiState.value.storageSource) {
             SteamStorageSource.Local -> withContext(Dispatchers.IO) {
@@ -2692,6 +2750,7 @@ class SteamViewModel(
         batchQuoteGeneration++
         listingsLoadGeneration++
         authorizedDevicesLoadGeneration++
+        locallyReadNotificationIds.clear()
         if (_uiState.value.loading) {
             // A stale account request may return through an early guard and
             // therefore never reach its old setLoading(false).  Reset the

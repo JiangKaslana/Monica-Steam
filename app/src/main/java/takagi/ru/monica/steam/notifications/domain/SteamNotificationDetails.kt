@@ -53,23 +53,21 @@ object SteamNotificationDetailParser {
 
         val flattened = buildList { flatten(element, path = "", output = this) }
         val message = flattened
-            .firstOrNull { field -> field.key.leafKey() in MESSAGE_KEYS }
+            .firstOrNull { field -> field.key.normalizedLeafKey() in MESSAGE_KEYS }
             ?.value
             ?.takeIf { it.isDistinctText(title, summary) }
         val actorSteamId = if (kind == SteamNotificationKind.FRIEND_INVITE) {
-            flattened.firstOrNull { field -> field.key.leafKey() in ACTOR_ID_KEYS }
+            flattened.firstOrNull { field -> field.key.normalizedLeafKey() in ACTOR_ID_KEYS }
                 ?.value
                 ?.toSteamId64()
         } else {
             null
         }
         val inventoryReference = if (kind == SteamNotificationKind.ITEM) {
-            val appId = flattened.firstOrNull { it.key.leafKey() == "appid" }
-                ?.value?.toIntOrNull() ?: 0
-            val contextId = flattened.firstOrNull { it.key.leafKey() == "contextid" }
-                ?.value.orEmpty()
-            val assetId = flattened.firstOrNull { it.key.leafKey() == "assetid" }
-                ?.value.orEmpty()
+            val appId = flattened.firstValueForKeys(ITEM_APP_ID_KEYS)
+                ?.toIntOrNull() ?: 0
+            val contextId = flattened.firstValueForKeys(ITEM_CONTEXT_ID_KEYS).orEmpty()
+            val assetId = flattened.firstValueForKeys(ITEM_ASSET_ID_KEYS).orEmpty()
             SteamNotificationInventoryReference(appId, contextId, assetId)
                 .takeIf { it.appId > 0 && it.contextId.isNotBlank() && it.assetId.isNotBlank() }
         } else {
@@ -77,8 +75,11 @@ object SteamNotificationDetailParser {
         }
         val appIds = flattened
             .asSequence()
-            .filter { field -> field.key.leafKey() in APP_ID_KEYS }
-            .filter { kind != SteamNotificationKind.ITEM }
+            .filter { field -> field.key.normalizedLeafKey() in APP_ID_KEYS }
+            .filter { field ->
+                kind != SteamNotificationKind.ITEM ||
+                    field.key.normalizedLeafKey() in ITEM_SOURCE_APP_ID_KEYS
+            }
             .flatMap { field -> APP_ID_PATTERN.findAll(field.value).map { it.value.toIntOrNull() } }
             .filterNotNull()
             .filter { it > 0 }
@@ -88,16 +89,17 @@ object SteamNotificationDetailParser {
         val fields = flattened
             .asSequence()
             .filter { field ->
-                val leafKey = field.key.leafKey()
+                val leafKey = field.key.normalizedLeafKey()
                 leafKey !in TITLE_KEYS &&
                     leafKey !in MESSAGE_KEYS &&
-                    leafKey !in TECHNICAL_KEYS &&
+                    (leafKey !in TECHNICAL_KEYS ||
+                        kind == SteamNotificationKind.ITEM && leafKey in ITEM_COUNT_KEYS) &&
                     !(kind == SteamNotificationKind.FRIEND_INVITE && leafKey in ACTOR_ID_KEYS) &&
                     !(kind == SteamNotificationKind.ITEM && leafKey in ITEM_REFERENCE_KEYS)
             }
             .filter { field -> field.value.isDistinctText(title, summary, message.orEmpty()) }
             .map { field ->
-                if (kind == SteamNotificationKind.FRIEND_INVITE && field.key.leafKey() == "state") {
+                if (kind == SteamNotificationKind.FRIEND_INVITE && field.key.normalizedLeafKey() == "state") {
                     field.copy(
                         key = "friend_invite_state",
                         value = field.value.toFriendInviteState()
@@ -122,11 +124,12 @@ object SteamNotificationDetailParser {
     private fun flatten(
         element: JsonElement,
         path: String,
-        output: MutableList<SteamNotificationDetailField>
+        output: MutableList<SteamNotificationDetailField>,
+        depth: Int = 0
     ) {
         when (element) {
             is JsonObject -> element.forEach { (key, value) ->
-                flatten(value, path.childPath(key), output)
+                flatten(value, path.childPath(key), output, depth)
             }
 
             is JsonArray -> {
@@ -137,7 +140,7 @@ object SteamNotificationDetailParser {
                     output += SteamNotificationDetailField(path, primitiveValues.joinToString())
                 } else {
                     element.forEachIndexed { index, child ->
-                        flatten(child, "$path[$index]", output)
+                        flatten(child, "$path[$index]", output, depth)
                     }
                 }
             }
@@ -145,15 +148,33 @@ object SteamNotificationDetailParser {
             is JsonPrimitive -> element.contentOrNull
                 ?.trim()
                 ?.takeIf(String::isNotBlank)
-                ?.let { value -> output += SteamNotificationDetailField(path, value) }
+                ?.let { value ->
+                    val embedded = value.takeIf {
+                        depth < MAX_EMBEDDED_JSON_DEPTH && it.looksLikeStructuredData()
+                    }?.let { raw -> runCatching { json.parseToJsonElement(raw) }.getOrNull() }
+                    if (embedded != null && embedded !is JsonPrimitive) {
+                        flatten(embedded, path, output, depth + 1)
+                    } else {
+                        output += SteamNotificationDetailField(path, value)
+                    }
+                }
         }
+    }
+
+    private fun List<SteamNotificationDetailField>.firstValueForKeys(
+        keys: List<String>
+    ): String? = keys.firstNotNullOfOrNull { key ->
+        firstOrNull { field -> field.key.normalizedLeafKey() == key }?.value
     }
 
     private fun String.childPath(child: String): String =
         if (isBlank()) child else "$this.$child"
 
-    private fun String.leafKey(): String =
-        substringAfterLast('.').substringBefore('[').lowercase()
+    private fun String.normalizedLeafKey(): String =
+        substringAfterLast('.')
+            .substringBefore('[')
+            .lowercase()
+            .filter(Char::isLetterOrDigit)
 
     private fun String.isDistinctText(vararg existing: String): Boolean {
         val candidate = trim()
@@ -183,11 +204,13 @@ object SteamNotificationDetailParser {
 
     private val TITLE_KEYS = setOf(
         "title",
-        "app_name",
-        "game_name",
-        "item_name",
-        "package_name",
-        "display_name",
+        "appname",
+        "gamename",
+        "itemname",
+        "packagename",
+        "displayname",
+        "eventname",
+        "clipname",
         "name"
     )
     private val MESSAGE_KEYS = setOf(
@@ -197,23 +220,35 @@ object SteamNotificationDetailParser {
         "comment",
         "description",
         "detail",
-        "notification_body",
-        "notification_text"
+        "notificationbody",
+        "notificationtext"
     )
-    private val APP_ID_KEYS = setOf("appid", "app_id", "appids", "app_ids")
-    private val ACTOR_ID_KEYS = setOf("requestor_id", "requestorid", "steamid", "steam_id")
-    private val ITEM_REFERENCE_KEYS = setOf("appid", "contextid", "assetid")
+    private val APP_ID_KEYS = setOf(
+        "appid",
+        "appids",
+        "sourceappid",
+        "sourceappids",
+        "requestedappid"
+    )
+    private val ACTOR_ID_KEYS = setOf("requestorid", "steamid")
+    private val ITEM_APP_ID_KEYS = listOf("appid", "sourceappid", "inventoryappid")
+    private val ITEM_SOURCE_APP_ID_KEYS = setOf("sourceappid")
+    private val ITEM_CONTEXT_ID_KEYS = listOf("contextid", "inventorycontextid")
+    private val ITEM_ASSET_ID_KEYS = listOf("assetid", "itemassetid")
+    private val ITEM_COUNT_KEYS = setOf("count", "quantity", "itemcount", "newitemcount")
+    private val ITEM_REFERENCE_KEYS = (
+        ITEM_APP_ID_KEYS + ITEM_CONTEXT_ID_KEYS + ITEM_ASSET_ID_KEYS
+    ).toSet()
     private val TECHNICAL_KEYS = APP_ID_KEYS + setOf(
         "count",
         "quantity",
-        "item_count",
+        "itemcount",
         "packageid",
-        "package_id",
-        "bundleid",
-        "bundle_id"
+        "bundleid"
     )
     private val APP_ID_PATTERN = Regex("\\d+")
     private const val MAX_APP_IDS = 12
     private const val MAX_DETAIL_FIELDS = 24
+    private const val MAX_EMBEDDED_JSON_DEPTH = 3
     private const val STEAM_ID64_BASE = 76561197960265728L
 }

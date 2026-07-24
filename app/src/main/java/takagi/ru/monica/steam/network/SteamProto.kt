@@ -17,6 +17,14 @@ class SteamProtoWriter {
         writeVarint(field, value)
     }
 
+    fun writeUint64(field: Int, value: String) {
+        val unsigned = value.toBigIntegerOrNull()
+            ?.takeIf { it.signum() >= 0 && it <= UNSIGNED_LONG_MASK }
+            ?: throw IllegalArgumentException("uint64 value is out of range")
+        writeTag(field, 0)
+        writeVarintRaw(unsigned)
+    }
+
     fun writeBool(field: Int, value: Boolean) {
         writeVarint(field, if (value) 1L else 0L)
     }
@@ -58,7 +66,16 @@ class SteamProtoWriter {
     }
 
     private fun writeVarintRaw(value: Long) {
-        var current = if (value < 0) BigInteger.valueOf(value).and(UNSIGNED_LONG_MASK) else BigInteger.valueOf(value)
+        val current = if (value < 0) {
+            BigInteger.valueOf(value).and(UNSIGNED_LONG_MASK)
+        } else {
+            BigInteger.valueOf(value)
+        }
+        writeVarintRaw(current)
+    }
+
+    private fun writeVarintRaw(initial: BigInteger) {
+        var current = initial
         val mask = BigInteger.valueOf(0x7f)
         val cont = BigInteger.valueOf(0x80)
         while (current > mask) {

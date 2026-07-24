@@ -2018,6 +2018,7 @@ fun SteamScreen(
                                 onGiftAction = { gift, action ->
                                     pendingGiftAction = SteamGiftActionRequest(gift, action)
                                 },
+                                onNotificationOpened = viewModel::markSteamNotificationRead,
                                 onOpenWeb = { showGiftInbox = true },
                                 onOpenStoreApp = onOpenStoreApp,
                                 modifier = Modifier.fillMaxSize()

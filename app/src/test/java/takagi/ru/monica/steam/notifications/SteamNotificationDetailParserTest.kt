@@ -97,6 +97,45 @@ class SteamNotificationDetailParserTest {
     }
 
     @Test
+    fun inventoryItemAcceptsSteamSourceAppAndSnakeCaseReferences() {
+        val details = SteamNotificationDetailParser.parse(
+            bodyData = """{
+                "body_data": {
+                    "context_id": "6",
+                    "asset_id": "39189271921",
+                    "source_appid": 1967430
+                }
+            }""".trimIndent(),
+            title = "New item",
+            summary = "",
+            kind = SteamNotificationKind.ITEM
+        )
+
+        assertEquals(listOf(1967430), details.appIds)
+        assertEquals(1967430, details.inventoryReference?.appId)
+        assertEquals("6", details.inventoryReference?.contextId)
+        assertEquals("39189271921", details.inventoryReference?.assetId)
+        assertFalse(
+            details.fields.any {
+                it.key.substringAfterLast('.') in setOf("source_appid", "context_id", "asset_id")
+            }
+        )
+    }
+
+    @Test
+    fun embeddedJsonPayloadIsParsedRecursively() {
+        val details = SteamNotificationDetailParser.parse(
+            bodyData = """{"payload":"{\"appid\":570,\"message\":\"Your requested game is ready\"}"}""",
+            title = "Requested game added",
+            summary = "",
+            kind = SteamNotificationKind.REQUESTED_GAME_ADDED
+        )
+
+        assertEquals("Your requested game is ready", details.message)
+        assertEquals(listOf(570), details.appIds)
+    }
+
+    @Test
     fun friendInviteConvertsRequestorAccountIdIntoSteamId64() {
         val details = SteamNotificationDetailParser.parse(
             bodyData = """{"requestor_id":1487451525,"state":2}""",
