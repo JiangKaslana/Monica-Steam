@@ -86,18 +86,64 @@ internal fun prepareSteamChatSession(
 
 internal fun logSteamChatFailure(operation: String, error: Throwable) {
     runCatching {
-        SteamDiagLogger.append(
-            "friend_chat $operation failed type=${error.javaClass.simpleName}"
-        )
+        val details = when (error) {
+            is SteamApiException -> buildString {
+                append("type=SteamApiException")
+                append(" eresult=${error.eResult ?: "none"}")
+                append(" http=${error.httpStatusCode ?: "none"}")
+                error.message?.sanitizeSteamChatDiagnostic()?.let { append(" message=$it") }
+            }
+            is java.net.SocketTimeoutException -> "type=SocketTimeoutException"
+            is java.net.ConnectException -> "type=ConnectException"
+            is IOException -> "type=IOException"
+            else -> "type=${error.javaClass.simpleName.ifBlank { "Unknown" }}"
+        }
+        SteamDiagLogger.append("friend_chat $operation failed $details")
     }
+}
+
+internal fun Throwable.requiresSteamChatSessionRefresh(): Boolean {
+    val error = this as? SteamApiException ?: return false
+    if (error.eResult?.let { it in SESSION_REFRESH_ERESULTS } == true ||
+        error.httpStatusCode?.let { it in SESSION_REFRESH_HTTP_CODES } == true
+    ) {
+        return true
+    }
+    val message = error.message.orEmpty().lowercase()
+    return SESSION_ERROR_WORDS.any { word -> message.contains(word) }
+}
+
+internal fun Throwable.isTransientSteamChatNetworkFailure(): Boolean = when (this) {
+    is java.net.SocketTimeoutException,
+    is java.net.ConnectException,
+    is java.net.UnknownHostException -> true
+    is IOException -> message.orEmpty().contains("timeout", ignoreCase = true) ||
+        message.orEmpty().contains("connection", ignoreCase = true)
+    else -> false
 }
 
 internal fun Throwable.toSteamChatFailureReason(): SteamChatFailureReason = when (this) {
     is IOException -> SteamChatFailureReason.NETWORK
-    is SteamApiException -> when (eResult) {
-        401, 403, 5, 15 -> SteamChatFailureReason.SESSION_REQUIRED
-        else -> SteamChatFailureReason.UNAVAILABLE
+    is SteamApiException -> if (requiresSteamChatSessionRefresh()) {
+        SteamChatFailureReason.SESSION_REQUIRED
+    } else {
+        SteamChatFailureReason.UNAVAILABLE
     }
     is IllegalArgumentException, is IllegalStateException -> SteamChatFailureReason.SESSION_REQUIRED
     else -> SteamChatFailureReason.UNAVAILABLE
 }
+
+private fun String.sanitizeSteamChatDiagnostic(): String =
+    replace(Regex("[\\r\\n\\t]+"), " ")
+        .take(180)
+
+private val SESSION_REFRESH_ERESULTS = setOf(5, 15)
+private val SESSION_REFRESH_HTTP_CODES = setOf(401, 403)
+private val SESSION_ERROR_WORDS = setOf(
+    "session expired",
+    "access token",
+    "unauthorized",
+    "forbidden",
+    "not logged in",
+    "login required"
+)

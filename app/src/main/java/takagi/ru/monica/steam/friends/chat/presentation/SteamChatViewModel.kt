@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.chat.data.SteamChatCache
 import takagi.ru.monica.steam.friends.chat.data.SteamChatPreferencesCache
+import takagi.ru.monica.steam.friends.chat.data.SteamChatSessionStore
 import takagi.ru.monica.steam.friends.chat.data.SteamFriendChatService
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatGateway
@@ -32,6 +33,8 @@ class SteamChatViewModel(
     private val gateway: SteamChatGateway,
     private val cache: SteamChatCache,
     private val sessionRefreshService: SteamSessionRefreshService? = SteamSessionRefreshService(),
+    private val forceSessionRefresh: ((SteamAccount) -> SteamAccount?)? = null,
+    private val persistSession: suspend (SteamAccount) -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val clientMessageId: () -> String = { UUID.randomUUID().toString() }
@@ -319,14 +322,22 @@ class SteamChatViewModel(
         viewModelScope.launch {
             val result = runCatching {
                 withContext(ioDispatcher) {
-                    gateway.sendMessage(
-                        account = prepareSteamChatSession(account, sessionRefreshService),
+                    sendSteamChatMessageWithSessionRecovery(
+                        gateway = gateway,
+                        account = account,
                         partnerSteamId = partnerSteamId,
-                        body = pending.body,
-                        clientMessageId = pending.clientMessageId
+                        pending = pending,
+                        sessionRefreshService = sessionRefreshService,
+                        forceSessionRefresh = forceSessionRefresh,
+                        onSessionRefreshed = { refreshedAccount ->
+                            if (activeAccount?.id == account.id && activeAccount?.steamId == account.steamId) {
+                                activeAccount = refreshedAccount
+                            }
+                            persistSession(refreshedAccount)
+                        }
                     )
                 }
-            }
+            }.getOrElse { error -> Result.failure(error) }
             if (!isThreadCurrent(account, partnerSteamId, generation)) return@launch
             val sent = result.getOrNull()?.copy(
                 deliveryState = SteamChatDeliveryState.SENT,
@@ -336,7 +347,6 @@ class SteamChatViewModel(
             updateMessage(account, partnerSteamId, sent)
         }
     }
-
     private fun updateMessage(
         account: SteamAccount,
         partnerSteamId: String,
@@ -359,7 +369,6 @@ class SteamChatViewModel(
             cache.saveSessions(account.steamId, updatedSessions)
         }
     }
-
     private fun acknowledgeLatest(
         account: SteamAccount,
         partnerSteamId: String,
@@ -392,7 +401,6 @@ class SteamChatViewModel(
             withContext(ioDispatcher) { cache.saveSessions(account.steamId, updated) }
         }
     }
-
     private fun persistThread(
         account: SteamAccount,
         partnerSteamId: String,
@@ -402,7 +410,6 @@ class SteamChatViewModel(
             cache.saveThread(account.steamId, partnerSteamId, snapshot)
         }
     }
-
     private fun restartPolling() {
         pollingJob?.cancel()
         pollingJob = null
@@ -415,7 +422,6 @@ class SteamChatViewModel(
             }
         }
     }
-
     private fun isSessionsCurrent(account: SteamAccount, generation: Long): Boolean =
         requestGuard.isSessionsCurrent(account, generation)
 
@@ -424,18 +430,19 @@ class SteamChatViewModel(
         partnerSteamId: String,
         generation: Long
     ): Boolean = requestGuard.isThreadCurrent(account, partnerSteamId, generation)
-
     companion object {
         private const val POLL_INTERVAL_MILLIS = 15_000L
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val sessionStore = lazy { SteamChatSessionStore.from(appContext) }
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
                     SteamChatViewModel(
                         gateway = SteamFriendChatService(),
-                        cache = SteamChatPreferencesCache(appContext)
+                        cache = SteamChatPreferencesCache(appContext),
+                        persistSession = { account -> sessionStore.value.persist(account) }
                     ) as T
             }
         }

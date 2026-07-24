@@ -80,9 +80,10 @@ class SteamFriendChatService(
                 writeFixed64(1, partner)
                 writeVarint(2, CHAT_ENTRY_TYPE_MESSAGE)
                 writeString(3, normalizedBody)
-                // Steam's own friend chat sends rich content such as emoticons,
-                // stickers and uploaded media through the BBCode-aware text field.
-                writeBool(4, true)
+                // Plain text must keep this flag false. Steam rejects some
+                // ordinary messages when they are incorrectly marked as BBCode;
+                // slash commands and official BBCode tags opt in below.
+                writeBool(4, normalizedBody.containsSteamChatBbCode())
                 writeBool(5, true)
                 writeBool(6, false)
                 writeString(8, clientMessageId)
@@ -130,9 +131,29 @@ class SteamFriendChatService(
         return toLong()
     }
 
+    private fun String.containsSteamChatBbCode(): Boolean {
+        val value = trim()
+        if (value.startsWith("/sticker ", ignoreCase = true) ||
+            value.startsWith("/roomeffect ", ignoreCase = true) ||
+            value.startsWith("/emoticon ", ignoreCase = true)
+        ) {
+            return true
+        }
+        return OFFICIAL_BBCODE_TAG.containsMatchIn(value) ||
+            STEAM_INVITE_URI.containsMatchIn(value)
+    }
+
     private companion object {
         const val FRIEND_MESSAGES_INTERFACE = "IFriendMessagesService"
         const val PAGE_SIZE = 50
         const val CHAT_ENTRY_TYPE_MESSAGE = 1L
+        val OFFICIAL_BBCODE_TAG = Regex(
+            "\\[(?:sticker|roomeffect|emoticon|img|video|url|gameinvite|lobbyinvite)(?:[=\\s\\]])",
+            RegexOption.IGNORE_CASE
+        )
+        val STEAM_INVITE_URI = Regex(
+            "steam://(?:joinlobby|joinparty|rungame|remoteplay/connect)/",
+            RegexOption.IGNORE_CASE
+        )
     }
 }

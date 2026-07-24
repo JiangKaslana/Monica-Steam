@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.chat.presentation
 
 import java.util.concurrent.ConcurrentHashMap
+import java.net.SocketTimeoutException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,6 +25,7 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatPage
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatThreadSnapshot
+import takagi.ru.monica.steam.network.SteamApiException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SteamChatViewModelTest {
@@ -100,6 +102,83 @@ class SteamChatViewModelTest {
         assertEquals(2, sendCount)
         assertEquals(partner, viewModel.uiState.value.sessions?.sessions?.first()?.partnerSteamId)
         assertEquals(200L, viewModel.uiState.value.sessions?.sessions?.first()?.lastMessageTimestamp)
+    }
+
+    @Test
+    fun retriesSendOnceAfterSteamRejectsTheSession() = runTest(mainDispatcher.scheduler) {
+        var sendCount = 0
+        val tokens = mutableListOf<String>()
+        val gateway = FakeGateway().apply {
+            sendBlock = { account, partner, body, clientId ->
+                sendCount++
+                tokens += account.accessToken.orEmpty()
+                if (sendCount == 1) {
+                    throw SteamApiException(
+                        message = "Steam session expired",
+                        eResult = 15,
+                        httpStatusCode = 403
+                    )
+                }
+                SteamChatMessage(
+                    partnerSteamId = partner,
+                    senderSteamId = account.steamId,
+                    timestamp = 300L,
+                    ordinal = 3,
+                    body = body,
+                    clientMessageId = clientId
+                )
+            }
+        }
+        val viewModel = SteamChatViewModel(
+            gateway = gateway,
+            cache = MemoryCache(),
+            sessionRefreshService = null,
+            forceSessionRefresh = { account -> account.copy(accessToken = "fresh-token") },
+            ioDispatcher = mainDispatcher,
+            nowMillis = { 100_000L },
+            clientMessageId = { "client-2" }
+        )
+        val account = account(1L, "76561198000000001")
+        val partner = "76561198000000003"
+        viewModel.selectAccount(account)
+        runCurrent()
+        viewModel.openThread(partner)
+        runCurrent()
+
+        viewModel.sendMessage("hello")
+        runCurrent()
+
+        assertEquals(SteamChatDeliveryState.SENT, viewModel.uiState.value.thread?.messages?.single()?.deliveryState)
+        assertEquals(2, sendCount)
+        assertEquals(listOf("token", "fresh-token"), tokens)
+    }
+
+    @Test
+    fun retriesATransientNetworkSendWithTheSameClientMessageId() = runTest(mainDispatcher.scheduler) {
+        var sendCount = 0
+        val clientIds = mutableListOf<String>()
+        val gateway = FakeGateway().apply {
+            sendBlock = { account, partner, body, clientId ->
+                sendCount++
+                clientIds += clientId
+                if (sendCount == 1) throw SocketTimeoutException("timed out")
+                SteamChatMessage(partner, account.steamId, 400L, 4, body, clientMessageId = clientId)
+            }
+        }
+        val viewModel = createViewModel(gateway)
+        val account = account(1L, "76561198000000001")
+        val partner = "76561198000000003"
+        viewModel.selectAccount(account)
+        runCurrent()
+        viewModel.openThread(partner)
+        runCurrent()
+
+        viewModel.sendMessage("hello")
+        runCurrent()
+
+        assertEquals(SteamChatDeliveryState.SENT, viewModel.uiState.value.thread?.messages?.single()?.deliveryState)
+        assertEquals(2, sendCount)
+        assertEquals(listOf("client-1", "client-1"), clientIds)
     }
 
     private fun createViewModel(

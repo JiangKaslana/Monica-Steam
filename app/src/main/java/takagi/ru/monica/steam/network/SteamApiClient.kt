@@ -107,7 +107,14 @@ class SteamApiClient(
             if (!response.isSuccessful || (eResult != null && eResult != 1)) {
                 val message = response.header("x-error_message")
                     ?: "Steam API failed: $iface/$method (${response.code}, eresult=${eResult ?: "none"})"
-                throw SteamApiException(message, eResult ?: response.code)
+                throw SteamApiException(
+                    message = message,
+                    // Keep the historical fallback in eResult for callers
+                    // that used HTTP status codes before httpStatusCode was
+                    // added; the real Steam eResult is still preferred.
+                    eResult = eResult ?: response.code,
+                    httpStatusCode = response.code
+                )
             }
             return response.body?.bytes() ?: ByteArray(0)
         }
@@ -150,7 +157,11 @@ class SteamApiClient(
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw SteamApiException("Steam API request failed: ${response.code}", response.code)
+                throw SteamApiException(
+                    message = "Steam API request failed: ${response.code}",
+                    eResult = response.code,
+                    httpStatusCode = response.code
+                )
             }
             val body = response.body?.string().orEmpty()
             if (body.isBlank() || !body.trimStart().startsWith("{")) {
@@ -309,12 +320,21 @@ class SteamApiClient(
             val target = response.request.url.resolve(location)
             val targetText = target?.toString() ?: location.ifBlank { "unknown" }
             return if (target?.encodedPath?.startsWith("/login/") == true) {
-                SteamApiException("Steam community session expired")
+                SteamApiException(
+                    message = "Steam community session expired",
+                    httpStatusCode = response.code
+                )
             } else {
-                SteamApiException("Steam community redirect blocked: $targetText")
+                SteamApiException(
+                    message = "Steam community redirect blocked: $targetText",
+                    httpStatusCode = response.code
+                )
             }
         }
-        return SteamApiException("Steam community request failed: ${response.code}")
+        return SteamApiException(
+            message = "Steam community request failed: ${response.code}",
+            httpStatusCode = response.code
+        )
     }
 
     private fun isAllowedCommunityUrl(url: HttpUrl): Boolean {
@@ -330,5 +350,6 @@ class SteamApiClient(
 
 class SteamApiException(
     message: String,
-    val eResult: Int? = null
+    val eResult: Int? = null,
+    val httpStatusCode: Int? = null
 ) : Exception(message)

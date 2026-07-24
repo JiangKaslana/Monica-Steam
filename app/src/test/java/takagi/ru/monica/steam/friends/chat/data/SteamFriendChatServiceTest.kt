@@ -9,6 +9,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
@@ -127,7 +128,44 @@ class SteamFriendChatServiceTest {
             .first { sendBody.name(it) == "input_protobuf_encoded" }
             .let(sendBody::value)
         val sendFields = SteamProtoReader(Base64.getDecoder().decode(sendEncoded)).parseAll()
-        assertTrue(sendFields.first { it.number == 4 }.asBool)
+        assertFalse(sendFields.first { it.number == 4 }.asBool)
+    }
+
+    @Test
+    fun marksOfficialRichChatCommandsAsBbCode() {
+        var sendFields: List<takagi.ru.monica.steam.network.SteamProtoField>? = null
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                if (request.url.encodedPath.contains("SendMessage")) {
+                    val body = request.body as FormBody
+                    val encoded = (0 until body.size)
+                        .first { body.name(it) == "input_protobuf_encoded" }
+                        .let(body::value)
+                    sendFields = SteamProtoReader(Base64.getDecoder().decode(encoded)).parseAll()
+                }
+                val response = SteamProtoWriter().apply {
+                    writeVarint(2, 1_700_000_003L)
+                    writeVarint(3, 3L)
+                }.toByteArray()
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(response.toResponseBody("application/octet-stream".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        SteamFriendChatService(SteamApiClient(client)).sendMessage(
+            account(),
+            PARTNER_STEAM_ID,
+            "/sticker sparkle",
+            "client-rich"
+        )
+
+        assertTrue(requireNotNull(sendFields).first { it.number == 4 }.asBool)
     }
 
     private fun chatMessage(
