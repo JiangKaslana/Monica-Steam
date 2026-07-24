@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.domain.SteamFriendsFilter
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
+import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.token.presentation.SteamViewModel
 import takagi.ru.monica.ui.gestures.PullToRefresh
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
@@ -126,7 +127,9 @@ fun SteamFriendsScreen(
         }
         SnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .steamDockActionClearance()
         )
     }
 }

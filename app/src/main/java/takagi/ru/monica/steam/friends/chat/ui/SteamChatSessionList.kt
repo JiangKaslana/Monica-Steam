@@ -44,6 +44,7 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatFailureReason
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
 import takagi.ru.monica.steam.friends.ui.label
@@ -57,6 +58,7 @@ internal fun SteamChatSessionList(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     val normalizedQuery = query.trim()
     val friendById = friends.associateBy(SteamFriend::steamId)
     val sessions = state.sessions?.sessions.orEmpty()
@@ -76,7 +78,12 @@ internal fun SteamChatSessionList(
     Box(modifier = modifier) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(
+                start = 12.dp,
+                end = 12.dp,
+                top = 8.dp,
+                bottom = dockContentClearance + 32.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item(key = "chat-summary") {

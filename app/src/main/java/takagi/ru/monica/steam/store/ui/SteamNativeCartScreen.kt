@@ -50,11 +50,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.steam.store.domain.*
 import java.text.DateFormat
 import java.util.Date
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,6 +77,7 @@ fun SteamNativeCartScreen(
     onOpenWishlistItem: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -161,7 +165,11 @@ fun SteamNativeCartScreen(
         },
         bottomBar = {
             if (selectedTab == SteamStoreCollectionTab.CART && cartItems.isNotEmpty()) {
-                SteamCheckoutBar(items = cartItems, onCheckout = onCheckout)
+                SteamCheckoutBar(
+                    items = cartItems,
+                    onCheckout = onCheckout,
+                    modifier = Modifier.steamDockActionClearance()
+                )
             }
         }
     ) { padding ->
@@ -183,7 +191,9 @@ fun SteamNativeCartScreen(
                     fromCache = wishlistFromCache,
                     error = wishlistError,
                     onRefresh = onRefreshWishlist,
-                    onOpenItem = onOpenWishlistItem
+                    onOpenItem = onOpenWishlistItem,
+                    bottomContentPadding = dockContentClearance +
+                        SteamStoreLayoutTokens.CollectionBottomSpacing
                 )
             }
         }
@@ -209,7 +219,7 @@ private fun SteamCartContent(
             start = 16.dp,
             top = 12.dp,
             end = 16.dp,
-            bottom = SteamStoreLayoutTokens.CollectionBottomClearance
+            bottom = SteamStoreLayoutTokens.CollectionBottomSpacing
         ),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -226,7 +236,8 @@ private fun SteamWishlistContent(
     fromCache: Boolean,
     error: String?,
     onRefresh: () -> Unit,
-    onOpenItem: (Int) -> Unit
+    onOpenItem: (Int) -> Unit,
+    bottomContentPadding: Dp
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -272,7 +283,7 @@ private fun SteamWishlistContent(
                     start = 16.dp,
                     top = 12.dp,
                     end = 16.dp,
-                    bottom = SteamStoreLayoutTokens.CollectionBottomClearance
+                    bottom = bottomContentPadding
                 ),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -461,10 +472,15 @@ private fun SteamCollectionEmptyState(
 }
 
 @Composable
-private fun SteamCheckoutBar(items: List<SteamCartItem>, onCheckout: () -> Unit) {
+private fun SteamCheckoutBar(
+    items: List<SteamCartItem>,
+    onCheckout: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val currency = items.map { it.currency }.distinct().singleOrNull()
     val total = steamCartTotalCents(items)
     Surface(
+        modifier = modifier,
         tonalElevation = 5.dp,
         shadowElevation = 6.dp,
         color = MaterialTheme.colorScheme.surfaceContainerHigh

@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.navigation
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,14 +27,17 @@ class SteamEssentialsFloatingToolbarGuardTest {
         assertTrue(toolbar.contains("items.size > 3"))
         assertTrue(toolbar.contains("windowInsetsPadding(WindowInsets.navigationBars)"))
         assertTrue(toolbar.contains("HorizontalFloatingToolbar("))
+        assertTrue(toolbar.contains("toolbarContainerColor = Color.Transparent"))
+        assertTrue(toolbar.contains("containerColor = Color.Transparent"))
         assertTrue(activity.contains("SteamEssentialsFloatingToolbar("))
         assertTrue(activity.contains("selectedIndex = tabs.indexOf(selected)"))
         assertTrue(activity.contains("floatingActionButton ="))
         assertTrue(activity.contains("onSelected(SteamDockTab.TOKEN)"))
         assertTrue(activity.contains("zIndex(1f)"))
         assertTrue(settingsHost.contains("SettingsScreen("))
-        assertTrue(activity.contains("SteamDockContentClearance"))
-        assertTrue(settingsHost.contains("contentBottomPadding = 16.dp"))
+        assertTrue(activity.contains("LocalSteamDockContentClearance provides"))
+        assertTrue(settingsHost.contains("LocalSteamDockContentClearance.current"))
+        assertFalse(settingsHost.contains("contentBottomPadding = 16.dp"))
     }
 
     private fun projectFile(path: String): File {

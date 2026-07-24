@@ -95,6 +95,8 @@ import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.presentation.SteamStoreViewModel
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
@@ -119,6 +121,7 @@ fun SteamStoreScreen(
     viewModel: SteamStoreViewModel = viewModel(factory = SteamStoreViewModel.factory(LocalContext.current))
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dockContentClearance = LocalSteamDockContentClearance.current
     var showAccounts by remember { mutableStateOf(false) }
     var searchExpanded by remember { mutableStateOf(false) }
     var lastDetail by remember { mutableStateOf<SteamStoreDetail?>(null) }
@@ -289,6 +292,7 @@ fun SteamStoreScreen(
                 floatingActionButton = {
                     ExtendedFloatingActionButton(
                         onClick = viewModel::openCart,
+                        modifier = Modifier.steamDockActionClearance(),
                         icon = {
                             Icon(
                                 Icons.Default.ShoppingCart,
@@ -308,7 +312,7 @@ fun SteamStoreScreen(
             ) { padding ->
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(padding),
-                    contentPadding = PaddingValues(bottom = 16.dp),
+                    contentPadding = PaddingValues(bottom = dockContentClearance + 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (state.searching) {
@@ -754,6 +758,7 @@ private fun SteamStoreDetailContent(
     onRetryRegionalPrices: () -> Unit,
     modifier: Modifier
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     val heroBackgroundUrl = detail.backgroundImageUrl.ifBlank { detail.headerImageUrl }
     val aboutText = detail.about.ifBlank { detail.shortDescription }
     var selectedScreenshotIndex by rememberSaveable(detail.appId) {
@@ -761,7 +766,7 @@ private fun SteamStoreDetailContent(
     }
     LazyColumn(
         modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 32.dp),
+        contentPadding = PaddingValues(bottom = dockContentClearance + 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {

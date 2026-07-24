@@ -28,6 +28,7 @@ import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.domain.SteamFriendsFilter
 import takagi.ru.monica.steam.friends.domain.filterSteamFriends
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsUiState
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -41,13 +42,19 @@ internal fun SteamFriendsListContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     val snapshot = state.snapshot
     val filtered = remember(snapshot, query, filter) {
         filterSteamFriends(snapshot?.friends.orEmpty(), query, filter)
     }
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 4.dp,
+            bottom = dockContentClearance + 32.dp
+        ),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (state.fromCache && snapshot != null) {

@@ -68,6 +68,7 @@ import takagi.ru.monica.steam.trade.SteamTradeOfferDirection
 import takagi.ru.monica.steam.trade.SteamTradeOfferItem
 import takagi.ru.monica.steam.trade.SteamTradeOfferState
 import takagi.ru.monica.steam.trade.steamTradeOfferLazyKey
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.token.presentation.SteamTradeOffersUiState
 import takagi.ru.monica.ui.common.pull.PullToSearchStateHandle
 import takagi.ru.monica.ui.components.MonicaExpressiveFilterChip
@@ -92,6 +93,7 @@ internal fun SteamTradeOffersContent(
     onRefresh: () -> Unit,
     onRequestAction: (SteamTradeOffer, SteamTradeOfferAction) -> Unit
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     var filterName by rememberSaveable { mutableStateOf(TradeOfferFilter.ALL.name) }
     var showAccountPicker by remember { mutableStateOf(false) }
     var pendingAccountSwitchId by remember { mutableStateOf<Long?>(null) }
@@ -204,7 +206,11 @@ internal fun SteamTradeOffersContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(pullToSearch.nestedScrollConnection),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    bottom = dockContentClearance + 16.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 itemsIndexed(filteredOffers, key = ::steamTradeOfferLazyKey) { _, offer ->

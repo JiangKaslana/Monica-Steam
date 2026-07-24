@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.ui.theme.GoogleSansFlexFontFamily
 
 @Composable
@@ -47,9 +48,15 @@ internal fun SteamFriendDetailScreen(
     onStartChat: () -> Unit
 ) {
     val context = LocalContext.current
+    val dockContentClearance = LocalSteamDockContentClearance.current
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 8.dp,
+            bottom = dockContentClearance + 32.dp
+        ),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item(key = "friend-detail-hero") { FriendDetailHero(friend) }

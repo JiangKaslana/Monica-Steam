@@ -47,7 +47,7 @@ class SteamFloatingDockGuardTest {
     }
 
     @Test
-    fun dockPagesShareOneSafeContentAreaForScreensAndFixedActions() {
+    fun dockPagesDrawBehindDockWhileFixedActionsUseTheSharedClearance() {
         val toolbar = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/navigation/ui/SteamEssentialsFloatingToolbar.kt"
         ).readText()
@@ -65,11 +65,11 @@ class SteamFloatingDockGuardTest {
         ).readText()
 
         assertTrue(toolbar.contains("SteamDockContentClearance = 104.dp"))
-        assertTrue(activity.contains("SteamDockContentClearance"))
-        assertTrue(activity.contains("bottom = if (currentPage.isDockPage() && !isSteamChatThreadOpen)"))
-        assertFalse(token.contains("SteamDockFabClearance"))
-        assertFalse(store.contains("SteamDockFabClearance"))
-        assertTrue(library.contains(".align(Alignment.TopCenter)"))
+        assertTrue(activity.contains("LocalSteamDockContentClearance provides"))
+        assertFalse(activity.contains("bottom = if (currentPage.isDockPage() && !isSteamChatThreadOpen)"))
+        assertTrue(token.contains("steamDockActionClearance"))
+        assertTrue(store.contains("steamDockActionClearance"))
+        assertTrue(library.contains("LocalSteamDockContentClearance.current"))
         assertFalse(library.contains("onLoadingChange"))
     }
 
@@ -90,11 +90,8 @@ class SteamFloatingDockGuardTest {
 
         assertTrue(activity.contains(".steamDockProgressiveBlur("))
         assertTrue(activity.contains("height = dockBlurHeightPx"))
-        assertTrue(
-            "Dock blur must wrap the full viewport before bottom content clearance",
-            pageModifier.indexOf(".steamDockProgressiveBlur(") in 0 until
-                pageModifier.indexOf(".padding(")
-        )
+        assertTrue(pageModifier.contains(".steamDockProgressiveBlur("))
+        assertFalse(pageModifier.contains(".padding("))
         assertTrue(blur.contains("RuntimeShader(STEAM_DOCK_BLUR_SHADER)"))
         assertTrue(blur.contains("RenderEffect.createRuntimeShaderEffect"))
         assertFalse(blur.contains("surfaceContainer.copy"))
@@ -103,6 +100,19 @@ class SteamFloatingDockGuardTest {
         assertTrue(blur.contains("Build.VERSION_CODES.TIRAMISU"))
         assertTrue(dock.contains("zIndex(1f)"))
         assertFalse(dock.contains("steamDockProgressiveBlur"))
+    }
+
+    @Test
+    fun dockSwipeObservesGesturesBeforeClickableChildrenConsumeThem() {
+        val toolbar = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/navigation/ui/SteamEssentialsFloatingToolbar.kt"
+        ).readText()
+
+        assertTrue(toolbar.contains("awaitEachGesture"))
+        assertTrue(toolbar.contains("requireUnconsumed = false"))
+        assertTrue(toolbar.contains("pass = PointerEventPass.Initial"))
+        assertTrue(toolbar.contains("awaitPointerEvent(pass = PointerEventPass.Initial)"))
+        assertTrue(toolbar.contains("change.consume()"))
     }
 
     private fun projectFile(path: String): File {

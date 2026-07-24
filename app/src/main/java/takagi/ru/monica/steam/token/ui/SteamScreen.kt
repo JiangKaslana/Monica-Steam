@@ -184,6 +184,8 @@ import takagi.ru.monica.steam.market.SteamBatchSellEntry
 import takagi.ru.monica.steam.market.SteamMarketListing
 import takagi.ru.monica.steam.market.SteamWalletInfo
 import takagi.ru.monica.steam.market.ui.SteamBatchSellSheet
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.network.SteamAuthorizedDevice
 import takagi.ru.monica.steam.network.SteamConfirmation
 import takagi.ru.monica.steam.network.SteamPendingLogin
@@ -1834,7 +1836,8 @@ fun SteamScreen(
                                     ?: account
                                 rememberLastSteamQrAccount(freshAccount.id)
                                 scanQr(freshAccount.id)
-                            }
+                            },
+                            modifier = Modifier.steamDockActionClearance()
                         ) {
                             Icon(
                                 imageVector = Icons.Default.QrCodeScanner,
@@ -2648,6 +2651,7 @@ private fun SteamCodeContent(
     onUpdateSortOrders: (List<Pair<Long, Int>>) -> Unit,
     onOpenDetail: (SteamAccount) -> Unit
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val haptic = rememberHapticFeedback()
@@ -2749,7 +2753,8 @@ private fun SteamCodeContent(
                             start = 16.dp,
                             top = 16.dp,
                             end = 16.dp,
-                            bottom = if (selectionMode) 80.dp else 16.dp
+                            bottom = dockContentClearance +
+                                if (selectionMode) 80.dp else 16.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -2855,6 +2860,7 @@ private fun SteamCodeContent(
             SelectionActionBar(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
+                    .steamDockActionClearance()
                     .padding(16.dp),
                 selectedCount = selectedIds.size,
                 onExit = onClearSelection,
@@ -3484,6 +3490,7 @@ private fun SteamConfirmationsContent(
     onClearSelection: () -> Unit,
     onRequestResponse: (List<SteamConfirmation>, Boolean) -> Unit
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     var pendingAction by remember { mutableStateOf<ConfirmationActionRequest?>(null) }
     var showBulkActionDialog by remember { mutableStateOf(false) }
     var showAccountPicker by remember { mutableStateOf(false) }
@@ -3650,7 +3657,9 @@ private fun SteamConfirmationsContent(
                 .fillMaxSize()
                 .offset { IntOffset(0, pullToSearch.currentOffset.toInt()) }
                 .nestedScroll(pullToSearch.nestedScrollConnection),
-            contentPadding = PaddingValues(bottom = if (selectionMode) 80.dp else 16.dp)
+            contentPadding = PaddingValues(
+                bottom = dockContentClearance + if (selectionMode) 80.dp else 16.dp
+            )
         ) {
             item(key = "confirmation_account") {
                 SteamConfirmationAccountCard(
@@ -3759,6 +3768,7 @@ private fun SteamConfirmationsContent(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .steamDockActionClearance()
                     .padding(start = 16.dp, end = 24.dp, bottom = 24.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

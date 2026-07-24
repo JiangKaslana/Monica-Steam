@@ -104,6 +104,7 @@ import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityHistory
 import takagi.ru.monica.steam.library.analytics.ui.SteamGameDistributionCard
 import takagi.ru.monica.steam.library.analytics.ui.SteamPlayHeatMapCard
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
@@ -317,6 +318,7 @@ private fun SteamLibraryOverview(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val settingsManager = remember(context) { SettingsManager(context.applicationContext) }
     val appSettings by settingsManager.settingsFlow.collectAsState(initial = AppSettings())
@@ -328,7 +330,10 @@ private fun SteamLibraryOverview(
     val sections = remember(snapshot, query, filter) {
         buildSteamLibrarySections(snapshot?.games.orEmpty(), query, filter)
     }
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(bottom = 16.dp)) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(bottom = dockContentClearance + 16.dp)
+    ) {
         item {
             SteamAccountHeroSwitcher(
                 accounts = state.accounts,
@@ -750,9 +755,10 @@ private fun SteamAccountDetail(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(bottom = 16.dp)
+        contentPadding = PaddingValues(bottom = dockContentClearance + 16.dp)
     ) {
         item {
             SteamAccountDetailHero(
@@ -1479,6 +1485,7 @@ private fun SteamGameDetail(
     onOpenStore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     var filterName by rememberSaveable(game.appId) {
         mutableStateOf(SteamAchievementFilter.ALL.name)
     }
@@ -1493,7 +1500,10 @@ private fun SteamGameDetail(
             SteamAchievementFilter.INCOMPLETE -> achievements?.incomplete.orEmpty()
         }
     }
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(bottom = dockContentClearance + 24.dp)
+    ) {
         item {
             SteamGameDetailHero(
                 game = game,

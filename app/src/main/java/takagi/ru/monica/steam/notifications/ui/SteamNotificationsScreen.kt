@@ -64,6 +64,7 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.gifts.domain.*
 import takagi.ru.monica.steam.notifications.domain.*
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.ui.gestures.PullToRefresh
 
 private enum class SteamNotificationFilter {
@@ -119,6 +120,7 @@ fun SteamNotificationsScreen(
         !account.steamLoginSecure.isNullOrBlank() || !account.accessToken.isNullOrBlank()
     )
     val context = LocalContext.current
+    val dockContentClearance = LocalSteamDockContentClearance.current
 
     PullToRefresh(
         isRefreshing = state.loading,
@@ -132,7 +134,7 @@ fun SteamNotificationsScreen(
                 start = 16.dp,
                 top = 12.dp,
                 end = 16.dp,
-                bottom = 16.dp
+                bottom = dockContentClearance + 16.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.data.AppSettings
 import takagi.ru.monica.steam.navigation.SteamDockTab
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
 import takagi.ru.monica.steam.foundation.ui.SteamUiScaleOption
 import takagi.ru.monica.steam.foundation.ui.SteamUiScalePreferences
@@ -54,6 +55,7 @@ internal fun MonicaSteamSharedSettingsHost(
     )
     val coroutineScope = rememberCoroutineScope()
     var showUiScaleSheet by remember { mutableStateOf(false) }
+    val dockContentClearance = LocalSteamDockContentClearance.current
 
     SettingsScreen(
         viewModel = settingsViewModel,
@@ -108,7 +110,7 @@ internal fun MonicaSteamSharedSettingsHost(
             context.getString(R.string.steam_ui_scale_description),
             "DPI"
         ),
-        contentBottomPadding = 16.dp,
+        contentBottomPadding = dockContentClearance + 16.dp,
         modifier = modifier
     )
 

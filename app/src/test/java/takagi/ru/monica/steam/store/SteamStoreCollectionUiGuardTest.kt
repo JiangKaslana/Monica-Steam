@@ -20,14 +20,17 @@ class SteamStoreCollectionUiGuardTest {
             "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
         ).readText()
 
-        assertTrue(tokens.contains("CollectionBottomClearance = 16.dp"))
-        assertTrue(activity.contains("SteamDockContentClearance"))
+        assertTrue(tokens.contains("CollectionBottomSpacing = 16.dp"))
+        assertTrue(activity.contains("LocalSteamDockContentClearance provides"))
+        assertTrue(collection.contains("LocalSteamDockContentClearance.current"))
+        assertTrue(collection.contains("steamDockActionClearance"))
         assertEquals(
-            2,
-            Regex("bottom = SteamStoreLayoutTokens\\.CollectionBottomClearance")
+            1,
+            Regex("bottom = SteamStoreLayoutTokens\\.CollectionBottomSpacing")
                 .findAll(collection)
                 .count()
         )
+        assertTrue(collection.contains("bottom = bottomContentPadding"))
     }
 
     @Test

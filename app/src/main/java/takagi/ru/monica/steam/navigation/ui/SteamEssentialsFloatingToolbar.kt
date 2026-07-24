@@ -3,8 +3,9 @@ package takagi.ru.monica.steam.navigation.ui
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,21 +28,35 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.dockSwipeTarget
+import kotlin.math.abs
 
 /**
- * Space reserved by every top-level Steam page for the floating toolbar and
- * the system navigation area. Child screens inherit this from the activity.
+ * Safe space for the final scroll item and controls that must sit above the
+ * floating Dock. Never apply this to the page root: page backgrounds and
+ * scrolling content are intentionally allowed to draw behind the Dock.
  */
 internal val SteamDockContentClearance = 104.dp
+
+/** Zero outside Dock pages and while the full-screen chat thread is open. */
+internal val LocalSteamDockContentClearance = staticCompositionLocalOf { 0.dp }
+
+/** Moves only floating/fixed actions above the Dock without shrinking the page. */
+@Composable
+internal fun Modifier.steamDockActionClearance(extraBottomSpacing: Dp = 0.dp): Modifier =
+    padding(bottom = LocalSteamDockContentClearance.current + extraBottomSpacing)
 
 internal data class SteamToolbarItem(
     val icon: ImageVector,
@@ -61,24 +76,54 @@ internal fun Modifier.steamDockSwipe(
     thresholdPx: Float,
     onSelected: (SteamDockTab) -> Unit
 ): Modifier = pointerInput(order, selected, thresholdPx) {
-    var totalDrag = 0f
-    detectHorizontalDragGestures(
-        onDragStart = { totalDrag = 0f },
-        onDragEnd = {
+    awaitEachGesture {
+        val down = awaitFirstDown(
+            requireUnconsumed = false,
+            pass = PointerEventPass.Initial
+        )
+        val touchSlop = viewConfiguration.touchSlop
+        var horizontalLocked = false
+        var gestureCompleted = false
+        var totalDrag = 0f
+
+        while (true) {
+            val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            val drag = change.position - down.position
+            val horizontalDistance = abs(drag.x)
+            val verticalDistance = abs(drag.y)
+            totalDrag = drag.x
+
+            if (!horizontalLocked) {
+                if (verticalDistance > touchSlop && verticalDistance >= horizontalDistance) {
+                    return@awaitEachGesture
+                }
+                if (horizontalDistance > touchSlop && horizontalDistance > verticalDistance) {
+                    horizontalLocked = true
+                }
+            }
+
+            if (horizontalLocked) {
+                // Initial pass lets the Dock win horizontal drags while the
+                // child IconButtons keep ordinary taps.
+                change.consume()
+            }
+
+            if (!change.pressed) {
+                gestureCompleted = true
+                break
+            }
+        }
+
+        if (horizontalLocked && gestureCompleted) {
             dockSwipeTarget(
                 order = order,
                 selected = selected,
                 totalDragPx = totalDrag,
                 thresholdPx = thresholdPx
             )?.let(onSelected)
-            totalDrag = 0f
-        },
-        onDragCancel = { totalDrag = 0f },
-        onHorizontalDrag = { change, dragAmount ->
-            totalDrag += dragAmount
-            change.consume()
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -107,7 +152,7 @@ internal fun SteamEssentialsFloatingToolbar(
         scrollBehavior = scrollBehavior,
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(
             toolbarContentColor = MaterialTheme.colorScheme.onSurface,
-            toolbarContainerColor = MaterialTheme.colorScheme.primary
+            toolbarContainerColor = Color.Transparent
         )
     ) {
         items.forEachIndexed { index, item ->
@@ -146,12 +191,13 @@ internal fun SteamEssentialsFloatingToolbar(
                     colors = if (isSelected) {
                         IconButtonDefaults.filledIconButtonColors(
                             contentColor = MaterialTheme.colorScheme.primary,
-                            containerColor = MaterialTheme.colorScheme.background
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                .copy(alpha = 0.76f)
                         )
                     } else {
                         IconButtonDefaults.iconButtonColors(
-                            contentColor = MaterialTheme.colorScheme.background,
-                            containerColor = MaterialTheme.colorScheme.primary
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            containerColor = Color.Transparent
                         )
                     }
                 ) {
@@ -166,7 +212,7 @@ internal fun SteamEssentialsFloatingToolbar(
                             tint = if (isSelected) {
                                 MaterialTheme.colorScheme.primary
                             } else {
-                                MaterialTheme.colorScheme.background
+                                MaterialTheme.colorScheme.onSurface
                             },
                             modifier = Modifier.size(24.dp)
                         )

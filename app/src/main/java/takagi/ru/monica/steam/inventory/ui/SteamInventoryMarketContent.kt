@@ -98,6 +98,8 @@ import takagi.ru.monica.steam.market.SteamMarketFees
 import takagi.ru.monica.steam.market.SteamMarketHistoryPoint
 import takagi.ru.monica.steam.market.SteamMarketListing
 import takagi.ru.monica.steam.market.SteamWalletInfo
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.token.presentation.SteamInventoryMarketUiState
 import takagi.ru.monica.steam.token.presentation.SteamMarketActionType
 import takagi.ru.monica.steam.foundation.ui.SteamConfirmationAccountCard
@@ -124,6 +126,7 @@ internal fun SteamInventoryContent(
     onOpenBatchSell: () -> Unit,
     onOpenSell: (SteamInventoryItemStack) -> Unit
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     var showAccountPicker by remember { mutableStateOf(false) }
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 
@@ -232,7 +235,8 @@ internal fun SteamInventoryContent(
                         start = 16.dp,
                         top = 4.dp,
                         end = 16.dp,
-                        bottom = if (selectedStackKeys.isEmpty()) 96.dp else 156.dp
+                        bottom = dockContentClearance +
+                            if (selectedStackKeys.isEmpty()) 96.dp else 156.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -274,6 +278,7 @@ internal fun SteamInventoryContent(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .steamDockActionClearance()
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 shape = RoundedCornerShape(24.dp),
@@ -321,6 +326,7 @@ internal fun SteamMarketListingsContent(
     onClearSelection: () -> Unit,
     onRequestCancelListings: (List<SteamMarketListing>) -> Unit
 ) {
+    val dockContentClearance = LocalSteamDockContentClearance.current
     var showAccountPicker by remember { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
@@ -398,7 +404,8 @@ internal fun SteamMarketListingsContent(
                         start = 16.dp,
                         top = 12.dp,
                         end = 16.dp,
-                        bottom = if (selectedListingIds.isEmpty()) 96.dp else 156.dp
+                        bottom = dockContentClearance +
+                            if (selectedListingIds.isEmpty()) 96.dp else 156.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -439,6 +446,7 @@ internal fun SteamMarketListingsContent(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .steamDockActionClearance()
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 shape = RoundedCornerShape(24.dp),

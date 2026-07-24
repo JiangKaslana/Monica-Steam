@@ -39,7 +39,7 @@ class SteamStandaloneNavigationGuardTest {
         assertTrue(activity.contains("SteamDockPreferences"))
         assertFalse(activity.contains("LinearProgressIndicator"))
         assertFalse(activity.contains("showProgress"))
-        assertTrue(libraryScreen.contains(".align(Alignment.TopCenter)"))
+        assertTrue(libraryScreen.contains("LocalSteamDockContentClearance.current"))
         assertTrue(dock.contains("listOf(STORE, LIBRARY, SETTINGS)"))
         assertTrue(activity.contains("steamDockSwipe("))
         assertTrue(settings.contains("SteamDockOrderScreen("))

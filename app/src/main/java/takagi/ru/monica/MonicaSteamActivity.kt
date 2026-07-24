@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Security
@@ -28,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +51,7 @@ import takagi.ru.monica.steam.navigation.SteamDockPreferences
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.ui.SteamEssentialsFloatingToolbar
 import takagi.ru.monica.steam.navigation.ui.SteamDockContentClearance
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.SteamToolbarItem
 import takagi.ru.monica.steam.navigation.ui.steamDockSwipe
 import takagi.ru.monica.steam.navigation.ui.steamDockProgressiveBlur
@@ -301,36 +302,38 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 contentWindowInsets = WindowInsets(0, 0, 0, 0)
                             ) {
                                 ProvideSteamContentDensity {
-                                    AnimatedContent(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .steamDockProgressiveBlur(
-                                                enabled = currentPage.isDockPage() && !isSteamChatThreadOpen,
-                                                blurRadius = 40f,
-                                                height = dockBlurHeightPx
-                                            )
-                                            .padding(
-                                                bottom = if (currentPage.isDockPage() && !isSteamChatThreadOpen) {
-                                                    SteamDockContentClearance
-                                                } else {
-                                                    0.dp
-                                                }
-                                            ),
-                                        targetState = currentPage,
-                                        label = "monica_steam_page_transition",
-                                        transitionSpec = {
-                                            if (initialState.isDockPage() && targetState.isDockPage()) {
-                                                // Monica Android's SimpleMainScreen swaps top-level tabs
-                                                // directly; only the NavigationBar selection animates.
-                                                EnterTransition.None togetherWith ExitTransition.None
-                                            } else {
-                                                // Every secondary route in Monica Android uses the
-                                                // EasyNotes scale/fade transition for both push and pop.
-                                                easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
-                                            }
+                                    CompositionLocalProvider(
+                                        LocalSteamDockContentClearance provides if (
+                                            currentPage.isDockPage() && !isSteamChatThreadOpen
+                                        ) {
+                                            SteamDockContentClearance
+                                        } else {
+                                            0.dp
                                         }
-                                    ) { page ->
-                                        when (page) {
+                                    ) {
+                                        AnimatedContent(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .steamDockProgressiveBlur(
+                                                    enabled = currentPage.isDockPage() && !isSteamChatThreadOpen,
+                                                    blurRadius = 40f,
+                                                    height = dockBlurHeightPx
+                                                ),
+                                            targetState = currentPage,
+                                            label = "monica_steam_page_transition",
+                                            transitionSpec = {
+                                                if (initialState.isDockPage() && targetState.isDockPage()) {
+                                                    // Monica Android's SimpleMainScreen swaps top-level tabs
+                                                    // directly; only the NavigationBar selection animates.
+                                                    EnterTransition.None togetherWith ExitTransition.None
+                                                } else {
+                                                    // Every secondary route in Monica Android uses the
+                                                    // EasyNotes scale/fade transition for both push and pop.
+                                                    easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+                                                }
+                                            }
+                                        ) { page ->
+                                            when (page) {
                         MonicaSteamPage.SCANNER -> {
                             SteamQrScannerScreen(
                                 initialAccountId = scannerAccountId,
@@ -490,6 +493,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
+                                            }
                                         }
                                     }
                                 }
