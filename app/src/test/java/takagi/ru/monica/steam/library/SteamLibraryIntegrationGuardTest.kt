@@ -40,20 +40,18 @@ class SteamLibraryIntegrationGuardTest {
     }
 
     @Test
-    fun dockProgressIsReportedOnlyFromLibraryOverview() {
+    fun libraryOverviewOwnsProgressIndicator() {
         val screen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/ui/SteamLibraryScreen.kt"
         ).readText()
-        val loadingEffect = screen
-            .substringAfter("LaunchedEffect(state.loadingLibrary, libraryDestination)")
-            .substringBefore("AnimatedContent(")
+        val overview = screen
+            .substringAfter("SteamLibraryDestination.Overview ->")
+            .substringBefore("if (showAccountSheet")
 
-        assertTrue(
-            loadingEffect.contains(
-                "state.loadingLibrary && libraryDestination == " +
-                    "SteamLibraryDestination.Overview"
-            )
-        )
+        assertTrue(overview.contains("Column("))
+        assertTrue(overview.contains("LinearProgressIndicator("))
+        assertTrue(overview.contains("Spacer(Modifier.height(8.dp))"))
+        assertFalse(screen.contains("onLoadingChange"))
     }
 
     @Test

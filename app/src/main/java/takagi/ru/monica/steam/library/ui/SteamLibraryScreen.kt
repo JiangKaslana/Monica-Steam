@@ -256,25 +256,29 @@ fun SteamLibraryScreen(
                         )
                     }
                 }
-                SteamLibraryDestination.Overview -> Box(
-                    modifier = Modifier.fillMaxSize().padding(padding)
+                SteamLibraryDestination.Overview -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
                 ) {
+                    if (state.loadingLibrary) {
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
                     SteamLibraryOverview(
                         state = state,
                         query = query,
                         onOpenGame = viewModel::openGame,
                         onOpenAccountDetails = { showAccountDetails = true },
                         onRetry = viewModel::refreshLibrary,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
                     )
-                    if (state.loadingLibrary) {
-                        LinearProgressIndicator(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                        )
-                    }
                 }
             }
         }
