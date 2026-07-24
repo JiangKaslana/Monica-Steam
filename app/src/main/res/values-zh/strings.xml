@@ -4354,6 +4354,11 @@
     <string name="steam_store_buy">查看购买选项</string>
     <string name="steam_store_about">关于此游戏</string>
     <string name="steam_store_screenshots">游戏截图</string>
+    <string name="steam_store_screenshot_description">游戏截图 %1$d</string>
+    <string name="steam_store_screenshot_close">关闭截图查看器</string>
+    <string name="steam_store_screenshot_previous">上一张截图</string>
+    <string name="steam_store_screenshot_next">下一张截图</string>
+    <string name="steam_store_screenshot_position">%1$d / %2$d</string>
     <string name="steam_store_information">游戏信息</string>
     <string name="steam_store_developer">开发商</string>
     <string name="steam_store_publisher">发行商</string>
@@ -4515,7 +4520,7 @@
     <string name="steam_store_reviews_title">玩家评价</string>
     <string name="steam_store_reviews_overall">总体评价</string>
     <string name="steam_store_reviews_recent">最近 30 天</string>
-    <string name="steam_store_reviews_view_all">查看全部</string>
+    <string name="steam_store_reviews_show_more">查看更多</string>
     <string name="steam_store_reviews_load_more">加载更多评价</string>
     <string name="steam_store_reviews_loading_more">正在加载评价</string>
     <string name="steam_store_review_recommended">推荐</string>

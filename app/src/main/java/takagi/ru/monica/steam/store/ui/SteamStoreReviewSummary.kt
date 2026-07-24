@@ -12,7 +12,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,7 +27,6 @@ import takagi.ru.monica.steam.store.domain.SteamStoreReviews
 @Composable
 internal fun SteamStoreReviewSummarySection(
     reviews: SteamStoreReviews,
-    onOpenAll: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val summaries = listOfNotNull(
@@ -38,21 +36,11 @@ internal fun SteamStoreReviewSummarySection(
     if (summaries.isEmpty()) return
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = stringResource(R.string.steam_store_reviews_title),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 2.dp, top = 10.dp)
-            )
-            onOpenAll?.let { action ->
-                TextButton(onClick = action) {
-                    Text(stringResource(R.string.steam_store_reviews_view_all))
-                }
-            }
-        }
+        Text(
+            text = stringResource(R.string.steam_store_reviews_title),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 2.dp, top = 10.dp)
+        )
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),

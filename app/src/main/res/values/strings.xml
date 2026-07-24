@@ -4524,6 +4524,11 @@
     <string name="steam_store_buy">View purchase options</string>
     <string name="steam_store_about">About this game</string>
     <string name="steam_store_screenshots">Screenshots</string>
+    <string name="steam_store_screenshot_description">Game screenshot %1$d</string>
+    <string name="steam_store_screenshot_close">Close screenshot viewer</string>
+    <string name="steam_store_screenshot_previous">Previous screenshot</string>
+    <string name="steam_store_screenshot_next">Next screenshot</string>
+    <string name="steam_store_screenshot_position">%1$d / %2$d</string>
     <string name="steam_store_information">Game information</string>
     <string name="steam_store_developer">Developer</string>
     <string name="steam_store_publisher">Publisher</string>
@@ -4685,7 +4690,7 @@
     <string name="steam_store_reviews_title">Player reviews</string>
     <string name="steam_store_reviews_overall">Overall</string>
     <string name="steam_store_reviews_recent">Recent 30 days</string>
-    <string name="steam_store_reviews_view_all">View all</string>
+    <string name="steam_store_reviews_show_more">More reviews</string>
     <string name="steam_store_reviews_load_more">Load more reviews</string>
     <string name="steam_store_reviews_loading_more">Loading reviews</string>
     <string name="steam_store_review_recommended">Recommended</string>

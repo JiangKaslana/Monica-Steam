@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -68,6 +70,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -752,6 +755,10 @@ private fun SteamStoreDetailContent(
     modifier: Modifier
 ) {
     val heroBackgroundUrl = detail.backgroundImageUrl.ifBlank { detail.headerImageUrl }
+    val aboutText = detail.about.ifBlank { detail.shortDescription }
+    var selectedScreenshotIndex by rememberSaveable(detail.appId) {
+        mutableStateOf<Int?>(null)
+    }
     LazyColumn(
         modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
@@ -807,13 +814,15 @@ private fun SteamStoreDetailContent(
                         .padding(horizontal = 18.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        detail.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    SelectionContainer {
+                        Text(
+                            detail.name,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Surface(
                         onClick = onOpenRegionalPrices,
                         modifier = Modifier
@@ -930,11 +939,11 @@ private fun SteamStoreDetailContent(
                 }
             }
         }
-        if (detail.shortDescription.isNotBlank()) {
+        if (aboutText.isNotBlank()) {
             item {
                 DetailTextSection(
                     stringResource(R.string.steam_store_about),
-                    detail.shortDescription
+                    aboutText
                 )
             }
         }
@@ -950,14 +959,43 @@ private fun SteamStoreDetailContent(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(detail.screenshots) {
-                            SteamStoreImage(
-                                it,
-                                Modifier
+                        itemsIndexed(detail.screenshots) { index, screenshot ->
+                            Card(
+                                onClick = { selectedScreenshotIndex = index },
+                                modifier = Modifier
                                     .width(280.dp)
-                                    .aspectRatio(16f / 9f)
-                                    .clip(RoundedCornerShape(16.dp))
-                            )
+                                    .aspectRatio(16f / 9f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                )
+                            ) {
+                                Box(Modifier.fillMaxSize()) {
+                                    SteamStoreImage(
+                                        url = screenshot,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentDescription = stringResource(
+                                            R.string.steam_store_screenshot_description,
+                                            index + 1
+                                        )
+                                    )
+                                    Surface(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .padding(8.dp),
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                        tonalElevation = 2.dp
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ZoomIn,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(8.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1001,6 +1039,14 @@ private fun SteamStoreDetailContent(
                 }
             }
         }
+    }
+    selectedScreenshotIndex?.let { initialIndex ->
+        SteamStoreScreenshotViewer(
+            gameName = detail.name,
+            screenshots = detail.screenshots,
+            initialIndex = initialIndex,
+            onDismiss = { selectedScreenshotIndex = null }
+        )
     }
     if (showRegionalPrices) {
         SteamStoreRegionalPriceSheet(
@@ -1394,8 +1440,38 @@ private fun formatStoreRegionalPrice(currency: String, minor: Long): String {
     return formatSteamPrice(cents, currency)
 }
 
-@Composable private fun DetailTextSection(title: String, text: String) = Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text(title, style = MaterialTheme.typography.titleLarge); Text(text, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-@Composable private fun DetailLine(label: String, value: String) { if (value.isNotBlank()) Row(Modifier.fillMaxWidth()) { Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(92.dp)); Text(value, modifier = Modifier.weight(1f)) } }
+@Composable
+private fun DetailTextSection(title: String, text: String) {
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        SelectionContainer {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailLine(label: String, value: String) {
+    if (value.isNotBlank()) {
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                text = label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(92.dp)
+            )
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+                Text(value)
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

@@ -57,10 +57,7 @@ internal fun SteamStoreReviewsSection(
     )
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SteamStoreReviewSummarySection(
-            reviews = reviews,
-            onOpenAll = if (canExpand) ({ expanded = true }) else null
-        )
+        SteamStoreReviewSummarySection(reviews = reviews)
         visibleReviews.forEach { review ->
             SteamStoreReviewCard(review = review, showFullBody = expanded)
         }
@@ -78,9 +75,20 @@ internal fun SteamStoreReviewsSection(
                 )
             }
         }
-        if (expanded && reviews.nextCursor != null) {
+        if (canExpand || (expanded && reviews.nextCursor != null)) {
             OutlinedButton(
-                onClick = onLoadMore,
+                onClick = {
+                    if (canExpand) {
+                        expanded = true
+                        if (reviews.items.size <= REVIEW_PREVIEW_COUNT &&
+                            reviews.nextCursor != null
+                        ) {
+                            onLoadMore()
+                        }
+                    } else {
+                        onLoadMore()
+                    }
+                },
                 enabled = !loadingMore,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
@@ -92,11 +100,11 @@ internal fun SteamStoreReviewsSection(
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
-                    stringResource(
-                        if (loadingMore) {
-                            R.string.steam_store_reviews_loading_more
-                        } else {
-                            R.string.steam_store_reviews_load_more
+                    text = stringResource(
+                        when {
+                            loadingMore -> R.string.steam_store_reviews_loading_more
+                            canExpand -> R.string.steam_store_reviews_show_more
+                            else -> R.string.steam_store_reviews_load_more
                         }
                     )
                 )
