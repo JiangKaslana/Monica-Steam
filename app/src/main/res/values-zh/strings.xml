@@ -4150,6 +4150,7 @@
     <string name="steam_library_regional_cny_price">换算人民币</string>
     <string name="steam_library_change_filter">切换游戏筛选</string>
     <string name="steam_library_open_game_details">打开游戏详情</string>
+    <string name="steam_library_open_store">商城页打开</string>
     <string name="steam_backup_title">maFile 导入与导出</string>
     <string name="steam_backup_description">以可迁移的 maFile ZIP 导入或导出 Steam Guard 账号。</string>
     <string name="steam_mafile_transfer_title">maFile 导入与导出</string>

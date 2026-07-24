@@ -4320,6 +4320,7 @@
     <string name="steam_library_regional_cny_price">CNY converted</string>
     <string name="steam_library_change_filter">Change game filter</string>
     <string name="steam_library_open_game_details">Open game details</string>
+    <string name="steam_library_open_store">Open in store</string>
     <string name="steam_backup_title">maFile import and export</string>
     <string name="steam_backup_description">Import or export Steam Guard accounts as a portable maFile ZIP.</string>
     <string name="steam_mafile_transfer_title">maFile import and export</string>

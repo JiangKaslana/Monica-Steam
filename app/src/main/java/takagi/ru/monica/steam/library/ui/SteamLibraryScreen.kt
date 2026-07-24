@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
@@ -125,7 +126,8 @@ private sealed interface SteamLibraryDestination {
 fun SteamLibraryScreen(
     onNavigateBack: () -> Unit,
     showNavigationBack: Boolean = true,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenStoreApp: (Int) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: SteamLibraryViewModel = viewModel(
@@ -227,6 +229,7 @@ fun SteamLibraryScreen(
                                 showRegionalPriceSheet = true
                                 viewModel.loadRegionalPrices(game)
                             },
+                            onOpenStore = { onOpenStoreApp(game.appId) },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(padding)
@@ -1473,6 +1476,7 @@ private fun SteamGameDetail(
     onRetry: () -> Unit,
     onNavigateBack: () -> Unit,
     onOpenRegionalPrices: () -> Unit,
+    onOpenStore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var filterName by rememberSaveable(game.appId) {
@@ -1497,6 +1501,22 @@ private fun SteamGameDetail(
                 onNavigateBack = onNavigateBack,
                 onOpenRegionalPrices = onOpenRegionalPrices
             )
+        }
+        item {
+            FilledTonalButton(
+                onClick = onOpenStore,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .heightIn(min = 48.dp)
+            ) {
+                Icon(
+                    Icons.Default.Storefront,
+                    contentDescription = null
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.steam_library_open_store))
+            }
         }
         item {
             if (loading) {

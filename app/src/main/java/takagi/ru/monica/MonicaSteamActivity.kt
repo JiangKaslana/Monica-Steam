@@ -382,6 +382,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             SteamLibraryScreen(
                                 onNavigateBack = { navigateBack() },
                                 showNavigationBack = false,
+                                onOpenStoreApp = { appId ->
+                                    pendingStoreAppId = appId
+                                    navigateTo(MonicaSteamPage.STORE)
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
