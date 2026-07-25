@@ -88,6 +88,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
+import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
+import takagi.ru.monica.steam.foundation.ui.SteamPageOverflowMenu
 import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.store.domain.*
@@ -277,15 +279,11 @@ fun SteamStoreScreen(
                                     contentDescription = stringResource(R.string.steam_store_search)
                                 )
                             }
-                            IconButton(
-                                onClick = { viewModel.loadHome(force = true) },
-                                enabled = !state.loadingHome
-                            ) {
-                                Icon(
-                                    Icons.Default.Refresh,
-                                    contentDescription = stringResource(R.string.refresh)
-                                )
-                            }
+                            SteamPageOverflowMenu(
+                                refreshing = state.loadingHome,
+                                onRefresh = { viewModel.loadHome(force = true) },
+                                onOpenSettings = onOpenSettings
+                            )
                         }
                     )
                 },
@@ -310,11 +308,16 @@ fun SteamStoreScreen(
                     )
                 }
             ) { padding ->
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentPadding = PaddingValues(bottom = dockContentClearance + 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                SteamExpressivePullToRefresh(
+                    refreshing = state.loadingHome,
+                    onRefresh = { viewModel.loadHome(force = true) },
+                    modifier = Modifier.fillMaxSize().padding(padding)
                 ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = dockContentClearance + 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                     if (state.searching) {
                         item {
                             androidx.compose.material3.LinearProgressIndicator(
@@ -379,6 +382,7 @@ fun SteamStoreScreen(
                                 }
                             }
                         }
+                    }
                     }
                 }
             }
