@@ -39,6 +39,7 @@ data class SteamStoreUiState(
     val home: SteamStoreHome? = null,
     val homeFromCache: Boolean = false,
     val loadingHome: Boolean = false,
+    val browseFilter: SteamStoreBrowseFilter = SteamStoreBrowseFilter.ALL,
     val query: String = "",
     val searchResults: List<SteamStoreItem> = emptyList(),
     val searching: Boolean = false,
@@ -704,6 +705,14 @@ class SteamStoreViewModel(
         accountSourceRepository.refreshCurrentSource()
     }
 
+    fun selectBrowseFilter(filter: SteamStoreBrowseFilter) {
+        _uiState.value = _uiState.value.copy(browseFilter = filter)
+    }
+
+    fun openPointsShop() {
+        openStoreWeb(POINTS_SHOP_URL)
+    }
+
     private fun resetStoreForAccount(accountId: Long?) {
         searchDebounceJob?.cancel()
         searchRequestJob?.cancel()
@@ -714,6 +723,7 @@ class SteamStoreViewModel(
             home = null,
             homeFromCache = false,
             loadingHome = false,
+            browseFilter = SteamStoreBrowseFilter.ALL,
             query = "",
             searchResults = emptyList(),
             searching = false,
@@ -882,6 +892,7 @@ class SteamStoreViewModel(
     }
 
     companion object {
+        private const val POINTS_SHOP_URL = "https://store.steampowered.com/points/shop/"
         internal val REGIONAL_PRICE_COUNTRY_CODES =
             listOf(
                 "CN", "US", "JP", "KR", "HK", "TW", "DE", "GB", "BR", "RU",

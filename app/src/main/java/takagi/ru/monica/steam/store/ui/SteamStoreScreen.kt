@@ -263,6 +263,11 @@ fun SteamStoreScreen(
                             }
                         } else null,
                         actions = {
+                            SteamStoreBrowseMenu(
+                                selectedFilter = state.browseFilter,
+                                onSelectFilter = viewModel::selectBrowseFilter,
+                                onOpenPointsShop = viewModel::openPointsShop
+                            )
                             IconButton(
                                 onClick = { showAccounts = true },
                                 enabled = state.accounts.isNotEmpty() ||
@@ -348,38 +353,13 @@ fun SteamStoreScreen(
                         if (state.homeFromCache) item { CachedNotice() }
                         if (state.loadingHome && state.home == null) item { StoreHeroSkeleton() }
                         state.home?.let { home ->
-                            home.specials.firstOrNull()?.let { featured ->
-                                item { StoreFeaturedHero(featured) { viewModel.openDetail(featured.appId) } }
-                            }
                             item {
-                                StoreSection(
-                                    stringResource(R.string.steam_store_specials),
-                                    home.specials,
-                                    viewModel::openDetail
+                                SteamStoreDiscoveryContent(
+                                    home = home,
+                                    selectedFilter = state.browseFilter,
+                                    onOpenGame = viewModel::openDetail,
+                                    onOpenEvent = viewModel::openStoreWeb
                                 )
-                            }
-                            item {
-                                StoreSection(
-                                    stringResource(R.string.steam_store_top_sellers),
-                                    home.topSellers,
-                                    viewModel::openDetail
-                                )
-                            }
-                            item {
-                                StoreSection(
-                                    stringResource(R.string.steam_store_new_releases),
-                                    home.newReleases,
-                                    viewModel::openDetail
-                                )
-                            }
-                            if (home.comingSoon.isNotEmpty()) {
-                                item {
-                                    StoreSection(
-                                        stringResource(R.string.steam_store_coming_soon),
-                                        home.comingSoon,
-                                        viewModel::openDetail
-                                    )
-                                }
                             }
                         }
                     }
@@ -494,7 +474,7 @@ private fun SteamStoreDetailUnavailableContent(
 }
 
 @Composable
-private fun StoreFeaturedHero(game: SteamStoreItem, onClick: () -> Unit) {
+internal fun StoreFeaturedHero(game: SteamStoreItem, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier
@@ -577,7 +557,7 @@ private fun StoreHeroSkeleton() {
 }
 
 @Composable
-private fun StoreSection(title: String, games: List<SteamStoreItem>, onOpen: (Int) -> Unit) {
+internal fun StoreSection(title: String, games: List<SteamStoreItem>, onOpen: (Int) -> Unit) {
     if (games.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(

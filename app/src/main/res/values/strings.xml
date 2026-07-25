@@ -4517,6 +4517,12 @@
     <string name="steam_store_top_sellers">Top sellers</string>
     <string name="steam_store_new_releases">New releases</string>
     <string name="steam_store_coming_soon">Coming soon</string>
+    <string name="steam_store_browse">Browse store</string>
+    <string name="steam_store_browse_all">Featured and recommended</string>
+    <string name="steam_store_events">Events and festivals</string>
+    <string name="steam_store_free_games">Free to play</string>
+    <string name="steam_store_points_shop">Points Shop</string>
+    <string name="steam_store_filter_empty">No matching store items are available right now.</string>
     <string name="steam_store_retry">Retry</string>
     <string name="steam_store_cached">Showing saved data</string>
     <string name="steam_store_empty">No matching games found</string>

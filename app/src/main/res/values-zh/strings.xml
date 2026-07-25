@@ -4347,6 +4347,12 @@
     <string name="steam_store_top_sellers">热销商品</string>
     <string name="steam_store_new_releases">新品</string>
     <string name="steam_store_coming_soon">即将推出</string>
+    <string name="steam_store_browse">浏览商店</string>
+    <string name="steam_store_browse_all">精选和推荐</string>
+    <string name="steam_store_events">活动与游戏节</string>
+    <string name="steam_store_free_games">免费游戏</string>
+    <string name="steam_store_points_shop">点数商店</string>
+    <string name="steam_store_filter_empty">当前没有符合此筛选条件的商店内容。</string>
     <string name="steam_store_retry">重试</string>
     <string name="steam_store_cached">正在显示已缓存的数据</string>
     <string name="steam_store_empty">没有找到匹配的游戏</string>

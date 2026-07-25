@@ -25,6 +25,38 @@ object SteamStoreParser {
         )
     }
 
+    fun parseDiscoveryEvents(payload: String): List<SteamStoreEvent> {
+        val events = linkedMapOf<String, SteamStoreEvent>()
+        SALE_URL.findAll(payload).forEach { match ->
+            val canonicalUrl = match.value.substringBefore('?').replace("\\/", "/")
+            val start = (match.range.first - EVENT_CONTEXT_RADIUS).coerceAtLeast(0)
+            val end = (match.range.last + EVENT_CONTEXT_RADIUS).coerceAtMost(payload.lastIndex)
+            val context = payload.substring(start, end + 1)
+            val current = events[canonicalUrl]
+            val ariaTitle = ARIA_LABEL.findAll(context).lastOrNull()?.groupValues?.get(1)
+            val altTitle = IMAGE_ALT.findAll(context).lastOrNull()?.groupValues?.get(1)
+            val image = EVENT_IMAGE.findAll(context).lastOrNull()?.groupValues?.get(1).orEmpty()
+            val badge = EVENT_BADGE.findAll(context).lastOrNull()?.groupValues?.get(1).orEmpty()
+            val title = decodeHtml(ariaTitle ?: altTitle.orEmpty()).trim()
+            val candidate = SteamStoreEvent(
+                title = title,
+                url = canonicalUrl,
+                imageUrl = decodeHtml(image).replace("\\/", "/"),
+                badge = decodeHtml(stripHtml(badge)).trim()
+            )
+            events[canonicalUrl] = SteamStoreEvent(
+                title = current?.title?.takeIf(String::isNotBlank)
+                    ?: candidate.title.takeIf(String::isNotBlank)
+                    ?: eventTitleFromUrl(canonicalUrl),
+                url = canonicalUrl,
+                imageUrl = candidate.imageUrl.takeIf(String::isNotBlank)
+                    ?: current?.imageUrl.orEmpty(),
+                badge = candidate.badge.takeIf(String::isNotBlank) ?: current?.badge.orEmpty()
+            )
+        }
+        return events.values.filter { it.url.startsWith(STEAM_SALE_BASE) }.take(MAX_EVENTS)
+    }
+
     fun parseSearch(payload: String): List<SteamStoreItem> {
         val root = json.parseToJsonElement(payload).jsonObject
         return root.array("items").mapNotNull { element ->
@@ -125,6 +157,34 @@ object SteamStoreParser {
         .replace("&gt;", ">")
         .replace(Regex("\\n{3,}"), "\n\n")
         .trim()
+
+    private fun decodeHtml(value: String): String = value
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+
+    private fun eventTitleFromUrl(url: String): String = url.substringAfterLast('/')
+        .replace(Regex("(?<=[a-z])(?=[A-Z])"), " ")
+
+    private val SALE_URL = Regex(
+        "https:(?:\\\\/\\\\/|//)store\\.steampowered\\.com(?:\\\\/|/)sale(?:\\\\/|/)[^\\\"'&< ]+",
+        RegexOption.IGNORE_CASE
+    )
+    private val ARIA_LABEL = Regex("aria-label=\"([^\"]+)\"", RegexOption.IGNORE_CASE)
+    private val IMAGE_ALT = Regex("<img[^>]+alt=\"([^\"]+)\"", RegexOption.IGNORE_CASE)
+    private val EVENT_IMAGE = Regex(
+        "(?:data-image-url|src)=\"(https:[^\"]+)\"",
+        RegexOption.IGNORE_CASE
+    )
+    private val EVENT_BADGE = Regex(
+        "<div[^>]+class=\"[^\"]*home_capsule_banner[^\"]*\"[^>]*>(.*?)</div>",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+    private const val EVENT_CONTEXT_RADIUS = 2_000
+    private const val MAX_EVENTS = 12
+    private const val STEAM_SALE_BASE = "https://store.steampowered.com/sale/"
 
     private fun calculateDiscount(initial: Int?, final: Int?): Int {
         if (initial == null || final == null || initial <= 0 || final >= initial) return 0

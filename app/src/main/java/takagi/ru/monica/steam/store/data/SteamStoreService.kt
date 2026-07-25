@@ -56,13 +56,29 @@ class SteamStoreService(
         accessToken: String? = null,
         language: String = "schinese"
     ): SteamStoreHome {
+        val countryCode = accountCountryOrFail(steamLoginSecure, accessToken)
         val body = get(
             path = "/api/featuredcategories",
             query = mapOf("l" to language),
             steamLoginSecure = steamLoginSecure,
-            countryCode = accountCountryOrFail(steamLoginSecure, accessToken)
+            countryCode = countryCode
         )
-        return SteamStoreParser.parseFeatured(body)
+        val featured = SteamStoreParser.parseFeatured(body)
+        val events = runCatching {
+            SteamStoreParser.parseDiscoveryEvents(
+                get(
+                    path = "/",
+                    query = mapOf("l" to language),
+                    steamLoginSecure = steamLoginSecure,
+                    countryCode = countryCode
+                )
+            )
+        }.onFailure { error ->
+            SteamDiagLogger.append(
+                "store_discovery events_failed type=${error.javaClass.simpleName}"
+            )
+        }.getOrDefault(emptyList())
+        return featured.copy(events = events)
     }
 
     suspend fun search(

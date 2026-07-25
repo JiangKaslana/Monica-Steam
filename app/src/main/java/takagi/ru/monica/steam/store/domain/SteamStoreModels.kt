@@ -32,8 +32,57 @@ data class SteamStoreHome(
     val topSellers: List<SteamStoreItem> = emptyList(),
     val newReleases: List<SteamStoreItem> = emptyList(),
     val comingSoon: List<SteamStoreItem> = emptyList(),
+    val events: List<SteamStoreEvent> = emptyList(),
     val fetchedAt: Long = System.currentTimeMillis()
 )
+
+@Serializable
+data class SteamStoreEvent(
+    val title: String,
+    val url: String,
+    val imageUrl: String = "",
+    val badge: String = ""
+)
+
+enum class SteamStoreBrowseFilter {
+    ALL,
+    SPECIALS,
+    TOP_SELLERS,
+    NEW_RELEASES,
+    COMING_SOON,
+    FREE
+}
+
+data class SteamStoreCollection(
+    val id: String,
+    val filter: SteamStoreBrowseFilter,
+    val items: List<SteamStoreItem>
+)
+
+fun visibleStoreCollections(
+    home: SteamStoreHome,
+    filter: SteamStoreBrowseFilter
+): List<SteamStoreCollection> {
+    val collections = listOf(
+        SteamStoreCollection("specials", SteamStoreBrowseFilter.SPECIALS, home.specials),
+        SteamStoreCollection("top_sellers", SteamStoreBrowseFilter.TOP_SELLERS, home.topSellers),
+        SteamStoreCollection("new_releases", SteamStoreBrowseFilter.NEW_RELEASES, home.newReleases),
+        SteamStoreCollection("coming_soon", SteamStoreBrowseFilter.COMING_SOON, home.comingSoon)
+    )
+    return when (filter) {
+        SteamStoreBrowseFilter.ALL -> collections.filter { it.items.isNotEmpty() }
+        SteamStoreBrowseFilter.FREE -> listOf(
+            SteamStoreCollection(
+                id = "free",
+                filter = SteamStoreBrowseFilter.FREE,
+                items = collections.flatMap(SteamStoreCollection::items)
+                    .filter(SteamStoreItem::isFree)
+                    .distinctBy(SteamStoreItem::appId)
+            )
+        ).filter { it.items.isNotEmpty() }
+        else -> collections.filter { it.filter == filter && it.items.isNotEmpty() }
+    }
+}
 
 @Serializable
 data class SteamStoreDetail(
