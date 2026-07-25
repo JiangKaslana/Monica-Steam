@@ -4578,4 +4578,15 @@
     <string name="steam_chat_attachment_sending">正在发送</string>
     <string name="steam_chat_attachment_select">选择附件</string>
     <string name="steam_chat_close">关闭</string>
+    <string name="steam_chat_action_copy">复制</string>
+    <string name="steam_chat_action_report">举报</string>
+    <string name="steam_chat_report_title">向 Steam 举报这条消息？</string>
+    <string name="steam_chat_report_harassment">骚扰</string>
+    <string name="steam_chat_report_scam">诈骗或盗号</string>
+    <string name="steam_chat_report_spam">垃圾消息</string>
+    <string name="steam_chat_report_other">其他</string>
+    <string name="steam_chat_report_confirm">确认举报</string>
+    <string name="steam_chat_reaction_added">已添加回应</string>
+    <string name="steam_chat_reported">已向 Steam 举报消息</string>
+    <string name="steam_chat_action_failed">Steam 未能完成此操作</string>
 </resources>

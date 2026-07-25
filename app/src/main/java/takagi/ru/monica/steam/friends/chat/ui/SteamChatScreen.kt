@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -34,6 +35,8 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatViewModel
+import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionResult
+import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionViewModel
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaViewModel
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.ui.components.ExpressiveTopBar
@@ -66,6 +69,9 @@ fun SteamChatScreen(
     val richMediaViewModel: SteamChatRichMediaViewModel = viewModel(
         factory = remember(context) { SteamChatRichMediaViewModel.factory(context) }
     )
+    val messageActionViewModel: SteamChatMessageActionViewModel = viewModel(
+        factory = remember { SteamChatMessageActionViewModel.factory() }
+    )
     val friendsState by friendsViewModel.uiState.collectAsState()
     val chatState by chatViewModel.uiState.collectAsState()
     val richMediaState by richMediaViewModel.uiState.collectAsState()
@@ -89,7 +95,19 @@ fun SteamChatScreen(
     ) {
         chatViewModel.selectAccount(selectedAccount)
         richMediaViewModel.selectAccount(selectedAccount)
+        messageActionViewModel.selectAccount(selectedAccount)
         friendsViewModel.selectAccount(selectedAccount)
+    }
+
+    LaunchedEffect(messageActionViewModel) {
+        messageActionViewModel.results.collect { result ->
+            val message = when (result) {
+                SteamChatMessageActionResult.REACTION_ADDED -> R.string.steam_chat_reaction_added
+                SteamChatMessageActionResult.MESSAGE_REPORTED -> R.string.steam_chat_reported
+                SteamChatMessageActionResult.FAILED -> R.string.steam_chat_action_failed
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
     }
 
     LaunchedEffect(chatState.selectedPartnerSteamId) {
@@ -257,6 +275,12 @@ fun SteamChatScreen(
                 onLoadOlder = chatViewModel::loadOlder,
                 onSend = chatViewModel::sendMessage,
                 onRetryMessage = chatViewModel::retryMessage,
+                onReact = { message, emoticon ->
+                    messageActionViewModel.react(partnerSteamId, message, emoticon)
+                },
+                onReport = { message, reason ->
+                    messageActionViewModel.report(partnerSteamId, message, reason)
+                },
                 onAttachmentSelected = richMediaViewModel::selectAttachment,
                 onAttachmentSpoilerChanged = richMediaViewModel::setAttachmentSpoiler,
                 onUploadAttachment = richMediaViewModel::uploadAttachment,

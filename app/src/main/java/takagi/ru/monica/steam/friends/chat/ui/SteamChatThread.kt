@@ -32,6 +32,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -42,6 +47,9 @@ import java.text.DateFormat
 import java.util.Date
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
+import takagi.ru.monica.steam.friends.chat.actions.domain.SteamChatReportReason
+import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatMessageActionMenu
+import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatReportDialog
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaUiState
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
@@ -57,6 +65,8 @@ internal fun SteamChatThread(
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
     onRetryMessage: (String) -> Unit,
+    onReact: (takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage, String) -> Unit,
+    onReport: (takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage, SteamChatReportReason) -> Unit,
     onAttachmentSelected: (String) -> Unit,
     onAttachmentSpoilerChanged: (Boolean) -> Unit,
     onUploadAttachment: () -> Unit,
@@ -66,6 +76,10 @@ internal fun SteamChatThread(
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
+    val clipboard = LocalClipboardManager.current
+    var selectedMessageId by remember { mutableStateOf<String?>(null) }
+    var reportMessage by remember { mutableStateOf<takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage?>(null) }
+    var reportReason by remember { mutableStateOf(SteamChatReportReason.HARASSMENT) }
     val listState = rememberLazyListState()
     val shouldLoadOlder by remember(listState, state.thread?.moreAvailable, state.loadingOlder) {
         derivedStateOf {
@@ -140,16 +154,38 @@ internal fun SteamChatThread(
                             if (showDate) {
                                 ChatDateSeparator(timestampSeconds = message.timestamp)
                             }
-                            SteamChatMessageBubble(
-                                message = message,
-                                accountSteamId = state.accountSteamId,
-                                groupedWithPrevious = previous?.senderSteamId == message.senderSteamId &&
-                                    sameChatDay(previous.timestamp, message.timestamp),
-                                groupedWithNext = next?.senderSteamId == message.senderSteamId &&
-                                    sameChatDay(next.timestamp, message.timestamp),
-                                onRetry = { onRetryMessage(message.clientMessageId) },
-                                modifier = Modifier.animateItem()
-                            )
+                            val serverConfirmed = message.timestamp > 0L &&
+                                message.ordinal != Int.MAX_VALUE
+                            Box(modifier = Modifier.animateItem()) {
+                                SteamChatMessageBubble(
+                                    message = message,
+                                    accountSteamId = state.accountSteamId,
+                                    groupedWithPrevious = previous?.senderSteamId == message.senderSteamId &&
+                                        sameChatDay(previous.timestamp, message.timestamp),
+                                    groupedWithNext = next?.senderSteamId == message.senderSteamId &&
+                                        sameChatDay(next.timestamp, message.timestamp),
+                                    onRetry = { onRetryMessage(message.clientMessageId) },
+                                    onLongClick = { selectedMessageId = message.stableId }
+                                )
+                                SteamChatMessageActionMenu(
+                                    expanded = selectedMessageId == message.stableId,
+                                    emoticons = if (serverConfirmed) richMediaState.emoticons else emptyList(),
+                                    canReport = serverConfirmed && !message.isOutgoing(state.accountSteamId),
+                                    onDismiss = { selectedMessageId = null },
+                                    onReact = {
+                                        selectedMessageId = null
+                                        onReact(message, it.name)
+                                    },
+                                    onCopy = {
+                                        clipboard.setText(AnnotatedString(message.body))
+                                        selectedMessageId = null
+                                    },
+                                    onReport = {
+                                        selectedMessageId = null
+                                        reportMessage = message
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -164,6 +200,17 @@ internal fun SteamChatThread(
             onClearAttachment = onClearAttachment,
             onClearAttachmentFailure = onClearAttachmentFailure,
             onRefreshCatalogs = onRefreshCatalogs
+        )
+    }
+    reportMessage?.let { message ->
+        SteamChatReportDialog(
+            selectedReason = reportReason,
+            onReasonSelected = { reportReason = it },
+            onConfirm = {
+                reportMessage = null
+                onReport(message, reportReason)
+            },
+            onDismiss = { reportMessage = null }
         )
     }
 }

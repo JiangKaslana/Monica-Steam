@@ -4750,4 +4750,15 @@
     <string name="steam_chat_attachment_sending">Sending</string>
     <string name="steam_chat_attachment_select">Choose attachment</string>
     <string name="steam_chat_close">Close</string>
+    <string name="steam_chat_action_copy">Copy</string>
+    <string name="steam_chat_action_report">Report</string>
+    <string name="steam_chat_report_title">Report this Steam message?</string>
+    <string name="steam_chat_report_harassment">Harassment</string>
+    <string name="steam_chat_report_scam">Scam or account theft</string>
+    <string name="steam_chat_report_spam">Spam</string>
+    <string name="steam_chat_report_other">Other</string>
+    <string name="steam_chat_report_confirm">Report</string>
+    <string name="steam_chat_reaction_added">Reaction added</string>
+    <string name="steam_chat_reported">Message reported to Steam</string>
+    <string name="steam_chat_action_failed">Steam could not complete this action</string>
 </resources>
