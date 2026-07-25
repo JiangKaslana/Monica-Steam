@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.Alignment
@@ -78,6 +79,7 @@ internal fun SteamChatThread(
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
+    val messagesById = remember(messages) { messages.associateBy { it.stableId } }
     val clipboard = LocalClipboardManager.current
     var selectedMessageId by remember { mutableStateOf<String?>(null) }
     var reactionMessageId by remember { mutableStateOf<String?>(null) }
@@ -97,8 +99,21 @@ internal fun SteamChatThread(
     }
 
     LaunchedEffect(messages.lastOrNull()?.stableId) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.lastIndex)
+        val latest = messages.lastOrNull() ?: return@LaunchedEffect
+        val wasNearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            ?.let { it >= messages.lastIndex - 2 } != false
+        if (latest.isOutgoing(state.accountSteamId) || wasNearBottom) {
+            withFrameNanos { }
+            val lastLaidOutIndex = listState.layoutInfo.totalItemsCount - 1
+            if (lastLaidOutIndex >= 0) {
+                try {
+                    listState.animateScrollToItem(minOf(messages.lastIndex, lastLaidOutIndex))
+                } catch (_: IndexOutOfBoundsException) {
+                    // A concurrent history refresh changed the lazy-list snapshot.
+                } catch (_: IllegalArgumentException) {
+                    // Ignore a stale target; the next message snapshot will retry.
+                }
+            }
         }
     }
 
@@ -165,7 +180,7 @@ internal fun SteamChatThread(
                                 SteamChatMessageBubble(
                                     message = message,
                                     replyToMessage = message.replyToStableId?.let { replyId ->
-                                        messages.firstOrNull { it.stableId == replyId }
+                                        messagesById[replyId]
                                     },
                                     accountSteamId = state.accountSteamId,
                                     groupedWithPrevious = previous?.senderSteamId == message.senderSteamId &&

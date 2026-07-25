@@ -193,6 +193,25 @@ class SteamChatViewModelTest {
     }
 
     @Test
+    fun stickerReplyKeepsItsLocalReplyTargetAfterServerConfirmation() = runTest(mainDispatcher.scheduler) {
+        val gateway = FakeGateway()
+        val viewModel = createViewModel(gateway)
+        val account = account(1L, "76561198000000001")
+        val partner = "76561198000000003"
+        viewModel.selectAccount(account)
+        runCurrent()
+        viewModel.openThread(partner)
+        runCurrent()
+
+        viewModel.sendReply("/sticker Mesmer spin", "server-target")
+        runCurrent()
+
+        val sent = viewModel.uiState.value.thread?.messages?.single()
+        assertEquals(SteamChatDeliveryState.SENT, sent?.deliveryState)
+        assertEquals("server-target", sent?.replyToStableId)
+    }
+
+    @Test
     fun refreshDoesNotRestoreUnreadAfterThreadWasAcknowledged() =
         runTest(mainDispatcher.scheduler) {
             val account = account(1L, "76561198000000001")

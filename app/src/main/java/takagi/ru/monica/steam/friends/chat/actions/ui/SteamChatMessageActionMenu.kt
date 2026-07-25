@@ -247,7 +247,14 @@ private fun ActionRow(
     label: Int,
     onClick: () -> Unit
 ) {
-    Surface(onClick = onClick, color = androidx.compose.ui.graphics.Color.Transparent) {
+    val haptics = LocalHapticFeedback.current
+    Surface(
+        onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+            onClick()
+        },
+        color = androidx.compose.ui.graphics.Color.Transparent
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
