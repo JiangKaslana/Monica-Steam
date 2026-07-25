@@ -234,7 +234,7 @@ private fun EmojiGrid(
     onEmojiSelected: (String) -> Unit
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(44.dp),
+        columns = GridCells.Adaptive(56.dp),
         modifier = Modifier.fillMaxWidth().height(PICKER_GRID_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -270,14 +270,14 @@ private fun EmoticonGrid(
     ) {
         items(filteredEmoticons, key = { "steam-${it.name}" }) { emoticon ->
             Surface(
-                modifier = Modifier.size(44.dp).clip(CircleShape).clickable { onEmoticonSelected(emoticon) },
+                modifier = Modifier.size(56.dp).clip(CircleShape).clickable { onEmoticonSelected(emoticon) },
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 shape = CircleShape
             ) {
                 SteamChatRemoteImage(
                     url = emoticon.imageUrl,
                     contentDescription = emoticon.name,
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.padding(4.dp)
                 )
             }
         }

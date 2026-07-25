@@ -60,7 +60,7 @@ internal fun SteamChatRemoteImage(
     }
     when {
         animated != null -> AndroidView(
-            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.CENTER_INSIDE } },
+            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
             modifier = modifier,
             update = { view ->
                 if (view.drawable !== animated) view.setImageDrawable(animated)
@@ -69,7 +69,7 @@ internal fun SteamChatRemoteImage(
             }
         )
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && drawable != null -> AndroidView(
-            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.CENTER_INSIDE } },
+            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
             modifier = modifier,
             update = { view -> if (view.drawable !== drawable) view.setImageDrawable(drawable) }
         )
