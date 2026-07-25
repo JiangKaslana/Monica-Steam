@@ -22,6 +22,7 @@ import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import java.io.IOException
+import takagi.ru.monica.steam.store.catalog.data.SteamStoreCatalogService
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -50,6 +51,7 @@ class SteamStoreService(
     private val reviewService: SteamStoreReviewService = SteamStoreReviewService(client)
 ) {
     private val countryBySession = ConcurrentHashMap<String, String>()
+    private val catalogService = SteamStoreCatalogService(client)
 
     fun featured(
         steamLoginSecure: String? = null,
@@ -80,6 +82,22 @@ class SteamStoreService(
         }.getOrDefault(emptyList())
         return featured.copy(events = events)
     }
+
+    fun catalog(
+        filter: SteamStoreBrowseFilter,
+        start: Int = 0,
+        count: Int = 24,
+        steamLoginSecure: String? = null,
+        accessToken: String? = null,
+        language: String = "schinese"
+    ): SteamStoreCatalogPage = catalogService.page(
+        filter = filter,
+        start = start,
+        count = count,
+        language = language,
+        countryCode = accountCountryOrFail(steamLoginSecure, accessToken),
+        steamLoginSecure = steamLoginSecure
+    )
 
     suspend fun search(
         queryText: String,

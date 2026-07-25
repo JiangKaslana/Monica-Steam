@@ -44,6 +44,7 @@ data class SteamStoreEvent(
     val badge: String = ""
 )
 
+@Serializable
 enum class SteamStoreBrowseFilter {
     ALL,
     SPECIALS,
@@ -51,6 +52,17 @@ enum class SteamStoreBrowseFilter {
     NEW_RELEASES,
     COMING_SOON,
     FREE
+}
+
+@Serializable
+data class SteamStoreCatalogPage(
+    val filter: SteamStoreBrowseFilter,
+    val items: List<SteamStoreItem> = emptyList(),
+    val start: Int = 0,
+    val totalCount: Int = 0
+) {
+    val nextStart: Int get() = start + items.size
+    val hasMore: Boolean get() = nextStart < totalCount && items.isNotEmpty()
 }
 
 data class SteamStoreCollection(

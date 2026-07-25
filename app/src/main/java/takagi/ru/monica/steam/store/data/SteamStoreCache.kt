@@ -16,6 +16,12 @@ class SteamStoreCache(context: Context) {
     fun writeHome(accountId: Long?, home: SteamStoreHome) =
         write("${scope(accountId)}_home.json", home)
 
+    fun readCatalog(accountId: Long?, filter: SteamStoreBrowseFilter): SteamStoreCatalogPage? =
+        read("${scope(accountId)}_catalog_${filter.name.lowercase()}.json")
+
+    fun writeCatalog(accountId: Long?, page: SteamStoreCatalogPage) =
+        write("${scope(accountId)}_catalog_${page.filter.name.lowercase()}.json", page)
+
     fun readDetail(accountId: Long?, appId: Int): SteamStoreDetail? =
         read("${scope(accountId)}_detail_$appId.json")
 
