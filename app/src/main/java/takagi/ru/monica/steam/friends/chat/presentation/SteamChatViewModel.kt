@@ -198,7 +198,11 @@ class SteamChatViewModel(
         }
     }
 
-    fun sendMessage(body: String) {
+    fun sendMessage(body: String) = sendMessage(body, replyToStableId = null)
+    fun sendReply(body: String, replyToStableId: String) {
+        if (replyToStableId.isNotBlank()) sendMessage(body, replyToStableId)
+    }
+    private fun sendMessage(body: String, replyToStableId: String?) {
         val normalized = body.trim()
         if (normalized.isBlank()) return
         val account = activeAccount ?: return
@@ -209,7 +213,8 @@ class SteamChatViewModel(
             partnerSteamId = partnerSteamId,
             body = normalized,
             timestamp = nowMillis() / 1000L,
-            clientMessageId = id
+            clientMessageId = id,
+            replyToStableId = replyToStableId
         )
         updateMessage(account, partnerSteamId, optimistic)
         dispatchSend(account, partnerSteamId, optimistic)

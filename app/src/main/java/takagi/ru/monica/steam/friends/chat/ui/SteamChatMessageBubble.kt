@@ -18,6 +18,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,7 +29,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -63,11 +63,12 @@ import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContent
 @Composable
 internal fun SteamChatMessageBubble(
     message: SteamChatMessage,
+    replyToMessage: SteamChatMessage?,
     accountSteamId: String,
     groupedWithPrevious: Boolean,
     groupedWithNext: Boolean,
     onRetry: () -> Unit,
-    onLongClick: (Offset) -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val outgoing = message.isOutgoing(accountSteamId)
@@ -95,7 +96,7 @@ internal fun SteamChatMessageBubble(
                         },
                         onLongPress = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onLongClick(it)
+                            onLongClick()
                         }
                     )
                 },
@@ -113,7 +114,10 @@ internal fun SteamChatMessageBubble(
         ) {
             if (transparentMedia) {
                 Box {
-                    SteamChatRichMessageContent(body = message.body)
+                    Column {
+                        replyToMessage?.let { ReplyPreview(it) }
+                        SteamChatRichMessageContent(body = message.body)
+                    }
                     Surface(
                         modifier = Modifier.align(Alignment.BottomEnd),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
@@ -127,7 +131,9 @@ internal fun SteamChatMessageBubble(
                         )
                     }
                 }
-            } else Row(
+            } else Column {
+                replyToMessage?.let { ReplyPreview(it) }
+                Row(
                 modifier = Modifier.padding(
                     start = 13.dp,
                     top = if (groupedWithPrevious) 7.dp else 10.dp,
@@ -136,14 +142,31 @@ internal fun SteamChatMessageBubble(
                 ),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.Bottom
-            ) {
+                ) {
                 SteamChatRichMessageContent(
                     body = message.body,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                DeliveryMetadata(message, outgoing, retryLabel)
+                    DeliveryMetadata(message, outgoing, retryLabel)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ReplyPreview(message: SteamChatMessage) {
+    Surface(
+        modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 3.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f)
+    ) {
+        Text(
+            text = message.body.replace(Regex("\\s+"), " ").take(72),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 2
+        )
     }
 }
 

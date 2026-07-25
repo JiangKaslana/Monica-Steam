@@ -17,7 +17,8 @@ internal fun newPendingSteamChatMessage(
     partnerSteamId: String,
     body: String,
     timestamp: Long,
-    clientMessageId: String
+    clientMessageId: String,
+    replyToStableId: String? = null
 ) = SteamChatMessage(
     partnerSteamId = partnerSteamId,
     senderSteamId = accountSteamId,
@@ -26,7 +27,8 @@ internal fun newPendingSteamChatMessage(
     body = body,
     deliveryState = SteamChatDeliveryState.QUEUED,
     clientMessageId = clientMessageId,
-    localCreatedAtMillis = timestamp * 1_000L
+    localCreatedAtMillis = timestamp * 1_000L,
+    replyToStableId = replyToStableId
 )
 
 internal fun SteamChatUiState.withChatMessage(

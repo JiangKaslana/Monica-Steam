@@ -4,6 +4,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +44,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -317,12 +323,15 @@ private fun EffectGrid(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun StickerGrid(
     query: String,
     stickers: List<SteamChatSticker>,
     onStickerSelected: (SteamChatSticker) -> Unit
 ) {
+    var previewSticker by remember { mutableStateOf<SteamChatSticker?>(null) }
+    val haptics = LocalHapticFeedback.current
     val filtered = remember(query, stickers) {
         stickers.filter {
             query.isBlank() || it.name.contains(query, true) || it.title.contains(query, true)
@@ -336,7 +345,13 @@ private fun StickerGrid(
     ) {
         items(filtered, key = { "sticker-${it.name}" }) { sticker ->
             Surface(
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clickable { onStickerSelected(sticker) },
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f).combinedClickable(
+                    onClick = { onStickerSelected(sticker) },
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        previewSticker = sticker
+                    }
+                ),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 shape = RoundedCornerShape(14.dp)
             ) {
@@ -357,6 +372,27 @@ private fun StickerGrid(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
+        }
+    }
+    previewSticker?.let { sticker ->
+        Popup(
+            alignment = Alignment.Center,
+            onDismissRequest = { previewSticker = null },
+            properties = PopupProperties(focusable = true)
+        ) {
+            Surface(
+                modifier = Modifier.size(260.dp),
+                shape = RoundedCornerShape(32.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 8.dp,
+                shadowElevation = 12.dp
+            ) {
+                SteamChatRemoteImage(
+                    url = sticker.imageUrl,
+                    contentDescription = sticker.title,
+                    modifier = Modifier.padding(18.dp).size(224.dp)
+                )
             }
         }
     }

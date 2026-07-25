@@ -278,6 +278,9 @@ fun SteamChatScreen(
                 onReact = { message, emoticon ->
                     messageActionViewModel.react(partnerSteamId, message, emoticon)
                 },
+                onStickerReply = { message, stickerCode ->
+                    chatViewModel.sendReply(stickerCode, message.stableId)
+                },
                 onReport = { message, reason ->
                     messageActionViewModel.report(partnerSteamId, message, reason)
                 },

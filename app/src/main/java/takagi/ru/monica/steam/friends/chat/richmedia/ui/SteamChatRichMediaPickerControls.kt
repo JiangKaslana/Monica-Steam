@@ -55,6 +55,7 @@ internal enum class RichPickerPage(val labelRes: Int) {
 internal fun SteamChatRichPickerPageSplitButton(
     selectedPage: RichPickerPage,
     onSelectPage: (RichPickerPage) -> Unit,
+    allowedPages: List<RichPickerPage> = RichPickerPage.entries,
     modifier: Modifier = Modifier
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -111,7 +112,7 @@ internal fun SteamChatRichPickerPageSplitButton(
                 modifier = Modifier.padding(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                RichPickerPage.entries.forEach { page ->
+                allowedPages.forEach { page ->
                     RichPickerPageMenuItem(
                         page = page,
                         selected = page == selectedPage,

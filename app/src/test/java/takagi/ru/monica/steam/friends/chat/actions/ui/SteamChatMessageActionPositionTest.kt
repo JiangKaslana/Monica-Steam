@@ -9,23 +9,23 @@ import org.junit.Test
 
 class SteamChatMessageActionPositionTest {
     @Test
-    fun centersPopupOnTouchAndClampsItInsideWindow() {
-        val centered = TouchCenteredPositionProvider(IntOffset(500, 800), edgeMargin = 16)
+    fun anchorsPopupBelowOrAboveTheMessageBubble() {
+        val below = MessageAnchoredPositionProvider(edgeMargin = 16, anchorGap = 12)
             .calculatePosition(
-                anchorBounds = IntRect.Zero,
+                anchorBounds = IntRect(80, 400, 380, 520),
                 windowSize = IntSize(1080, 1920),
                 layoutDirection = LayoutDirection.Ltr,
                 popupContentSize = IntSize(300, 400)
             )
-        assertEquals(IntOffset(350, 600), centered)
+        assertEquals(IntOffset(80, 532), below)
 
-        val clamped = TouchCenteredPositionProvider(IntOffset(10, 20), edgeMargin = 16)
+        val above = MessageAnchoredPositionProvider(edgeMargin = 16, anchorGap = 12)
             .calculatePosition(
-                anchorBounds = IntRect.Zero,
+                anchorBounds = IntRect(700, 1700, 1040, 1800),
                 windowSize = IntSize(1080, 1920),
                 layoutDirection = LayoutDirection.Ltr,
                 popupContentSize = IntSize(300, 400)
             )
-        assertEquals(IntOffset(16, 16), clamped)
+        assertEquals(IntOffset(740, 1288), above)
     }
 }
