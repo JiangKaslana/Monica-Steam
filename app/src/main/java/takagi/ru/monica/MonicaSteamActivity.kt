@@ -467,9 +467,6 @@ class MonicaSteamActivity : BaseMonicaActivity() {
 
                         MonicaSteamPage.STEAM -> {
                             SteamScreen(
-                                onOpenHealth = {
-                                    navigateTo(MonicaSteamPage.HEALTH)
-                                },
                                 onOpenBackup = {
                                     navigateTo(MonicaSteamPage.MAFILE_TRANSFER)
                                 },

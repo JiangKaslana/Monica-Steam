@@ -60,7 +60,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.MoreVert
@@ -366,7 +365,6 @@ private enum class SteamAuthenticatorRemovalMode {
 fun SteamScreen(
     showStandaloneSettingsEntry: Boolean = false,
     onOpenStandaloneSettings: () -> Unit = {},
-    onOpenHealth: () -> Unit = {},
     onOpenLibrary: () -> Unit = {},
     onOpenStoreApp: (Int) -> Unit = {},
     onOpenBackup: () -> Unit = {},
@@ -1796,11 +1794,6 @@ fun SteamScreen(
                                     clearSteamSearch()
                                     showAddAccountDialog = true
                                 },
-                                onOpenHealth = {
-                                    showTopActionsMenu = false
-                                    clearSteamSearch()
-                                    onOpenHealth()
-                                },
                                 onOpenBackup = {
                                     showTopActionsMenu = false
                                     clearSteamSearch()
@@ -2265,7 +2258,6 @@ private fun SteamTopActionsMenu(
     onSelectSection: (SteamSection) -> Unit,
     onRefreshCurrent: () -> Unit,
     onAddAccount: () -> Unit,
-    onOpenHealth: () -> Unit,
     onOpenBackup: () -> Unit
 ) {
     PasswordTopActionsDropdownMenu(
@@ -2334,12 +2326,6 @@ private fun SteamTopActionsMenu(
             text = { Text(stringResource(R.string.steam_add_account_button)) },
             leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
             onClick = onAddAccount
-        )
-
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.steam_health_title)) },
-            leadingIcon = { Icon(Icons.Default.HealthAndSafety, contentDescription = null) },
-            onClick = onOpenHealth
         )
 
         DropdownMenuItem(
