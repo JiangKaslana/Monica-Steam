@@ -2,6 +2,7 @@ package takagi.ru.monica.steam.navigation
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -12,16 +13,19 @@ enum class SteamDockTab {
     TOKEN,
     LIBRARY,
     STORE,
+    CHAT,
     SETTINGS;
 
     companion object {
-        val DEFAULT_ORDER: List<SteamDockTab> = listOf(STORE, LIBRARY, SETTINGS)
+        val DEFAULT_ORDER: List<SteamDockTab> = listOf(STORE, LIBRARY, CHAT, SETTINGS)
 
         fun sanitizeOrder(order: List<SteamDockTab>): List<SteamDockTab> {
-            val result = order.distinct().filter { it in DEFAULT_ORDER }.toMutableList()
-            DEFAULT_ORDER.forEach { tab ->
-                if (tab !in result) result += tab
-            }
+            return order.distinct().filter { it in DEFAULT_ORDER }
+        }
+
+        fun completeOrder(order: List<SteamDockTab>): List<SteamDockTab> {
+            val result = sanitizeOrder(order).toMutableList()
+            DEFAULT_ORDER.forEach { tab -> if (tab !in result) result += tab }
             return result
         }
     }
@@ -34,12 +38,22 @@ private val LEGACY_DEFAULT_DOCK_ORDER = listOf(
 )
 
 /** Keeps custom orders while migrating the order used by pre-swipe builds. */
-internal fun resolveStoredDockOrder(stored: List<SteamDockTab>): List<SteamDockTab> =
-    if (stored.isEmpty() || SteamDockTab.sanitizeOrder(stored) == LEGACY_DEFAULT_DOCK_ORDER) {
-        SteamDockTab.DEFAULT_ORDER
+internal fun resolveStoredDockOrder(
+    stored: List<SteamDockTab>,
+    chatMigrationComplete: Boolean = false
+): List<SteamDockTab> {
+    val sanitized = SteamDockTab.sanitizeOrder(stored)
+    val normalized = if (sanitized == LEGACY_DEFAULT_DOCK_ORDER) {
+        listOf(SteamDockTab.STORE, SteamDockTab.LIBRARY, SteamDockTab.SETTINGS)
     } else {
-        SteamDockTab.sanitizeOrder(stored)
+        sanitized
     }
+    if (chatMigrationComplete || SteamDockTab.CHAT in normalized) return normalized
+    val settingsIndex = normalized.indexOf(SteamDockTab.SETTINGS)
+    return normalized.toMutableList().apply {
+        add(if (settingsIndex >= 0) settingsIndex else size, SteamDockTab.CHAT)
+    }
+}
 
 /**
  * Resolves a horizontal swipe made on the Dock to the adjacent content tab.
@@ -87,21 +101,28 @@ class SteamDockPreferences(context: Context) {
     private val dataStore = context.applicationContext.steamDockDataStore
 
     val order: Flow<List<SteamDockTab>> = dataStore.data.map { preferences ->
-        val parsed = preferences[ORDER_KEY]
+        val storedValue = preferences[ORDER_KEY]
+        if (storedValue == null) return@map SteamDockTab.DEFAULT_ORDER
+        val parsed = storedValue
             ?.split(',')
             ?.mapNotNull { value -> runCatching { SteamDockTab.valueOf(value) }.getOrNull() }
             .orEmpty()
-        resolveStoredDockOrder(parsed)
+        resolveStoredDockOrder(
+            stored = parsed,
+            chatMigrationComplete = preferences[CHAT_MIGRATION_KEY] == true
+        )
     }
 
     suspend fun updateOrder(order: List<SteamDockTab>) {
         val sanitized = SteamDockTab.sanitizeOrder(order)
         dataStore.edit { preferences ->
             preferences[ORDER_KEY] = sanitized.joinToString(",") { it.name }
+            preferences[CHAT_MIGRATION_KEY] = true
         }
     }
 
     private companion object {
         val ORDER_KEY = stringPreferencesKey("dock_order")
+        val CHAT_MIGRATION_KEY = booleanPreferencesKey("chat_tab_migrated")
     }
 }

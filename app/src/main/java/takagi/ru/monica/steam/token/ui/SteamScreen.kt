@@ -367,6 +367,7 @@ fun SteamScreen(
     onOpenStandaloneSettings: () -> Unit = {},
     onOpenLibrary: () -> Unit = {},
     onOpenStoreApp: (Int) -> Unit = {},
+    onOpenChat: (String?) -> Unit = {},
     onOpenBackup: () -> Unit = {},
     modifier: Modifier = Modifier,
     pendingSteamQrResult: String? = null,
@@ -1769,7 +1770,9 @@ fun SteamScreen(
                                     selectedFriendId = null
                                     selectedTokenAccountIds = emptyList()
                                     viewModel.clearSelectedConfirmations()
-                                    if (selectedSection != section) {
+                                    if (section == SteamSection.CHAT) {
+                                        onOpenChat(null)
+                                    } else if (selectedSection != section) {
                                         selectedSection = section
                                     }
                                 },
@@ -1989,8 +1992,7 @@ fun SteamScreen(
                                 onStartChat = { partnerSteamId ->
                                     clearSteamSearch()
                                     selectedFriendId = null
-                                    requestedChatPartnerSteamId = partnerSteamId
-                                    selectedSection = SteamSection.CHAT
+                                    onOpenChat(partnerSteamId)
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )

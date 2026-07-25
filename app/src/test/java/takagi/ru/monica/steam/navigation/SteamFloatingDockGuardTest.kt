@@ -7,7 +7,7 @@ import org.junit.Test
 
 class SteamFloatingDockGuardTest {
     @Test
-    fun dockUsesThreeItemToolbarWithIndependentTokenAction() {
+    fun dockUsesConfigurableContentToolbarWithIndependentTokenAction() {
         val activity = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
         ).readText()
@@ -25,7 +25,7 @@ class SteamFloatingDockGuardTest {
         assertTrue(activity.contains("selectedIndex = tabs.indexOf(selected)"))
         assertTrue(activity.contains("zIndex(1f)"))
         assertFalse(activity.contains("bottomBar ="))
-        assertTrue(settings.contains("listOf(STORE, LIBRARY, SETTINGS)"))
+        assertTrue(settings.contains("listOf(STORE, LIBRARY, CHAT, SETTINGS)"))
         assertTrue(dock.contains("filterNot { it == SteamDockTab.TOKEN }"))
         assertTrue(dock.contains("steamDockSwipe("))
         assertTrue(dock.contains("thresholdPx = with(LocalDensity.current)"))

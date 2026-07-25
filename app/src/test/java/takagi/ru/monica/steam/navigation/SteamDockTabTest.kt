@@ -5,11 +5,12 @@ import org.junit.Test
 
 class SteamDockTabTest {
     @Test
-    fun defaultOrderContainsThreeSortableContentTabs() {
+    fun defaultOrderContainsChatWithTheSortableContentTabs() {
         assertEquals(
             listOf(
                 SteamDockTab.STORE,
                 SteamDockTab.LIBRARY,
+                SteamDockTab.CHAT,
                 SteamDockTab.SETTINGS
             ),
             SteamDockTab.DEFAULT_ORDER
@@ -17,16 +18,21 @@ class SteamDockTabTest {
     }
 
     @Test
-    fun sanitizeRemovesDuplicatesAndRestoresMissingTabs() {
+    fun sanitizeKeepsOnlyEnabledContentTabs() {
+        assertEquals(
+            listOf(SteamDockTab.SETTINGS),
+            SteamDockTab.sanitizeOrder(
+                listOf(SteamDockTab.SETTINGS, SteamDockTab.TOKEN, SteamDockTab.SETTINGS)
+            )
+        )
         assertEquals(
             listOf(
                 SteamDockTab.SETTINGS,
                 SteamDockTab.STORE,
-                SteamDockTab.LIBRARY
+                SteamDockTab.LIBRARY,
+                SteamDockTab.CHAT
             ),
-            SteamDockTab.sanitizeOrder(
-                listOf(SteamDockTab.SETTINGS, SteamDockTab.TOKEN, SteamDockTab.SETTINGS)
-            )
+            SteamDockTab.completeOrder(listOf(SteamDockTab.SETTINGS))
         )
     }
 
@@ -39,9 +45,21 @@ class SteamDockTabTest {
             )
         )
         assertEquals(
-            listOf(SteamDockTab.SETTINGS, SteamDockTab.STORE, SteamDockTab.LIBRARY),
+            listOf(
+                SteamDockTab.CHAT,
+                SteamDockTab.SETTINGS,
+                SteamDockTab.STORE,
+                SteamDockTab.LIBRARY
+            ),
             resolveStoredDockOrder(
                 listOf(SteamDockTab.SETTINGS, SteamDockTab.STORE, SteamDockTab.LIBRARY)
+            )
+        )
+        assertEquals(
+            listOf(SteamDockTab.SETTINGS, SteamDockTab.STORE),
+            resolveStoredDockOrder(
+                stored = listOf(SteamDockTab.SETTINGS, SteamDockTab.STORE),
+                chatMigrationComplete = true
             )
         )
     }
@@ -51,18 +69,20 @@ class SteamDockTabTest {
         assertEquals(
             listOf(
                 SteamDockTab.LIBRARY,
+                SteamDockTab.CHAT,
                 SteamDockTab.SETTINGS,
                 SteamDockTab.STORE
             ),
-            reorderDockOrder(SteamDockTab.DEFAULT_ORDER, fromIndex = 0, toIndex = 2)
+            reorderDockOrder(SteamDockTab.DEFAULT_ORDER, fromIndex = 0, toIndex = 3)
         )
         assertEquals(
             listOf(
                 SteamDockTab.SETTINGS,
                 SteamDockTab.STORE,
-                SteamDockTab.LIBRARY
+                SteamDockTab.LIBRARY,
+                SteamDockTab.CHAT
             ),
-            reorderDockOrder(SteamDockTab.DEFAULT_ORDER, fromIndex = 2, toIndex = 0)
+            reorderDockOrder(SteamDockTab.DEFAULT_ORDER, fromIndex = 3, toIndex = 0)
         )
     }
 
@@ -70,11 +90,11 @@ class SteamDockTabTest {
     fun reorderIgnoresLazyListHeaderIndicesInsteadOfThrowing() {
         assertEquals(
             SteamDockTab.DEFAULT_ORDER,
-            reorderDockOrder(SteamDockTab.DEFAULT_ORDER, fromIndex = 3, toIndex = 1)
+            reorderDockOrder(SteamDockTab.DEFAULT_ORDER, fromIndex = 4, toIndex = 1)
         )
         assertEquals(
             SteamDockTab.DEFAULT_ORDER,
-            reorderDockOrder(SteamDockTab.DEFAULT_ORDER, fromIndex = 1, toIndex = 3)
+            reorderDockOrder(SteamDockTab.DEFAULT_ORDER, fromIndex = 1, toIndex = 4)
         )
     }
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
@@ -67,6 +68,7 @@ import takagi.ru.monica.steam.security.SteamAppLockGate
 import takagi.ru.monica.steam.scanner.ui.SteamQrScannerScreen
 import takagi.ru.monica.steam.backup.ui.SteamMaFileTransferScreen
 import takagi.ru.monica.steam.health.ui.SteamHealthScreen
+import takagi.ru.monica.steam.friends.chat.ui.SteamChatScreen
 import takagi.ru.monica.steam.library.ui.SteamLibraryScreen
 import takagi.ru.monica.steam.token.ui.SteamScreen
 import takagi.ru.monica.steam.foundation.ui.ProvideSteamContentDensity
@@ -96,6 +98,7 @@ private enum class MonicaSteamPage {
     HEALTH,
     LIBRARY,
     STORE,
+    CHAT,
     MAFILE_TRANSFER,
     WEBDAV_BACKUP,
     MDBX,
@@ -208,6 +211,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 var pendingQrResult by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingQrAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var pendingStoreAppId by rememberSaveable { mutableStateOf<Int?>(null) }
+                var pendingChatPartnerSteamId by rememberSaveable { mutableStateOf<String?>(null) }
                 var isSteamChatThreadOpen by rememberSaveable { mutableStateOf(false) }
                 var backPressedOnce by remember { mutableStateOf(false) }
                 val composeScope = rememberCoroutineScope()
@@ -229,7 +233,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 }
 
                 LaunchedEffect(currentPage) {
-                    if (currentPage != MonicaSteamPage.STEAM) {
+                    if (
+                        currentPage != MonicaSteamPage.STEAM &&
+                        currentPage != MonicaSteamPage.CHAT
+                    ) {
                         isSteamChatThreadOpen = false
                     }
                 }
@@ -402,6 +409,20 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             )
                         }
 
+                        MonicaSteamPage.CHAT -> {
+                            SteamChatScreen(
+                                standalone = true,
+                                requestedPartnerSteamId = pendingChatPartnerSteamId,
+                                onConsumeRequestedPartner = {
+                                    pendingChatPartnerSteamId = null
+                                },
+                                onThreadVisibilityChange = { open ->
+                                    isSteamChatThreadOpen = open
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
                         MonicaSteamPage.MAFILE_TRANSFER -> {
                             SteamMaFileTransferScreen(
                                 onNavigateBack = { navigateBack() },
@@ -474,6 +495,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     pendingStoreAppId = appId
                                     navigateTo(MonicaSteamPage.STORE)
                                 },
+                                onOpenChat = { partnerSteamId ->
+                                    pendingChatPartnerSteamId = partnerSteamId
+                                    navigateTo(MonicaSteamPage.CHAT)
+                                },
                                 pendingSteamQrResult = pendingQrResult,
                                 pendingSteamQrAccountId = pendingQrAccountId,
                                 onConsumePendingSteamQrResult = {
@@ -483,9 +508,6 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onScanSteamQrCode = { accountId ->
                                     scannerAccountId = accountId
                                     navigateTo(MonicaSteamPage.SCANNER)
-                                },
-                                onThreadVisibilityChange = { open ->
-                                    isSteamChatThreadOpen = open
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -558,6 +580,7 @@ private fun MonicaSteamPage.isDockPage(): Boolean = when (this) {
     MonicaSteamPage.STEAM,
     MonicaSteamPage.LIBRARY,
     MonicaSteamPage.STORE,
+    MonicaSteamPage.CHAT,
     MonicaSteamPage.SETTINGS -> true
     MonicaSteamPage.SCANNER,
     MonicaSteamPage.HEALTH,
@@ -573,6 +596,7 @@ private fun MonicaSteamPage.isDockPage(): Boolean = when (this) {
 private fun MonicaSteamPage.toDockTab(): SteamDockTab = when (this) {
     MonicaSteamPage.LIBRARY -> SteamDockTab.LIBRARY
     MonicaSteamPage.STORE -> SteamDockTab.STORE
+    MonicaSteamPage.CHAT -> SteamDockTab.CHAT
     MonicaSteamPage.SETTINGS -> SteamDockTab.SETTINGS
     else -> SteamDockTab.TOKEN
 }
@@ -581,6 +605,7 @@ private fun SteamDockTab.toPage(): MonicaSteamPage = when (this) {
     SteamDockTab.TOKEN -> MonicaSteamPage.STEAM
     SteamDockTab.LIBRARY -> MonicaSteamPage.LIBRARY
     SteamDockTab.STORE -> MonicaSteamPage.STORE
+    SteamDockTab.CHAT -> MonicaSteamPage.CHAT
     SteamDockTab.SETTINGS -> MonicaSteamPage.SETTINGS
 }
 
@@ -589,6 +614,7 @@ internal fun initialSteamDockPage(order: List<SteamDockTab>): String =
         SteamDockTab.TOKEN -> "STEAM"
         SteamDockTab.LIBRARY -> "LIBRARY"
         SteamDockTab.STORE -> "STORE"
+        SteamDockTab.CHAT -> "CHAT"
         SteamDockTab.SETTINGS -> "SETTINGS"
     }
 
@@ -665,6 +691,7 @@ private fun SteamDockTab.icon(): ImageVector = when (this) {
     SteamDockTab.TOKEN -> Icons.Default.Security
     SteamDockTab.LIBRARY -> Icons.Default.SportsEsports
     SteamDockTab.STORE -> Icons.Default.Storefront
+    SteamDockTab.CHAT -> Icons.Default.ChatBubble
     SteamDockTab.SETTINGS -> Icons.Default.Settings
 }
 
@@ -673,5 +700,6 @@ private fun SteamDockTab.label(): String = when (this) {
     SteamDockTab.TOKEN -> stringResource(R.string.steam_dock_token)
     SteamDockTab.LIBRARY -> stringResource(R.string.steam_library_title)
     SteamDockTab.STORE -> stringResource(R.string.steam_store_title)
+    SteamDockTab.CHAT -> stringResource(R.string.steam_chat_title)
     SteamDockTab.SETTINGS -> stringResource(R.string.settings_title)
 }

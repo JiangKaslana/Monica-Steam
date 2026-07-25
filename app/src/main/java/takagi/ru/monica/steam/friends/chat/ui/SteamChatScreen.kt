@@ -3,30 +3,48 @@ package takagi.ru.monica.steam.friends.chat.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwitchAccount
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import takagi.ru.monica.R
+import takagi.ru.monica.steam.data.SteamAccountSourceRepository
+import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatViewModel
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaViewModel
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
-import takagi.ru.monica.steam.token.presentation.SteamViewModel
+import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 
 @Composable
 fun SteamChatScreen(
-    searchQuery: String,
-    refreshRequest: Long,
+    searchQuery: String = "",
+    refreshRequest: Long = 0L,
+    standalone: Boolean = false,
     requestedPartnerSteamId: String? = null,
     onConsumeRequestedPartner: () -> Unit = {},
     onUnreadCountChange: (Int) -> Unit = {},
@@ -35,9 +53,10 @@ fun SteamChatScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val steamViewModel: SteamViewModel = viewModel(
-        factory = remember(context) { SteamViewModel.factory(context) }
-    )
+    val accountSourceRepository = remember(context) {
+        SteamAccountSourceRepository.get(context)
+    }
+    val accountSourceState by accountSourceRepository.state.collectAsState()
     val friendsViewModel: SteamFriendsViewModel = viewModel(
         factory = remember(context) { SteamFriendsViewModel.factory(context) }
     )
@@ -47,16 +66,20 @@ fun SteamChatScreen(
     val richMediaViewModel: SteamChatRichMediaViewModel = viewModel(
         factory = remember(context) { SteamChatRichMediaViewModel.factory(context) }
     )
-    val steamState by steamViewModel.uiState.collectAsState()
     val friendsState by friendsViewModel.uiState.collectAsState()
     val chatState by chatViewModel.uiState.collectAsState()
     val richMediaState by richMediaViewModel.uiState.collectAsState()
-    val selectedAccount = steamState.accounts.firstOrNull {
-        it.id == steamState.selectedAccountId
-    } ?: steamState.accounts.firstOrNull()
+    val selectedAccount = accountSourceState.accounts.firstOrNull {
+        it.id == accountSourceState.selectedAccountId
+    } ?: accountSourceState.accounts.firstOrNull()
     val selectedFriend = friendsState.snapshot?.friends?.firstOrNull {
         it.steamId == chatState.selectedPartnerSteamId
     }
+    var standaloneSearchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var showAccounts by rememberSaveable { mutableStateOf(false) }
+    var showFriends by rememberSaveable { mutableStateOf(false) }
+    val effectiveSearchQuery = if (standalone) standaloneSearchQuery else searchQuery
 
     LaunchedEffect(
         selectedAccount?.id,
@@ -85,6 +108,7 @@ fun SteamChatScreen(
     LaunchedEffect(requestedPartnerSteamId, selectedAccount?.id) {
         val partner = requestedPartnerSteamId?.takeIf(String::isNotBlank) ?: return@LaunchedEffect
         if (selectedAccount != null) {
+            showFriends = false
             chatViewModel.openThread(partner)
             onConsumeRequestedPartner()
         }
@@ -125,6 +149,11 @@ fun SteamChatScreen(
     BackHandler(enabled = chatState.selectedPartnerSteamId != null) {
         chatViewModel.closeThread()
     }
+    BackHandler(
+        enabled = standalone && chatState.selectedPartnerSteamId == null && showFriends
+    ) {
+        showFriends = false
+    }
 
     AnimatedContent(
         targetState = chatState.selectedPartnerSteamId,
@@ -133,14 +162,91 @@ fun SteamChatScreen(
         label = "SteamChatNavigation"
     ) { partnerSteamId ->
         if (partnerSteamId == null) {
-            SteamChatSessionList(
-                state = chatState,
-                friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
-                query = searchQuery,
-                onOpenThread = chatViewModel::openThread,
-                onRetry = chatViewModel::refreshSessions,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (standalone) {
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                    topBar = {
+                        ExpressiveTopBar(
+                            title = stringResource(R.string.steam_chat_title),
+                            searchQuery = standaloneSearchQuery,
+                            onSearchQueryChange = { standaloneSearchQuery = it },
+                            isSearchExpanded = searchExpanded,
+                            onSearchExpandedChange = { expanded ->
+                                searchExpanded = expanded
+                                if (!expanded) standaloneSearchQuery = ""
+                            },
+                            searchHint = stringResource(R.string.steam_chat_search_hint),
+                            modifier = Modifier.statusBarsPadding(),
+                            actions = {
+                                IconButton(
+                                    onClick = { showAccounts = true },
+                                    enabled = accountSourceState.accounts.isNotEmpty() ||
+                                        accountSourceState.mdbxDatabases.isNotEmpty()
+                                ) {
+                                    Icon(
+                                        Icons.Default.SwitchAccount,
+                                        contentDescription = stringResource(R.string.steam_switch_account)
+                                    )
+                                }
+                                IconButton(onClick = { showFriends = !showFriends }) {
+                                    Icon(
+                                        Icons.Default.Groups,
+                                        contentDescription = stringResource(R.string.steam_friends_title)
+                                    )
+                                }
+                                IconButton(onClick = { searchExpanded = true }) {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = stringResource(R.string.steam_store_search)
+                                    )
+                                }
+                            }
+                        )
+                    }
+                ) { padding ->
+                    AnimatedContent(
+                        targetState = showFriends,
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        transitionSpec = {
+                            easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+                        },
+                        label = "SteamChatRootMode"
+                    ) { friendsVisible ->
+                        if (friendsVisible) {
+                            SteamChatFriendPicker(
+                                friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
+                                loading = friendsState.loading && friendsState.snapshot == null,
+                                query = effectiveSearchQuery,
+                                onOpenThread = { steamId ->
+                                    showFriends = false
+                                    chatViewModel.openThread(steamId)
+                                },
+                                onRefresh = friendsViewModel::refresh,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            SteamChatSessionList(
+                                state = chatState,
+                                friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
+                                query = effectiveSearchQuery,
+                                onOpenThread = chatViewModel::openThread,
+                                onRetry = chatViewModel::refreshSessions,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            } else {
+                SteamChatSessionList(
+                    state = chatState,
+                    friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
+                    query = effectiveSearchQuery,
+                    onOpenThread = chatViewModel::openThread,
+                    onRetry = chatViewModel::refreshSessions,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         } else {
             SteamChatThread(
                 state = chatState,
@@ -160,5 +266,23 @@ fun SteamChatScreen(
                 modifier = Modifier.fillMaxSize()
             )
         }
+    }
+
+    if (standalone && showAccounts) {
+        SteamAccountSwitcherSheet(
+            accounts = accountSourceState.accounts,
+            selectedAccountId = accountSourceState.selectedAccountId,
+            storageSource = accountSourceState.storageSource,
+            mdbxDatabases = accountSourceState.mdbxDatabases,
+            loading = accountSourceState.loading,
+            errorMessage = accountSourceState.errorMessage,
+            onSelectStorageSource = accountSourceRepository::selectStorageSource,
+            onSelectAccount = { accountId ->
+                accountSourceRepository.selectAccount(accountId)
+                showAccounts = false
+            },
+            onRefresh = accountSourceRepository::refreshCurrentSource,
+            onDismiss = { showAccounts = false }
+        )
     }
 }

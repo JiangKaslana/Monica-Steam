@@ -7,7 +7,7 @@ import org.junit.Test
 
 class SteamStandaloneNavigationGuardTest {
     @Test
-    fun standaloneUsesThreeSortableTabsAndIndependentTokenAction() {
+    fun standaloneUsesConfigurableSortableTabsAndIndependentTokenAction() {
         val activity = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
         ).readText()
@@ -40,7 +40,7 @@ class SteamStandaloneNavigationGuardTest {
         assertFalse(activity.contains("LinearProgressIndicator"))
         assertFalse(activity.contains("showProgress"))
         assertTrue(libraryScreen.contains("LocalSteamDockContentClearance.current"))
-        assertTrue(dock.contains("listOf(STORE, LIBRARY, SETTINGS)"))
+        assertTrue(dock.contains("listOf(STORE, LIBRARY, CHAT, SETTINGS)"))
         assertTrue(activity.contains("steamDockSwipe("))
         assertTrue(settings.contains("SteamDockOrderScreen("))
         assertTrue(settings.contains("rememberReorderableLazyListState"))
@@ -53,6 +53,8 @@ class SteamStandaloneNavigationGuardTest {
         val reorderableList = dockOrderScreen.substringAfter("LazyColumn(")
         assertTrue(dockOrderScreen.contains("reorderDockOrder(localOrder, from.index, to.index)"))
         assertTrue(dockOrderScreen.contains("LaunchedEffect(reorderableState.isAnyItemDragging)"))
+        assertTrue(dockOrderScreen.contains("showSwitch = true"))
+        assertTrue(dockOrderScreen.contains("checked = tab in enabledTabs"))
         assertFalse(dragCallback.contains("onOrderChange("))
         assertFalse(reorderableList.substringBefore("items(localOrder").contains("steam_dock_order_hint"))
         assertTrue(steamScreen.contains("Modifier.statusBarsPadding()"))

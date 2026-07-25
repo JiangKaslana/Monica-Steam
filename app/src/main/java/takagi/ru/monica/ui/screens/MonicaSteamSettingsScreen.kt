@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.Devices
@@ -791,7 +792,10 @@ private fun SteamDockOrderScreen(
 ) {
     val listState = rememberLazyListState()
     var localOrder by remember(order) {
-        mutableStateOf(SteamDockTab.sanitizeOrder(order))
+        mutableStateOf(SteamDockTab.completeOrder(order))
+    }
+    var enabledTabs by remember(order) {
+        mutableStateOf(SteamDockTab.sanitizeOrder(order).toSet())
     }
     var reorderDirty by remember { mutableStateOf(false) }
     val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
@@ -804,7 +808,7 @@ private fun SteamDockOrderScreen(
     LaunchedEffect(reorderableState.isAnyItemDragging) {
         if (!reorderableState.isAnyItemDragging && reorderDirty) {
             reorderDirty = false
-            onOrderChange(localOrder)
+            onOrderChange(localOrder.filter { it in enabledTabs })
         }
     }
 
@@ -852,19 +856,24 @@ private fun SteamDockOrderScreen(
                                 SteamDockTab.TOKEN -> Icons.Default.Security
                                 SteamDockTab.LIBRARY -> Icons.Default.SportsEsports
                                 SteamDockTab.STORE -> Icons.Default.Storefront
+                                SteamDockTab.CHAT -> Icons.Default.ChatBubble
                                 SteamDockTab.SETTINGS -> Icons.Default.SettingsIcon
                             },
                             title = when (tab) {
                                 SteamDockTab.TOKEN -> stringResource(R.string.steam_dock_token)
                                 SteamDockTab.LIBRARY -> stringResource(R.string.steam_library_title)
                                 SteamDockTab.STORE -> stringResource(R.string.steam_store_title)
+                                SteamDockTab.CHAT -> stringResource(R.string.steam_chat_title)
                                 SteamDockTab.SETTINGS -> stringResource(R.string.settings_title)
                             },
                             subtitle = stringResource(R.string.bottom_nav_reorder_hint),
-                            checked = true,
-                            switchEnabled = false,
-                            onCheckedChange = {},
-                            showSwitch = false,
+                            checked = tab in enabledTabs,
+                            switchEnabled = true,
+                            onCheckedChange = { checked ->
+                                enabledTabs = if (checked) enabledTabs + tab else enabledTabs - tab
+                                onOrderChange(localOrder.filter { it in enabledTabs })
+                            },
+                            showSwitch = true,
                             dragHandleModifier = Modifier.longPressDraggableHandle(),
                             modifier = Modifier.shadow(elevation)
                         )

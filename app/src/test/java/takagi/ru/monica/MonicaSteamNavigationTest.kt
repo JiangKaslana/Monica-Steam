@@ -9,6 +9,7 @@ class MonicaSteamNavigationTest {
     fun firstDockItemControlsInitialPage() {
         assertEquals("STORE", initialSteamDockPage(listOf(SteamDockTab.STORE, SteamDockTab.TOKEN)))
         assertEquals("LIBRARY", initialSteamDockPage(listOf(SteamDockTab.LIBRARY, SteamDockTab.SETTINGS)))
-        assertEquals("STORE", initialSteamDockPage(emptyList()))
+        assertEquals("CHAT", initialSteamDockPage(listOf(SteamDockTab.CHAT)))
+        assertEquals("STEAM", initialSteamDockPage(emptyList()))
     }
 }

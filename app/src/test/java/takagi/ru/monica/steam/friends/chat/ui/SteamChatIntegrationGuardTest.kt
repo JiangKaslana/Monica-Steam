@@ -8,6 +8,12 @@ import org.junit.Test
 class SteamChatIntegrationGuardTest {
     @Test
     fun chatIsAnIndependentCapsuleMenuPageWithFriendEntry() {
+        val activity = projectFile(
+            "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
+        ).readText()
+        val dock = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/navigation/SteamDockSettings.kt"
+        ).readText()
         val tokenScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/token/ui/SteamScreen.kt"
         ).readText()
@@ -21,13 +27,15 @@ class SteamChatIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
         ).readText()
 
-        assertTrue(tokenScreen.contains("SteamSection.CHAT"))
-        assertTrue(tokenScreen.contains("SteamChatScreen("))
-        assertTrue(tokenScreen.contains("pendingChatCount"))
+        assertTrue(activity.contains("MonicaSteamPage.CHAT"))
+        assertTrue(activity.contains("standalone = true"))
+        assertTrue(dock.contains("CHAT"))
+        assertTrue(tokenScreen.contains("onOpenChat"))
         assertTrue(friendsScreen.contains("onStartChat"))
         assertTrue(friendDetail.contains("steam_chat_send_message"))
-        assertFalse(chatScreen.contains("ExpressiveTopBar("))
-        assertFalse(chatScreen.contains("Scaffold("))
+        assertTrue(chatScreen.contains("ExpressiveTopBar("))
+        assertTrue(chatScreen.contains("Scaffold("))
+        assertTrue(chatScreen.contains("SteamChatFriendPicker("))
         assertTrue(chatScreen.contains("BackHandler"))
         assertTrue(chatScreen.contains("easyNotesScreenEnter()"))
     }
@@ -77,8 +85,8 @@ class SteamChatIntegrationGuardTest {
 
         assertTrue(chatScreen.contains("onThreadVisibilityChange"))
         assertTrue(chatScreen.contains("DisposableEffect(Unit)"))
-        assertTrue(steamScreen.contains("onThreadVisibilityChange"))
-        assertTrue(steamScreen.contains("isChatThreadOpen"))
+        assertTrue(activity.contains("onThreadVisibilityChange"))
+        assertTrue(activity.contains("MonicaSteamPage.CHAT"))
         assertTrue(activity.contains("isSteamChatThreadOpen"))
         assertTrue(activity.contains("!isSteamChatThreadOpen"))
     }

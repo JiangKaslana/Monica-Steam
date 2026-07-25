@@ -86,12 +86,6 @@ internal fun SteamChatSessionList(
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item(key = "chat-summary") {
-                ChatSessionSummary(
-                    conversationCount = sessions.size,
-                    unreadCount = state.unreadCount
-                )
-            }
             state.sessionsFailure?.let { failure ->
                 item(key = "chat-error") {
                     ChatFailureBanner(failure = failure, onRetry = onRetry)
@@ -121,41 +115,6 @@ internal fun SteamChatSessionList(
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter)
             )
-        }
-    }
-}
-
-@Composable
-private fun ChatSessionSummary(conversationCount: Int, unreadCount: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.steam_chat_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = stringResource(R.string.steam_chat_conversation_count, conversationCount),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (unreadCount > 0) {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            ) {
-                Text(
-                    text = stringResource(R.string.steam_chat_unread_count, unreadCount),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
         }
     }
 }
