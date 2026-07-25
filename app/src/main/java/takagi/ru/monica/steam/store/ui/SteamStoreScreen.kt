@@ -123,6 +123,14 @@ fun SteamStoreScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dockContentClearance = LocalSteamDockContentClearance.current
+    val storeRefreshing = state.loadingHome || state.loadingCatalog
+    val refreshStore = {
+        if (state.browseFilter == SteamStoreBrowseFilter.ALL) {
+            viewModel.loadHome(force = true)
+        } else {
+            viewModel.loadCatalog(force = true)
+        }
+    }
     var showAccounts by remember { mutableStateOf(false) }
     var searchExpanded by remember { mutableStateOf(false) }
     var lastDetail by remember { mutableStateOf<SteamStoreDetail?>(null) }
@@ -285,8 +293,8 @@ fun SteamStoreScreen(
                                 )
                             }
                             SteamPageOverflowMenu(
-                                refreshing = state.loadingHome,
-                                onRefresh = { viewModel.loadHome(force = true) },
+                                refreshing = storeRefreshing,
+                                onRefresh = refreshStore,
                                 onOpenSettings = onOpenSettings
                             )
                         }
@@ -314,8 +322,8 @@ fun SteamStoreScreen(
                 }
             ) { padding ->
                 SteamExpressivePullToRefresh(
-                    refreshing = state.loadingHome,
-                    onRefresh = { viewModel.loadHome(force = true) },
+                    refreshing = storeRefreshing,
+                    onRefresh = refreshStore,
                     modifier = Modifier.fillMaxSize().padding(padding)
                 ) {
                     LazyColumn(
@@ -330,13 +338,15 @@ fun SteamStoreScreen(
                             )
                         }
                     }
-                    if (state.error != null) {
+                        if (state.error != null || state.catalogError != null) {
                         item {
                             StoreMessage(
-                                state.error.orEmpty(),
-                                onRetry = {
-                                    if (state.query.isBlank()) viewModel.loadHome(force = true)
-                                    else viewModel.search()
+                                    state.catalogError ?: state.error.orEmpty(),
+                                    onRetry = {
+                                        if (state.query.isBlank() && state.browseFilter != SteamStoreBrowseFilter.ALL) {
+                                            viewModel.loadCatalog(force = true)
+                                        } else if (state.query.isBlank()) viewModel.loadHome(force = true)
+                                        else viewModel.search()
                                 }
                             )
                         }
@@ -347,6 +357,42 @@ fun SteamStoreScreen(
                         } else {
                             itemsIndexed(state.searchResults, key = ::steamStoreLazyKey) { _, item ->
                                 SearchResultCard(item, onClick = { viewModel.openDetail(item) })
+                            }
+                        }
+                    } else if (state.browseFilter != SteamStoreBrowseFilter.ALL) {
+                        if (state.catalogFromCache) item { CachedNotice() }
+                        if (state.loadingCatalog && state.catalogPage == null) {
+                            item { StoreHeroSkeleton() }
+                        }
+                        val catalogItems = state.catalogPage?.items.orEmpty()
+                        if (!state.loadingCatalog && catalogItems.isEmpty() && state.catalogError == null) {
+                            item { StoreMessage(stringResource(R.string.steam_store_filter_empty)) }
+                        } else {
+                            itemsIndexed(catalogItems, key = ::steamStoreLazyKey) { _, item ->
+                                SearchResultCard(item, onClick = { viewModel.openDetail(item) })
+                            }
+                            if (state.catalogPage?.hasMore == true) {
+                                item {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        FilledTonalButton(
+                                            onClick = { viewModel.loadCatalog(loadMore = true) },
+                                            enabled = !state.loadingMoreCatalog,
+                                            modifier = Modifier.heightIn(min = 48.dp)
+                                        ) {
+                                            if (state.loadingMoreCatalog) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(20.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                            }
+                                            Text(stringResource(R.string.steam_store_load_more))
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {

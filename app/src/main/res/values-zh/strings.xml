@@ -4354,6 +4354,7 @@
     <string name="steam_store_points_shop">点数商店</string>
     <string name="steam_store_filter_empty">当前没有符合此筛选条件的商店内容。</string>
     <string name="steam_store_retry">重试</string>
+    <string name="steam_store_load_more">加载更多游戏</string>
     <string name="steam_store_cached">正在显示已缓存的数据</string>
     <string name="steam_store_empty">没有找到匹配的游戏</string>
     <string name="steam_store_open_official">打开官方商店</string>

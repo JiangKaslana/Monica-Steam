@@ -40,6 +40,11 @@ data class SteamStoreUiState(
     val homeFromCache: Boolean = false,
     val loadingHome: Boolean = false,
     val browseFilter: SteamStoreBrowseFilter = SteamStoreBrowseFilter.ALL,
+    val catalogPage: SteamStoreCatalogPage? = null,
+    val catalogFromCache: Boolean = false,
+    val loadingCatalog: Boolean = false,
+    val loadingMoreCatalog: Boolean = false,
+    val catalogError: String? = null,
     val query: String = "",
     val searchResults: List<SteamStoreItem> = emptyList(),
     val searching: Boolean = false,
@@ -81,6 +86,8 @@ class SteamStoreViewModel(
 ) : ViewModel() {
     private var searchDebounceJob: Job? = null
     private var searchRequestJob: Job? = null
+    private var catalogRequestJob: Job? = null
+    private var catalogRequestGeneration: Long = 0L
     private var detailRequestGeneration: Long = 0L
     private var regionalPriceRequestGeneration: Long = 0L
     private val _uiState = MutableStateFlow(SteamStoreUiState())
@@ -706,8 +713,90 @@ class SteamStoreViewModel(
     }
 
     fun selectBrowseFilter(filter: SteamStoreBrowseFilter) {
-        _uiState.value = _uiState.value.copy(browseFilter = filter)
+        if (_uiState.value.browseFilter == filter) return
+        catalogRequestJob?.cancel()
+        catalogRequestGeneration++
+        _uiState.value = _uiState.value.copy(
+            browseFilter = filter,
+            catalogPage = null,
+            catalogFromCache = false,
+            loadingCatalog = false,
+            loadingMoreCatalog = false,
+            catalogError = null
+        )
+        if (filter != SteamStoreBrowseFilter.ALL) loadCatalog(force = false)
     }
+
+    fun loadCatalog(force: Boolean = false, loadMore: Boolean = false) {
+        val state = _uiState.value
+        val filter = state.browseFilter
+        if (filter == SteamStoreBrowseFilter.ALL || state.loadingCatalog || state.loadingMoreCatalog) return
+        if (loadMore && state.catalogPage?.hasMore != true) return
+        val accountId = state.selectedAccountId
+        val account = selectedAccount()
+        val generation = ++catalogRequestGeneration
+        catalogRequestJob?.cancel()
+        catalogRequestJob = viewModelScope.launch {
+            if (!force && !loadMore && _uiState.value.catalogPage == null) {
+                val cached = withContext(Dispatchers.IO) { cache.readCatalog(accountId, filter) }
+                if (catalogRequestIsCurrent(accountId, filter, generation) && cached != null) {
+                    _uiState.value = _uiState.value.copy(
+                        catalogPage = cached,
+                        catalogFromCache = true
+                    )
+                }
+            }
+            val existing = _uiState.value.catalogPage
+            if (!force && !loadMore && existing != null && !_uiState.value.catalogFromCache) return@launch
+            _uiState.value = _uiState.value.copy(
+                loadingCatalog = !loadMore,
+                loadingMoreCatalog = loadMore,
+                catalogError = null
+            )
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    executeStoreRequest(account) { credentials ->
+                        service.catalog(
+                            filter = filter,
+                            start = if (loadMore) existing?.nextStart ?: 0 else 0,
+                            steamLoginSecure = credentials.steamLoginSecure,
+                            accessToken = credentials.accessToken
+                        )
+                    }
+                }
+            }.onSuccess { page ->
+                if (!catalogRequestIsCurrent(accountId, filter, generation)) return@onSuccess
+                val merged = if (loadMore && existing != null) {
+                    page.copy(
+                        start = 0,
+                        items = (existing.items + page.items).distinctBy(SteamStoreItem::appId)
+                    )
+                } else page
+                withContext(Dispatchers.IO) { cache.writeCatalog(accountId, merged) }
+                _uiState.value = _uiState.value.copy(
+                    catalogPage = merged,
+                    catalogFromCache = false,
+                    loadingCatalog = false,
+                    loadingMoreCatalog = false
+                )
+            }.onFailure { error ->
+                if (!catalogRequestIsCurrent(accountId, filter, generation)) return@onFailure
+                _uiState.value = _uiState.value.copy(
+                    loadingCatalog = false,
+                    loadingMoreCatalog = false,
+                    catalogError = error.message ?: "Steam 商店目录加载失败"
+                )
+            }
+        }
+    }
+
+    private fun catalogRequestIsCurrent(
+        accountId: Long?,
+        filter: SteamStoreBrowseFilter,
+        generation: Long
+    ): Boolean = generation == catalogRequestGeneration &&
+        _uiState.value.selectedAccountId == accountId &&
+        _uiState.value.browseFilter == filter
 
     fun openPointsShop() {
         openStoreWeb(POINTS_SHOP_URL)
@@ -716,6 +805,8 @@ class SteamStoreViewModel(
     private fun resetStoreForAccount(accountId: Long?) {
         searchDebounceJob?.cancel()
         searchRequestJob?.cancel()
+        catalogRequestJob?.cancel()
+        catalogRequestGeneration++
         detailRequestGeneration++
         regionalPriceRequestGeneration++
         _uiState.value = _uiState.value.copy(
@@ -724,6 +815,11 @@ class SteamStoreViewModel(
             homeFromCache = false,
             loadingHome = false,
             browseFilter = SteamStoreBrowseFilter.ALL,
+            catalogPage = null,
+            catalogFromCache = false,
+            loadingCatalog = false,
+            loadingMoreCatalog = false,
+            catalogError = null,
             query = "",
             searchResults = emptyList(),
             searching = false,
@@ -892,13 +988,13 @@ class SteamStoreViewModel(
     }
 
     companion object {
-        private const val POINTS_SHOP_URL = "https://store.steampowered.com/points/shop/"
         internal val REGIONAL_PRICE_COUNTRY_CODES =
             listOf(
                 "CN", "US", "JP", "KR", "HK", "TW", "DE", "GB", "BR", "RU",
                 "UA", "IN", "ID"
             )
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
+        private const val POINTS_SHOP_URL = "https://store.steampowered.com/points/shop/"
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext

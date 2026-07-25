@@ -4524,6 +4524,7 @@
     <string name="steam_store_points_shop">Points Shop</string>
     <string name="steam_store_filter_empty">No matching store items are available right now.</string>
     <string name="steam_store_retry">Retry</string>
+    <string name="steam_store_load_more">Load more games</string>
     <string name="steam_store_cached">Showing saved data</string>
     <string name="steam_store_empty">No matching games found</string>
     <string name="steam_store_open_official">Open official store</string>
