@@ -21,9 +21,22 @@ data class SteamPointsShopItem(
     val pointCost: Long,
     val title: String,
     val description: String = "",
-    val imageUrl: String = "",
-    val animated: Boolean = false
+    val smallImageUrl: String = "",
+    val largeImageUrl: String = "",
+    val webmUrl: String = "",
+    val mp4Url: String = "",
+    val smallWebmUrl: String = "",
+    val smallMp4Url: String = "",
+    val animated: Boolean = false,
+    val profileThemeId: String = "",
+    val tiled: Boolean = false
 ) {
+    val imageUrl: String
+        get() = largeImageUrl.ifBlank { smallImageUrl }
+
+    val previewVideoUrl: String
+        get() = mp4Url.ifBlank { webmUrl }.ifBlank { smallMp4Url }.ifBlank { smallWebmUrl }
+
     val officialUrl: String
         get() = "https://store.steampowered.com/points/shop/reward/$definitionId"
 }

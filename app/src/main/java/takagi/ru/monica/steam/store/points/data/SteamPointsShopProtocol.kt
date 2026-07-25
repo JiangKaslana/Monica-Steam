@@ -58,8 +58,6 @@ private fun parseRewardDefinition(bytes: ByteArray): SteamPointsShopItem? {
     val appId = fields[1]?.asInt ?: return null
     val definitionId = fields[2]?.asInt ?: return null
     val itemData = fields[13]?.bytes?.let { SteamProtoReader(it).parse() }.orEmpty()
-    val image = itemData[5]?.asString?.takeIf(String::isNotBlank)
-        ?: itemData[4]?.asString.orEmpty()
     return SteamPointsShopItem(
         appId = appId,
         definitionId = definitionId,
@@ -69,12 +67,24 @@ private fun parseRewardDefinition(bytes: ByteArray): SteamPointsShopItem? {
         title = itemData[2]?.asString?.takeIf(String::isNotBlank)
             ?: itemData[1]?.asString.orEmpty(),
         description = itemData[3]?.asString.orEmpty(),
-        imageUrl = image.takeIf(String::isNotBlank)?.let {
-            "$STEAM_COMMUNITY_ITEM_CDN/$appId/$it"
-        }.orEmpty(),
-        animated = itemData[8]?.asBool == true
+        smallImageUrl = buildSteamPointsMediaUrl(appId, itemData[4]?.asString),
+        largeImageUrl = buildSteamPointsMediaUrl(appId, itemData[5]?.asString),
+        webmUrl = buildSteamPointsMediaUrl(appId, itemData[6]?.asString),
+        mp4Url = buildSteamPointsMediaUrl(appId, itemData[7]?.asString),
+        animated = itemData[8]?.asBool == true,
+        smallWebmUrl = buildSteamPointsMediaUrl(appId, itemData[10]?.asString),
+        smallMp4Url = buildSteamPointsMediaUrl(appId, itemData[11]?.asString),
+        profileThemeId = itemData[12]?.asString.orEmpty(),
+        tiled = itemData[13]?.asBool == true
     )
 }
 
+internal fun buildSteamPointsMediaUrl(appId: Int, value: String?): String {
+    val media = value?.trim().orEmpty()
+    if (media.isBlank()) return ""
+    if (media.startsWith("https://") || media.startsWith("http://")) return media
+    return "$STEAM_COMMUNITY_ITEM_CDN/$appId/${media.trimStart('/')}"
+}
+
 private const val STEAM_COMMUNITY_ITEM_CDN =
-    "https://community.fastly.steamstatic.com/images/items"
+    "https://shared.fastly.steamstatic.com/community_assets/images/items"

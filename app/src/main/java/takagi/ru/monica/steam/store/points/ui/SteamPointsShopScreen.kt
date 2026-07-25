@@ -1,5 +1,13 @@
 package takagi.ru.monica.steam.store.points.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +31,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -38,7 +45,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,39 +84,65 @@ internal fun SteamPointsShopScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dockClearance = LocalSteamDockContentClearance.current
+    var selectedItem by remember { mutableStateOf<SteamPointsShopItem?>(null) }
     LaunchedEffect(account?.id, account?.accessToken, account?.steamLoginSecure) {
         viewModel.attachAccount(account)
     }
 
-    Scaffold(
+    BackHandler(enabled = selectedItem != null) { selectedItem = null }
+    AnimatedContent(
+        targetState = selectedItem,
         modifier = modifier,
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            ExpressiveTopBar(
-                title = stringResource(R.string.steam_points_shop_title),
-                searchQuery = "",
-                onSearchQueryChange = {},
-                isSearchExpanded = false,
-                onSearchExpandedChange = {},
-                modifier = Modifier.statusBarsPadding(),
-                collapsedTitleEndPadding = 72.dp,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
-                        )
-                    }
-                }
+        transitionSpec = {
+            if (targetState != null) {
+                (slideInHorizontally(tween(300)) { it } + fadeIn(tween(220))) togetherWith
+                    (slideOutHorizontally(tween(220)) { -it / 4 } + fadeOut(tween(160)))
+            } else {
+                (slideInHorizontally(tween(260)) { -it / 4 } + fadeIn(tween(200))) togetherWith
+                    (slideOutHorizontally(tween(220)) { it } + fadeOut(tween(160)))
+            }
+        },
+        label = "SteamPointsRewardDetail"
+    ) { detailItem ->
+        if (detailItem != null) {
+            SteamPointsRewardDetailScreen(
+                item = detailItem,
+                onBack = { selectedItem = null },
+                onOpenOfficial = { onOpenOfficial(detailItem.officialUrl) },
+                modifier = Modifier.fillMaxSize()
             )
+            return@AnimatedContent
         }
-    ) { padding ->
-        SteamExpressivePullToRefresh(
-            refreshing = state.loading,
-            onRefresh = { viewModel.load(force = true) },
-            modifier = Modifier.fillMaxSize().padding(padding)
-        ) {
-            LazyVerticalGrid(
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+            topBar = {
+                ExpressiveTopBar(
+                    title = stringResource(R.string.steam_points_shop_title),
+                    searchQuery = "",
+                    onSearchQueryChange = {},
+                    isSearchExpanded = false,
+                    onSearchExpandedChange = {},
+                    modifier = Modifier.statusBarsPadding(),
+                    collapsedTitleEndPadding = 72.dp,
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.back)
+                            )
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            SteamExpressivePullToRefresh(
+                refreshing = state.loading,
+                onRefresh = { viewModel.load(force = true) },
+                modifier = Modifier.fillMaxSize().padding(padding)
+            ) {
+                LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 154.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
@@ -166,7 +202,7 @@ internal fun SteamPointsShopScreen(
                     }
                 } else {
                     items(state.items, key = SteamPointsShopItem::definitionId) { item ->
-                        SteamPointsRewardCard(item) { onOpenOfficial(item.officialUrl) }
+                        SteamPointsRewardCard(item) { selectedItem = item }
                     }
                 }
                 if (state.hasMore) {
@@ -190,6 +226,7 @@ internal fun SteamPointsShopScreen(
                     }
                 }
             }
+        }
         }
     }
 }
@@ -277,12 +314,6 @@ private fun SteamPointsRewardCard(item: SteamPointsShopItem, onOpen: () -> Unit)
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Icon(
-                        Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = stringResource(R.string.steam_points_shop_open_reward),
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
