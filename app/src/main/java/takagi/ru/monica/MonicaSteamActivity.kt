@@ -75,7 +75,6 @@ import takagi.ru.monica.steam.foundation.ui.ProvideSteamContentDensity
 import takagi.ru.monica.steam.foundation.ui.setSteamUiScaledContent
 import takagi.ru.monica.steam.store.ui.SteamStoreScreen
 import takagi.ru.monica.steam.alerts.data.SteamAlertScheduler
-import takagi.ru.monica.steam.diagnostics.SteamCrashDiagnostics
 import takagi.ru.monica.ui.base.BaseMonicaActivity
 import takagi.ru.monica.ui.screens.MonicaSteamSettingsScreen
 import takagi.ru.monica.ui.screens.WebDavBackupScreen
@@ -120,7 +119,6 @@ class MonicaSteamActivity : BaseMonicaActivity() {
     override fun shouldEnforceSharedSessionLock(): Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        SteamCrashDiagnostics.install(this)
         super.onCreate(savedInstanceState)
 
         lifecycleScope.launch {

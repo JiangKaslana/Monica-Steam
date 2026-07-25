@@ -6,21 +6,23 @@ import org.junit.Test
 
 class SteamCrashDiagnosticsTest {
     @Test
-    fun launcherInstallsPersistentCrashHandlerBeforeActivityStartup() {
-        val activity = projectFile(
-            "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
+    fun applicationInstallsPersistentCrashHandlerBeforeActivityStartup() {
+        val application = projectFile(
+            "app/src/main/java/takagi/ru/monica/MonicaSteamApplication.kt"
         ).readText()
+        val manifest = projectFile("app/src/main/AndroidManifest.xml").readText()
         val source = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/diagnostics/SteamCrashDiagnostics.kt"
         )
 
         assertTrue(source.exists())
         val diagnostics = source.readText()
-        val installIndex = activity.indexOf("SteamCrashDiagnostics.install(")
-        val superIndex = activity.indexOf("super.onCreate(savedInstanceState)")
+        val installIndex = application.indexOf("SteamCrashDiagnostics.install(")
+        val superIndex = application.indexOf("super.onCreate()")
         assertTrue(installIndex >= 0)
         assertTrue(superIndex >= 0)
         assertTrue(installIndex < superIndex)
+        assertTrue(manifest.contains("android:name=\".MonicaSteamApplication\""))
         assertTrue(diagnostics.contains("setDefaultUncaughtExceptionHandler"))
         assertTrue(diagnostics.contains("previousHandler?.uncaughtException"))
         assertTrue(diagnostics.contains("readLastCrash("))
