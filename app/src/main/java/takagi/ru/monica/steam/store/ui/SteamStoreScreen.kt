@@ -33,13 +33,11 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -89,7 +87,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
-import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.store.domain.*
@@ -264,7 +262,8 @@ fun SteamStoreScreen(
                         actions = {
                             IconButton(
                                 onClick = { showAccounts = true },
-                                enabled = state.accounts.isNotEmpty()
+                                enabled = state.accounts.isNotEmpty() ||
+                                    state.mdbxDatabases.isNotEmpty()
                             ) {
                                 Icon(
                                     Icons.Default.SwitchAccount,
@@ -386,10 +385,19 @@ fun SteamStoreScreen(
     }
 
     if (showAccounts) {
-        AccountSheet(
+        SteamAccountSwitcherSheet(
             accounts = state.accounts,
-            selectedId = state.selectedAccountId,
-            onSelected = { viewModel.selectAccount(it); showAccounts = false },
+            selectedAccountId = state.selectedAccountId,
+            storageSource = state.storageSource,
+            mdbxDatabases = state.mdbxDatabases,
+            loading = state.accountsLoading,
+            errorMessage = state.accountSourceError,
+            onSelectStorageSource = viewModel::selectStorageSource,
+            onSelectAccount = {
+                viewModel.selectAccount(it)
+                showAccounts = false
+            },
+            onRefresh = viewModel::refreshAccountSource,
             onDismiss = { showAccounts = false }
         )
     }
@@ -681,51 +689,6 @@ private fun SearchResultCard(game: SteamStoreItem, onClick: () -> Unit) {
                 game.formattedFinalPrice,
                 modifier = Modifier.fillMaxWidth()
             )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AccountSheet(accounts: List<SteamAccount>, selectedId: Long?, onSelected: (Long) -> Unit, onDismiss: () -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        tonalElevation = 0.dp
-    ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.steam_store_account), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.steam_store_security_note), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (accounts.isEmpty()) Text(stringResource(R.string.steam_store_no_account), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            accounts.forEach { account ->
-                val selected = account.id == selectedId
-                Surface(
-                    onClick = { onSelected(account.id) },
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-                    shape = RoundedCornerShape(24.dp),
-                    tonalElevation = if (selected) 2.dp else 0.dp,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp)
-                ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = CircleShape, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest) {
-                            Icon(
-                                Icons.Default.AccountCircle,
-                                contentDescription = null,
-                                modifier = Modifier.padding(8.dp).size(32.dp),
-                                tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(account.displayName.ifBlank { account.accountName }, style = MaterialTheme.typography.titleMedium)
-                            Text(account.visibleSteamId.ifBlank { account.accountName }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (account.steamLoginSecure.isNullOrBlank()) Text(stringResource(R.string.steam_store_no_session), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                        }
-                        if (selected) Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
         }
     }
 }

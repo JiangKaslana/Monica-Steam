@@ -15,10 +15,10 @@ import takagi.ru.monica.steam.store.domain.*
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import takagi.ru.monica.security.SecurityManager
+import takagi.ru.monica.data.LocalMdbxDatabase
 import takagi.ru.monica.steam.data.SteamAccount
-import takagi.ru.monica.steam.data.SteamAccountRepository
-import takagi.ru.monica.steam.data.SteamDatabase
+import takagi.ru.monica.steam.data.SteamAccountSourceRepository
+import takagi.ru.monica.steam.data.SteamStorageSource
 import takagi.ru.monica.steam.library.SteamCurrencyExchangeService
 import takagi.ru.monica.steam.library.SteamGameLibraryService
 import takagi.ru.monica.steam.library.SteamLibraryFailureReason
@@ -32,6 +32,10 @@ import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
     val selectedAccountId: Long? = null,
+    val storageSource: SteamStorageSource = SteamStorageSource.Local,
+    val mdbxDatabases: List<LocalMdbxDatabase> = emptyList(),
+    val accountsLoading: Boolean = false,
+    val accountSourceError: String? = null,
     val home: SteamStoreHome? = null,
     val homeFromCache: Boolean = false,
     val loadingHome: Boolean = false,
@@ -66,7 +70,7 @@ data class SteamStoreUiState(
 )
 
 class SteamStoreViewModel(
-    private val accountRepository: SteamAccountRepository,
+    private val accountSourceRepository: SteamAccountSourceRepository,
     private val cache: SteamStoreCache,
     private val service: SteamStoreService = SteamStoreService(),
     private val sessionRefreshService: SteamSessionRefreshService = SteamSessionRefreshService(),
@@ -83,16 +87,25 @@ class SteamStoreViewModel(
 
     init {
         viewModelScope.launch {
-            accountRepository.observeAccounts().collect { accounts ->
+            accountSourceRepository.state.collect { sourceState ->
+                val accounts = sourceState.accounts
                 val previousId = _uiState.value.selectedAccountId
-                val selected = accounts.firstOrNull { it.id == _uiState.value.selectedAccountId }
-                    ?: accounts.firstOrNull { it.selected }
+                val previousSource = _uiState.value.storageSource
+                val selected = accounts.firstOrNull { it.id == sourceState.selectedAccountId }
                     ?: accounts.firstOrNull()
                 _uiState.value = _uiState.value.copy(
                     accounts = accounts,
-                    selectedAccountId = selected?.id
+                    selectedAccountId = selected?.id,
+                    storageSource = sourceState.storageSource,
+                    mdbxDatabases = sourceState.mdbxDatabases,
+                    accountsLoading = sourceState.loading,
+                    accountSourceError = sourceState.errorMessage
                 )
-                if (previousId != selected?.id || _uiState.value.home == null) {
+                if (
+                    previousId != selected?.id ||
+                    previousSource != sourceState.storageSource ||
+                    _uiState.value.home == null
+                ) {
                     resetStoreForAccount(selected?.id)
                     loadCart(selected?.id)
                     loadWishlistCache(selected?.id)
@@ -680,11 +693,15 @@ class SteamStoreViewModel(
     }
 
     fun selectAccount(accountId: Long) {
-        if (_uiState.value.accounts.none { it.id == accountId }) return
-        if (_uiState.value.selectedAccountId == accountId) return
-        resetStoreForAccount(accountId)
-        loadHome(force = true)
-        viewModelScope.launch { accountRepository.select(accountId) }
+        accountSourceRepository.selectAccount(accountId)
+    }
+
+    fun selectStorageSource(source: SteamStorageSource) {
+        accountSourceRepository.selectStorageSource(source)
+    }
+
+    fun refreshAccountSource() {
+        accountSourceRepository.refreshCurrentSource()
     }
 
     private fun resetStoreForAccount(accountId: Long?) {
@@ -841,7 +858,7 @@ class SteamStoreViewModel(
             steamLoginSecure = "${account.steamId}||${refreshResult.accessToken}"
         )
         try {
-            accountRepository.updateSessionTokens(
+            accountSourceRepository.updateSessionTokens(
                 id = account.id,
                 accessToken = refreshResult.accessToken,
                 refreshToken = refreshed.refreshToken,
@@ -877,12 +894,8 @@ class SteamStoreViewModel(
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val database = SteamDatabase.getDatabase(appContext)
                     return SteamStoreViewModel(
-                        accountRepository = SteamAccountRepository(
-                            database.steamAccountDao(),
-                            SecurityManager(appContext)
-                        ),
+                        accountSourceRepository = SteamAccountSourceRepository.get(appContext),
                         cache = SteamStoreCache(appContext)
                     ) as T
                 }

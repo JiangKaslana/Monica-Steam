@@ -109,6 +109,7 @@ import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarImage
+import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.profile.ui.SteamMiniProfileBackgroundLayer
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
@@ -186,7 +187,8 @@ fun SteamLibraryScreen(
                         actions = {
                             IconButton(
                                 onClick = { showAccountSheet = true },
-                                enabled = state.accounts.isNotEmpty()
+                                enabled = state.accounts.isNotEmpty() ||
+                                    state.mdbxDatabases.isNotEmpty()
                             ) {
                                 Icon(
                                     Icons.Default.SwitchAccount,
@@ -291,10 +293,16 @@ fun SteamLibraryScreen(
         SteamAccountSwitcherSheet(
             accounts = state.accounts,
             selectedAccountId = state.selectedAccountId,
+            storageSource = state.storageSource,
+            mdbxDatabases = state.mdbxDatabases,
+            loading = state.accountsLoading,
+            errorMessage = state.accountSourceError,
+            onSelectStorageSource = viewModel::selectStorageSource,
             onSelectAccount = { accountId ->
                 viewModel.selectAccount(accountId)
                 showAccountSheet = false
             },
+            onRefresh = viewModel::refreshAccountSource,
             onDismiss = { showAccountSheet = false }
         )
     }
@@ -530,77 +538,6 @@ private fun SteamAccountHeroSwitcher(
             appSettings = appSettings,
             onClick = onOpenAccountDetails
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SteamAccountSwitcherSheet(
-    accounts: List<SteamAccount>,
-    selectedAccountId: Long?,
-    onSelectAccount: (Long) -> Unit,
-    onDismiss: () -> Unit
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        tonalElevation = 0.dp
-    ) {
-        Text(
-            text = stringResource(R.string.steam_switch_account),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-        )
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 520.dp),
-            contentPadding = PaddingValues(bottom = 32.dp)
-        ) {
-            items(accounts, key = SteamAccount::id) { account ->
-                ListItem(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 64.dp)
-                        .clickable { onSelectAccount(account.id) },
-                    headlineContent = {
-                        Text(
-                            text = account.displayName.ifBlank {
-                                account.accountName.ifBlank { account.visibleSteamId }
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            text = listOf(account.accountName, account.visibleSteamId)
-                                .filter(String::isNotBlank)
-                                .distinct()
-                                .joinToString(" · "),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    leadingContent = {
-                        SteamAvatarImage(account = account, size = 48.dp)
-                    },
-                    trailingContent = {
-                        if (account.id == selectedAccountId) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = stringResource(R.string.steam_selected_account_marker),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-                HorizontalDivider(modifier = Modifier.padding(start = 80.dp))
-            }
-        }
     }
 }
 

@@ -11,11 +11,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import takagi.ru.monica.data.LocalMdbxDatabase
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.data.SteamAccount
-import takagi.ru.monica.steam.data.SteamAccountRepository
+import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.data.SteamDatabase
 import takagi.ru.monica.steam.data.SteamLibraryCacheRepository
+import takagi.ru.monica.steam.data.SteamStorageSource
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.library.analytics.data.SteamPlayActivityRepository
 import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityHistory
@@ -27,6 +29,10 @@ import takagi.ru.monica.steam.quickaccess.SteamWidgetUpdater
 data class SteamLibraryUiState(
     val accounts: List<SteamAccount> = emptyList(),
     val selectedAccountId: Long? = null,
+    val storageSource: SteamStorageSource = SteamStorageSource.Local,
+    val mdbxDatabases: List<LocalMdbxDatabase> = emptyList(),
+    val accountsLoading: Boolean = false,
+    val accountSourceError: String? = null,
     val snapshot: SteamLibrarySnapshot? = null,
     val snapshotFromCache: Boolean = false,
     val playActivity: SteamPlayActivityHistory? = null,
@@ -42,7 +48,7 @@ data class SteamLibraryUiState(
 )
 
 class SteamLibraryViewModel(
-    private val accountRepository: SteamAccountRepository,
+    private val accountSourceRepository: SteamAccountSourceRepository,
     private val cacheRepository: SteamLibraryCacheRepository,
     private val service: SteamGameLibraryService = SteamGameLibraryService(),
     private val inventoryService: SteamInventoryService = SteamInventoryService(),
@@ -61,39 +67,50 @@ class SteamLibraryViewModel(
 
     init {
         viewModelScope.launch {
-            accountRepository.observeAccounts().collect { accounts ->
-                val selected = accounts.firstOrNull { it.id == _uiState.value.selectedAccountId }
-                    ?: accounts.firstOrNull { it.selected }
+            accountSourceRepository.state.collect { sourceState ->
+                val accounts = sourceState.accounts
+                val selected = accounts.firstOrNull { it.id == sourceState.selectedAccountId }
                     ?: accounts.firstOrNull()
+                val sourceChanged = sourceState.storageSource != _uiState.value.storageSource
                 val accountChanged = selected?.id != _uiState.value.selectedAccountId
                 _uiState.value = _uiState.value.copy(
                     accounts = accounts,
-                    selectedAccountId = selected?.id
+                    selectedAccountId = selected?.id,
+                    storageSource = sourceState.storageSource,
+                    mdbxDatabases = sourceState.mdbxDatabases,
+                    accountsLoading = sourceState.loading,
+                    accountSourceError = sourceState.errorMessage
                 )
-                if (accountChanged && selected != null) loadAccount(selected)
+                if ((sourceChanged || accountChanged) && selected != null) {
+                    loadAccount(selected)
+                } else if ((sourceChanged || accountChanged) && selected == null) {
+                    libraryLoadGeneration++
+                    achievementLoadGeneration++
+                    regionalPriceLoadGeneration++
+                    _uiState.value = _uiState.value.copy(
+                        snapshot = null,
+                        snapshotFromCache = false,
+                        playActivity = null,
+                        selectedGame = null,
+                        achievements = null,
+                        loadingLibrary = false,
+                        libraryFailure = null
+                    )
+                }
             }
         }
     }
 
     fun selectAccount(accountId: Long) {
-        val account = _uiState.value.accounts.firstOrNull { it.id == accountId } ?: return
-        if (_uiState.value.selectedAccountId == accountId) return
-        achievementLoadGeneration++
-        regionalPriceLoadGeneration++
-        _uiState.value = _uiState.value.copy(
-            selectedAccountId = accountId,
-            snapshot = null,
-            snapshotFromCache = false,
-            playActivity = null,
-            selectedGame = null,
-            achievements = null,
-            loadingLibrary = false,
-            libraryFailure = null,
-            achievementFailure = null,
-            loadingRegionalPrices = false,
-            regionalPriceFailure = null
-        )
-        viewModelScope.launch { loadAccount(account) }
+        accountSourceRepository.selectAccount(accountId)
+    }
+
+    fun selectStorageSource(source: SteamStorageSource) {
+        accountSourceRepository.selectStorageSource(source)
+    }
+
+    fun refreshAccountSource() {
+        accountSourceRepository.refreshCurrentSource()
     }
 
     fun refreshLibrary() {
@@ -507,7 +524,7 @@ class SteamLibraryViewModel(
             steamLoginSecure = "${account.steamId}||${refreshResult.accessToken}"
         )
         runSteamLibraryCatching {
-            accountRepository.updateSessionTokens(
+            accountSourceRepository.updateSessionTokens(
                 id = account.id,
                 accessToken = refreshResult.accessToken,
                 refreshToken = refreshed.refreshToken,
@@ -534,10 +551,7 @@ class SteamLibraryViewModel(
                     val database = SteamDatabase.getDatabase(appContext)
                     val securityManager = SecurityManager(appContext)
                     return SteamLibraryViewModel(
-                        accountRepository = SteamAccountRepository(
-                            database.steamAccountDao(),
-                            securityManager
-                        ),
+                        accountSourceRepository = SteamAccountSourceRepository.get(appContext),
                         cacheRepository = SteamLibraryCacheRepository(
                             database.steamLibraryCacheDao(),
                             securityManager
