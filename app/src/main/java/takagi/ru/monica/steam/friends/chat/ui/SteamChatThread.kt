@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -34,9 +35,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -49,7 +53,9 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
 import takagi.ru.monica.steam.friends.chat.actions.domain.SteamChatReportReason
 import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatMessageActionMenu
+import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatReactionPicker
 import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatReportDialog
+import kotlin.math.roundToInt
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaUiState
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
@@ -78,6 +84,8 @@ internal fun SteamChatThread(
     val messages = state.thread?.messages.orEmpty()
     val clipboard = LocalClipboardManager.current
     var selectedMessageId by remember { mutableStateOf<String?>(null) }
+    var reactionMessageId by remember { mutableStateOf<String?>(null) }
+    var actionTouchPosition by remember { mutableStateOf(IntOffset.Zero) }
     var reportMessage by remember { mutableStateOf<takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage?>(null) }
     var reportReason by remember { mutableStateOf(SteamChatReportReason.HARASSMENT) }
     val listState = rememberLazyListState()
@@ -156,7 +164,12 @@ internal fun SteamChatThread(
                             }
                             val serverConfirmed = message.timestamp > 0L &&
                                 message.ordinal != Int.MAX_VALUE
-                            Box(modifier = Modifier.animateItem()) {
+                            var messageOrigin by remember(message.stableId) { mutableStateOf(Offset.Zero) }
+                            Box(
+                                modifier = Modifier.animateItem().onGloballyPositioned {
+                                    messageOrigin = it.positionInWindow()
+                                }
+                            ) {
                                 SteamChatMessageBubble(
                                     message = message,
                                     accountSteamId = state.accountSteamId,
@@ -165,26 +178,44 @@ internal fun SteamChatThread(
                                     groupedWithNext = next?.senderSteamId == message.senderSteamId &&
                                         sameChatDay(next.timestamp, message.timestamp),
                                     onRetry = { onRetryMessage(message.clientMessageId) },
-                                    onLongClick = { selectedMessageId = message.stableId }
-                                )
-                                SteamChatMessageActionMenu(
-                                    expanded = selectedMessageId == message.stableId,
-                                    emoticons = if (serverConfirmed) richMediaState.emoticons else emptyList(),
-                                    canReport = serverConfirmed && !message.isOutgoing(state.accountSteamId),
-                                    onDismiss = { selectedMessageId = null },
-                                    onReact = {
-                                        selectedMessageId = null
-                                        onReact(message, it.name)
-                                    },
-                                    onCopy = {
-                                        clipboard.setText(AnnotatedString(message.body))
-                                        selectedMessageId = null
-                                    },
-                                    onReport = {
-                                        selectedMessageId = null
-                                        reportMessage = message
+                                    onLongClick = { localPosition ->
+                                        actionTouchPosition = IntOffset(
+                                            (messageOrigin.x + localPosition.x).roundToInt(),
+                                            (messageOrigin.y + localPosition.y).roundToInt()
+                                        )
+                                        selectedMessageId = message.stableId
                                     }
                                 )
+                                if (selectedMessageId == message.stableId) {
+                                    SteamChatMessageActionMenu(
+                                        touchPosition = actionTouchPosition,
+                                        canReport = serverConfirmed && !message.isOutgoing(state.accountSteamId),
+                                        onDismiss = { selectedMessageId = null },
+                                        onOpenReactions = {
+                                            selectedMessageId = null
+                                            reactionMessageId = message.stableId
+                                        },
+                                        onCopy = {
+                                            clipboard.setText(AnnotatedString(message.body))
+                                            selectedMessageId = null
+                                        },
+                                        onReport = {
+                                            selectedMessageId = null
+                                            reportMessage = message
+                                        }
+                                    )
+                                }
+                                if (reactionMessageId == message.stableId) {
+                                    SteamChatReactionPicker(
+                                        touchPosition = actionTouchPosition,
+                                        emoticons = if (serverConfirmed) richMediaState.emoticons else emptyList(),
+                                        onDismiss = { reactionMessageId = null },
+                                        onReact = {
+                                            reactionMessageId = null
+                                            onReact(message, it.name)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -224,7 +255,8 @@ private fun ChatThreadHeader(
     onRefresh: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().statusBarsPadding()
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onNavigateBack) {

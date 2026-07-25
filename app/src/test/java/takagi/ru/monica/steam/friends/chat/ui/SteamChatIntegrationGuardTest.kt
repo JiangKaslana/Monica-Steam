@@ -65,6 +65,7 @@ class SteamChatIntegrationGuardTest {
         val composer = root.resolve("ui/SteamChatComposer.kt").readText()
         assertTrue(thread.contains("animateScrollToItem"))
         assertTrue(thread.contains("animateItem()"))
+        assertTrue(thread.contains("statusBarsPadding()"))
         assertTrue(bubble.contains("SteamChatDeliveryState.FAILED"))
         assertTrue(bubble.contains("RoundedCornerShape"))
         assertFalse(composer.contains("imePadding()"))
