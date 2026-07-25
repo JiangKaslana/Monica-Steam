@@ -124,7 +124,7 @@ internal class SteamFamilyLibraryService(
                         .filter(String::isNotBlank)
                         .distinct()
                         .toList()
-                    val playtimeSeconds = fields.firstOrNull { it.number == 13 }
+                    val playtimeMinutes = fields.firstOrNull { it.number == 13 }
                         ?.asLong
                         ?.coerceAtLeast(0L)
                         ?: 0L
@@ -134,7 +134,7 @@ internal class SteamFamilyLibraryService(
                             ?.asString
                             .orEmpty()
                             .ifBlank { "App $appId" },
-                        playtimeForeverMinutes = (playtimeSeconds / 60L)
+                        playtimeForeverMinutes = playtimeMinutes
                             .coerceAtMost(Int.MAX_VALUE.toLong())
                             .toInt(),
                         playtimeRecentMinutes = 0,

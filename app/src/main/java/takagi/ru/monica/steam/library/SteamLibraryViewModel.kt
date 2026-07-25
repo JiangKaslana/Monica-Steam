@@ -225,7 +225,10 @@ class SteamLibraryViewModel(
                     if (!achievementRequestIsCurrent(account.id, game.appId, generation)) {
                         return@launch
                     }
-                    _uiState.value = _uiState.value.copy(
+                    _uiState.value = applyAchievementsToState(
+                        state = _uiState.value,
+                        achievements = result.value
+                    ).copy(
                         achievements = result.value,
                         achievementsFromCache = false,
                         loadingAchievements = false,
@@ -609,6 +612,33 @@ internal fun steamLibraryAchievementRequestIsCurrent(
     return generation == currentGeneration &&
         state.selectedAccountId == accountId &&
         state.selectedGame?.appId == appId
+}
+
+internal fun applyAchievementsToState(
+    state: SteamLibraryUiState,
+    achievements: SteamGameAchievements
+): SteamLibraryUiState {
+    val total = achievements.achievements.size
+    val unlocked = achievements.completed.size
+    fun SteamGame.withProgress(): SteamGame = copy(
+        achievementUnlockedCount = unlocked,
+        achievementTotalCount = total,
+        allAchievementsUnlocked = total > 0 && unlocked >= total
+    )
+
+    val updatedSelectedGame = state.selectedGame
+        ?.takeIf { it.appId == achievements.appId }
+        ?.withProgress()
+        ?: state.selectedGame
+    val updatedSnapshot = state.snapshot?.copy(
+        games = state.snapshot.games.map { game ->
+            if (game.appId == achievements.appId) game.withProgress() else game
+        }
+    )
+    return state.copy(
+        snapshot = updatedSnapshot,
+        selectedGame = updatedSelectedGame
+    )
 }
 
 /**

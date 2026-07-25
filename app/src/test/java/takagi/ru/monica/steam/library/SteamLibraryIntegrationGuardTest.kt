@@ -55,6 +55,28 @@ class SteamLibraryIntegrationGuardTest {
     }
 
     @Test
+    fun filterPersistsAndRapidScrollUsesStableBoundedImages() {
+        val screen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/library/ui/SteamLibraryScreen.kt"
+        ).readText()
+        val filters = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/library/ui/SteamLibraryFilters.kt"
+        ).readText()
+        val imageCache = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/profile/SteamRemoteImageCache.kt"
+        ).readText()
+
+        assertTrue(screen.contains("SteamLibraryFilterPreferences("))
+        assertTrue(screen.contains("filterPreferences.load()"))
+        assertTrue(screen.contains("filterPreferences.save(it)"))
+        assertFalse(filters.contains("index: Int"))
+        assertTrue(filters.contains("\"${'$'}{section.name}_${'$'}{game.appId}\""))
+        assertTrue(imageCache.contains("inJustDecodeBounds = true"))
+        assertTrue(imageCache.contains("inSampleSize"))
+        assertTrue(imageCache.contains("MAX_DECODE_DIMENSION"))
+    }
+
+    @Test
     fun cacheIsEncryptedAndFailuresDoNotReplaceLastSuccess() {
         val repository = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/data/SteamLibraryCacheRepository.kt"

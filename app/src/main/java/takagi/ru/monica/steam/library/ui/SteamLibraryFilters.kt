@@ -26,9 +26,8 @@ internal data class SteamLibraryGameSection(
 
 internal fun steamLibraryGameLazyKey(
     section: SteamLibraryGameSectionType,
-    index: Int,
     game: SteamGame
-): String = "${section.name}_${game.appId}_$index"
+): String = "${section.name}_${game.appId}"
 
 internal const val LONG_PLAYTIME_MINUTES = 100 * 60
 
@@ -37,7 +36,7 @@ internal fun buildSteamLibrarySections(
     query: String,
     filter: SteamLibraryGameFilter
 ): List<SteamLibraryGameSection> {
-    val searched = games.filter { game ->
+    val searched = games.distinctBy(SteamGame::appId).filter { game ->
         query.isBlank() || game.name.contains(query.trim(), ignoreCase = true)
     }
     val scoped = when (filter) {

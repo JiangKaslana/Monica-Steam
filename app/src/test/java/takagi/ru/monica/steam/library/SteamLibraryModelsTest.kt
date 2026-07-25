@@ -255,6 +255,30 @@ class SteamLibraryModelsTest {
     }
 
     @Test
+    fun loadedAchievementDetailsUpdatePerfectFilterMetadata() {
+        val game = SteamGame(10, "Complete", 120, 0)
+        val state = SteamLibraryUiState(
+            snapshot = SteamLibrarySnapshot(7L, listOf(game), 1L),
+            selectedGame = game
+        )
+        val achievements = SteamGameAchievements(
+            accountId = 7L,
+            appId = 10,
+            gameName = game.name,
+            achievements = listOf(
+                SteamAchievement("one", "One", "", true, 1L, null, null),
+                SteamAchievement("two", "Two", "", true, 2L, null, null)
+            ),
+            fetchedAt = 2L
+        )
+
+        val updated = applyAchievementsToState(state, achievements)
+
+        assertTrue(updated.selectedGame!!.isPerfectAchievementGame)
+        assertTrue(updated.snapshot!!.games.single().isPerfectAchievementGame)
+    }
+
+    @Test
     fun ownedGamesProtobufParsesPlaytimeFields() {
         val game = SteamProtoWriter().apply {
             writeUint64(1, 730L)
@@ -306,6 +330,19 @@ class SteamLibraryModelsTest {
     }
 
     @Test
+    fun achievementRequestUsesPackedAppIdsAcceptedBySteam() {
+        val source = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/library/SteamGameLibraryService.kt"
+        ).readText()
+        val request = source
+            .substringAfter("method = \"GetAchievementsProgress\"")
+            .substringBefore("accessToken = accessToken")
+
+        assertTrue(request.contains("writePackedVarints(3"))
+        assertTrue(!request.contains("batch.forEach { appId -> writeVarint(3"))
+    }
+
+    @Test
     fun declaredGamesWithoutGameMessagesAreRejectedInsteadOfCachedAsEmpty() {
         val malformedResponse = SteamProtoWriter().apply {
             writeVarint(1, 12L)
@@ -337,6 +374,14 @@ class SteamLibraryModelsTest {
             payload = jsonObject("{\"10\":{\"success\":true,\"data\":{\"is_free\":true}}}")
         )
         assertNull(price)
+    }
+
+    private fun projectFile(path: String): java.io.File {
+        var directory = java.io.File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
+        while (directory.parentFile != null && !java.io.File(directory, "settings.gradle").exists()) {
+            directory = directory.parentFile!!.canonicalFile
+        }
+        return java.io.File(directory, path)
     }
 
     @Test

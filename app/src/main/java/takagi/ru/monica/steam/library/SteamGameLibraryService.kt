@@ -230,7 +230,7 @@ class SteamGameLibraryService(
                         request = SteamProtoWriter().apply {
                             writeUint64(1, steamId)
                             writeString(2, language)
-                            batch.forEach { appId -> writeVarint(3, appId.toLong()) }
+                            writePackedVarints(3, batch.map(Int::toLong))
                             writeBool(4, true)
                         },
                         accessToken = accessToken,

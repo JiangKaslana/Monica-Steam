@@ -39,6 +39,12 @@ class SteamProtoWriter {
         out.write(bytes)
     }
 
+    fun writePackedVarints(field: Int, values: Iterable<Long>) {
+        val packed = SteamProtoWriter()
+        values.forEach(packed::writeVarintValue)
+        writeBytes(field, packed.toByteArray())
+    }
+
     fun writeMessage(field: Int, message: SteamProtoWriter) {
         writeBytes(field, message.toByteArray())
     }
@@ -63,6 +69,10 @@ class SteamProtoWriter {
 
     private fun writeTag(field: Int, wireType: Int) {
         writeVarintRaw(((field shl 3) or wireType).toLong())
+    }
+
+    private fun writeVarintValue(value: Long) {
+        writeVarintRaw(value)
     }
 
     private fun writeVarintRaw(value: Long) {

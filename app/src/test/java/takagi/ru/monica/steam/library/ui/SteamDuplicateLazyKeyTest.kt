@@ -8,17 +8,23 @@ import takagi.ru.monica.steam.library.SteamRegionalPrice
 
 class SteamDuplicateLazyKeyTest {
     @Test
-    fun duplicateLibraryGamesAchievementsAndPricesReceiveUniqueKeys() {
+    fun duplicateLibraryGamesAreRemovedWhileOtherRepeatedRowsReceiveUniqueKeys() {
         val game = SteamGame(730, "Counter-Strike 2", 1, 0)
-        val gameKeys = listOf(game, game).mapIndexed { index, item ->
-            steamLibraryGameLazyKey(SteamLibraryGameSectionType.PLAYED, index, item)
+        val gameRows = buildSteamLibrarySections(
+            games = listOf(game, game),
+            query = "",
+            filter = SteamLibraryGameFilter.ALL
+        ).flatMap(SteamLibraryGameSection::games)
+        val gameKeys = gameRows.map {
+            steamLibraryGameLazyKey(SteamLibraryGameSectionType.PLAYED, it)
         }
         val achievement = SteamAchievement("ACH_WIN", "Winner", "", false, null, null, null)
         val achievementKeys = listOf(achievement, achievement).mapIndexed(::steamAchievementLazyKey)
         val price = SteamRegionalPrice("US", "USD", 999, 999, true, fetchedAt = 1L)
         val priceKeys = listOf(price, price).mapIndexed(::steamRegionalPriceLazyKey)
 
-        assertEquals(2, gameKeys.distinct().size)
+        assertEquals(1, gameRows.size)
+        assertEquals(1, gameKeys.distinct().size)
         assertEquals(2, achievementKeys.distinct().size)
         assertEquals(2, priceKeys.distinct().size)
     }

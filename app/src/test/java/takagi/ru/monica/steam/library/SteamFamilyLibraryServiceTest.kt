@@ -34,7 +34,7 @@ class SteamFamilyLibraryServiceTest {
     }
 
     @Test
-    fun sharedAppsParseOwnersPlaytimeAndSkipExcludedLicenses() {
+    fun sharedAppsKeepSteamPlaytimeMinutesAndSkipExcludedLicenses() {
         val response = SteamProtoWriter().apply {
             writeMessage(1, sharedApp(20, "Shared game", 7_200L, excludeReason = 0))
             writeMessage(1, sharedApp(30, "Excluded game", 3_600L, excludeReason = 2))
@@ -44,7 +44,7 @@ class SteamFamilyLibraryServiceTest {
 
         assertEquals(20, game.appId)
         assertEquals("Shared game", game.name)
-        assertEquals(120, game.playtimeForeverMinutes)
+        assertEquals(7_200, game.playtimeForeverMinutes)
         assertEquals("icon-20", game.iconHash)
         assertEquals(listOf(FAMILY_OWNER_STEAM_ID.toString()), game.ownerSteamIds)
         assertEquals(SteamGameOwnership.FAMILY_SHARED, game.ownership)
@@ -111,7 +111,7 @@ class SteamFamilyLibraryServiceTest {
     private fun sharedApp(
         appId: Int,
         name: String,
-        playtimeSeconds: Long,
+        playtimeMinutes: Long,
         excludeReason: Int = 0
     ): SteamProtoWriter = SteamProtoWriter().apply {
         writeVarint(1, appId.toLong())
@@ -119,7 +119,7 @@ class SteamFamilyLibraryServiceTest {
         writeString(6, name)
         writeString(9, "icon-$appId")
         writeVarint(10, excludeReason.toLong())
-        writeVarint(13, playtimeSeconds)
+        writeVarint(13, playtimeMinutes)
         writeVarint(14, 1L)
     }
 

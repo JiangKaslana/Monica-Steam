@@ -54,7 +54,24 @@ class SteamRemoteImageCache private constructor(context: Context) {
 
     private fun read(file: File): Bitmap? {
         if (!file.isFile || file.length() <= 0L) return null
-        return runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull()
+        return runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+            var sampleSize = 1
+            while (bounds.outWidth / sampleSize > MAX_DECODE_DIMENSION ||
+                bounds.outHeight / sampleSize > MAX_DECODE_DIMENSION
+            ) {
+                sampleSize *= 2
+            }
+            BitmapFactory.decodeFile(
+                file.absolutePath,
+                BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
+            )
+        }.getOrNull()
     }
 
     private fun download(url: String, destination: File): Boolean {
@@ -111,6 +128,7 @@ class SteamRemoteImageCache private constructor(context: Context) {
     companion object {
         private const val MAX_SINGLE_IMAGE_BYTES = 6L * 1024L * 1024L
         private const val MAX_CACHE_BYTES = 48L * 1024L * 1024L
+        private const val MAX_DECODE_DIMENSION = 1_024
 
         @Volatile
         private var instance: SteamRemoteImageCache? = null

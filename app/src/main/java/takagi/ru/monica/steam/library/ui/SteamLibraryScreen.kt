@@ -319,7 +319,10 @@ private fun SteamLibraryOverview(
     val context = androidx.compose.ui.platform.LocalContext.current
     val settingsManager = remember(context) { SettingsManager(context.applicationContext) }
     val appSettings by settingsManager.settingsFlow.collectAsState(initial = AppSettings())
-    var filterName by rememberSaveable { mutableStateOf(SteamLibraryGameFilter.ALL.name) }
+    val filterPreferences = remember(context) {
+        SteamLibraryFilterPreferences(context.applicationContext)
+    }
+    var filterName by rememberSaveable { mutableStateOf(filterPreferences.load().name) }
     val filter = SteamLibraryGameFilter.entries
         .firstOrNull { it.name == filterName }
         ?: SteamLibraryGameFilter.ALL
@@ -361,7 +364,10 @@ private fun SteamLibraryOverview(
         item {
             SteamLibraryFilterSplitButton(
                 selectedFilter = filter,
-                onSelectFilter = { filterName = it.name },
+                onSelectFilter = {
+                    filterName = it.name
+                    filterPreferences.save(it)
+                },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
@@ -379,7 +385,7 @@ private fun SteamLibraryOverview(
                     }
                     itemsIndexed(
                         items = section.games,
-                        key = { index, game -> steamLibraryGameLazyKey(section.type, index, game) }
+                        key = { _, game -> steamLibraryGameLazyKey(section.type, game) }
                     ) { _, game ->
                         SteamGameLibraryRow(game = game, onClick = { onOpenGame(game) })
                     }
