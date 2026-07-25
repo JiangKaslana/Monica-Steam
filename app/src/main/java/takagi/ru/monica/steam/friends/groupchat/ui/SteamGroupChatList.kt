@@ -54,16 +54,32 @@ internal fun SteamGroupChatList(
         onRefresh = onRefresh,
         modifier = modifier
     ) {
-        when {
-            state.groupsLoading && groups.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            groups.isEmpty() -> EmptyGroups(Modifier.align(Alignment.Center))
-            else -> LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 128.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(groups, key = SteamGroupChatSummary::groupId) { group ->
-                    GroupCard(group) { onOpenRoom(group.groupId, group.defaultChatId) }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 128.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            when {
+                state.groupsLoading && groups.isEmpty() -> item(key = "groups_loading") {
+                    Box(
+                        modifier = Modifier.fillParentMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                groups.isEmpty() -> item(key = "groups_empty") {
+                    Box(
+                        modifier = Modifier.fillParentMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        EmptyGroups()
+                    }
+                }
+                else -> {
+                    items(groups, key = SteamGroupChatSummary::groupId) { group ->
+                        GroupCard(group) { onOpenRoom(group.groupId, group.defaultChatId) }
+                    }
                 }
             }
         }

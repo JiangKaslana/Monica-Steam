@@ -27,8 +27,8 @@ class SteamPullToRefreshGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/token/presentation/SteamViewModel.kt"
         ).readText()
 
-        assertTrue(friendsScreen.contains("PullToRefresh("))
-        assertTrue(friendsScreen.contains("isRefreshing = state.loading || state.refreshing"))
+        assertTrue(friendsScreen.contains("SteamExpressivePullToRefresh("))
+        assertTrue(friendsScreen.contains("refreshing = state.loading || state.refreshing"))
         assertTrue(friendsScreen.contains("onRefresh = friendsViewModel::refresh"))
         assertTrue(friendsScreen.contains("enabled = selectedAccount?.hasRealSteamId == true"))
         assertFalse(friendsScreen.contains("PullToSearchStateHandle"))
@@ -36,8 +36,8 @@ class SteamPullToRefreshGuardTest {
         assertTrue(friendsViewModel.contains("fun refresh()"))
         assertTrue(friendsViewModel.contains("gateway.fetch"))
 
-        assertTrue(notificationsScreen.contains("PullToRefresh("))
-        assertTrue(notificationsScreen.contains("isRefreshing = state.loading"))
+        assertTrue(notificationsScreen.contains("SteamExpressivePullToRefresh("))
+        assertTrue(notificationsScreen.contains("refreshing = state.loading"))
         assertTrue(notificationsScreen.contains("onRefresh: () -> Unit"))
         assertTrue(notificationsScreen.contains("enabled = account?.hasRealSteamId == true"))
         assertFalse(notificationsScreen.contains("PullToSearchStateHandle"))

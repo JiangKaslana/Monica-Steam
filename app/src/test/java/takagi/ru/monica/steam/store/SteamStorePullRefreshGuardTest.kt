@@ -17,10 +17,12 @@ class SteamStorePullRefreshGuardTest {
         assertTrue(store.contains("SteamPageOverflowMenu("))
         assertTrue(store.contains("onOpenSettings = onOpenSettings"))
         assertTrue(store.contains("SteamExpressivePullToRefresh("))
-        assertTrue(store.contains("refreshing = state.loadingHome"))
+        assertTrue(store.contains("val storeRefreshing = state.loadingHome || state.loadingCatalog"))
+        assertTrue(store.contains("refreshing = storeRefreshing"))
         assertTrue(store.contains("viewModel.loadHome(force = true)"))
-        assertTrue(controls.contains("LoadingIndicator("))
-        assertTrue(controls.contains("progress = { state.distanceFraction.coerceIn(0f, 1f) }"))
+        assertTrue(controls.contains("PullToRefreshDefaults.LoadingIndicator("))
+        assertTrue(controls.contains("state.isAnimating"))
+        assertTrue(controls.contains(".offset { IntOffset(0,"))
     }
 
     private fun projectFile(path: String): File {

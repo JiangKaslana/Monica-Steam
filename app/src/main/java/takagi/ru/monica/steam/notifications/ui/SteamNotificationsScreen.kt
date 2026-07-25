@@ -62,10 +62,10 @@ import java.text.DateFormat
 import java.util.Date
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.gifts.domain.*
 import takagi.ru.monica.steam.notifications.domain.*
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
-import takagi.ru.monica.ui.gestures.PullToRefresh
 
 private enum class SteamNotificationFilter {
     ALL,
@@ -122,8 +122,8 @@ fun SteamNotificationsScreen(
     val context = LocalContext.current
     val dockContentClearance = LocalSteamDockContentClearance.current
 
-    PullToRefresh(
-        isRefreshing = state.loading,
+    SteamExpressivePullToRefresh(
+        refreshing = state.loading,
         onRefresh = onRefresh,
         enabled = account?.hasRealSteamId == true,
         modifier = modifier.fillMaxSize()

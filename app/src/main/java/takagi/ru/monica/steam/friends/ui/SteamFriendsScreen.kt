@@ -21,11 +21,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.friends.domain.SteamFriendsFilter
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.token.presentation.SteamViewModel
-import takagi.ru.monica.ui.gestures.PullToRefresh
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 
@@ -106,8 +106,8 @@ fun SteamFriendsScreen(
                     onStartChat = { onStartChat(animatedFriend.steamId) }
                 )
             } else {
-                PullToRefresh(
-                    isRefreshing = state.loading || state.refreshing,
+                SteamExpressivePullToRefresh(
+                    refreshing = state.loading || state.refreshing,
                     onRefresh = friendsViewModel::refresh,
                     enabled = selectedAccount?.hasRealSteamId == true,
                     modifier = Modifier.fillMaxSize()

@@ -1,10 +1,13 @@
 package takagi.ru.monica.steam.foundation.ui
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -15,21 +18,25 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LoadingIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import takagi.ru.monica.R
+
+private const val PULL_REFRESH_HIDDEN_EPSILON = 0.001f
 
 @Composable
 fun SteamPageOverflowMenu(
@@ -70,35 +77,88 @@ fun SteamExpressivePullToRefresh(
     refreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     content: @Composable BoxScope.() -> Unit
 ) {
+    if (!enabled) {
+        Box(modifier = modifier.fillMaxSize()) {
+            content()
+        }
+        return
+    }
+
     val state = rememberPullToRefreshState()
+    val positionalThresholdPx = with(LocalDensity.current) {
+        PullToRefreshDefaults.PositionalThreshold.toPx()
+    }
+    var keepContentAtRestUntilHidden by remember { mutableStateOf(false) }
+
+    LaunchedEffect(refreshing, state.distanceFraction) {
+        when {
+            refreshing -> keepContentAtRestUntilHidden = true
+            keepContentAtRestUntilHidden &&
+                state.distanceFraction <= PULL_REFRESH_HIDDEN_EPSILON -> {
+                keepContentAtRestUntilHidden = false
+            }
+        }
+    }
+
+    val trackPull = !refreshing &&
+        !keepContentAtRestUntilHidden &&
+        !state.isAnimating
+    val contentOffsetTargetPx = calculatePullRefreshContentOffsetPx(
+        distanceFraction = state.distanceFraction,
+        positionalThresholdPx = positionalThresholdPx,
+        trackPull = trackPull
+    )
+    val contentOffsetPx by animateFloatAsState(
+        targetValue = contentOffsetTargetPx,
+        animationSpec = if (trackPull) {
+            snap()
+        } else {
+            spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        },
+        label = "steam_page_pull_content_offset"
+    )
+
     PullToRefreshBox(
         isRefreshing = refreshing,
         onRefresh = onRefresh,
         modifier = modifier.fillMaxSize(),
         state = state,
         indicator = {
-            if (refreshing || state.distanceFraction > 0f) {
-                Box(
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (refreshing) {
-                        LoadingIndicator(
-                            modifier = Modifier.size(42.dp),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        LoadingIndicator(
-                            progress = { state.distanceFraction.coerceIn(0f, 1f) },
-                            modifier = Modifier.size(42.dp),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
+            PullToRefreshDefaults.LoadingIndicator(
+                state = state,
+                isRefreshing = refreshing,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         },
-        content = content
-    )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset { IntOffset(0, contentOffsetPx.roundToInt()) }
+        ) {
+            content()
+        }
+    }
+}
+
+internal fun calculatePullRefreshContentOffsetPx(
+    distanceFraction: Float,
+    positionalThresholdPx: Float,
+    trackPull: Boolean
+): Float {
+    if (
+        !trackPull ||
+        !distanceFraction.isFinite() ||
+        !positionalThresholdPx.isFinite() ||
+        positionalThresholdPx <= 0f
+    ) {
+        return 0f
+    }
+    return distanceFraction.coerceAtLeast(0f) * positionalThresholdPx
 }
