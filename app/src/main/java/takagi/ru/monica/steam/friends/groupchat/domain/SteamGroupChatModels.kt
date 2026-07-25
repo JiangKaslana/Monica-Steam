@@ -38,12 +38,34 @@ data class SteamGroupChatMessage(
     val body: String,
     val deleted: Boolean = false,
     val serverEventType: Int = 0,
-    val clientMessageId: String = ""
+    val clientMessageId: String = "",
+    val localCreatedAtMillis: Long = 0L,
+    val deliveryState: SteamGroupChatDeliveryState = SteamGroupChatDeliveryState.SENT
 ) {
     val stableId: String get() = if (clientMessageId.isNotBlank()) {
         "client:$clientMessageId"
     } else "$groupId:$chatId:$timestamp:$ordinal:$senderSteamId"
 }
+
+@Serializable
+enum class SteamGroupChatDeliveryState { QUEUED, SENDING, VERIFYING, SENT, FAILED }
+
+@Serializable
+data class SteamGroupChatGroupsSnapshot(
+    val accountSteamId: String,
+    val groups: List<SteamGroupChatSummary>,
+    val fetchedAt: Long
+)
+
+@Serializable
+data class SteamGroupChatThreadSnapshot(
+    val accountSteamId: String,
+    val groupId: String,
+    val chatId: String,
+    val messages: List<SteamGroupChatMessage>,
+    val moreAvailable: Boolean,
+    val fetchedAt: Long
+)
 
 data class SteamGroupChatMessagePage(
     val messages: List<SteamGroupChatMessage>,
@@ -56,3 +78,29 @@ data class SteamGroupChatCreateRequest(
 )
 
 data class SteamGroupChatHistoryBoundary(val timestamp: Long, val ordinal: Int)
+
+internal fun mergeSteamGroupMessages(
+    current: List<SteamGroupChatMessage>,
+    incoming: List<SteamGroupChatMessage>
+): List<SteamGroupChatMessage> {
+    val merged = linkedMapOf<String, SteamGroupChatMessage>()
+    (current + incoming).forEach { message ->
+        val serverKey = "${message.timestamp}:${message.ordinal}:${message.senderSteamId}"
+        val existing = merged.values.firstOrNull {
+            it.stableId == message.stableId ||
+                (message.ordinal != Int.MAX_VALUE && it.ordinal != Int.MAX_VALUE &&
+                    it.timestamp == message.timestamp && it.ordinal == message.ordinal &&
+                    it.senderSteamId == message.senderSteamId)
+        }
+        if (existing != null) merged.remove(existing.stableId)
+        val replacement = if (message.clientMessageId.isBlank() && existing?.clientMessageId?.isNotBlank() == true) {
+            message.copy(
+                clientMessageId = existing.clientMessageId,
+                localCreatedAtMillis = existing.localCreatedAtMillis,
+                deliveryState = SteamGroupChatDeliveryState.SENT
+            )
+        } else message
+        merged[replacement.stableId.ifBlank { serverKey }] = replacement
+    }
+    return merged.values.sortedWith(compareBy<SteamGroupChatMessage> { it.timestamp }.thenBy { it.ordinal })
+}
