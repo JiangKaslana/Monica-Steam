@@ -7,33 +7,30 @@ import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEffect
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEmoticon
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichMediaCatalog
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatSticker
-import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoField
 import takagi.ru.monica.steam.network.SteamProtoReader
-import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.network.cm.SteamCmClient
+import takagi.ru.monica.steam.network.cm.SteamCmGateway
+import takagi.ru.monica.steam.network.cm.SteamCmProtocol
 
 /**
  * Reads the account's official Steam chat catalogue.
  *
  * The Point Shop endpoint returns public definitions, not owned assets.  It
  * must never be used to decide what this account may send.  Steam's own client
- * receives CMsgClientEmoticonList, whose unified response carries owned
- * emoticons, stickers and effects in fields 1, 2 and 3 respectively.  The
- * WebAPI endpoint may omit fields 2/3 on older servers; in that case we return
- * an empty owned-only list instead of exposing locked items.
+ * receives CMsgClientEmoticonList over a CM session. Its response carries
+ * owned emoticons, stickers and effects in fields 1, 2 and 3 respectively.
  */
 class SteamChatCatalogService(
-    private val api: SteamApiClient = SteamApiClient()
+    private val cm: SteamCmGateway = SteamCmClient()
 ) {
     fun loadCatalog(account: SteamAccount): SteamChatRichMediaCatalog {
-        val token = account.accessToken?.takeIf(String::isNotBlank)
+        account.accessToken?.takeIf(String::isNotBlank)
             ?: throw IllegalStateException("Steam access token required for chat media")
-        val response = api.callProtobuf(
-            iface = "IPlayerService",
-            method = "GetEmoticonList",
-            request = SteamProtoWriter(),
-            accessToken = token,
-            useGet = true
+        val response = cm.exchangeClientMessage(
+            account = account,
+            requestEMsg = SteamCmProtocol.EMSG_CLIENT_GET_EMOTICON_LIST,
+            responseEMsg = SteamCmProtocol.EMSG_CLIENT_EMOTICON_LIST
         )
         val fields = SteamProtoReader(response).parseAll()
         return SteamChatRichMediaCatalog(

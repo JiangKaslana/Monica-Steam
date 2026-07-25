@@ -1,56 +1,41 @@
 package takagi.ru.monica.steam.friends.chat.richmedia.data
 
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Protocol
-import okhttp3.Response
-import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
-import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.network.cm.SteamCmGateway
+import takagi.ru.monica.steam.network.cm.SteamCmProtocol
 
 class SteamChatCatalogServiceTest {
     @Test
     fun loadsOnlyOwnedEmoticonsStickersAndEffectsFromOfficialCatalogue() {
-        val client = OkHttpClient.Builder().addInterceptor { chain ->
-            val request = chain.request()
-            val responseBytes = when {
-                request.url.encodedPath.contains("GetEmoticonList") -> SteamProtoWriter().apply {
-                    writeMessage(1, SteamProtoWriter().apply {
-                        writeString(1, ":steamthumbsup:")
-                        writeVarint(2, 1L)
-                        writeVarint(3, 100L)
-                        writeVarint(4, 5L)
-                        writeVarint(6, 753L)
-                    })
-                    writeMessage(2, SteamProtoWriter().apply {
-                        writeString(1, "Mesmer spin")
-                        writeVarint(2, 1L)
-                        writeVarint(4, 570L)
-                        writeVarint(5, 90L)
-                    })
-                    writeMessage(3, SteamProtoWriter().apply {
-                        writeString(1, "confetti")
-                        writeVarint(2, 1L)
-                        writeVarint(3, 80L)
-                        writeBool(4, true)
-                        writeVarint(5, 570L)
-                    })
-                }.toByteArray()
-                else -> error("Unexpected request: ${request.url}")
-            }
-            Response.Builder()
-                .request(request)
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(responseBytes.toResponseBody("application/octet-stream".toMediaType()))
-                .build()
-        }.build()
-        val service = SteamChatCatalogService(SteamApiClient(client))
+        val cm = RecordingCmGateway(
+            SteamProtoWriter().apply {
+                writeMessage(1, SteamProtoWriter().apply {
+                    writeString(1, ":steamthumbsup:")
+                    writeVarint(2, 1L)
+                    writeVarint(3, 100L)
+                    writeVarint(4, 5L)
+                    writeVarint(6, 753L)
+                })
+                writeMessage(2, SteamProtoWriter().apply {
+                    writeString(1, "Mesmer spin")
+                    writeVarint(2, 1L)
+                    writeVarint(4, 570L)
+                    writeVarint(5, 90L)
+                })
+                writeMessage(3, SteamProtoWriter().apply {
+                    writeString(1, "confetti")
+                    writeVarint(2, 1L)
+                    writeVarint(3, 80L)
+                    writeBool(4, true)
+                    writeVarint(5, 570L)
+                })
+            }.toByteArray()
+        )
+        val service = SteamChatCatalogService(cm)
 
         val catalog = service.loadCatalog(account())
         val emoticon = catalog.emoticons.single()
@@ -63,6 +48,35 @@ class SteamChatCatalogServiceTest {
         assertTrue(sticker.imageUrl.endsWith("Mesmer%20spin"))
         assertEquals("/roomeffect confetti", effect.messageCode)
         assertTrue(catalog.stickers.none { it.name == "locked-point-shop-item" })
+        assertEquals(SteamCmProtocol.EMSG_CLIENT_GET_EMOTICON_LIST, cm.requestEMsg)
+        assertEquals(SteamCmProtocol.EMSG_CLIENT_EMOTICON_LIST, cm.responseEMsg)
+        assertTrue(requireNotNull(cm.request).isEmpty())
+    }
+
+    private class RecordingCmGateway(
+        private val response: ByteArray
+    ) : SteamCmGateway {
+        var requestEMsg: Int? = null
+        var responseEMsg: Int? = null
+        var request: ByteArray? = null
+
+        override fun callService(
+            account: SteamAccount,
+            method: String,
+            request: ByteArray
+        ): ByteArray = error("Unexpected unified service call")
+
+        override fun exchangeClientMessage(
+            account: SteamAccount,
+            requestEMsg: Int,
+            responseEMsg: Int,
+            request: ByteArray
+        ): ByteArray {
+            this.requestEMsg = requestEMsg
+            this.responseEMsg = responseEMsg
+            this.request = request
+            return response
+        }
     }
 
     private fun account() = SteamAccount(
