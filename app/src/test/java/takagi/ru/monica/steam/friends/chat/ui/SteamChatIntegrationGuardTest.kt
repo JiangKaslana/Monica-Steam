@@ -91,6 +91,9 @@ class SteamChatIntegrationGuardTest {
         val picker = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRichMediaPicker.kt"
         ).readText()
+        val pickerControls = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRichMediaPickerControls.kt"
+        ).readText()
         assertFalse(catalog.contains("QueryRewardItems"))
         assertTrue(catalog.contains("STICKERS_FIELD"))
         assertTrue(catalog.contains("EFFECTS_FIELD"))
@@ -99,6 +102,20 @@ class SteamChatIntegrationGuardTest {
         assertTrue(picker.contains("RichPickerPage.EFFECT"))
         assertTrue(picker.contains("AnimatedImageDrawable"))
         assertTrue(picker.contains("catalogFailure"))
+        assertFalse(picker.contains("ModalBottomSheet"))
+        assertFalse(picker.contains("SingleChoiceSegmentedButtonRow"))
+        assertTrue(picker.contains("SteamChatRichMediaPickerPanel"))
+        assertTrue(pickerControls.contains("SplitButtonLayout"))
+        val composer = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatComposer.kt"
+        ).readText()
+        assertTrue(composer.contains("SteamChatRichMediaPickerPanel"))
+        assertTrue(composer.contains("BackHandler(enabled = showRichPicker)"))
+        assertTrue(composer.contains("onFocusChanged"))
+        assertTrue(
+            composer.indexOf("SteamChatRichMediaPickerPanel(") >
+                composer.indexOf("FilledTonalIconButton(")
+        )
         val richContent = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRichMessageContent.kt"
         ).readText()

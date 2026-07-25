@@ -14,14 +14,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -34,16 +33,11 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,7 +55,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.nio.ByteBuffer
@@ -94,9 +87,8 @@ internal fun rememberSteamChatAttachmentPicker(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SteamChatRichMediaPickerSheet(
+internal fun SteamChatRichMediaPickerPanel(
     state: SteamChatRichMediaUiState,
     onDismiss: () -> Unit,
     onEmojiSelected: (String) -> Unit,
@@ -107,40 +99,41 @@ internal fun SteamChatRichMediaPickerSheet(
 ) {
     var page by remember { mutableStateOf(RichPickerPage.EMOJI) }
     var query by remember { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 3.dp
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.steam_chat_rich_picker_title),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SteamChatRichPickerPageSplitButton(
+                    selectedPage = page,
+                    onSelectPage = { selected ->
+                        page = selected
+                        query = ""
+                    }
                 )
+                Spacer(Modifier.weight(1f))
                 IconButton(onClick = onRefresh, enabled = !state.catalogLoading) {
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = stringResource(R.string.steam_chat_rich_picker_refresh)
                     )
                 }
-            }
-            SingleChoiceSegmentedButtonRow(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-            ) {
-                RichPickerPage.entries.forEachIndexed { index, item ->
-                    SegmentedButton(
-                        selected = page == item,
-                        onClick = { page = item },
-                        shape = SegmentedButtonDefaults.itemShape(index, RichPickerPage.entries.size),
-                        label = {
-                            Text(
-                                stringResource(
-                                    item.labelRes
-                                )
-                            )
-                        }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.steam_chat_close)
                     )
                 }
             }
@@ -202,52 +195,67 @@ internal fun SteamChatRichMediaPickerSheet(
                     }
                 }
             }
-            when (page) {
-                RichPickerPage.EMOJI -> EmojiGrid(
-                    query = query,
-                    onEmojiSelected = onEmojiSelected
-                )
-                RichPickerPage.EMOTICON -> EmoticonGrid(
-                    query = query,
-                    emoticons = state.emoticons,
-                    onEmoticonSelected = onEmoticonSelected
-                )
-                RichPickerPage.STICKER -> StickerGrid(
-                    query = query,
-                    stickers = state.stickers,
-                    onStickerSelected = onStickerSelected
-                )
-                RichPickerPage.EFFECT -> EffectGrid(
-                    query = query,
-                    effects = state.effects,
-                    onEffectSelected = onEffectSelected
-                )
-            }
+            RichPickerPageContent(
+                page = page,
+                query = query,
+                state = state,
+                onEmojiSelected = onEmojiSelected,
+                onEmoticonSelected = onEmoticonSelected,
+                onStickerSelected = onStickerSelected,
+                onEffectSelected = onEffectSelected
+            )
         }
     }
 }
 
 @Composable
-private fun EmojiGrid(
+private fun RichPickerPageContent(
+    page: RichPickerPage,
     query: String,
+    state: SteamChatRichMediaUiState,
+    onEmojiSelected: (String) -> Unit,
+    onEmoticonSelected: (SteamChatEmoticon) -> Unit,
+    onStickerSelected: (SteamChatSticker) -> Unit,
+    onEffectSelected: (SteamChatEffect) -> Unit
+) {
+    when (page) {
+        RichPickerPage.EMOJI -> EmojiGrid(onEmojiSelected = onEmojiSelected)
+        RichPickerPage.EMOTICON -> EmoticonGrid(
+            query = query,
+            emoticons = state.emoticons,
+            onEmoticonSelected = onEmoticonSelected
+        )
+        RichPickerPage.STICKER -> StickerGrid(
+            query = query,
+            stickers = state.stickers,
+            onStickerSelected = onStickerSelected
+        )
+        RichPickerPage.EFFECT -> EffectGrid(
+            query = query,
+            effects = state.effects,
+            onEffectSelected = onEffectSelected
+        )
+    }
+}
+
+@Composable
+private fun EmojiGrid(
     onEmojiSelected: (String) -> Unit
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(44.dp),
-        modifier = Modifier.fillMaxWidth().height(340.dp),
+        modifier = Modifier.fillMaxWidth().height(PICKER_GRID_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        if (query.isBlank()) {
-            items(SteamChatUnicodeEmojiCatalog.items, key = { "unicode-$it" }) { emoji ->
-                Surface(
-                    modifier = Modifier.size(44.dp).clip(CircleShape).clickable { onEmojiSelected(emoji) },
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    shape = CircleShape
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(emoji, style = MaterialTheme.typography.titleLarge)
-                    }
+        items(SteamChatUnicodeEmojiCatalog.items, key = { "unicode-$it" }) { emoji ->
+            Surface(
+                modifier = Modifier.size(44.dp).clip(CircleShape).clickable { onEmojiSelected(emoji) },
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = CircleShape
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(emoji, style = MaterialTheme.typography.titleLarge)
                 }
             }
         }
@@ -265,7 +273,7 @@ private fun EmoticonGrid(
     }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(44.dp),
-        modifier = Modifier.fillMaxWidth().height(340.dp),
+        modifier = Modifier.fillMaxWidth().height(PICKER_GRID_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -296,7 +304,7 @@ private fun EffectGrid(
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        modifier = Modifier.fillMaxWidth().height(300.dp),
+        modifier = Modifier.fillMaxWidth().height(PICKER_GRID_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -337,7 +345,7 @@ private fun StickerGrid(
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
-        modifier = Modifier.fillMaxWidth().height(380.dp),
+        modifier = Modifier.fillMaxWidth().height(PICKER_GRID_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -434,9 +442,4 @@ internal fun SteamChatRemoteImage(
     }
 }
 
-private enum class RichPickerPage(val labelRes: Int) {
-    EMOJI(R.string.steam_chat_rich_picker_emoji),
-    EMOTICON(R.string.steam_chat_rich_picker_emoticons),
-    STICKER(R.string.steam_chat_rich_picker_stickers),
-    EFFECT(R.string.steam_chat_rich_picker_effects)
-}
+private val PICKER_GRID_HEIGHT = 268.dp

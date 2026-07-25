@@ -1,13 +1,17 @@
 package takagi.ru.monica.steam.friends.chat.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +46,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -51,7 +57,7 @@ import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaUiState
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatAttachmentSheet
-import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMediaPickerSheet
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMediaPickerPanel
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.rememberSteamChatAttachmentPicker
 
 @Composable
@@ -68,6 +74,7 @@ internal fun SteamChatComposer(
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     var showRichPicker by rememberSaveable { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     val launchAttachmentPicker = rememberSteamChatAttachmentPicker(onAttachmentSelected)
     val canSend = text.isNotBlank()
     val send = {
@@ -78,28 +85,8 @@ internal fun SteamChatComposer(
         }
     }
 
-    if (showRichPicker) {
-        SteamChatRichMediaPickerSheet(
-            state = richMediaState,
-            onDismiss = { showRichPicker = false },
-            onEmojiSelected = { emoji -> text += emoji },
-    onEmoticonSelected = { emoticon ->
-                text += if (text.isBlank() || text.endsWith(' ')) {
-                    emoticon.messageCode
-                } else {
-                    " ${emoticon.messageCode}"
-                }
-            },
-            onStickerSelected = { sticker ->
-                onSend(sticker.messageCode)
-                showRichPicker = false
-            },
-            onEffectSelected = { effect ->
-                onSend(effect.messageCode)
-                showRichPicker = false
-            },
-            onRefresh = onRefreshCatalogs
-        )
+    BackHandler(enabled = showRichPicker) {
+        showRichPicker = false
     }
     if (richMediaState.pendingAttachment != null) {
         SteamChatAttachmentSheet(
@@ -157,7 +144,10 @@ internal fun SteamChatComposer(
                 verticalAlignment = Alignment.Bottom
             ) {
                 FilledTonalIconButton(
-                    onClick = launchAttachmentPicker,
+                    onClick = {
+                        showRichPicker = false
+                        launchAttachmentPicker()
+                    },
                     enabled = !richMediaState.attachmentPreparing && !richMediaState.attachmentUploading,
                     modifier = Modifier.padding(end = 8.dp, bottom = 2.dp).size(48.dp),
                     shape = CircleShape
@@ -170,16 +160,36 @@ internal fun SteamChatComposer(
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    modifier = Modifier.weight(1f).heightIn(min = 52.dp, max = 144.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 52.dp, max = 144.dp)
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) showRichPicker = false
+                        },
                     placeholder = { Text(stringResource(R.string.steam_chat_message_hint)) },
                     shape = RoundedCornerShape(24.dp),
                     minLines = 1,
                     maxLines = 5,
                     trailingIcon = {
-                        IconButton(onClick = { showRichPicker = true }) {
+                        IconButton(
+                            onClick = {
+                                showRichPicker = !showRichPicker
+                                if (showRichPicker) focusManager.clearFocus(force = true)
+                            }
+                        ) {
                             Icon(
-                                Icons.Default.EmojiEmotions,
-                                contentDescription = stringResource(R.string.steam_chat_rich_picker_title)
+                                imageVector = if (showRichPicker) {
+                                    Icons.Default.Close
+                                } else {
+                                    Icons.Default.EmojiEmotions
+                                },
+                                contentDescription = stringResource(
+                                    if (showRichPicker) {
+                                        R.string.steam_chat_close
+                                    } else {
+                                        R.string.steam_chat_rich_picker_title
+                                    }
+                                )
                             )
                         }
                     },
@@ -219,6 +229,39 @@ internal fun SteamChatComposer(
                         )
                     }
                 }
+            }
+            AnimatedVisibility(
+                visible = showRichPicker,
+                enter = fadeIn(tween(durationMillis = 180)) + expandVertically(
+                    animationSpec = tween(durationMillis = 220),
+                    expandFrom = Alignment.Top
+                ),
+                exit = fadeOut(tween(durationMillis = 120)) + shrinkVertically(
+                    animationSpec = tween(durationMillis = 160),
+                    shrinkTowards = Alignment.Top
+                )
+            ) {
+                SteamChatRichMediaPickerPanel(
+                    state = richMediaState,
+                    onDismiss = { showRichPicker = false },
+                    onEmojiSelected = { emoji -> text += emoji },
+                    onEmoticonSelected = { emoticon ->
+                        text += if (text.isBlank() || text.endsWith(' ')) {
+                            emoticon.messageCode
+                        } else {
+                            " ${emoticon.messageCode}"
+                        }
+                    },
+                    onStickerSelected = { sticker ->
+                        onSend(sticker.messageCode)
+                        showRichPicker = false
+                    },
+                    onEffectSelected = { effect ->
+                        onSend(effect.messageCode)
+                        showRichPicker = false
+                    },
+                    onRefresh = onRefreshCatalogs
+                )
             }
         }
     }
