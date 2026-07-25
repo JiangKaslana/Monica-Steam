@@ -27,7 +27,11 @@ class SteamEssentialsFloatingToolbarGuardTest {
         assertTrue(toolbar.contains("items.size > 3"))
         assertTrue(toolbar.contains("windowInsetsPadding(WindowInsets.navigationBars)"))
         assertTrue(toolbar.contains("HorizontalFloatingToolbar("))
-        assertTrue(toolbar.contains("toolbarContainerColor = Color.Transparent"))
+        assertTrue(
+            toolbar.contains(
+                "toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh"
+            )
+        )
         assertTrue(toolbar.contains("containerColor = Color.Transparent"))
         assertTrue(activity.contains("SteamEssentialsFloatingToolbar("))
         assertTrue(activity.contains("selectedIndex = tabs.indexOf(selected)"))

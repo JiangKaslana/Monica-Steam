@@ -152,7 +152,7 @@ internal fun SteamEssentialsFloatingToolbar(
         scrollBehavior = scrollBehavior,
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(
             toolbarContentColor = MaterialTheme.colorScheme.onSurface,
-            toolbarContainerColor = Color.Transparent
+            toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
         items.forEachIndexed { index, item ->
