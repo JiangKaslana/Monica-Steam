@@ -181,6 +181,57 @@ class SteamChatViewModelTest {
         assertEquals(listOf("client-1", "client-1"), clientIds)
     }
 
+    @Test
+    fun refreshDoesNotRestoreUnreadAfterThreadWasAcknowledged() =
+        runTest(mainDispatcher.scheduler) {
+            val account = account(1L, "76561198000000001")
+            val partner = "76561198000000003"
+            val staleSessions = SteamChatSessionsSnapshot(
+                accountSteamId = account.steamId,
+                sessions = listOf(
+                    SteamChatSession(
+                        partnerSteamId = partner,
+                        lastMessageTimestamp = 120L,
+                        lastViewTimestamp = 100L,
+                        unreadCount = 2
+                    )
+                ),
+                fetchedAt = 1L
+            )
+            val gateway = FakeGateway().apply {
+                fetchSessionsBlock = { staleSessions }
+                fetchMessagesBlock = { _, requestedPartner, _ ->
+                    SteamChatPage(
+                        messages = listOf(
+                            SteamChatMessage(
+                                partnerSteamId = requestedPartner,
+                                senderSteamId = requestedPartner,
+                                timestamp = 120L,
+                                ordinal = 1,
+                                body = "hello"
+                            )
+                        ),
+                        moreAvailable = false
+                    )
+                }
+            }
+            val viewModel = createViewModel(gateway)
+            viewModel.selectAccount(account)
+            runCurrent()
+            assertEquals(2, viewModel.uiState.value.sessions?.unreadCount)
+
+            viewModel.openThread(partner)
+            runCurrent()
+            assertEquals(0, viewModel.uiState.value.sessions?.unreadCount)
+
+            viewModel.refreshSessions()
+            runCurrent()
+
+            val refreshedSession = viewModel.uiState.value.sessions?.sessions?.single()
+            assertEquals(0, refreshedSession?.unreadCount)
+            assertEquals(120L, refreshedSession?.lastViewTimestamp)
+        }
+
     private fun createViewModel(
         gateway: SteamChatGateway,
         ioDispatcher: CoroutineDispatcher = mainDispatcher
@@ -243,6 +294,11 @@ class SteamChatViewModelTest {
         ) -> SteamChatMessage = { account, partner, body, clientId ->
             SteamChatMessage(partner, account.steamId, 1L, 1, body, clientMessageId = clientId)
         }
+        var fetchMessagesBlock: (
+            SteamAccount,
+            String,
+            SteamChatHistoryBoundary?
+        ) -> SteamChatPage = { _, _, _ -> SteamChatPage(emptyList(), false) }
 
         override fun fetchSessions(account: SteamAccount): SteamChatSessionsSnapshot =
             fetchSessionsBlock(account)
@@ -251,7 +307,7 @@ class SteamChatViewModelTest {
             account: SteamAccount,
             partnerSteamId: String,
             before: SteamChatHistoryBoundary?
-        ) = SteamChatPage(emptyList(), false)
+        ) = fetchMessagesBlock(account, partnerSteamId, before)
 
         override fun sendMessage(
             account: SteamAccount,

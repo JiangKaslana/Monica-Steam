@@ -72,6 +72,32 @@ internal fun SteamChatUiState.withChatMessage(
     )
 }
 
+internal fun reconcileSteamChatSessions(
+    remote: SteamChatSessionsSnapshot,
+    local: SteamChatSessionsSnapshot?
+): SteamChatSessionsSnapshot {
+    if (local == null || local.accountSteamId != remote.accountSteamId) return remote
+    val localByPartner = local.sessions.associateBy(SteamChatSession::partnerSteamId)
+    return remote.copy(
+        sessions = remote.sessions.map { remoteSession ->
+            val localSession = localByPartner[remoteSession.partnerSteamId]
+                ?: return@map remoteSession
+            val localAcknowledgementCoversRemote =
+                localSession.unreadCount == 0 &&
+                    localSession.lastViewTimestamp >= remoteSession.lastViewTimestamp &&
+                    remoteSession.lastMessageTimestamp <= localSession.lastViewTimestamp
+            if (localAcknowledgementCoversRemote) {
+                remoteSession.copy(
+                    lastViewTimestamp = localSession.lastViewTimestamp,
+                    unreadCount = 0
+                )
+            } else {
+                remoteSession
+            }
+        }
+    )
+}
+
 internal fun prepareSteamChatSession(
     account: SteamAccount,
     service: SteamSessionRefreshService?

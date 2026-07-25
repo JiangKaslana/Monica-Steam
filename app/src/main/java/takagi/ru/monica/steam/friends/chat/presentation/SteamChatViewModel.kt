@@ -239,10 +239,11 @@ class SteamChatViewModel(
             if (!isSessionsCurrent(account, generation)) return@launch
             result.fold(
                 onSuccess = { snapshot ->
-                    withContext(ioDispatcher) { cache.saveSessions(account.steamId, snapshot) }
+                    val reconciled = reconcileSteamChatSessions(snapshot, _uiState.value.sessions)
+                    withContext(ioDispatcher) { cache.saveSessions(account.steamId, reconciled) }
                     if (!isSessionsCurrent(account, generation)) return@launch
                     _uiState.value = _uiState.value.copy(
-                        sessions = snapshot,
+                        sessions = reconciled,
                         sessionsLoading = false,
                         sessionsRefreshing = false,
                         sessionsFromCache = false,
@@ -424,7 +425,6 @@ class SteamChatViewModel(
     }
     private fun isSessionsCurrent(account: SteamAccount, generation: Long): Boolean =
         requestGuard.isSessionsCurrent(account, generation)
-
     private fun isThreadCurrent(
         account: SteamAccount,
         partnerSteamId: String,
