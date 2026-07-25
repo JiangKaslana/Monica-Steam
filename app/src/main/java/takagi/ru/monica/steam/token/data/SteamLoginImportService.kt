@@ -19,7 +19,6 @@ import kotlinx.serialization.json.put
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import takagi.ru.monica.steam.core.SteamTotp
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.SteamApiClient
@@ -51,8 +50,6 @@ class SteamLoginImportService(
     companion object {
         private const val TAG = "SteamLoginImport"
 
-        private const val URL_RSA_KEY =
-            "https://api.steampowered.com/IAuthenticationService/GetPasswordRSAPublicKey/v1"
         private const val URL_BEGIN_AUTH =
             "https://api.steampowered.com/IAuthenticationService/BeginAuthSessionViaCredentials/v1"
         private const val URL_UPDATE_AUTH =
@@ -146,6 +143,8 @@ class SteamLoginImportService(
             }.getOrNull()
         }
     }
+
+    private val rsaKeyProvider = SteamLoginRsaKeyProvider(client, json)
 
     private enum class AuthFlow {
         AUTH_API,
@@ -282,29 +281,24 @@ class SteamLoginImportService(
             )
 
         runCatching {
-            val rsaResponse = getWithQuery(
-                URL_RSA_KEY,
-                mapOf("account_name" to userName.trim())
-            ) ?: return@runCatching AuthorizedDeviceRevokeResult.Failure(
-                "Could not obtain Steam password encryption key"
-            )
-            val rsaPayload = rsaResponse.responseObject()
-            val publicKeyMod = rsaPayload?.string("publickey_mod").orEmpty()
-            val publicKeyExp = rsaPayload?.string("publickey_exp").orEmpty()
-            val timeStamp = rsaPayload?.string("timestamp").orEmpty()
-            if (publicKeyMod.isBlank() || publicKeyExp.isBlank() || timeStamp.isBlank()) {
-                return@runCatching AuthorizedDeviceRevokeResult.Failure(
-                    "Steam password encryption response is incomplete"
+            val rsaResult = rsaKeyProvider.load(userName)
+            val rsaKey = (rsaResult as? SteamLoginRsaResult.Success)?.key
+                ?: return@runCatching AuthorizedDeviceRevokeResult.Failure(
+                    (rsaResult as? SteamLoginRsaResult.Failure)?.reason
+                        ?: "Could not obtain Steam password encryption key"
                 )
-            }
-            val encryptedPassword = encryptPasswordWithRsa(password, publicKeyMod, publicKeyExp)
+            val encryptedPassword = encryptPasswordWithRsa(
+                password,
+                rsaKey.modulusHex,
+                rsaKey.exponentHex
+            )
                 ?: return@runCatching AuthorizedDeviceRevokeResult.Failure(
                     "Could not encrypt the Steam password"
                 )
             val begin = beginAuthSessionViaCredentialsWithProtobuf(
                 userName = userName.trim(),
                 encryptedPassword = encryptedPassword,
-                encryptionTimestamp = timeStamp,
+                encryptionTimestamp = rsaKey.timestamp,
                 throwApiErrors = true
             ) ?: return@runCatching AuthorizedDeviceRevokeResult.Failure(
                 "Steam rejected the device-removal authentication request"
@@ -330,7 +324,7 @@ class SteamLoginImportService(
                     code = code,
                     confirmationType = AUTH_CODE_TYPE_DEVICE
                 )
-            ) {
+                ) {
                 SteamGuardSubmitResult.Accepted -> Unit
                 is SteamGuardSubmitResult.Failure -> {
                     return@runCatching AuthorizedDeviceRevokeResult.Failure(submitted.message)
@@ -377,38 +371,28 @@ class SteamLoginImportService(
 
         runCatching {
             logDiag("begin login start")
-            val rsaResponse = getWithQuery(
-                URL_RSA_KEY,
-                mapOf(
-                    "account_name" to userName.trim()
+            val rsaResult = rsaKeyProvider.load(userName)
+            val rsaKey = (rsaResult as? SteamLoginRsaResult.Success)?.key
+                ?: return@runCatching LoginResult.Failure(
+                    (rsaResult as? SteamLoginRsaResult.Failure)?.reason
+                        ?: "获取 Steam RSA 密钥失败"
                 )
-            ) ?: return@runCatching LoginResult.Failure("获取 Steam RSA 密钥失败")
+            logDiag(
+                "begin login rsa ok source=" +
+                    (rsaResult as SteamLoginRsaResult.Success).source.name.lowercase()
+            )
 
-            val rsaPayload = rsaResponse.responseObject()
-            val rsaSuccess = rsaResponse.successBoolean() ?: (rsaPayload != null)
-            if (!rsaSuccess) {
-                val message = rsaPayload?.messageString()
-                    ?: rsaResponse.messageString()
-                    ?: "Steam 登录失败（RSA）"
-                return@runCatching LoginResult.Failure(message)
-            }
-
-            val publicKeyMod = rsaPayload?.string("publickey_mod").orEmpty()
-            val publicKeyExp = rsaPayload?.string("publickey_exp").orEmpty()
-            val timeStamp = rsaPayload?.string("timestamp").orEmpty()
-            if (publicKeyMod.isBlank() || publicKeyExp.isBlank() || timeStamp.isBlank()) {
-                logDiag("begin login rsa incomplete")
-                return@runCatching LoginResult.Failure("Steam RSA 响应不完整")
-            }
-            logDiag("begin login rsa ok")
-
-            val encryptedPassword = encryptPasswordWithRsa(password, publicKeyMod, publicKeyExp)
+            val encryptedPassword = encryptPasswordWithRsa(
+                password,
+                rsaKey.modulusHex,
+                rsaKey.exponentHex
+            )
                 ?: return@runCatching LoginResult.Failure("Steam 密码加密失败")
 
             val protobufBeginSession = beginAuthSessionViaCredentialsWithProtobuf(
                 userName = userName.trim(),
                 encryptedPassword = encryptedPassword,
-                encryptionTimestamp = timeStamp
+                encryptionTimestamp = rsaKey.timestamp
             )
             if (protobufBeginSession != null) {
                 logDiag("begin auth protobuf ok challenges=${protobufBeginSession.challenges.map { it.confirmationType }.joinToString(",")}")
@@ -445,7 +429,7 @@ class SteamLoginImportService(
                 mapOf(
                     "account_name" to userName.trim(),
                     "encrypted_password" to encryptedPassword,
-                    "encryption_timestamp" to timeStamp,
+                    "encryption_timestamp" to rsaKey.timestamp,
                     "persistence" to "1",
                     "remember_login" to "true",
                     "website_id" to STEAM_WEBSITE_ID,
@@ -2234,47 +2218,6 @@ class SteamLoginImportService(
             }
         }.onFailure { error ->
             android.util.Log.e(TAG, "postForm exception: $url, error=${error.message}", error)
-        }.getOrNull()
-    }
-
-    private fun getWithQuery(
-        url: String,
-        query: Map<String, String>
-    ): JsonObject? {
-        val httpUrlBuilder = url.toHttpUrlOrNull()?.newBuilder()
-            ?: return null
-        query.forEach { (key, value) ->
-            httpUrlBuilder.addQueryParameter(key, value)
-        }
-
-        val request = Request.Builder()
-            .url(httpUrlBuilder.build())
-            .get()
-            .header("User-Agent", "Mozilla/5.0 (Monica Android)")
-            .header("Accept", "application/json")
-            .build()
-
-        return runCatching {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    android.util.Log.w(TAG, "getWithQuery failed: $url, code=${response.code}")
-                    return null
-                }
-                val body = response.body?.string().orEmpty()
-                if (body.isBlank()) return null
-                val parsed = json.parseToJsonElement(body).jsonObject
-                val eResultHeader = response.header("X-eresult")
-                if (eResultHeader.isNullOrBlank()) {
-                    parsed
-                } else {
-                    buildJsonObject {
-                        parsed.forEach { (k, v) -> put(k, v) }
-                        put("_x_eresult", JsonPrimitive(eResultHeader))
-                    }
-                }
-            }
-        }.onFailure { error ->
-            android.util.Log.e(TAG, "getWithQuery exception: $url, error=${error.message}", error)
         }.getOrNull()
     }
 
