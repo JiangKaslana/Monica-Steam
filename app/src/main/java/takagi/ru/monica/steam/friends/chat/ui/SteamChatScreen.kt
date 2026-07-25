@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material3.Icon
@@ -39,6 +40,10 @@ import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessage
 import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionViewModel
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaViewModel
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
+import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatViewModel
+import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatDialogsHost
+import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatList
+import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatThreadHost
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
@@ -66,6 +71,9 @@ fun SteamChatScreen(
     val chatViewModel: SteamChatViewModel = viewModel(
         factory = remember(context) { SteamChatViewModel.factory(context) }
     )
+    val groupChatViewModel: SteamGroupChatViewModel = viewModel(
+        factory = remember(context) { SteamGroupChatViewModel.factory(context) }
+    )
     val richMediaViewModel: SteamChatRichMediaViewModel = viewModel(
         factory = remember(context) { SteamChatRichMediaViewModel.factory(context) }
     )
@@ -74,6 +82,7 @@ fun SteamChatScreen(
     )
     val friendsState by friendsViewModel.uiState.collectAsState()
     val chatState by chatViewModel.uiState.collectAsState()
+    val groupChatState by groupChatViewModel.state.collectAsState()
     val richMediaState by richMediaViewModel.uiState.collectAsState()
     val selectedAccount = accountSourceState.accounts.firstOrNull {
         it.id == accountSourceState.selectedAccountId
@@ -85,8 +94,10 @@ fun SteamChatScreen(
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var showAccounts by rememberSaveable { mutableStateOf(false) }
     var showFriends by rememberSaveable { mutableStateOf(false) }
+    var showGroups by rememberSaveable { mutableStateOf(false) }
+    var showCreateGroup by rememberSaveable { mutableStateOf(false) }
+    var showInviteFriend by rememberSaveable { mutableStateOf(false) }
     val effectiveSearchQuery = if (standalone) standaloneSearchQuery else searchQuery
-
     LaunchedEffect(
         selectedAccount?.id,
         selectedAccount?.steamId,
@@ -94,11 +105,11 @@ fun SteamChatScreen(
         selectedAccount?.steamLoginSecure
     ) {
         chatViewModel.selectAccount(selectedAccount)
+        groupChatViewModel.selectAccount(selectedAccount)
         richMediaViewModel.selectAccount(selectedAccount)
         messageActionViewModel.selectAccount(selectedAccount)
         friendsViewModel.selectAccount(selectedAccount)
     }
-
     LaunchedEffect(messageActionViewModel) {
         messageActionViewModel.results.collect { result ->
             val message = when (result) {
@@ -109,20 +120,18 @@ fun SteamChatScreen(
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
-
-    LaunchedEffect(chatState.selectedPartnerSteamId) {
+    LaunchedEffect(chatState.selectedPartnerSteamId, groupChatState.selectedChatId) {
         richMediaViewModel.selectPartner(chatState.selectedPartnerSteamId)
-        onThreadVisibilityChange(chatState.selectedPartnerSteamId != null)
+        onThreadVisibilityChange(
+            chatState.selectedPartnerSteamId != null || groupChatState.selectedChatId != null
+        )
     }
-
     DisposableEffect(Unit) {
         onDispose { onThreadVisibilityChange(false) }
     }
-
     LaunchedEffect(richMediaState.uploadCompletedAt) {
         if (richMediaState.uploadCompletedAt > 0L) chatViewModel.refreshThread()
     }
-
     LaunchedEffect(requestedPartnerSteamId, selectedAccount?.id) {
         val partner = requestedPartnerSteamId?.takeIf(String::isNotBlank) ?: return@LaunchedEffect
         if (selectedAccount != null) {
@@ -134,16 +143,33 @@ fun SteamChatScreen(
 
     LaunchedEffect(refreshRequest) {
         if (refreshRequest <= 0L) return@LaunchedEffect
-        if (chatState.selectedPartnerSteamId == null) {
+        if (groupChatState.selectedChatId != null) {
+            groupChatViewModel.refreshThread()
+        } else if (chatState.selectedPartnerSteamId == null) {
             chatViewModel.refreshSessions()
+            groupChatViewModel.refreshGroups()
             friendsViewModel.refresh()
         } else {
             chatViewModel.refreshThread()
         }
     }
 
-    LaunchedEffect(chatState.unreadCount) {
-        onUnreadCountChange(chatState.unreadCount)
+    LaunchedEffect(chatState.unreadCount, groupChatState.groups) {
+        onUnreadCountChange(chatState.unreadCount + groupChatState.groups.sumOf { it.unreadCount })
+    }
+
+    LaunchedEffect(groupChatState.createdGroupId) {
+        if (groupChatState.createdGroupId != null) {
+            showCreateGroup = false
+            Toast.makeText(context, R.string.steam_group_chat_created, Toast.LENGTH_SHORT).show()
+            groupChatViewModel.clearCreatedGroup()
+        }
+    }
+    LaunchedEffect(groupChatState.failure) {
+        groupChatState.failure?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            groupChatViewModel.clearFailure()
+        }
     }
 
     DisposableEffect(lifecycleOwner, chatViewModel) {
@@ -153,19 +179,31 @@ fun SteamChatScreen(
                 Lifecycle.Event.ON_STOP -> chatViewModel.setForeground(false)
                 else -> Unit
             }
+            when (event) {
+                Lifecycle.Event.ON_START -> groupChatViewModel.setForeground(true)
+                Lifecycle.Event.ON_STOP -> groupChatViewModel.setForeground(false)
+                else -> Unit
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         chatViewModel.setForeground(
             lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
         )
+        groupChatViewModel.setForeground(
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        )
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             chatViewModel.setForeground(false)
+            groupChatViewModel.setForeground(false)
         }
     }
 
     BackHandler(enabled = chatState.selectedPartnerSteamId != null) {
         chatViewModel.closeThread()
+    }
+    BackHandler(enabled = groupChatState.selectedChatId != null) {
+        groupChatViewModel.closeRoom()
     }
     BackHandler(
         enabled = standalone && chatState.selectedPartnerSteamId == null && showFriends
@@ -174,12 +212,12 @@ fun SteamChatScreen(
     }
 
     AnimatedContent(
-        targetState = chatState.selectedPartnerSteamId,
+        targetState = chatState.selectedPartnerSteamId to groupChatState.selectedChatId,
         modifier = modifier.fillMaxSize(),
         transitionSpec = { easyNotesScreenEnter().togetherWith(easyNotesScreenExit()) },
         label = "SteamChatNavigation"
-    ) { partnerSteamId ->
-        if (partnerSteamId == null) {
+    ) { (partnerSteamId, groupRoomId) ->
+        if (partnerSteamId == null && groupRoomId == null) {
             if (standalone) {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -207,10 +245,22 @@ fun SteamChatScreen(
                                         contentDescription = stringResource(R.string.steam_switch_account)
                                     )
                                 }
-                                IconButton(onClick = { showFriends = !showFriends }) {
+                                IconButton(onClick = {
+                                    showFriends = !showFriends
+                                    if (showFriends) showGroups = false
+                                }) {
                                     Icon(
                                         Icons.Default.Groups,
                                         contentDescription = stringResource(R.string.steam_friends_title)
+                                    )
+                                }
+                                IconButton(onClick = {
+                                    showGroups = !showGroups
+                                    if (showGroups) showFriends = false
+                                }) {
+                                    Icon(
+                                        Icons.Default.Forum,
+                                        contentDescription = stringResource(R.string.steam_group_chat_title)
                                     )
                                 }
                                 IconButton(onClick = { searchExpanded = true }) {
@@ -224,14 +274,27 @@ fun SteamChatScreen(
                     }
                 ) { padding ->
                     AnimatedContent(
-                        targetState = showFriends,
+                        targetState = when {
+                            showGroups -> 2
+                            showFriends -> 1
+                            else -> 0
+                        },
                         modifier = Modifier.fillMaxSize().padding(padding),
                         transitionSpec = {
                             easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
                         },
                         label = "SteamChatRootMode"
-                    ) { friendsVisible ->
-                        if (friendsVisible) {
+                    ) { rootMode ->
+                        if (rootMode == 2) {
+                            SteamGroupChatList(
+                                state = groupChatState,
+                                query = effectiveSearchQuery,
+                                onOpenRoom = groupChatViewModel::openRoom,
+                                onRefresh = groupChatViewModel::refreshGroups,
+                                onCreateGroup = { showCreateGroup = true },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (rootMode == 1) {
                             SteamChatFriendPicker(
                                 friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
                                 loading = friendsState.loading && friendsState.snapshot == null,
@@ -265,7 +328,7 @@ fun SteamChatScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-        } else {
+        } else if (partnerSteamId != null) {
             SteamChatThread(
                 state = chatState,
                 richMediaState = richMediaState,
@@ -292,6 +355,17 @@ fun SteamChatScreen(
                 onRefreshCatalogs = richMediaViewModel::refreshCatalogs,
                 modifier = Modifier.fillMaxSize()
             )
+        } else {
+            SteamGroupChatThreadHost(
+                state = groupChatState,
+                friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
+                onBack = groupChatViewModel::closeRoom,
+                onOpenRoom = groupChatViewModel::openRoom,
+                onLoadOlder = groupChatViewModel::loadOlder,
+                onSend = groupChatViewModel::sendMessage,
+                onInvite = { showInviteFriend = true },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 
@@ -312,4 +386,14 @@ fun SteamChatScreen(
             onDismiss = { showAccounts = false }
         )
     }
+    SteamGroupChatDialogsHost(
+        state = groupChatState,
+        friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
+        showCreateGroup = showCreateGroup,
+        showInviteFriend = showInviteFriend,
+        onCreate = groupChatViewModel::createGroup,
+        onInvite = { groupChatViewModel.inviteFriend(it); showInviteFriend = false },
+        onDismissCreate = { if (!groupChatState.creatingGroup) showCreateGroup = false },
+        onDismissInvite = { showInviteFriend = false }
+    )
 }

@@ -1,0 +1,239 @@
+package takagi.ru.monica.steam.friends.groupchat.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import java.text.DateFormat
+import java.util.Date
+import takagi.ru.monica.R
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMessageContent
+import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
+
+@Composable
+internal fun SteamGroupChatThread(
+    state: SteamGroupChatUiState,
+    group: SteamGroupChatSummary,
+    friends: List<SteamFriend>,
+    onBack: () -> Unit,
+    onOpenRoom: (String, String) -> Unit,
+    onLoadOlder: () -> Unit,
+    onSend: (String) -> Unit,
+    onInvite: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val messages = state.thread?.messages.orEmpty()
+    val friendsById = remember(friends) { friends.associateBy(SteamFriend::steamId) }
+    val listState = rememberLazyListState()
+    val shouldLoadOlder by remember(listState, state.loadingOlder, state.thread?.moreAvailable) {
+        derivedStateOf {
+            state.thread?.moreAvailable == true && !state.loadingOlder &&
+                listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index?.let { it <= 2 } == true
+        }
+    }
+    LaunchedEffect(shouldLoadOlder) { if (shouldLoadOlder) onLoadOlder() }
+    LaunchedEffect(messages.lastOrNull()?.stableId) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    }
+
+    Column(modifier.fillMaxSize().imePadding()) {
+        GroupThreadHeader(group, onBack, onInvite)
+        if (group.rooms.size > 1) LazyRow(
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(group.rooms, key = { it.chatId }) { room ->
+                FilterChip(
+                    selected = room.chatId == state.selectedChatId,
+                    onClick = { onOpenRoom(group.groupId, room.chatId) },
+                    label = { Text(room.name, maxLines = 1) }
+                )
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                state.threadLoading && state.thread == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                else -> LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (state.loadingOlder) item("older-loading") {
+                        Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                    items(messages, key = SteamGroupChatMessage::stableId) { message ->
+                        GroupMessageBubble(
+                            message = message,
+                            outgoing = message.senderSteamId == state.accountSteamId,
+                            senderName = friendsById[message.senderSteamId]?.displayName
+                                ?: message.senderSteamId.takeLast(8)
+                        )
+                    }
+                }
+            }
+        }
+        GroupComposer(onSend)
+    }
+}
+
+@Composable
+internal fun SteamGroupChatThreadHost(
+    state: SteamGroupChatUiState,
+    friends: List<SteamFriend>,
+    onBack: () -> Unit,
+    onOpenRoom: (String, String) -> Unit,
+    onLoadOlder: () -> Unit,
+    onSend: (String) -> Unit,
+    onInvite: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val group = state.groups.firstOrNull { it.groupId == state.selectedGroupId } ?: return
+    SteamGroupChatThread(
+        state = state,
+        group = group,
+        friends = friends,
+        onBack = onBack,
+        onOpenRoom = onOpenRoom,
+        onLoadOlder = onLoadOlder,
+        onSend = onSend,
+        onInvite = onInvite,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun GroupThreadHeader(group: SteamGroupChatSummary, onBack: () -> Unit, onInvite: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+        Column(Modifier.weight(1f)) {
+            Text(group.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                stringResource(R.string.steam_group_chat_members, group.activeMemberCount),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onInvite) { Icon(Icons.Default.GroupAdd, stringResource(R.string.steam_group_chat_invite)) }
+    }
+}
+
+@Composable
+private fun GroupMessageBubble(message: SteamGroupChatMessage, outgoing: Boolean, senderName: String) {
+    if (message.serverEventType > 0) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+                Text(message.body, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium)
+            }
+        }
+        return
+    }
+    Box(Modifier.fillMaxWidth(), contentAlignment = if (outgoing) Alignment.CenterEnd else Alignment.CenterStart) {
+        Surface(
+            shape = RoundedCornerShape(18.dp),
+            color = if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+                if (!outgoing) Text(senderName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                if (message.deleted) {
+                    Text("Message deleted", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else SteamChatRichMessageContent(message.body)
+                Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(message.timestamp * 1_000L)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (outgoing) {
+                        Spacer(Modifier.width(3.dp))
+                        when (message.deliveryState) {
+                            SteamGroupChatDeliveryState.QUEUED,
+                            SteamGroupChatDeliveryState.SENDING,
+                            SteamGroupChatDeliveryState.VERIFYING -> CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                            SteamGroupChatDeliveryState.SENT -> Icon(Icons.Default.Done, null, Modifier.size(15.dp))
+                            SteamGroupChatDeliveryState.FAILED -> Icon(Icons.Default.ErrorOutline, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupComposer(onSend: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.weight(1f).heightIn(min = 52.dp, max = 132.dp),
+                placeholder = { Text(stringResource(R.string.steam_group_chat_message_hint)) },
+                shape = RoundedCornerShape(24.dp),
+                maxLines = 5
+            )
+            FilledIconButton(
+                onClick = { val body = text.trim(); if (body.isNotBlank()) { onSend(body); text = "" } },
+                enabled = text.isNotBlank(),
+                modifier = Modifier.size(48.dp)
+            ) { Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.steam_chat_send_message)) }
+        }
+    }
+}

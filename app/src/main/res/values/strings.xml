@@ -4785,4 +4785,19 @@
     <string name="steam_chat_reaction_added">Reaction added</string>
     <string name="steam_chat_reported">Message reported to Steam</string>
     <string name="steam_chat_action_failed">Steam could not complete this action</string>
+    <string name="steam_group_chat_title">Group chats</string>
+    <string name="steam_group_chat_empty">No Steam group chats</string>
+    <string name="steam_group_chat_empty_hint">Create a group and invite your Steam friends.</string>
+    <string name="steam_group_chat_create">Create group</string>
+    <string name="steam_group_chat_name">Group name</string>
+    <string name="steam_group_chat_invitees">Invite friends</string>
+    <string name="steam_group_chat_create_action">Create on Steam</string>
+    <string name="steam_group_chat_members">%1$d active members</string>
+    <string name="steam_group_chat_unread">%1$d unread channels</string>
+    <string name="steam_group_chat_general">General</string>
+    <string name="steam_group_chat_message_hint">Message group</string>
+    <string name="steam_group_chat_invite">Invite friend</string>
+    <string name="steam_group_chat_created">Steam group created</string>
+    <string name="steam_group_chat_groups">Groups</string>
+    <string name="steam_group_chat_direct">Direct messages</string>
 </resources>

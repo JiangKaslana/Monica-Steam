@@ -8,10 +8,13 @@ import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatCache
@@ -53,13 +56,17 @@ class SteamGroupChatViewModel(
     val state: StateFlow<SteamGroupChatUiState> = _state.asStateFlow()
     private var account: SteamAccount? = null
     private var generation = 0L
+    private var foreground = false
+    private var pollingJob: Job? = null
 
     fun selectAccount(account: SteamAccount?) {
         if (this.account?.id == account?.id && this.account?.steamId == account?.steamId) {
             this.account = account
+            restartPolling()
             return
         }
         this.account = account
+        restartPolling()
         generation++
         if (account == null) {
             _state.value = SteamGroupChatUiState(failure = "Steam account required")
@@ -107,6 +114,14 @@ class SteamGroupChatViewModel(
     fun closeRoom() {
         generation++
         _state.value = _state.value.copy(selectedGroupId = null, selectedChatId = null, thread = null, threadLoading = false)
+    }
+
+    fun refreshThread() {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        val chatId = _state.value.selectedChatId ?: return
+        _state.value = _state.value.copy(threadLoading = _state.value.thread == null, failure = null)
+        viewModelScope.launch { fetchThread(current, groupId, chatId, generation) }
     }
 
     fun loadOlder() {
@@ -207,6 +222,12 @@ class SteamGroupChatViewModel(
     fun clearCreatedGroup() { _state.value = _state.value.copy(createdGroupId = null) }
     fun clearFailure() { _state.value = _state.value.copy(failure = null) }
 
+    fun setForeground(active: Boolean) {
+        if (foreground == active) return
+        foreground = active
+        restartPolling()
+    }
+
     private fun fetchGroups(current: SteamAccount, currentGeneration: Long) {
         viewModelScope.launch {
             val result = runCatching { withContext(ioDispatcher) { gateway.getMyGroups(current) } }
@@ -288,6 +309,18 @@ class SteamGroupChatViewModel(
 
     private fun isRoomCurrent(current: SteamAccount, groupId: String, chatId: String, expectedGeneration: Long) =
         isCurrent(current, expectedGeneration) && _state.value.selectedGroupId == groupId && _state.value.selectedChatId == chatId
+
+    private fun restartPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
+        if (!foreground || account == null) return
+        pollingJob = viewModelScope.launch {
+            while (isActive) {
+                delay(15_000L)
+                if (_state.value.selectedChatId != null) refreshThread() else refreshGroups()
+            }
+        }
+    }
 
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {

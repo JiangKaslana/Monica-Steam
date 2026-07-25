@@ -1,0 +1,126 @@
+package takagi.ru.monica.steam.friends.groupchat.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material3.Badge
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import takagi.ru.monica.R
+import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImage
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
+
+@Composable
+internal fun SteamGroupChatList(
+    state: SteamGroupChatUiState,
+    query: String,
+    onOpenRoom: (String, String) -> Unit,
+    onRefresh: () -> Unit,
+    onCreateGroup: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val groups = state.groups.filter {
+        query.isBlank() || it.name.contains(query, true) || it.tagline.contains(query, true)
+    }
+    SteamExpressivePullToRefresh(
+        refreshing = state.groupsRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier
+    ) {
+        when {
+            state.groupsLoading && groups.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+            groups.isEmpty() -> EmptyGroups(Modifier.align(Alignment.Center))
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 128.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(groups, key = SteamGroupChatSummary::groupId) { group ->
+                    GroupCard(group) { onOpenRoom(group.groupId, group.defaultChatId) }
+                }
+            }
+        }
+        ExtendedFloatingActionButton(
+            onClick = onCreateGroup,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 96.dp),
+            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+            text = { Text(stringResource(R.string.steam_group_chat_create)) }
+        )
+    }
+}
+
+@Composable
+private fun GroupCard(group: SteamGroupChatSummary, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (group.avatarUrl.isNotBlank()) {
+                SteamChatRemoteImage(group.avatarUrl, group.name, Modifier.size(54.dp).clip(CircleShape))
+            } else Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+                Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Groups, null, Modifier.size(28.dp))
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(group.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    group.tagline.ifBlank { group.rooms.firstOrNull()?.lastMessage.orEmpty() }
+                        .ifBlank { stringResource(R.string.steam_group_chat_members, group.activeMemberCount) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (group.unreadCount > 0) Badge { Text(group.unreadCount.toString()) }
+        }
+    }
+}
+
+@Composable
+private fun EmptyGroups(modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Icon(Icons.Default.Forum, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(stringResource(R.string.steam_group_chat_empty), style = MaterialTheme.typography.titleLarge)
+        Text(
+            stringResource(R.string.steam_group_chat_empty_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}

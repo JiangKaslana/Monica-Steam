@@ -4613,4 +4613,19 @@
     <string name="steam_chat_reaction_added">已添加回应</string>
     <string name="steam_chat_reported">已向 Steam 举报消息</string>
     <string name="steam_chat_action_failed">Steam 未能完成此操作</string>
+    <string name="steam_group_chat_title">群组聊天</string>
+    <string name="steam_group_chat_empty">还没有 Steam 群组</string>
+    <string name="steam_group_chat_empty_hint">创建群组并邀请你的 Steam 好友。</string>
+    <string name="steam_group_chat_create">创建群组</string>
+    <string name="steam_group_chat_name">群组名称</string>
+    <string name="steam_group_chat_invitees">邀请好友</string>
+    <string name="steam_group_chat_create_action">在 Steam 创建</string>
+    <string name="steam_group_chat_members">%1$d 位活跃成员</string>
+    <string name="steam_group_chat_unread">%1$d 个频道未读</string>
+    <string name="steam_group_chat_general">常规</string>
+    <string name="steam_group_chat_message_hint">发送群消息</string>
+    <string name="steam_group_chat_invite">邀请好友</string>
+    <string name="steam_group_chat_created">Steam 群组已创建</string>
+    <string name="steam_group_chat_groups">群组</string>
+    <string name="steam_group_chat_direct">私聊</string>
 </resources>
