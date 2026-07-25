@@ -53,7 +53,7 @@ internal fun SteamChatRichMessageContent(
         is SteamChatRichContent.Sticker -> SteamChatRemoteImage(
             url = content.imageUrl,
             contentDescription = content.name,
-            modifier = modifier.size(148.dp)
+            modifier = modifier.size(184.dp)
         )
         is SteamChatRichContent.Attachment -> AttachmentContent(content, modifier)
     }
@@ -164,6 +164,15 @@ private fun SteamChatEmoticonText(body: String, modifier: Modifier) {
         Text(text = body, modifier = modifier, style = MaterialTheme.typography.bodyLarge)
         return
     }
+    if (matches.size == 1 && matches.single().value == body.trim()) {
+        val name = matches.single().groupValues[1]
+        SteamChatRemoteImage(
+            url = SteamChatEmoticon(name).imageUrl,
+            contentDescription = name,
+            modifier = modifier.size(60.dp)
+        )
+        return
+    }
     val annotated = remember(body, matches) {
         buildAnnotatedString {
             var cursor = 0
@@ -179,7 +188,7 @@ private fun SteamChatEmoticonText(body: String, modifier: Modifier) {
         matches.mapIndexed { index, match ->
             val name = match.groupValues[1]
             "steam-emoticon-$index" to InlineTextContent(
-                placeholder = Placeholder(1.35.em, 1.35.em, PlaceholderVerticalAlign.Center)
+                placeholder = Placeholder(1.8.em, 1.8.em, PlaceholderVerticalAlign.Center)
             ) {
                 SteamChatRemoteImage(
                     url = SteamChatEmoticon(name).imageUrl,
@@ -248,3 +257,6 @@ private fun AttachmentContent(
 }
 
 private val emoticonPattern = Regex("(?<![A-Za-z0-9]):([A-Za-z0-9_+\\-]{2,64}):(?![A-Za-z0-9])")
+
+internal fun isSingleSteamEmoticonMessage(body: String): Boolean =
+    emoticonPattern.matchEntire(body.trim()) != null

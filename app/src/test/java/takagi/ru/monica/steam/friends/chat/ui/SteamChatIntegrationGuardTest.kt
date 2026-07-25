@@ -109,7 +109,11 @@ class SteamChatIntegrationGuardTest {
         assertTrue(picker.contains("RichPickerPage.EMOTICON"))
         assertTrue(picker.contains("RichPickerPage.STICKER"))
         assertTrue(picker.contains("RichPickerPage.EFFECT"))
-        assertTrue(picker.contains("AnimatedImageDrawable"))
+        val remoteImage = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRemoteImage.kt"
+        ).readText()
+        assertTrue(remoteImage.contains("AnimatedImageDrawable"))
+        assertTrue(remoteImage.contains("onDispose { animated?.stop() }"))
         assertTrue(picker.contains("catalogFailure"))
         assertFalse(picker.contains("ModalBottomSheet"))
         assertFalse(picker.contains("SingleChoiceSegmentedButtonRow"))

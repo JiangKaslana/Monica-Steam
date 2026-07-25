@@ -1,14 +1,8 @@
 package takagi.ru.monica.steam.friends.chat.richmedia.ui
 
-import android.graphics.drawable.AnimatedImageDrawable
-import android.graphics.drawable.Drawable
-import android.os.Build
-import android.graphics.ImageDecoder
-import android.widget.ImageView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,18 +43,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import java.nio.ByteBuffer
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteBytes
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEmoticon
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEffect
@@ -373,71 +358,6 @@ private fun StickerGrid(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-internal fun SteamChatRemoteImage(
-    url: String,
-    contentDescription: String?,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    var bytes by remember(url) { mutableStateOf<ByteArray?>(null) }
-    var drawable by remember(url) { mutableStateOf<Drawable?>(null) }
-    var image by remember(url) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(url) {
-        bytes = loadSteamRemoteBytes(context, url)
-    }
-    LaunchedEffect(bytes) {
-        val payload = bytes ?: return@LaunchedEffect
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            drawable = runCatching {
-                withContext(Dispatchers.Default) {
-                    ImageDecoder.decodeDrawable(
-                        ImageDecoder.createSource(ByteBuffer.wrap(payload))
-                    )
-                }
-            }.getOrNull()
-        } else {
-            image = withContext(Dispatchers.Default) {
-                android.graphics.BitmapFactory.decodeByteArray(payload, 0, payload.size)
-                    ?.asImageBitmap()
-            }
-        }
-    }
-    val animated = drawable as? AnimatedImageDrawable
-    if (animated != null) {
-        AndroidView(
-            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.CENTER_INSIDE } },
-            modifier = modifier,
-            update = { view ->
-                if (view.drawable !== animated) view.setImageDrawable(animated)
-                if (!animated.isRunning) animated.start()
-            }
-        )
-        return
-    }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && drawable != null) {
-        AndroidView(
-            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.CENTER_INSIDE } },
-            modifier = modifier,
-            update = { view -> if (view.drawable !== drawable) view.setImageDrawable(drawable) }
-        )
-        return
-    }
-    val bitmap = image
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap,
-            contentDescription = contentDescription,
-            modifier = modifier,
-            contentScale = ContentScale.Fit
-        )
-    } else {
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.EmojiEmotions, contentDescription = contentDescription)
         }
     }
 }

@@ -38,6 +38,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
@@ -54,6 +56,9 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMessageContent
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.isSingleSteamEmoticonMessage
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContent
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContentParser
 
 @Composable
 internal fun SteamChatMessageBubble(
@@ -70,6 +75,9 @@ internal fun SteamChatMessageBubble(
     val haptics = LocalHapticFeedback.current
     val retryLabel = stringResource(R.string.steam_chat_retry_send)
     val bubbleShape = chatBubbleShape(outgoing, groupedWithPrevious, groupedWithNext)
+    val richContent = remember(message.body) { SteamChatRichContentParser.parse(message.body) }
+    val transparentMedia = richContent is SteamChatRichContent.Sticker ||
+        isSingleSteamEmoticonMessage(message.body)
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = if (outgoing) Alignment.CenterEnd else Alignment.CenterStart
@@ -92,7 +100,7 @@ internal fun SteamChatMessageBubble(
                     )
                 },
             shape = bubbleShape,
-            color = if (outgoing) {
+            color = if (transparentMedia) Color.Transparent else if (outgoing) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceContainerHigh
@@ -103,7 +111,23 @@ internal fun SteamChatMessageBubble(
                 MaterialTheme.colorScheme.onSurface
             }
         ) {
-            Row(
+            if (transparentMedia) {
+                Box {
+                    SteamChatRichMessageContent(body = message.body)
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomEnd),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        DeliveryMetadata(
+                            message = message,
+                            outgoing = outgoing,
+                            retryLabel = retryLabel,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            } else Row(
                 modifier = Modifier.padding(
                     start = 13.dp,
                     top = if (groupedWithPrevious) 7.dp else 10.dp,
@@ -117,52 +141,55 @@ internal fun SteamChatMessageBubble(
                     body = message.body,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = DateFormat.getTimeInstance(DateFormat.SHORT)
-                            .format(Date(message.timestamp * 1_000L)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (outgoing) {
-                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        textAlign = TextAlign.End
+                DeliveryMetadata(message, outgoing, retryLabel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeliveryMetadata(
+    message: SteamChatMessage,
+    outgoing: Boolean,
+    retryLabel: String,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(message.timestamp * 1_000L)),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End
+        )
+        if (outgoing) {
+            Spacer(Modifier.width(2.dp))
+            AnimatedContent(
+                targetState = message.deliveryState,
+                transitionSpec = {
+                    (fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
+                        scaleIn(initialScale = 0.8f, animationSpec = spring()))
+                        .togetherWith(fadeOut() + scaleOut(targetScale = 0.8f))
+                        .using(SizeTransform(clip = false))
+                },
+                label = "SteamChatDelivery"
+            ) { delivery ->
+                when (delivery) {
+                    SteamChatDeliveryState.QUEUED,
+                    SteamChatDeliveryState.SENDING,
+                    SteamChatDeliveryState.VERIFYING -> AnimatedSendingClock(Modifier.size(15.dp))
+                    SteamChatDeliveryState.SENT -> Icon(
+                        Icons.Default.Done,
+                        contentDescription = stringResource(R.string.steam_chat_sent),
+                        modifier = Modifier.size(15.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
-                    if (outgoing) {
-                        Spacer(Modifier.width(2.dp))
-                        AnimatedContent(
-                            targetState = message.deliveryState,
-                            transitionSpec = {
-                                (fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
-                                    scaleIn(initialScale = 0.8f, animationSpec = spring()))
-                                    .togetherWith(fadeOut() + scaleOut(targetScale = 0.8f))
-                                    .using(SizeTransform(clip = false))
-                            },
-                            label = "SteamChatDelivery"
-                        ) { delivery ->
-                            when (delivery) {
-                                SteamChatDeliveryState.QUEUED,
-                                SteamChatDeliveryState.SENDING,
-                                SteamChatDeliveryState.VERIFYING -> AnimatedSendingClock(
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                SteamChatDeliveryState.SENT -> Icon(
-                                    Icons.Default.Done,
-                                    contentDescription = stringResource(R.string.steam_chat_sent),
-                                    modifier = Modifier.size(15.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                SteamChatDeliveryState.FAILED_RETRYABLE,
-                                SteamChatDeliveryState.FAILED_PERMANENT -> Icon(
-                                    Icons.Default.ErrorOutline,
-                                    contentDescription = retryLabel,
-                                    modifier = Modifier.size(17.dp),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-                    }
+                    SteamChatDeliveryState.FAILED_RETRYABLE,
+                    SteamChatDeliveryState.FAILED_PERMANENT -> Icon(
+                        Icons.Default.ErrorOutline,
+                        contentDescription = retryLabel,
+                        modifier = Modifier.size(17.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
