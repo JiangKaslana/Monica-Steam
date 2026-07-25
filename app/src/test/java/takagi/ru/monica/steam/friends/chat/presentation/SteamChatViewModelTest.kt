@@ -65,7 +65,7 @@ class SteamChatViewModelTest {
         val gateway = FakeGateway().apply {
             sendBlock = { account, partner, body, clientId ->
                 sendCount++
-                if (sendCount == 1) error("offline")
+                if (sendCount == 1) throw SocketTimeoutException("offline")
                 SteamChatMessage(
                     partnerSteamId = partner,
                     senderSteamId = account.steamId,
@@ -86,12 +86,12 @@ class SteamChatViewModelTest {
 
         viewModel.sendMessage("hello")
         assertEquals(
-            SteamChatDeliveryState.PENDING,
+            SteamChatDeliveryState.QUEUED,
             viewModel.uiState.value.thread?.messages?.single()?.deliveryState
         )
         runCurrent()
         val failed = viewModel.uiState.value.thread?.messages?.single()
-        assertEquals(SteamChatDeliveryState.FAILED, failed?.deliveryState)
+        assertEquals(SteamChatDeliveryState.FAILED_RETRYABLE, failed?.deliveryState)
 
         viewModel.retryMessage(failed?.clientMessageId.orEmpty())
         runCurrent()
@@ -154,15 +154,26 @@ class SteamChatViewModelTest {
     }
 
     @Test
-    fun retriesATransientNetworkSendWithTheSameClientMessageId() = runTest(mainDispatcher.scheduler) {
+    fun timeoutReconcilesServerEchoWithoutSendingADuplicate() = runTest(mainDispatcher.scheduler) {
         var sendCount = 0
-        val clientIds = mutableListOf<String>()
         val gateway = FakeGateway().apply {
             sendBlock = { account, partner, body, clientId ->
                 sendCount++
-                clientIds += clientId
-                if (sendCount == 1) throw SocketTimeoutException("timed out")
-                SteamChatMessage(partner, account.steamId, 400L, 4, body, clientMessageId = clientId)
+                throw SocketTimeoutException("timed out")
+            }
+            fetchMessagesBlock = { account, requestedPartner, _ ->
+                SteamChatPage(
+                    messages = listOf(
+                        SteamChatMessage(
+                            partnerSteamId = requestedPartner,
+                            senderSteamId = account.steamId,
+                            timestamp = 100L,
+                            ordinal = 4,
+                            body = "hello"
+                        )
+                    ),
+                    moreAvailable = false
+                )
             }
         }
         val viewModel = createViewModel(gateway)
@@ -177,8 +188,8 @@ class SteamChatViewModelTest {
         runCurrent()
 
         assertEquals(SteamChatDeliveryState.SENT, viewModel.uiState.value.thread?.messages?.single()?.deliveryState)
-        assertEquals(2, sendCount)
-        assertEquals(listOf("client-1", "client-1"), clientIds)
+        assertEquals(1, sendCount)
+        assertEquals("client-1", viewModel.uiState.value.thread?.messages?.single()?.clientMessageId)
     }
 
     @Test

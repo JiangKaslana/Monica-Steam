@@ -26,20 +26,7 @@ internal suspend fun sendSteamChatMessageWithSessionRecovery(
         )
     }
     val firstError = firstAttempt.exceptionOrNull()
-    if (firstError == null || !firstError.requiresSteamChatSessionRefresh()) {
-        if (firstError?.isTransientSteamChatNetworkFailure() != true) return firstAttempt
-        // client_message_id makes this retry safe when the first request was
-        // accepted but its response was lost in transit.
-        logSteamChatFailure("send_network_retry", firstError)
-        return runCatching {
-            gateway.sendMessage(
-                account = preparedAccount,
-                partnerSteamId = partnerSteamId,
-                body = pending.body,
-                clientMessageId = pending.clientMessageId
-            )
-        }
-    }
+    if (firstError == null || !firstError.requiresSteamChatSessionRefresh()) return firstAttempt
 
     logSteamChatFailure("send_session_refresh", firstError)
     val refreshedAccount = runCatching {

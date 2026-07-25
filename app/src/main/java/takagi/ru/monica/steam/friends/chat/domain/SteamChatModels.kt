@@ -12,9 +12,12 @@ data class SteamChatSession(
 
 @Serializable
 enum class SteamChatDeliveryState {
+    QUEUED,
+    SENDING,
+    VERIFYING,
     SENT,
-    PENDING,
-    FAILED
+    FAILED_RETRYABLE,
+    FAILED_PERMANENT
 }
 
 @Serializable
@@ -25,7 +28,10 @@ data class SteamChatMessage(
     val ordinal: Int,
     val body: String,
     val deliveryState: SteamChatDeliveryState = SteamChatDeliveryState.SENT,
-    val clientMessageId: String = ""
+    val clientMessageId: String = "",
+    val localCreatedAtMillis: Long = 0L,
+    val contentSignature: String = steamChatContentSignature(body),
+    val replyToStableId: String? = null
 ) {
     val stableId: String
         get() = if (clientMessageId.isNotBlank()) {
@@ -71,20 +77,36 @@ internal fun mergeSteamChatMessages(
 ): List<SteamChatMessage> {
     val merged = mutableListOf<SteamChatMessage>()
     (current + incoming).forEach { message ->
-        val existingIndex = merged.indexOfFirst { existing ->
-            existing.stableId == message.stableId || existing.hasSameServerIdentity(message)
+        val exactIndices = merged.indices.filter { index ->
+            val existing = merged[index]
+            existing.stableId == message.stableId ||
+                existing.hasSameServerIdentity(message)
         }
-        if (existingIndex < 0) {
+        val echoIndex = if (message.isServerConfirmed()) {
+            merged.indices.firstOrNull { index ->
+                index !in exactIndices && merged[index].canReconcileWith(message)
+            }
+        } else null
+        val matchingIndices = exactIndices + listOfNotNull(echoIndex)
+        if (matchingIndices.isEmpty()) {
             merged += message
         } else {
-            val existing = merged[existingIndex]
-            merged[existingIndex] = if (
-                existing.clientMessageId.isNotBlank() && message.clientMessageId.isBlank()
-            ) {
-                message.copy(clientMessageId = existing.clientMessageId)
+            val localEcho = matchingIndices.asSequence()
+                .map(merged::get)
+                .firstOrNull { it.clientMessageId.isNotBlank() }
+            val replacement = if (localEcho != null && message.clientMessageId.isBlank()) {
+                message.copy(
+                    deliveryState = SteamChatDeliveryState.SENT,
+                    clientMessageId = localEcho.clientMessageId,
+                    localCreatedAtMillis = localEcho.localCreatedAtMillis,
+                    contentSignature = localEcho.contentSignature,
+                    replyToStableId = localEcho.replyToStableId
+                )
             } else {
                 message
             }
+            matchingIndices.asReversed().forEach(merged::removeAt)
+            merged += replacement
         }
     }
     return merged.sortedWith(
@@ -100,6 +122,41 @@ private fun SteamChatMessage.hasSameServerIdentity(other: SteamChatMessage): Boo
         timestamp == other.timestamp &&
         ordinal == other.ordinal &&
         senderSteamId == other.senderSteamId
+
+internal fun SteamChatMessage.isServerConfirmed(): Boolean =
+    timestamp > 0L && ordinal != Int.MAX_VALUE
+
+private fun SteamChatMessage.canReconcileWith(serverMessage: SteamChatMessage): Boolean {
+    if (clientMessageId.isBlank() || isServerConfirmed()) return false
+    if (deliveryState !in RECONCILABLE_DELIVERY_STATES) return false
+    if (partnerSteamId != serverMessage.partnerSteamId || senderSteamId != serverMessage.senderSteamId) {
+        return false
+    }
+    if (effectiveContentSignature() != serverMessage.effectiveContentSignature()) return false
+    val localSeconds = when {
+        localCreatedAtMillis > 0L -> localCreatedAtMillis / 1_000L
+        timestamp > 0L -> timestamp
+        else -> return false
+    }
+    return kotlin.math.abs(serverMessage.timestamp - localSeconds) <= ECHO_WINDOW_SECONDS
+}
+
+internal fun steamChatContentSignature(body: String): String = body
+    .trim()
+    .replace(Regex("\\s+"), " ")
+    .lowercase()
+
+private fun SteamChatMessage.effectiveContentSignature(): String =
+    contentSignature.ifBlank { steamChatContentSignature(body) }
+
+private val RECONCILABLE_DELIVERY_STATES = setOf(
+    SteamChatDeliveryState.QUEUED,
+    SteamChatDeliveryState.SENDING,
+    SteamChatDeliveryState.VERIFYING,
+    SteamChatDeliveryState.FAILED_RETRYABLE
+)
+
+private const val ECHO_WINDOW_SECONDS = 45L
 
 internal const val STEAM_ID64_INDIVIDUAL_BASE = 76561197960265728L
 

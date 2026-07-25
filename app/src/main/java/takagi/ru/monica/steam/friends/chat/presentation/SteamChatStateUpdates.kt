@@ -24,8 +24,9 @@ internal fun newPendingSteamChatMessage(
     timestamp = timestamp,
     ordinal = Int.MAX_VALUE,
     body = body,
-    deliveryState = SteamChatDeliveryState.PENDING,
-    clientMessageId = clientMessageId
+    deliveryState = SteamChatDeliveryState.QUEUED,
+    clientMessageId = clientMessageId,
+    localCreatedAtMillis = timestamp * 1_000L
 )
 
 internal fun SteamChatUiState.withChatMessage(

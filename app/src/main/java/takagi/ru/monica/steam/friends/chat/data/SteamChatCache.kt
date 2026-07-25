@@ -53,8 +53,8 @@ class SteamChatPreferencesCache private constructor(
     }?.let { snapshot ->
         snapshot.copy(
             messages = snapshot.messages.map { message ->
-                if (message.deliveryState == SteamChatDeliveryState.PENDING) {
-                    message.copy(deliveryState = SteamChatDeliveryState.FAILED)
+                if (message.deliveryState in RESTORED_UNCONFIRMED_STATES) {
+                    message.copy(deliveryState = SteamChatDeliveryState.VERIFYING)
                 } else {
                     message
                 }
@@ -95,6 +95,11 @@ class SteamChatPreferencesCache private constructor(
 
     private companion object {
         const val PREFERENCES_NAME = "steam_friend_chat_cache"
+        val RESTORED_UNCONFIRMED_STATES = setOf(
+            SteamChatDeliveryState.QUEUED,
+            SteamChatDeliveryState.SENDING,
+            SteamChatDeliveryState.VERIFYING
+        )
     }
 }
 
@@ -151,6 +156,9 @@ internal object SteamChatCacheCodec {
         json.encodeToString(SteamChatThreadSnapshot.serializer(), snapshot)
 
     fun decodeThread(raw: String): SteamChatThreadSnapshot? = runCatching {
-        json.decodeFromString(SteamChatThreadSnapshot.serializer(), raw)
+        val migrated = raw
+            .replace("\"deliveryState\":\"PENDING\"", "\"deliveryState\":\"VERIFYING\"")
+            .replace("\"deliveryState\":\"FAILED\"", "\"deliveryState\":\"FAILED_RETRYABLE\"")
+        json.decodeFromString(SteamChatThreadSnapshot.serializer(), migrated)
     }.getOrNull()
 }

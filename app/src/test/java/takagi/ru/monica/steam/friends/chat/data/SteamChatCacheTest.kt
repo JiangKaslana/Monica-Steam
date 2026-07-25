@@ -82,7 +82,7 @@ class SteamChatCacheTest {
                         timestamp = 10L,
                         ordinal = 1,
                         body = "retry me",
-                        deliveryState = SteamChatDeliveryState.PENDING,
+                        deliveryState = SteamChatDeliveryState.SENDING,
                         clientMessageId = "client-1"
                     )
                 ),
@@ -94,7 +94,7 @@ class SteamChatCacheTest {
         val restored = cache.loadThread(account, partner)
 
         assertNotNull(restored)
-        assertEquals(SteamChatDeliveryState.FAILED, restored?.messages?.single()?.deliveryState)
+        assertEquals(SteamChatDeliveryState.VERIFYING, restored?.messages?.single()?.deliveryState)
     }
 
     private class FakeStore : SteamChatKeyValueStore {
