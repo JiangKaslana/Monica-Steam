@@ -57,6 +57,7 @@ data class SteamStoreUiState(
     val reviewLoadError: String? = null,
     val error: String? = null,
     val webUrl: String? = null,
+    val pointsShopOpen: Boolean = false,
     val cart: List<SteamCartItem> = emptyList(),
     val cartOpen: Boolean = false,
     val collectionTab: SteamStoreCollectionTab = SteamStoreCollectionTab.CART,
@@ -799,7 +800,11 @@ class SteamStoreViewModel(
         _uiState.value.browseFilter == filter
 
     fun openPointsShop() {
-        openStoreWeb(POINTS_SHOP_URL)
+        _uiState.value = _uiState.value.copy(pointsShopOpen = true)
+    }
+
+    fun closePointsShop() {
+        _uiState.value = _uiState.value.copy(pointsShopOpen = false)
     }
 
     private fun resetStoreForAccount(accountId: Long?) {
@@ -815,6 +820,7 @@ class SteamStoreViewModel(
             homeFromCache = false,
             loadingHome = false,
             browseFilter = SteamStoreBrowseFilter.ALL,
+            pointsShopOpen = false,
             catalogPage = null,
             catalogFromCache = false,
             loadingCatalog = false,
@@ -994,7 +1000,6 @@ class SteamStoreViewModel(
                 "UA", "IN", "ID"
             )
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
-        private const val POINTS_SHOP_URL = "https://store.steampowered.com/points/shop/"
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext

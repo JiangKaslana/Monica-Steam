@@ -94,6 +94,7 @@ import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.presentation.SteamStoreViewModel
+import takagi.ru.monica.steam.store.points.ui.SteamPointsShopScreen
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
@@ -106,6 +107,7 @@ import java.util.Locale
 private sealed interface SteamStoreDestination {
     data object Home : SteamStoreDestination
     data object Cart : SteamStoreDestination
+    data object PointsShop : SteamStoreDestination
     data class Detail(val appId: Int) : SteamStoreDestination
     data class Web(val url: String) : SteamStoreDestination
 }
@@ -149,18 +151,20 @@ fun SteamStoreScreen(
         webUrl != null -> SteamStoreDestination.Web(webUrl)
         detailAppId != null -> SteamStoreDestination.Detail(detailAppId)
         state.cartOpen -> SteamStoreDestination.Cart
+        state.pointsShopOpen -> SteamStoreDestination.PointsShop
         else -> SteamStoreDestination.Home
     }
 
     BackHandler(
         enabled = state.regionalPriceSheetOpen ||
-            state.webUrl != null || state.cartOpen || state.detailAppId != null
+            state.webUrl != null || state.cartOpen || state.detailAppId != null || state.pointsShopOpen
     ) {
         when {
             state.regionalPriceSheetOpen -> viewModel.closeRegionalPrices()
             state.webUrl != null -> viewModel.closeStoreWeb()
             state.detailAppId != null -> viewModel.closeDetail()
             state.cartOpen -> viewModel.closeCart()
+            state.pointsShopOpen -> viewModel.closePointsShop()
         }
     }
 
@@ -194,6 +198,12 @@ fun SteamStoreScreen(
                 onCheckout = viewModel::checkout,
                 onRefreshWishlist = { viewModel.loadWishlist(force = true) },
                 onOpenWishlistItem = viewModel::openDetail,
+                modifier = Modifier.fillMaxSize()
+            )
+            SteamStoreDestination.PointsShop -> SteamPointsShopScreen(
+                account = viewModel.selectedAccount(),
+                onBack = viewModel::closePointsShop,
+                onOpenOfficial = viewModel::openStoreWeb,
                 modifier = Modifier.fillMaxSize()
             )
             is SteamStoreDestination.Detail -> {
