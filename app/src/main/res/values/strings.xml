@@ -4751,6 +4751,9 @@
     <string name="steam_chat_attachment_select">Choose attachment</string>
     <string name="steam_chat_close">Close</string>
     <string name="steam_chat_action_copy">Copy</string>
+    <string name="steam_chat_action_react">React</string>
+    <string name="steam_chat_reaction_picker_title">Steam reactions</string>
+    <string name="steam_chat_reaction_picker_empty">No Steam emoticons found for this account</string>
     <string name="steam_chat_action_report">Report</string>
     <string name="steam_chat_report_title">Report this Steam message?</string>
     <string name="steam_chat_report_harassment">Harassment</string>

@@ -33,7 +33,7 @@ class SteamChatMessageActionServiceTest {
         assertEquals(1_700_000_100L, reaction[1].asLong)
         assertEquals(7, reaction[2].asInt)
         assertEquals(1, reaction[3].asInt)
-        assertEquals("happy", reaction[4].asString)
+        assertEquals(":happy:", reaction[4].asString)
         assertTrue(reaction[5].asBool)
 
         val report = SteamProtoReader(cm.calls[1].second).parseAll()

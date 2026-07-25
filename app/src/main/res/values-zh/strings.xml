@@ -4579,6 +4579,9 @@
     <string name="steam_chat_attachment_select">选择附件</string>
     <string name="steam_chat_close">关闭</string>
     <string name="steam_chat_action_copy">复制</string>
+    <string name="steam_chat_action_react">回应</string>
+    <string name="steam_chat_reaction_picker_title">Steam 回应</string>
+    <string name="steam_chat_reaction_picker_empty">该账号没有可用的 Steam 表情</string>
     <string name="steam_chat_action_report">举报</string>
     <string name="steam_chat_report_title">向 Steam 举报这条消息？</string>
     <string name="steam_chat_report_harassment">骚扰</string>

@@ -29,7 +29,7 @@ class SteamChatMessageActionService(
                 writeVarint(2, message.timestamp)
                 writeVarint(3, message.ordinal.toLong())
                 writeVarint(4, REACTION_TYPE_EMOTICON)
-                writeString(5, normalized)
+                writeString(5, ":$normalized:")
                 writeBool(6, true)
             }.toByteArray()
         )
@@ -73,4 +73,3 @@ class SteamChatMessageActionService(
         const val REACTION_TYPE_EMOTICON = 1L
     }
 }
-

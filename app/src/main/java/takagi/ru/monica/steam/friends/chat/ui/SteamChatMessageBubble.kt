@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -48,7 +50,7 @@ internal fun SteamChatMessageBubble(
     groupedWithPrevious: Boolean,
     groupedWithNext: Boolean,
     onRetry: () -> Unit,
-    onLongClick: () -> Unit,
+    onLongClick: (Offset) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val outgoing = message.isOutgoing(accountSteamId)
@@ -62,11 +64,12 @@ internal fun SteamChatMessageBubble(
         Surface(
             modifier = Modifier
                 .widthIn(max = 324.dp)
-                .combinedClickable(
-                    onClickLabel = if (retryable) retryLabel else null,
-                    onClick = { if (retryable) onRetry() },
-                    onLongClick = onLongClick
-                ),
+                .pointerInput(retryable, message.stableId) {
+                    detectTapGestures(
+                        onTap = { if (retryable) onRetry() },
+                        onLongPress = onLongClick
+                    )
+                },
             shape = bubbleShape,
             color = if (outgoing) {
                 MaterialTheme.colorScheme.primaryContainer
