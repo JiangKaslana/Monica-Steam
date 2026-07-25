@@ -30,10 +30,10 @@ class SteamChatRichMediaModelsTest {
             "[roomeffect type=confetti][/roomeffect]"
         )
 
-        assertTrue(content is SteamChatRichContent.SystemMessage)
-        val effect = content as SteamChatRichContent.SystemMessage
-        assertEquals("roomeffect", effect.kind)
-        assertEquals("confetti", effect.label)
+        assertTrue(content is SteamChatRichContent.OfficialMessage)
+        val effect = (content as SteamChatRichContent.OfficialMessage).message
+        assertEquals(SteamChatOfficialMessageKind.ROOM_EFFECT, effect.kind)
+        assertEquals("confetti", effect.description)
     }
 
     @Test
@@ -54,9 +54,9 @@ class SteamChatRichMediaModelsTest {
 
         val effect = SteamChatRichContentParser.parse(
             "[roomeffect type=confetti]"
-        ) as SteamChatRichContent.SystemMessage
-        assertEquals("roomeffect", effect.kind)
-        assertEquals("confetti", effect.label)
+        ) as SteamChatRichContent.OfficialMessage
+        assertEquals(SteamChatOfficialMessageKind.ROOM_EFFECT, effect.message.kind)
+        assertEquals("confetti", effect.message.description)
     }
 
     @Test
@@ -103,7 +103,9 @@ class SteamChatRichMediaModelsTest {
     @Test
     fun keepsUnknownSteamSpecialMessageReadable() {
         val body = "[steam_unknown type=42]payload[/steam_unknown]"
-        assertEquals(body, (SteamChatRichContentParser.parse(body) as SteamChatRichContent.Text).body)
+        val unknown = SteamChatRichContentParser.parse(body) as SteamChatRichContent.OfficialMessage
+        assertEquals(SteamChatOfficialMessageKind.UNKNOWN, unknown.message.kind)
+        assertEquals(body, unknown.message.rawBody)
     }
 
     @Test
@@ -117,10 +119,10 @@ class SteamChatRichMediaModelsTest {
 
         val trade = SteamChatRichContentParser.parse(
             "[tradeoffer]https://steamcommunity.com/tradeoffer/123[/tradeoffer]"
-        ) as SteamChatRichContent.SystemMessage
-        assertEquals("tradeoffer", trade.kind)
-        assertEquals("https://steamcommunity.com/tradeoffer/123", trade.label)
-        assertEquals("https://steamcommunity.com/tradeoffer/123", trade.url)
+        ) as SteamChatRichContent.OfficialMessage
+        assertEquals(SteamChatOfficialMessageKind.TRADE_OFFER, trade.message.kind)
+        assertEquals("123", trade.message.tradeOfferId)
+        assertEquals("https://steamcommunity.com/tradeoffer/123", trade.message.url)
     }
 
     @Test
@@ -140,5 +142,24 @@ class SteamChatRichMediaModelsTest {
             "steam://remoteplay/connect/76561198000000001?appid=440&restricted_countries=CN",
             remotePlay.url
         )
+    }
+
+    @Test
+    fun parsesGiftInventoryRemotePlayAndBroadcastNotificationsAsTypedMessages() {
+        val samples = mapOf(
+            "[gift appid=730]A gift is waiting[/gift]" to SteamChatOfficialMessageKind.GIFT,
+            "[inventoryitem appid=440 name=Hat]New item[/inventoryitem]" to
+                SteamChatOfficialMessageKind.INVENTORY_ITEM,
+            "[remoteplayinvite appid=570 steamid=76561198000000001]Join[/remoteplayinvite]" to
+                SteamChatOfficialMessageKind.REMOTE_PLAY_INVITE,
+            "[broadcastinvite steamid=76561198000000001]Watch now[/broadcastinvite]" to
+                SteamChatOfficialMessageKind.BROADCAST_INVITE
+        )
+
+        samples.forEach { (body, expectedKind) ->
+            val parsed = SteamChatRichContentParser.parse(body) as SteamChatRichContent.OfficialMessage
+            assertEquals(expectedKind, parsed.message.kind)
+            assertEquals(body, parsed.message.rawBody)
+        }
     }
 }

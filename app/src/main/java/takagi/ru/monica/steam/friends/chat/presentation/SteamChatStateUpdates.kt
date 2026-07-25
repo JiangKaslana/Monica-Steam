@@ -99,6 +99,14 @@ internal fun reconcileSteamChatSessions(
     )
 }
 
+internal fun SteamChatThreadSnapshot.failUnresolvedVerification(): SteamChatThreadSnapshot = copy(
+    messages = messages.map { message ->
+        if (message.deliveryState == SteamChatDeliveryState.VERIFYING &&
+            message.ordinal == Int.MAX_VALUE
+        ) message.copy(deliveryState = SteamChatDeliveryState.FAILED_RETRYABLE) else message
+    }
+)
+
 internal fun prepareSteamChatSession(
     account: SteamAccount,
     service: SteamSessionRefreshService?

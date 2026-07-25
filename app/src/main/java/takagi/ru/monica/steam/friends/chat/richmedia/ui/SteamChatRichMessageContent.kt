@@ -49,7 +49,7 @@ internal fun SteamChatRichMessageContent(
     when (val content = remember(body) { SteamChatRichContentParser.parse(body) }) {
         is SteamChatRichContent.Text -> SteamChatEmoticonText(content.body, modifier)
         is SteamChatRichContent.GameInvite -> GameInviteContent(content, modifier)
-        is SteamChatRichContent.SystemMessage -> SteamSystemMessageContent(content, modifier)
+        is SteamChatRichContent.OfficialMessage -> SteamOfficialMessageContent(content.message, modifier)
         is SteamChatRichContent.Sticker -> SteamChatRemoteImage(
             url = content.imageUrl,
             contentDescription = content.name,
@@ -60,8 +60,8 @@ internal fun SteamChatRichMessageContent(
 }
 
 @Composable
-private fun SteamSystemMessageContent(
-    content: SteamChatRichContent.SystemMessage,
+private fun SteamOfficialMessageContent(
+    content: takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatOfficialMessage,
     modifier: Modifier
 ) {
     val context = LocalContext.current
@@ -84,7 +84,7 @@ private fun SteamSystemMessageContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
-                imageVector = if (content.kind == "roomeffect") {
+                imageVector = if (content.kind == takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatOfficialMessageKind.ROOM_EFFECT) {
                     Icons.Default.AutoAwesome
                 } else {
                     Icons.Default.OpenInNew
@@ -92,7 +92,14 @@ private fun SteamSystemMessageContent(
                 contentDescription = null
             )
             Text(
-                text = content.label,
+                text = buildString {
+                    append(content.title)
+                    content.description.takeIf { it.isNotBlank() && it != content.url }?.let {
+                        append("\n")
+                        append(it)
+                    }
+                    content.tradeOfferId?.let { append("\n#").append(it) }
+                },
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 3,

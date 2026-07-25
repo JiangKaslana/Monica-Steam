@@ -76,13 +76,7 @@ sealed interface SteamChatRichContent {
         val inviteKind: String = "gameinvite"
     ) : SteamChatRichContent
 
-    /** Steam BBCode notification that has no safe rich renderer yet. */
-    data class SystemMessage(
-        val kind: String,
-        val label: String,
-        val url: String? = null,
-        val rawBody: String
-    ) : SteamChatRichContent
+    data class OfficialMessage(val message: SteamChatOfficialMessage) : SteamChatRichContent
 
     data class Sticker(val name: String) : SteamChatRichContent {
         val imageUrl: String get() =
@@ -124,7 +118,11 @@ object SteamChatRichContentParser {
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
     private val specialTagPattern = Regex(
-        "\\[(gameinvite|lobbyinvite|tradeoffer|broadcastinvite|broadcastviewrequest|playtestinvite|invite)(?:\\s+([^]]+))?](.*?)\\[/\\1]",
+        "\\[(gameinvite|lobbyinvite|tradeoffer|broadcastinvite|broadcastviewrequest|playtestinvite|remoteplayinvite|gift|giftreceived|giftnotification|inventoryitem|itemnotification|newitem|friendinvite|friendrequest|invite)(?:\\s+([^]]+))?](.*?)\\[/\\1]",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+    private val unknownOfficialTagPattern = Regex(
+        "^\\[((?:steam[_-][A-Za-z0-9_-]+)|(?:[A-Za-z0-9_-]+notification))(?:\\s+([^]]+))?](.*?)\\[/\\1]$",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
     private val steamUrlPattern = Regex(
@@ -217,11 +215,26 @@ object SteamChatRichContentParser {
                     inviteKind = kind
                 )
             }
-            return SteamChatRichContent.SystemMessage(
-                kind = kind,
-                label = innerText.ifBlank { steamSpecialLabel(kind) },
-                url = url,
-                rawBody = body
+            return SteamChatRichContent.OfficialMessage(
+                SteamChatOfficialMessageParser.parse(
+                    tag = kind,
+                    rawAttributes = match.groupValues.getOrNull(2).orEmpty(),
+                    innerText = innerText,
+                    rawBody = body
+                ).let { official ->
+                    if (official.url == null && url != null) official.copy(url = url) else official
+                }
+            )
+        }
+
+        unknownOfficialTagPattern.matchEntire(body.trim())?.let { match ->
+            return SteamChatRichContent.OfficialMessage(
+                SteamChatOfficialMessageParser.parse(
+                    tag = match.groupValues[1],
+                    rawAttributes = match.groupValues.getOrNull(2).orEmpty(),
+                    innerText = match.groupValues.getOrNull(3).orEmpty(),
+                    rawBody = body
+                )
             )
         }
 
@@ -266,10 +279,13 @@ object SteamChatRichContentParser {
         return when (normalizedKind) {
             "sticker" -> SteamChatRichContent.Sticker(name)
             "emoticon" -> SteamChatRichContent.Text(":$name:")
-            "roomeffect" -> SteamChatRichContent.SystemMessage(
-                kind = normalizedKind,
-                label = name,
-                rawBody = rawBody
+            "roomeffect" -> SteamChatRichContent.OfficialMessage(
+                SteamChatOfficialMessageParser.parse(
+                    tag = normalizedKind,
+                    rawAttributes = rawAttributes,
+                    innerText = name,
+                    rawBody = rawBody
+                )
             )
             else -> null
         }

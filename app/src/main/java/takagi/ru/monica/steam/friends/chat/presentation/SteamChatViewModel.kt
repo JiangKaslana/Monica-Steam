@@ -45,8 +45,15 @@ class SteamChatViewModel(
     private var activeAccount: SteamAccount? = null
     private val requestGuard = SteamChatRequestGuard()
     private var pollingJob: Job? = null
-    private val outgoingJobs = mutableMapOf<String, Job>()
     private var foreground = false
+    private val outgoingCoordinator = SteamChatOutgoingCoordinator(
+        scope = viewModelScope,
+        gateway = gateway,
+        sessionRefreshService = sessionRefreshService,
+        forceSessionRefresh = forceSessionRefresh,
+        persistSession = persistSession,
+        ioDispatcher = ioDispatcher
+    )
 
     fun selectAccount(account: SteamAccount?) {
         if (account?.id == activeAccount?.id && account?.steamId == activeAccount?.steamId) {
@@ -321,96 +328,20 @@ class SteamChatViewModel(
         pending: SteamChatMessage,
         verifyBeforeSend: Boolean = false
     ) {
-        if (outgoingJobs[pending.clientMessageId]?.isActive == true) return
         val generation = requestGuard.currentThreadGeneration()
-        val job = viewModelScope.launch {
-            if (verifyBeforeSend) {
-                val reconciled = verifyOutgoingMessage(account, partnerSteamId, pending)
-                if (reconciled != null) {
-                    updateMessage(account, partnerSteamId, reconciled)
-                    return@launch
+        outgoingCoordinator.dispatch(
+            account = account,
+            partnerSteamId = partnerSteamId,
+            pending = pending,
+            verifyBeforeSend = verifyBeforeSend,
+            isCurrent = { isThreadCurrent(account, partnerSteamId, generation) },
+            onSessionRefreshed = { refreshedAccount ->
+                if (activeAccount?.id == account.id && activeAccount?.steamId == account.steamId) {
+                    activeAccount = refreshedAccount
                 }
-            }
-            updateMessage(
-                account,
-                partnerSteamId,
-                pending.copy(deliveryState = SteamChatDeliveryState.SENDING)
-            )
-            val result = runCatching {
-                withContext(ioDispatcher) {
-                    sendSteamChatMessageWithSessionRecovery(
-                        gateway = gateway,
-                        account = account,
-                        partnerSteamId = partnerSteamId,
-                        pending = pending,
-                        sessionRefreshService = sessionRefreshService,
-                        forceSessionRefresh = forceSessionRefresh,
-                        onSessionRefreshed = { refreshedAccount ->
-                            if (activeAccount?.id == account.id && activeAccount?.steamId == account.steamId) {
-                                activeAccount = refreshedAccount
-                            }
-                            persistSession(refreshedAccount)
-                        }
-                    )
-                }
-            }.getOrElse { error -> Result.failure(error) }
-            if (!isThreadCurrent(account, partnerSteamId, generation)) return@launch
-            val response = result.getOrNull()
-            if (response != null) {
-                updateMessage(
-                    account,
-                    partnerSteamId,
-                    response.copy(
-                        deliveryState = SteamChatDeliveryState.SENT,
-                        clientMessageId = pending.clientMessageId,
-                        localCreatedAtMillis = pending.localCreatedAtMillis,
-                        contentSignature = pending.contentSignature,
-                        replyToStableId = pending.replyToStableId
-                    )
-                )
-                return@launch
-            }
-            val error = result.exceptionOrNull() ?: return@launch
-            logSteamChatFailure("send", error)
-            if (error.isTransientSteamChatNetworkFailure()) {
-                val verifying = pending.copy(deliveryState = SteamChatDeliveryState.VERIFYING)
-                updateMessage(account, partnerSteamId, verifying)
-                val reconciled = verifyOutgoingMessage(account, partnerSteamId, verifying)
-                updateMessage(
-                    account,
-                    partnerSteamId,
-                    reconciled ?: verifying.copy(
-                        deliveryState = SteamChatDeliveryState.FAILED_RETRYABLE
-                    )
-                )
-            } else {
-                updateMessage(
-                    account,
-                    partnerSteamId,
-                    pending.copy(deliveryState = SteamChatDeliveryState.FAILED_PERMANENT)
-                )
-            }
-        }
-        outgoingJobs[pending.clientMessageId] = job
-        job.invokeOnCompletion { outgoingJobs.remove(pending.clientMessageId, job) }
-    }
-
-    private suspend fun verifyOutgoingMessage(
-        account: SteamAccount,
-        partnerSteamId: String,
-        pending: SteamChatMessage
-    ): SteamChatMessage? {
-        val page = runCatching {
-            withContext(ioDispatcher) {
-                gateway.fetchMessages(
-                    prepareSteamChatSession(account, sessionRefreshService),
-                    partnerSteamId
-                )
-            }
-        }.onFailure { logSteamChatFailure("send_verify", it) }.getOrNull() ?: return null
-        return mergeSteamChatMessages(listOf(pending), page.messages)
-            .firstOrNull { it.clientMessageId == pending.clientMessageId && it.ordinal != Int.MAX_VALUE }
-            ?.copy(deliveryState = SteamChatDeliveryState.SENT)
+            },
+            onUpdate = { updateMessage(account, partnerSteamId, it) }
+        )
     }
     private fun updateMessage(
         account: SteamAccount,
@@ -512,15 +443,3 @@ class SteamChatViewModel(
         }
     }
 }
-
-private fun SteamChatThreadSnapshot.failUnresolvedVerification(): SteamChatThreadSnapshot = copy(
-    messages = messages.map { message ->
-        if (message.deliveryState == SteamChatDeliveryState.VERIFYING &&
-            message.ordinal == Int.MAX_VALUE
-        ) {
-            message.copy(deliveryState = SteamChatDeliveryState.FAILED_RETRYABLE)
-        } else {
-            message
-        }
-    }
-)

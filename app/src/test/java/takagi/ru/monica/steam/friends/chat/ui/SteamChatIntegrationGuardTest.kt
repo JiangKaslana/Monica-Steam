@@ -128,7 +128,7 @@ class SteamChatIntegrationGuardTest {
         val richContent = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRichMessageContent.kt"
         ).readText()
-        assertTrue(richContent.contains("SystemMessage"))
+        assertTrue(richContent.contains("OfficialMessage"))
     }
 
     @Test
