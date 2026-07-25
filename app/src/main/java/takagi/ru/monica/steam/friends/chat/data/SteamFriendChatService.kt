@@ -8,9 +8,12 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatPage
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.network.cm.SteamCmClient
+import takagi.ru.monica.steam.network.cm.SteamCmGateway
 
 class SteamFriendChatService(
-    private val api: SteamApiClient = SteamApiClient()
+    private val api: SteamApiClient = SteamApiClient(),
+    private val cm: SteamCmGateway = SteamCmClient()
 ) : SteamChatGateway {
     override fun fetchSessions(account: SteamAccount): SteamChatSessionsSnapshot {
         val accessToken = account.requireChatAccessToken()
@@ -68,27 +71,22 @@ class SteamFriendChatService(
         body: String,
         clientMessageId: String
     ): SteamChatMessage {
-        val accessToken = account.requireChatAccessToken()
-        val accountSteamId = account.requireChatSteamId()
+        account.requireChatAccessToken()
         val partner = partnerSteamId.requireSteamId64()
         val normalizedBody = body.trim()
         require(normalizedBody.isNotBlank()) { "Steam chat message is empty" }
-        val response = api.callProtobuf(
-            iface = FRIEND_MESSAGES_INTERFACE,
-            method = "SendMessage",
+        val steamBody = normalizedBody.replace("[", "\\[")
+        val response = cm.callService(
+            account = account,
+            method = "FriendMessages.SendMessage#1",
             request = SteamProtoWriter().apply {
                 writeFixed64(1, partner)
                 writeVarint(2, CHAT_ENTRY_TYPE_MESSAGE)
-                writeString(3, normalizedBody)
-                // Plain text must keep this flag false. Steam rejects some
-                // ordinary messages when they are incorrectly marked as BBCode;
-                // slash commands and official BBCode tags opt in below.
-                writeBool(4, normalizedBody.containsSteamChatBbCode())
-                writeBool(5, true)
-                writeBool(6, false)
-                writeString(8, clientMessageId)
-            },
-            accessToken = accessToken
+                // Steam's current clients send chat as BBCode-aware text and
+                // escape literal opening brackets before it reaches the CM.
+                writeString(3, steamBody)
+                writeBool(4, true)
+            }.toByteArray()
         )
         return SteamFriendChatParser.parseSentMessage(
             response = response,
@@ -131,29 +129,9 @@ class SteamFriendChatService(
         return toLong()
     }
 
-    private fun String.containsSteamChatBbCode(): Boolean {
-        val value = trim()
-        if (value.startsWith("/sticker ", ignoreCase = true) ||
-            value.startsWith("/roomeffect ", ignoreCase = true) ||
-            value.startsWith("/emoticon ", ignoreCase = true)
-        ) {
-            return true
-        }
-        return OFFICIAL_BBCODE_TAG.containsMatchIn(value) ||
-            STEAM_INVITE_URI.containsMatchIn(value)
-    }
-
     private companion object {
         const val FRIEND_MESSAGES_INTERFACE = "IFriendMessagesService"
         const val PAGE_SIZE = 50
         const val CHAT_ENTRY_TYPE_MESSAGE = 1L
-        val OFFICIAL_BBCODE_TAG = Regex(
-            "\\[(?:sticker|roomeffect|emoticon|img|video|url|gameinvite|lobbyinvite)(?:[=\\s\\]])",
-            RegexOption.IGNORE_CASE
-        )
-        val STEAM_INVITE_URI = Regex(
-            "steam://(?:joinlobby|joinparty|rungame|remoteplay/connect)/",
-            RegexOption.IGNORE_CASE
-        )
     }
 }

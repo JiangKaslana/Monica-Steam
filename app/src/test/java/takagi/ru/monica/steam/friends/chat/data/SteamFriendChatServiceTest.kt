@@ -3,13 +3,11 @@ package takagi.ru.monica.steam.friends.chat.data
 import java.util.Base64
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.FormBody
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
@@ -18,6 +16,7 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatHistoryBoundary
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.network.cm.SteamCmGateway
 
 class SteamFriendChatServiceTest {
     @Test
@@ -64,6 +63,7 @@ class SteamFriendChatServiceTest {
     @Test
     fun serviceUsesOfficialFriendMessagesMethodsAndFixed32HistoryBoundary() {
         val requests = mutableListOf<Request>()
+        val cm = RecordingCmGateway()
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val request = chain.request()
@@ -73,11 +73,6 @@ class SteamFriendChatServiceTest {
                         SteamProtoWriter().toByteArray()
                     request.url.encodedPath.contains("GetRecentMessages") ->
                         SteamProtoWriter().apply { writeBool(4, false) }.toByteArray()
-                    request.url.encodedPath.contains("SendMessage") ->
-                        SteamProtoWriter().apply {
-                            writeVarint(2, 1_700_000_003L)
-                            writeVarint(3, 3L)
-                        }.toByteArray()
                     request.url.encodedPath.contains("AckMessage") -> ByteArray(0)
                     else -> error("Unexpected request: ${request.url}")
                 }
@@ -90,7 +85,7 @@ class SteamFriendChatServiceTest {
                     .build()
             }
             .build()
-        val service = SteamFriendChatService(SteamApiClient(client))
+        val service = SteamFriendChatService(SteamApiClient(client), cm)
         val account = account()
 
         service.fetchSessions(account)
@@ -99,18 +94,22 @@ class SteamFriendChatServiceTest {
             partnerSteamId = PARTNER_STEAM_ID,
             before = SteamChatHistoryBoundary(1_700_000_000L, 9)
         )
-        service.sendMessage(account, PARTNER_STEAM_ID, " Message ", "client-1")
+        service.sendMessage(
+            account,
+            PARTNER_STEAM_ID,
+            " Message [literal] ",
+            "01234567-89AB-CDEF-0123-456789ABCDEF"
+        )
         service.acknowledge(account, PARTNER_STEAM_ID, 1_700_000_003L)
 
         assertEquals(
-            listOf("GET", "GET", "POST", "POST"),
+            listOf("GET", "GET", "POST"),
             requests.map { it.method }
         )
         assertEquals(
             listOf(
                 "/IFriendMessagesService/GetActiveMessageSessions/v1/",
                 "/IFriendMessagesService/GetRecentMessages/v1/",
-                "/IFriendMessagesService/SendMessage/v1/",
                 "/IFriendMessagesService/AckMessage/v1/"
             ),
             requests.map { it.url.encodedPath }
@@ -123,49 +122,53 @@ class SteamFriendChatServiceTest {
         assertEquals(1_700_000_000L, fields.first { it.number == 5 }.asFixed32UnsignedLong)
         assertEquals(9, fields.first { it.number == 7 }.asInt)
         assertTrue(fields.first { it.number == 6 }.asBool)
-        val sendBody = requests[2].body as FormBody
-        val sendEncoded = (0 until sendBody.size)
-            .first { sendBody.name(it) == "input_protobuf_encoded" }
-            .let(sendBody::value)
-        val sendFields = SteamProtoReader(Base64.getDecoder().decode(sendEncoded)).parseAll()
-        assertFalse(sendFields.first { it.number == 4 }.asBool)
+        assertEquals("FriendMessages.SendMessage#1", cm.method)
+        val sendFields = SteamProtoReader(requireNotNull(cm.request)).parseAll()
+        assertEquals(listOf(1, 2, 3, 4), sendFields.map { it.number })
+        assertEquals(PARTNER_STEAM_ID.toLong(), sendFields.first { it.number == 1 }.asFixed64)
+        assertEquals(1, sendFields.first { it.number == 2 }.asInt)
+        assertEquals("Message \\[literal]", sendFields.first { it.number == 3 }.asString)
+        assertTrue(sendFields.first { it.number == 4 }.asBool)
     }
 
     @Test
     fun marksOfficialRichChatCommandsAsBbCode() {
-        var sendFields: List<takagi.ru.monica.steam.network.SteamProtoField>? = null
-        val client = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val request = chain.request()
-                if (request.url.encodedPath.contains("SendMessage")) {
-                    val body = request.body as FormBody
-                    val encoded = (0 until body.size)
-                        .first { body.name(it) == "input_protobuf_encoded" }
-                        .let(body::value)
-                    sendFields = SteamProtoReader(Base64.getDecoder().decode(encoded)).parseAll()
-                }
-                val response = SteamProtoWriter().apply {
-                    writeVarint(2, 1_700_000_003L)
-                    writeVarint(3, 3L)
-                }.toByteArray()
-                Response.Builder()
-                    .request(request)
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(200)
-                    .message("OK")
-                    .body(response.toResponseBody("application/octet-stream".toMediaType()))
-                    .build()
-            }
-            .build()
+        val cm = RecordingCmGateway()
 
-        SteamFriendChatService(SteamApiClient(client)).sendMessage(
+        SteamFriendChatService(cm = cm).sendMessage(
             account(),
             PARTNER_STEAM_ID,
             "/sticker sparkle",
             "client-rich"
         )
 
-        assertTrue(requireNotNull(sendFields).first { it.number == 4 }.asBool)
+        val sendFields = SteamProtoReader(requireNotNull(cm.request)).parseAll()
+        assertTrue(sendFields.first { it.number == 4 }.asBool)
+    }
+
+    private class RecordingCmGateway : SteamCmGateway {
+        var method: String? = null
+        var request: ByteArray? = null
+
+        override fun callService(
+            account: SteamAccount,
+            method: String,
+            request: ByteArray
+        ): ByteArray {
+            this.method = method
+            this.request = request
+            return SteamProtoWriter().apply {
+                writeVarint(2, 1_700_000_003L)
+                writeVarint(3, 3L)
+            }.toByteArray()
+        }
+
+        override fun exchangeClientMessage(
+            account: SteamAccount,
+            requestEMsg: Int,
+            responseEMsg: Int,
+            request: ByteArray
+        ): ByteArray = error("Unexpected client message exchange")
     }
 
     private fun chatMessage(
