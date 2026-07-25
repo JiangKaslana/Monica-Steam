@@ -7,7 +7,7 @@ import org.junit.Test
 
 class SteamLibraryProgressSpacingGuardTest {
     @Test
-    fun overviewLoadingIndicatorReservesBreathingRoomBeforeHeroCard() {
+    fun overviewUsesExpressivePullIndicatorOutsideScrollableContent() {
         val screen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/ui/SteamLibraryScreen.kt"
         ).readText()
@@ -15,10 +15,10 @@ class SteamLibraryProgressSpacingGuardTest {
             .substringAfter("SteamLibraryDestination.Overview ->")
             .substringBefore("if (showAccountSheet")
 
-        assertTrue(overview.contains("Column("))
-        assertTrue(overview.contains("Spacer(Modifier.height(8.dp))"))
-        assertTrue(overview.contains(".weight(1f)"))
-        assertFalse(overview.contains("align(Alignment.TopCenter)"))
+        assertTrue(overview.contains("SteamExpressivePullToRefresh("))
+        assertTrue(overview.contains("modifier = Modifier.fillMaxSize().padding(padding)"))
+        assertTrue(overview.contains("SteamLibraryOverview("))
+        assertFalse(overview.contains("LinearProgressIndicator("))
     }
 
     private fun projectFile(path: String): File {

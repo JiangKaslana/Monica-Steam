@@ -110,6 +110,8 @@ import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarImage
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
+import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
+import takagi.ru.monica.steam.foundation.ui.SteamPageOverflowMenu
 import takagi.ru.monica.steam.profile.ui.SteamMiniProfileBackgroundLayer
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
@@ -202,15 +204,11 @@ fun SteamLibraryScreen(
                                     contentDescription = stringResource(R.string.steam_library_search)
                                 )
                             }
-                            IconButton(
-                                onClick = viewModel::refreshLibrary,
-                                enabled = !state.loadingLibrary
-                            ) {
-                                Icon(
-                                    Icons.Default.Refresh,
-                                    contentDescription = stringResource(R.string.refresh)
-                                )
-                            }
+                            SteamPageOverflowMenu(
+                                refreshing = state.loadingLibrary,
+                                onRefresh = viewModel::refreshLibrary,
+                                onOpenSettings = onOpenSettings
+                            )
                         }
                     )
                 }
@@ -263,28 +261,18 @@ fun SteamLibraryScreen(
                         )
                     }
                 }
-                SteamLibraryDestination.Overview -> Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
+                SteamLibraryDestination.Overview -> SteamExpressivePullToRefresh(
+                    refreshing = state.loadingLibrary,
+                    onRefresh = viewModel::refreshLibrary,
+                    modifier = Modifier.fillMaxSize().padding(padding)
                 ) {
-                    if (state.loadingLibrary) {
-                        LinearProgressIndicator(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
                     SteamLibraryOverview(
                         state = state,
                         query = query,
                         onOpenGame = viewModel::openGame,
                         onOpenAccountDetails = { showAccountDetails = true },
                         onRetry = viewModel::refreshLibrary,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }

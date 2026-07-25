@@ -48,9 +48,9 @@ class SteamLibraryIntegrationGuardTest {
             .substringAfter("SteamLibraryDestination.Overview ->")
             .substringBefore("if (showAccountSheet")
 
-        assertTrue(overview.contains("Column("))
-        assertTrue(overview.contains("LinearProgressIndicator("))
-        assertTrue(overview.contains("Spacer(Modifier.height(8.dp))"))
+        assertTrue(overview.contains("SteamExpressivePullToRefresh("))
+        assertTrue(overview.contains("refreshing = state.loadingLibrary"))
+        assertTrue(overview.contains("onRefresh = viewModel::refreshLibrary"))
         assertFalse(screen.contains("onLoadingChange"))
     }
 
@@ -107,15 +107,12 @@ class SteamLibraryIntegrationGuardTest {
         val hero = screen
             .substringAfter("private fun SteamAccountHeroSwitcher(")
             .substringBefore("private fun SteamAccountSwitcherSheet(")
-        val switcher = screen
-            .substringAfter("private fun SteamAccountSwitcherSheet(")
-            .substringBefore("private fun SteamAccountHeroCard(")
         assertFalse(overview.contains("LibrarySyncStatus("))
         assertTrue(overview.contains("SteamLibraryFilterSplitButton("))
         assertFalse(overview.contains("FilterChip("))
         assertTrue(hero.contains("onOpenAccountDetails"))
-        assertTrue(switcher.contains("containerColor = MaterialTheme.colorScheme.background"))
-        assertTrue(switcher.contains("tonalElevation = 0.dp"))
+        assertTrue(screen.contains("SteamAccountSwitcherSheet("))
+        assertTrue(screen.contains("onSelectStorageSource = viewModel::selectStorageSource"))
         val detail = screen
             .substringAfter("private fun SteamGameDetail(")
             .substringBefore("private fun SteamGameDetailHero(")
