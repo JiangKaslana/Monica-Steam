@@ -9,6 +9,10 @@ enum class SteamChatOfficialMessageKind {
     GIFT,
     INVENTORY_ITEM,
     FRIEND_REQUEST,
+    GROUP_INVITE,
+    EVENT,
+    COMMENT,
+    MARKET,
     ROOM_EFFECT,
     UNKNOWN
 }
@@ -32,7 +36,7 @@ internal object SteamChatOfficialMessageParser {
     fun parse(tag: String, rawAttributes: String, innerText: String, rawBody: String): SteamChatOfficialMessage {
         val attributes = parseAttributes(rawAttributes)
         val kind = when (tag.lowercase()) {
-            "tradeoffer", "trade_offer" -> SteamChatOfficialMessageKind.TRADE_OFFER
+            "tradeoffer", "trade_offer", "incomingtradeoffer" -> SteamChatOfficialMessageKind.TRADE_OFFER
             "broadcastinvite" -> SteamChatOfficialMessageKind.BROADCAST_INVITE
             "broadcastviewrequest" -> SteamChatOfficialMessageKind.BROADCAST_VIEW_REQUEST
             "playtestinvite" -> SteamChatOfficialMessageKind.PLAYTEST_INVITE
@@ -40,6 +44,10 @@ internal object SteamChatOfficialMessageParser {
             "gift", "giftreceived", "giftnotification" -> SteamChatOfficialMessageKind.GIFT
             "inventoryitem", "itemnotification", "newitem" -> SteamChatOfficialMessageKind.INVENTORY_ITEM
             "friendinvite", "friendrequest" -> SteamChatOfficialMessageKind.FRIEND_REQUEST
+            "claninvite", "groupinvite" -> SteamChatOfficialMessageKind.GROUP_INVITE
+            "eventnotification" -> SteamChatOfficialMessageKind.EVENT
+            "commentnotification" -> SteamChatOfficialMessageKind.COMMENT
+            "marketnotification" -> SteamChatOfficialMessageKind.MARKET
             "roomeffect" -> SteamChatOfficialMessageKind.ROOM_EFFECT
             else -> SteamChatOfficialMessageKind.UNKNOWN
         }
@@ -75,6 +83,10 @@ internal object SteamChatOfficialMessageParser {
         SteamChatOfficialMessageKind.GIFT -> "Steam gift"
         SteamChatOfficialMessageKind.INVENTORY_ITEM -> "New Steam inventory item"
         SteamChatOfficialMessageKind.FRIEND_REQUEST -> "Steam friend request"
+        SteamChatOfficialMessageKind.GROUP_INVITE -> "Steam group invitation"
+        SteamChatOfficialMessageKind.EVENT -> "Steam event notification"
+        SteamChatOfficialMessageKind.COMMENT -> "Steam comment notification"
+        SteamChatOfficialMessageKind.MARKET -> "Steam Market notification"
         SteamChatOfficialMessageKind.ROOM_EFFECT -> "Steam room effect"
         SteamChatOfficialMessageKind.UNKNOWN -> "Steam notification"
     }

@@ -162,4 +162,24 @@ class SteamChatRichMediaModelsTest {
             assertEquals(body, parsed.message.rawBody)
         }
     }
+
+    @Test
+    fun parsesSelfClosingTradeAndAdditionalSteamNotificationFamilies() {
+        val trade = SteamChatRichContentParser.parse(
+            "[incomingtradeoffer tradeofferid=987654 steamid=76561198000000001]"
+        ) as SteamChatRichContent.OfficialMessage
+        assertEquals(SteamChatOfficialMessageKind.TRADE_OFFER, trade.message.kind)
+        assertEquals("987654", trade.message.tradeOfferId)
+
+        val samples = mapOf(
+            "[groupinvite]Community[/groupinvite]" to SteamChatOfficialMessageKind.GROUP_INVITE,
+            "[eventnotification]Weekend event[/eventnotification]" to SteamChatOfficialMessageKind.EVENT,
+            "[commentnotification]New comment[/commentnotification]" to SteamChatOfficialMessageKind.COMMENT,
+            "[marketnotification]Item sold[/marketnotification]" to SteamChatOfficialMessageKind.MARKET
+        )
+        samples.forEach { (body, kind) ->
+            val parsed = SteamChatRichContentParser.parse(body) as SteamChatRichContent.OfficialMessage
+            assertEquals(kind, parsed.message.kind)
+        }
+    }
 }

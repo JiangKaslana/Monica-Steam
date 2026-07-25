@@ -118,8 +118,12 @@ object SteamChatRichContentParser {
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
     private val specialTagPattern = Regex(
-        "\\[(gameinvite|lobbyinvite|tradeoffer|broadcastinvite|broadcastviewrequest|playtestinvite|remoteplayinvite|gift|giftreceived|giftnotification|inventoryitem|itemnotification|newitem|friendinvite|friendrequest|invite)(?:\\s+([^]]+))?](.*?)\\[/\\1]",
+        "\\[(gameinvite|lobbyinvite|tradeoffer|trade_offer|incomingtradeoffer|broadcastinvite|broadcastviewrequest|playtestinvite|remoteplayinvite|gift|giftreceived|giftnotification|inventoryitem|itemnotification|newitem|friendinvite|friendrequest|claninvite|groupinvite|eventnotification|commentnotification|marketnotification|invite)(?:\\s+([^]]+))?](.*?)\\[/\\1]",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+    private val officialSelfClosingMessagePattern = Regex(
+        "^\\[(tradeoffer|trade_offer|incomingtradeoffer|broadcastinvite|broadcastviewrequest|playtestinvite|remoteplayinvite|gift|giftreceived|giftnotification|inventoryitem|itemnotification|newitem|friendinvite|friendrequest|claninvite|groupinvite|eventnotification|commentnotification|marketnotification)(?:\\s+([^]]+))?]\\s*$",
+        RegexOption.IGNORE_CASE
     )
     private val unknownOfficialTagPattern = Regex(
         "^\\[((?:steam[_-][A-Za-z0-9_-]+)|(?:[A-Za-z0-9_-]+notification))(?:\\s+([^]]+))?](.*?)\\[/\\1]$",
@@ -158,6 +162,16 @@ object SteamChatRichContentParser {
                 inner = "",
                 rawBody = body
             )?.let { return it }
+        }
+        officialSelfClosingMessagePattern.matchEntire(body.trim())?.let { match ->
+            return SteamChatRichContent.OfficialMessage(
+                SteamChatOfficialMessageParser.parse(
+                    tag = match.groupValues[1],
+                    rawAttributes = match.groupValues.getOrNull(2).orEmpty(),
+                    innerText = "",
+                    rawBody = body
+                )
+            )
         }
 
         val inviteMatch = joinLobbyPattern.find(body)
