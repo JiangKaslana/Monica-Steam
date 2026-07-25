@@ -113,6 +113,7 @@ private sealed interface SteamStoreDestination {
 fun SteamStoreScreen(
     showNavigationBack: Boolean = true,
     onNavigateBack: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     initialAppId: Int? = null,
     onInitialAppIdConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,

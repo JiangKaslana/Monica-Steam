@@ -128,6 +128,7 @@ private sealed interface SteamLibraryDestination {
 fun SteamLibraryScreen(
     onNavigateBack: () -> Unit,
     showNavigationBack: Boolean = true,
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
     onOpenStoreApp: (Int) -> Unit = {}
 ) {

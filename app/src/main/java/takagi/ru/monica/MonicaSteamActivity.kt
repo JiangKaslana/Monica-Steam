@@ -390,6 +390,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             SteamLibraryScreen(
                                 onNavigateBack = { navigateBack() },
                                 showNavigationBack = false,
+                                onOpenSettings = { navigateTo(MonicaSteamPage.SETTINGS) },
                                 onOpenStoreApp = { appId ->
                                     pendingStoreAppId = appId
                                     navigateTo(MonicaSteamPage.STORE)
@@ -401,6 +402,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                         MonicaSteamPage.STORE -> {
                             SteamStoreScreen(
                                 showNavigationBack = false,
+                                onOpenSettings = { navigateTo(MonicaSteamPage.SETTINGS) },
                                 initialAppId = pendingStoreAppId,
                                 onInitialAppIdConsumed = { pendingStoreAppId = null },
                                 modifier = Modifier.fillMaxSize()
@@ -486,6 +488,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
 
                         MonicaSteamPage.STEAM -> {
                             SteamScreen(
+                                showStandaloneSettingsEntry = true,
+                                onOpenStandaloneSettings = {
+                                    navigateTo(MonicaSteamPage.SETTINGS)
+                                },
                                 onOpenBackup = {
                                     navigateTo(MonicaSteamPage.MAFILE_TRANSFER)
                                 },
@@ -578,8 +584,8 @@ private fun MonicaSteamPage.isDockPage(): Boolean = when (this) {
     MonicaSteamPage.STEAM,
     MonicaSteamPage.LIBRARY,
     MonicaSteamPage.STORE,
-    MonicaSteamPage.CHAT,
-    MonicaSteamPage.SETTINGS -> true
+    MonicaSteamPage.CHAT -> true
+    MonicaSteamPage.SETTINGS,
     MonicaSteamPage.SCANNER,
     MonicaSteamPage.HEALTH,
     MonicaSteamPage.MAFILE_TRANSFER,

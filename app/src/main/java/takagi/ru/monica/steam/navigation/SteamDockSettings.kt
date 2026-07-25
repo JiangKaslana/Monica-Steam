@@ -17,7 +17,7 @@ enum class SteamDockTab {
     SETTINGS;
 
     companion object {
-        val DEFAULT_ORDER: List<SteamDockTab> = listOf(STORE, LIBRARY, CHAT, SETTINGS)
+        val DEFAULT_ORDER: List<SteamDockTab> = listOf(STORE, LIBRARY, CHAT)
 
         fun sanitizeOrder(order: List<SteamDockTab>): List<SteamDockTab> {
             return order.distinct().filter { it in DEFAULT_ORDER }
@@ -42,16 +42,14 @@ internal fun resolveStoredDockOrder(
     stored: List<SteamDockTab>,
     chatMigrationComplete: Boolean = false
 ): List<SteamDockTab> {
-    val sanitized = SteamDockTab.sanitizeOrder(stored)
-    val normalized = if (sanitized == LEGACY_DEFAULT_DOCK_ORDER) {
-        listOf(SteamDockTab.STORE, SteamDockTab.LIBRARY, SteamDockTab.SETTINGS)
+    val normalized = if (stored.distinct() == LEGACY_DEFAULT_DOCK_ORDER) {
+        listOf(SteamDockTab.STORE, SteamDockTab.LIBRARY)
     } else {
-        sanitized
+        SteamDockTab.sanitizeOrder(stored)
     }
     if (chatMigrationComplete || SteamDockTab.CHAT in normalized) return normalized
-    val settingsIndex = normalized.indexOf(SteamDockTab.SETTINGS)
     return normalized.toMutableList().apply {
-        add(if (settingsIndex >= 0) settingsIndex else size, SteamDockTab.CHAT)
+        add(SteamDockTab.CHAT)
     }
 }
 
