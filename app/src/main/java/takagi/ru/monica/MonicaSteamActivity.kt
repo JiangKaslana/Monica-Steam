@@ -66,6 +66,7 @@ import takagi.ru.monica.repository.SecureItemRepository
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.security.SteamAppLockGate
 import takagi.ru.monica.steam.scanner.ui.SteamQrScannerScreen
+import takagi.ru.monica.steam.community.ui.SteamCommunityScreen
 import takagi.ru.monica.steam.backup.ui.SteamMaFileTransferScreen
 import takagi.ru.monica.steam.health.ui.SteamHealthScreen
 import takagi.ru.monica.steam.friends.chat.ui.SteamChatScreen
@@ -95,6 +96,7 @@ private enum class MonicaSteamPage {
     STEAM,
     SCANNER,
     HEALTH,
+    COMMUNITY,
     LIBRARY,
     STORE,
     CHAT,
@@ -209,6 +211,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 var pendingQrResult by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingQrAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var pendingStoreAppId by rememberSaveable { mutableStateOf<Int?>(null) }
+                var pendingCommunitySteamId by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingChatPartnerSteamId by rememberSaveable { mutableStateOf<String?>(null) }
                 var isSteamChatThreadOpen by rememberSaveable { mutableStateOf(false) }
                 var backPressedOnce by remember { mutableStateOf(false) }
@@ -386,6 +389,15 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             )
                         }
 
+                        MonicaSteamPage.COMMUNITY -> {
+                            SteamCommunityScreen(
+                                onNavigateBack = { navigateBack() },
+                                initialSteamId = pendingCommunitySteamId,
+                                onInitialSteamIdConsumed = { pendingCommunitySteamId = null },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
                         MonicaSteamPage.LIBRARY -> {
                             SteamLibraryScreen(
                                 onNavigateBack = { navigateBack() },
@@ -495,6 +507,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onOpenBackup = {
                                     navigateTo(MonicaSteamPage.MAFILE_TRANSFER)
                                 },
+                                onOpenCommunity = { steamId ->
+                                    pendingCommunitySteamId = steamId
+                                    navigateTo(MonicaSteamPage.COMMUNITY)
+                                },
                                 onOpenStoreApp = { appId ->
                                     pendingStoreAppId = appId
                                     navigateTo(MonicaSteamPage.STORE)
@@ -588,6 +604,7 @@ private fun MonicaSteamPage.isDockPage(): Boolean = when (this) {
     MonicaSteamPage.SETTINGS,
     MonicaSteamPage.SCANNER,
     MonicaSteamPage.HEALTH,
+    MonicaSteamPage.COMMUNITY,
     MonicaSteamPage.MAFILE_TRANSFER,
     MonicaSteamPage.WEBDAV_BACKUP -> false
     MonicaSteamPage.MDBX,

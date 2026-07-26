@@ -68,6 +68,7 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Storefront
@@ -369,6 +370,7 @@ fun SteamScreen(
     onOpenStoreApp: (Int) -> Unit = {},
     onOpenChat: (String?) -> Unit = {},
     onOpenBackup: () -> Unit = {},
+    onOpenCommunity: (String?) -> Unit = {},
     modifier: Modifier = Modifier,
     pendingSteamQrResult: String? = null,
     pendingSteamQrAccountId: Long? = null,
@@ -1803,6 +1805,17 @@ fun SteamScreen(
                                     showTopActionsMenu = false
                                     clearSteamSearch()
                                     onOpenBackup()
+                                },
+                                onOpenCommunity = {
+                                    showTopActionsMenu = false
+                                    clearSteamSearch()
+                                    onOpenCommunity(selectedAccount?.steamId)
+                                },
+                                showStandaloneSettingsEntry = showStandaloneSettingsEntry,
+                                onOpenStandaloneSettings = {
+                                    showTopActionsMenu = false
+                                    clearSteamSearch()
+                                    onOpenStandaloneSettings()
                                 }
                             )
                         },
@@ -2262,7 +2275,10 @@ private fun SteamTopActionsMenu(
     onSelectSection: (SteamSection) -> Unit,
     onRefreshCurrent: () -> Unit,
     onAddAccount: () -> Unit,
-    onOpenBackup: () -> Unit
+    onOpenBackup: () -> Unit,
+    onOpenCommunity: () -> Unit,
+    showStandaloneSettingsEntry: Boolean,
+    onOpenStandaloneSettings: () -> Unit
 ) {
     PasswordTopActionsDropdownMenu(
         expanded = expanded,
@@ -2318,6 +2334,12 @@ private fun SteamTopActionsMenu(
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         )
 
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.steam_community_title)) },
+            leadingIcon = { Icon(Icons.Default.Groups, contentDescription = null) },
+            onClick = onOpenCommunity
+        )
+
         if (selectedSection.supportsRefresh) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.refresh)) },
@@ -2337,6 +2359,14 @@ private fun SteamTopActionsMenu(
             leadingIcon = { Icon(Icons.Default.Backup, contentDescription = null) },
             onClick = onOpenBackup
         )
+
+        if (showStandaloneSettingsEntry) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.settings_title)) },
+                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                onClick = onOpenStandaloneSettings
+            )
+        }
 
     }
 }
