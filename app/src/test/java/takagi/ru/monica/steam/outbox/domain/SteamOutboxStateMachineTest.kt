@@ -41,6 +41,41 @@ class SteamOutboxStateMachineTest {
     }
 
     @Test
+    fun serverConfirmationWinsAfterRetryAndRepeatedCompletionIsIdempotent() {
+        val queued = record()
+        val completedFromQueue = SteamOutboxStateMachine.transition(
+            queued,
+            SteamOutboxEvent.COMPLETE,
+            nowMillis = 2_000L
+        )
+        val repeated = SteamOutboxStateMachine.transition(
+            completedFromQueue,
+            SteamOutboxEvent.COMPLETE,
+            nowMillis = 3_000L
+        )
+        val inFlight = SteamOutboxStateMachine.transition(
+            queued,
+            SteamOutboxEvent.CLAIM,
+            nowMillis = 2_000L
+        )
+        val retryable = SteamOutboxStateMachine.transition(
+            inFlight,
+            SteamOutboxEvent.RETRY,
+            nowMillis = 3_000L,
+            error = "timeout"
+        )
+        val completedFromRetry = SteamOutboxStateMachine.transition(
+            retryable,
+            SteamOutboxEvent.COMPLETE,
+            nowMillis = 4_000L
+        )
+
+        assertEquals(SteamOutboxStatus.COMPLETED, completedFromQueue.status)
+        assertEquals(completedFromQueue, repeated)
+        assertEquals(SteamOutboxStatus.COMPLETED, completedFromRetry.status)
+    }
+
+    @Test
     fun retryIsRecoverableWithBoundedBackoffAndError() {
         val inFlight = SteamOutboxStateMachine.transition(
             record(),

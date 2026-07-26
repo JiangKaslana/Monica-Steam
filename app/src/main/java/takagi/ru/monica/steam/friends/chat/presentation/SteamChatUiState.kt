@@ -23,6 +23,8 @@ data class SteamChatUiState(
     val loadingOlder: Boolean = false,
     val sessionsFromCache: Boolean = false,
     val threadFromCache: Boolean = false,
+    val realtimeConnected: Boolean = false,
+    val typingPartnerSteamIds: Set<String> = emptySet(),
     val sessionsFailure: SteamChatFailureReason? = null,
     val threadFailure: SteamChatFailureReason? = null
 ) {

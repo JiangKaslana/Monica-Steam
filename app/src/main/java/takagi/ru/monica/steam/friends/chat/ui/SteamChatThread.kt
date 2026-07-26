@@ -126,6 +126,7 @@ internal fun SteamChatThread(
         ChatThreadHeader(
             friend = friend,
             partnerSteamId = state.selectedPartnerSteamId.orEmpty(),
+            typing = state.typingPartnerSteamIds.contains(state.selectedPartnerSteamId),
             refreshing = state.threadRefreshing,
             onNavigateBack = onNavigateBack,
             onRefresh = onRefresh
@@ -264,6 +265,7 @@ internal fun SteamChatThread(
 private fun ChatThreadHeader(
     friend: SteamFriend?,
     partnerSteamId: String,
+    typing: Boolean,
     refreshing: Boolean,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit
@@ -302,7 +304,8 @@ private fun ChatThreadHeader(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = friend?.let { it.personaState.label() }
+                text = if (typing) stringResource(R.string.steam_chat_typing)
+                else friend?.let { it.personaState.label() }
                     ?: stringResource(R.string.steam_chat_conversation),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

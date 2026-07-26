@@ -28,6 +28,7 @@ internal class SteamChatOutgoingCoordinator(
     fun dispatch(
         account: SteamAccount,
         partnerSteamId: String,
+        accountKey: String = "${account.id}:${account.steamId}",
         pending: SteamChatMessage,
         verifyBeforeSend: Boolean,
         isCurrent: () -> Boolean,
@@ -37,7 +38,7 @@ internal class SteamChatOutgoingCoordinator(
         if (jobs[pending.clientMessageId]?.isActive == true) return
         val job = scope.launch {
             val outboxRecord = runCatching {
-                withContext(ioDispatcher) { outbox?.enqueue(account, pending) }
+                withContext(ioDispatcher) { outbox?.enqueue(account, pending, accountKey) }
             }.onFailure { logSteamChatFailure("outbox_enqueue", it) }.getOrElse {
                 if (isCurrent()) {
                     onUpdate(pending.copy(deliveryState = SteamChatDeliveryState.FAILED_RETRYABLE))

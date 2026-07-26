@@ -54,9 +54,18 @@ object SteamOutboxStateMachine {
         nowMillis: Long,
         error: String? = null
     ): SteamOutboxRecord {
+        if (
+            (record.status == SteamOutboxStatus.COMPLETED &&
+                event == SteamOutboxEvent.COMPLETE) ||
+            (record.status == SteamOutboxStatus.CANCELLED &&
+                event == SteamOutboxEvent.CANCEL)
+        ) {
+            return record
+        }
         val nextStatus = when (record.status) {
             SteamOutboxStatus.QUEUED -> when (event) {
                 SteamOutboxEvent.CLAIM -> SteamOutboxStatus.IN_FLIGHT
+                SteamOutboxEvent.COMPLETE -> SteamOutboxStatus.COMPLETED
                 SteamOutboxEvent.CANCEL -> SteamOutboxStatus.CANCELLED
                 else -> invalid(record, event)
             }
@@ -67,6 +76,7 @@ object SteamOutboxStateMachine {
                     }
                     SteamOutboxStatus.IN_FLIGHT
                 }
+                SteamOutboxEvent.COMPLETE -> SteamOutboxStatus.COMPLETED
                 SteamOutboxEvent.CANCEL -> SteamOutboxStatus.CANCELLED
                 else -> invalid(record, event)
             }

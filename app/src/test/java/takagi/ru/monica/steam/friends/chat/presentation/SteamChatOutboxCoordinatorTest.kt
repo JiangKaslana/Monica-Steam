@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.chat.presentation
 
 import java.net.SocketTimeoutException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -20,6 +21,7 @@ import takagi.ru.monica.steam.outbox.domain.SteamOutboxOperation
 import takagi.ru.monica.steam.outbox.domain.SteamOutboxRecord
 import takagi.ru.monica.steam.outbox.domain.SteamOutboxStatus
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SteamChatOutboxCoordinatorTest {
     @Test
     fun timeoutIsReconciledBeforeOutboxCompletes() = runTest {
@@ -55,6 +57,7 @@ class SteamChatOutboxCoordinatorTest {
         ).dispatch(
             account = account(),
             partnerSteamId = PARTNER,
+            accountKey = "mdbx:42:entry-1|1|76561198000000001",
             pending = pending,
             verifyBeforeSend = false,
             isCurrent = { true },
@@ -65,6 +68,7 @@ class SteamChatOutboxCoordinatorTest {
         advanceUntilIdle()
 
         assertEquals(1, sends)
+        assertEquals("mdbx:42:entry-1|1|76561198000000001", outbox.lastAccountKey)
         assertEquals(listOf("enqueue", "claim", "await", "complete"), outbox.events)
         assertEquals(SteamChatDeliveryState.SENT, updates.last())
     }
@@ -148,9 +152,15 @@ private class RecordingChatOutbox(
     private var status: SteamOutboxStatus
 ) : SteamChatOutbox {
     val events = mutableListOf<String>()
+    var lastAccountKey: String? = null
 
-    override suspend fun enqueue(account: SteamAccount, pending: SteamChatMessage): SteamOutboxRecord {
+    override suspend fun enqueue(
+        account: SteamAccount,
+        pending: SteamChatMessage,
+        accountKey: String
+    ): SteamOutboxRecord {
         events += "enqueue"
+        lastAccountKey = accountKey
         return record(pending, status)
     }
 
@@ -186,7 +196,8 @@ private class RecordingChatOutbox(
 
     override suspend fun recover(
         account: SteamAccount,
-        partnerSteamId: String
+        partnerSteamId: String,
+        accountKey: String
     ): List<SteamChatRecoveredOutbox> = emptyList()
 
     private fun record(

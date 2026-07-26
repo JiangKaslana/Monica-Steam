@@ -4762,6 +4762,7 @@
     <string name="steam_chat_network_error">Could not connect to Steam. Cached messages remain available.</string>
     <string name="steam_chat_unavailable">Steam messages are temporarily unavailable.</string>
     <string name="steam_chat_conversation">Steam conversation</string>
+    <string name="steam_chat_typing">Typing…</string>
     <string name="steam_chat_thread_empty">Send the first message</string>
     <string name="steam_chat_sending">Sending</string>
     <string name="steam_chat_sent">Sent</string>

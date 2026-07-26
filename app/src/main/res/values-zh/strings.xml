@@ -4592,6 +4592,7 @@
     <string name="steam_chat_network_error">无法连接到 Steam，仍可查看已缓存的消息。</string>
     <string name="steam_chat_unavailable">Steam 聊天暂时不可用。</string>
     <string name="steam_chat_conversation">Steam 会话</string>
+    <string name="steam_chat_typing">正在输入…</string>
     <string name="steam_chat_thread_empty">发送第一条消息</string>
     <string name="steam_chat_sending">发送中</string>
     <string name="steam_chat_sent">已发送</string>

@@ -17,13 +17,21 @@ import takagi.ru.monica.steam.outbox.domain.SteamOutboxRecord
 import takagi.ru.monica.steam.outbox.domain.SteamOutboxStatus
 
 interface SteamChatOutbox {
-    suspend fun enqueue(account: SteamAccount, pending: SteamChatMessage): SteamOutboxRecord
+    suspend fun enqueue(
+        account: SteamAccount,
+        pending: SteamChatMessage,
+        accountKey: String = legacySteamChatAccountKey(account)
+    ): SteamOutboxRecord
     suspend fun claim(clientMessageId: String): SteamOutboxRecord
     suspend fun awaitingConfirmation(clientMessageId: String): SteamOutboxRecord
     suspend fun complete(clientMessageId: String): SteamOutboxRecord
     suspend fun retry(clientMessageId: String, error: String?): SteamOutboxRecord
     suspend fun permanentFailure(clientMessageId: String, error: String?): SteamOutboxRecord
-    suspend fun recover(account: SteamAccount, partnerSteamId: String): List<SteamChatRecoveredOutbox>
+    suspend fun recover(
+        account: SteamAccount,
+        partnerSteamId: String,
+        accountKey: String = legacySteamChatAccountKey(account)
+    ): List<SteamChatRecoveredOutbox>
 }
 
 data class SteamChatRecoveredOutbox(
@@ -37,9 +45,11 @@ class SteamChatRoomOutbox(
 ) : SteamChatOutbox {
     override suspend fun enqueue(
         account: SteamAccount,
-        pending: SteamChatMessage
+        pending: SteamChatMessage,
+        accountKey: String
     ): SteamOutboxRecord {
         val payload = SteamChatOutboxPayload(
+            accountKey = accountKey,
             partnerSteamId = pending.partnerSteamId,
             body = pending.body,
             replyToStableId = pending.replyToStableId,
@@ -52,7 +62,7 @@ class SteamChatRoomOutbox(
                 accountSteamId = account.steamId,
                 operation = SteamOutboxOperation.FRIEND_MESSAGE,
                 dedupeKey = SteamOutboxKeys.friendMessage(
-                    accountKey = "${account.id}:${account.steamId}",
+                    accountKey = accountKey,
                     partnerSteamId = pending.partnerSteamId,
                     clientMessageId = pending.clientMessageId
                 ),
@@ -85,7 +95,8 @@ class SteamChatRoomOutbox(
 
     override suspend fun recover(
         account: SteamAccount,
-        partnerSteamId: String
+        partnerSteamId: String,
+        accountKey: String
     ): List<SteamChatRecoveredOutbox> = store.recoverable(account.id)
         .asSequence()
         .filter { it.accountSteamId == account.steamId }
@@ -95,6 +106,9 @@ class SteamChatRoomOutbox(
                 json.decodeFromString<SteamChatOutboxPayload>(record.payload)
             }.getOrNull() ?: return@mapNotNull null
             if (payload.partnerSteamId != partnerSteamId) return@mapNotNull null
+            if (payload.accountKey != null && payload.accountKey != accountKey) {
+                return@mapNotNull null
+            }
             SteamChatRecoveredOutbox(
                 message = SteamChatMessage(
                     partnerSteamId = payload.partnerSteamId,
@@ -120,11 +134,15 @@ class SteamChatRoomOutbox(
 
 @Serializable
 private data class SteamChatOutboxPayload(
+    val accountKey: String? = null,
     val partnerSteamId: String,
     val body: String,
     val replyToStableId: String?,
     val localCreatedAtMillis: Long
 )
+
+private fun legacySteamChatAccountKey(account: SteamAccount): String =
+    "${account.id}:${account.steamId}"
 
 private fun SteamOutboxRecord.toDeliveryState(): SteamChatDeliveryState = when (status) {
     SteamOutboxStatus.QUEUED -> SteamChatDeliveryState.QUEUED
