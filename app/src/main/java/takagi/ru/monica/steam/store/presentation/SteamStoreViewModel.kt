@@ -26,8 +26,9 @@ import takagi.ru.monica.steam.library.SteamLibraryResult
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.library.applyCnyConversions
 import takagi.ru.monica.steam.library.mergeCachedRegionalPriceConversions
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
+import takagi.ru.monica.steam.session.domain.resolveOrKeep
 
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -80,11 +81,8 @@ class SteamStoreViewModel(
     private val accountSourceRepository: SteamAccountSourceRepository,
     private val cache: SteamStoreCache,
     private val service: SteamStoreService = SteamStoreService(),
-    /**
-     * Kept injectable for focused legacy tests. Production factories leave it
-     * null so accountSourceRepository's shared session manager owns refreshes.
-     */
-    private val sessionRefreshService: SteamSessionRefreshService? = null,
+    /** Shared single-flight resolver; null is only the unauthenticated test/read-only mode. */
+    private val sessionResolver: SteamAccountSessionResolver? = null,
     private val libraryService: SteamGameLibraryService = SteamGameLibraryService(),
     private val currencyExchangeService: SteamCurrencyExchangeService =
         SteamCurrencyExchangeService()
@@ -962,36 +960,7 @@ class SteamStoreViewModel(
         account: SteamAccount,
         force: Boolean
     ): SteamAccount {
-        if (sessionRefreshService == null) {
-            return accountSourceRepository.resolveSession(account, forceRefresh = force)
-        }
-        val refreshResult = if (force) {
-            val refreshToken = account.refreshToken?.takeIf(String::isNotBlank) ?: return account
-            sessionRefreshService.refresh(account.steamId, refreshToken)
-        } else {
-            sessionRefreshService.refreshIfNeeded(account)
-        } ?: return account
-        val refreshed = account.copy(
-            accessToken = refreshResult.accessToken,
-            refreshToken = refreshResult.refreshToken ?: account.refreshToken,
-            steamLoginSecure = "${account.steamId}||${refreshResult.accessToken}"
-        )
-        try {
-            accountSourceRepository.updateSessionTokens(
-                id = account.id,
-                accessToken = refreshResult.accessToken,
-                refreshToken = refreshed.refreshToken,
-                steamLoginSecure = refreshed.steamLoginSecure
-            )
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (error: Throwable) {
-            // Keep the fresh in-memory credentials usable for this request;
-            // a transient persistence failure should not crash the store.
-            SteamDiagLogger.append(
-                "store_session_persist failed type=${error::class.java.simpleName}"
-            )
-        }
+        val refreshed = sessionResolver.resolveOrKeep(account, force)
         _uiState.value = _uiState.value.copy(
             accounts = _uiState.value.accounts.map { existing ->
                 if (existing.id == refreshed.id) refreshed else existing
@@ -1010,12 +979,14 @@ class SteamStoreViewModel(
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val accountSourceRepository = SteamAccountSourceRepository.get(appContext)
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     return SteamStoreViewModel(
-                        accountSourceRepository = SteamAccountSourceRepository.get(appContext),
-                        cache = SteamStoreCache(appContext)
+                        accountSourceRepository = accountSourceRepository,
+                        cache = SteamStoreCache(appContext),
+                        sessionResolver = accountSourceRepository.sessionResolver()
                     ) as T
                 }
             }

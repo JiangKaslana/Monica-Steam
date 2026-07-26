@@ -49,10 +49,14 @@ class SteamAccountSourceSessionGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/library/SteamLibraryViewModel.kt"
         ).readText()
 
-        assertTrue(store.contains("private val sessionRefreshService: SteamSessionRefreshService? = null"))
-        assertTrue(library.contains("private val sessionRefreshService: SteamSessionRefreshService? = null"))
-        assertTrue(store.contains("accountSourceRepository.resolveSession(account, forceRefresh = force)"))
-        assertTrue(library.contains("accountSourceRepository.resolveSession(account, forceRefresh = force)"))
+        assertTrue(store.contains("private val sessionResolver: SteamAccountSessionResolver? = null"))
+        assertTrue(library.contains("private val sessionResolver: SteamAccountSessionResolver? = null"))
+        assertTrue(store.contains("sessionResolver.resolveOrKeep(account, force)"))
+        assertTrue(library.contains("sessionResolver.resolveOrKeep(account, force)"))
+        assertTrue(store.contains("sessionResolver = accountSourceRepository.sessionResolver()"))
+        assertTrue(library.contains("sessionResolver = accountSourceRepository.sessionResolver()"))
+        assertFalse(store.contains("SteamSessionRefreshService"))
+        assertFalse(library.contains("SteamSessionRefreshService"))
     }
 
     @Test
