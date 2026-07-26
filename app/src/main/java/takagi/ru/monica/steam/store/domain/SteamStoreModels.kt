@@ -2,6 +2,9 @@ package takagi.ru.monica.steam.store.domain
 
 import java.util.Locale
 import kotlinx.serialization.Serializable
+import takagi.ru.monica.steam.store.purchase.domain.SteamStoreBaseGame
+import takagi.ru.monica.steam.store.purchase.domain.SteamStoreDemo
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 
 @Serializable
 data class SteamStoreItem(
@@ -119,6 +122,16 @@ data class SteamStoreDetail(
     val mac: Boolean = false,
     val linux: Boolean = false,
     val packageId: Int? = null,
+    val packageOptions: List<SteamStorePackageOption> = emptyList(),
+    val demos: List<SteamStoreDemo> = emptyList(),
+    val dlcAppIds: List<Int> = emptyList(),
+    val fullGame: SteamStoreBaseGame? = null,
+    val categories: List<String> = emptyList(),
+    val supportedLanguages: String = "",
+    val controllerSupport: String = "",
+    val website: String = "",
+    val recommendationCount: Int? = null,
+    val achievementCount: Int? = null,
     val availableInAccountRegion: Boolean? = null,
     val accountCountryCode: String? = null,
     val priceCountryCode: String? = null,
@@ -188,6 +201,24 @@ internal fun SteamStoreDetail.toWishlistItem(nowEpochSeconds: Long = System.curr
         formattedFinalPrice = formattedFinalPrice,
         addedAtEpochSeconds = nowEpochSeconds
     )
+
+internal fun SteamStoreDetail.toCartItem(
+    packageOption: SteamStorePackageOption? = packageOptions.firstOrNull()
+): SteamCartItem {
+    val selectedPackageId = packageOption?.packageId ?: packageId
+    val selectedPrice = packageOption?.priceCents ?: finalPriceCents
+    val selectedIsPrimary = packageOption == null || packageOption.packageId == packageId
+    return SteamCartItem(
+        appId = appId,
+        packageId = selectedPackageId,
+        name = name,
+        imageUrl = headerImageUrl,
+        currency = currency,
+        initialPriceCents = if (selectedIsPrimary) initialPriceCents else selectedPrice,
+        finalPriceCents = selectedPrice,
+        discountPercent = packageOption?.discountPercent ?: discountPercent
+    )
+}
 
 internal fun steamCartCheckoutPackageIds(items: List<SteamCartItem>): List<Int> =
     items.mapNotNull { it.packageId }.distinct()

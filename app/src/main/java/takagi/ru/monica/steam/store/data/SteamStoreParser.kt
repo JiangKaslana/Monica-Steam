@@ -12,6 +12,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jsoup.Jsoup
 import takagi.ru.monica.steam.store.domain.*
+import takagi.ru.monica.steam.store.purchase.domain.SteamStoreBaseGame
+import takagi.ru.monica.steam.store.purchase.domain.SteamStoreDemo
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 
 object SteamStoreParser {
     private val json = Json { ignoreUnknownKeys = true }
@@ -89,12 +92,37 @@ object SteamStoreParser {
         val data = wrapper.obj("data") ?: return null
         val price = data.obj("price_overview")
         val platforms = data.obj("platforms")
-        val packageId = data.array("package_groups")
+        val packageOptions = data.array("package_groups")
             .asSequence()
             .mapNotNull { it as? JsonObject }
             .flatMap { it.array("subs").asSequence() }
-            .mapNotNull { (it as? JsonObject)?.int("packageid") }
-            .firstOrNull()
+            .mapNotNull { element ->
+                val item = element as? JsonObject ?: return@mapNotNull null
+                val packageId = item.int("packageid")?.takeIf { it > 0 }
+                    ?: return@mapNotNull null
+                SteamStorePackageOption(
+                    packageId = packageId,
+                    title = stripHtml(item.string("option_text").orEmpty()),
+                    description = stripHtml(item.string("option_description").orEmpty()),
+                    priceCents = item.int("price_in_cents"),
+                    discountPercent = item.string("percent_savings_text")
+                        ?.filter(Char::isDigit)
+                        ?.toIntOrNull()
+                        ?.coerceIn(0, 100)
+                        ?: 0,
+                    isFreeLicense = item.bool("is_free_license") == true,
+                    canGetFreeLicense = item.bool("can_get_free_license") == true
+                )
+            }
+            .distinctBy(SteamStorePackageOption::packageId)
+            .toList()
+        val fullGame = data.obj("fullgame")?.let { game ->
+            val fullGameAppId = game.int("appid")?.takeIf { it > 0 } ?: return@let null
+            SteamStoreBaseGame(
+                appId = fullGameAppId,
+                name = game.string("name").orEmpty()
+            )
+        }
         return SteamStoreDetail(
             appId = data.int("steam_appid") ?: appId,
             name = data.string("name").orEmpty(),
@@ -121,7 +149,28 @@ object SteamStoreParser {
             windows = platforms?.bool("windows") == true,
             mac = platforms?.bool("mac") == true,
             linux = platforms?.bool("linux") == true,
-            packageId = packageId
+            packageId = packageOptions.firstOrNull()?.packageId,
+            packageOptions = packageOptions,
+            demos = data.array("demos").mapNotNull { element ->
+                val demo = element as? JsonObject ?: return@mapNotNull null
+                val demoAppId = demo.int("appid")?.takeIf { it > 0 } ?: return@mapNotNull null
+                SteamStoreDemo(
+                    appId = demoAppId,
+                    description = stripHtml(demo.string("description").orEmpty())
+                )
+            }.distinctBy(SteamStoreDemo::appId),
+            dlcAppIds = data.array("dlc").mapNotNull { element ->
+                element.jsonPrimitive.intOrNull?.takeIf { it > 0 }
+            }.distinct(),
+            fullGame = fullGame,
+            categories = data.array("categories").mapNotNull {
+                (it as? JsonObject)?.string("description")
+            },
+            supportedLanguages = stripHtml(data.string("supported_languages").orEmpty()),
+            controllerSupport = data.string("controller_support").orEmpty(),
+            website = data.string("website").orEmpty(),
+            recommendationCount = data.obj("recommendations")?.int("total"),
+            achievementCount = data.obj("achievements")?.int("total")
         )
     }
 

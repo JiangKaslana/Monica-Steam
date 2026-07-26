@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.store
 
 import takagi.ru.monica.steam.store.domain.*
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -27,5 +28,33 @@ class SteamNativeCartTest {
 
         assertEquals(2, cartKeys.distinct().size)
         assertEquals(2, wishlistKeys.distinct().size)
+    }
+
+    @Test
+    fun selectedPurchaseOptionControlsTheCheckoutPackageAndPrice() {
+        val bundle = SteamStorePackageOption(
+            packageId = 20,
+            title = "Portal Bundle",
+            priceCents = 3000,
+            discountPercent = 25
+        )
+        val detail = SteamStoreDetail(
+            appId = 620,
+            name = "Portal 2",
+            packageId = 10,
+            initialPriceCents = 4200,
+            finalPriceCents = 2100,
+            packageOptions = listOf(
+                SteamStorePackageOption(packageId = 10, priceCents = 2100),
+                bundle
+            )
+        )
+
+        val item = detail.toCartItem(bundle)
+
+        assertEquals(20, item.packageId)
+        assertEquals(3000, item.finalPriceCents)
+        assertEquals(3000, item.initialPriceCents)
+        assertEquals(25, item.discountPercent)
     }
 }

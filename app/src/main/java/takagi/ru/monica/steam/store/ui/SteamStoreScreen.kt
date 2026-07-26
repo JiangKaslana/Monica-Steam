@@ -95,6 +95,11 @@ import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.presentation.SteamStoreViewModel
 import takagi.ru.monica.steam.store.points.ui.SteamPointsShopScreen
+import takagi.ru.monica.steam.store.purchase.domain.SteamStoreOwnershipStatus
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFailure
+import takagi.ru.monica.steam.store.purchase.ui.SteamStorePurchaseContextSection
 import takagi.ru.monica.steam.store.ui.gallery.SteamStoreScreenshotViewer
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
@@ -233,6 +238,10 @@ fun SteamStoreScreen(
                         detail = detail,
                         loading = state.loadingDetail,
                         cached = state.detailFromCache,
+                        purchaseContext = state.purchaseContext,
+                        purchaseContextFromCache = state.purchaseContextFromCache,
+                        loadingPurchaseContext = state.loadingPurchaseContext,
+                        purchaseContextFailure = state.purchaseContextFailure,
                         onBack = viewModel::closeDetail,
                         onOpenOfficial = { viewModel.openStoreWeb(detail.storeUrl) },
                         loadingMoreReviews = state.loadingMoreReviews,
@@ -248,15 +257,18 @@ fun SteamStoreScreen(
                         loadingRegionalPrices = state.loadingRegionalPrices,
                         regionalPriceFailure = state.regionalPriceFailure,
                         showRegionalPrices = state.regionalPriceSheetOpen,
-                        onToggleCart = {
+                        onToggleCart = { packageOption ->
                             if (state.cart.any { it.appId == detail.appId }) viewModel.removeFromCart(detail.appId)
-                            else viewModel.addDetailToCart(detail)
+                            else viewModel.addDetailToCart(detail, packageOption)
                         },
                         onToggleWishlist = { viewModel.toggleWishlist(detail) },
                         onOpenRegionalPrices = { viewModel.openRegionalPrices(detail.appId) },
                         onCloseRegionalPrices = viewModel::closeRegionalPrices,
                         onRetryRegionalPrices = {
                             viewModel.loadRegionalPrices(detail.appId, force = true)
+                        },
+                        onOpenRelatedApp = { appId ->
+                            viewModel.openStoreWeb("https://store.steampowered.com/app/$appId/")
                         },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -747,6 +759,10 @@ private fun SteamStoreDetailContent(
     detail: SteamStoreDetail,
     loading: Boolean,
     cached: Boolean,
+    purchaseContext: SteamStorePurchaseContext?,
+    purchaseContextFromCache: Boolean,
+    loadingPurchaseContext: Boolean,
+    purchaseContextFailure: SteamStorePurchaseContextFailure?,
     onBack: () -> Unit,
     onOpenOfficial: () -> Unit,
     loadingMoreReviews: Boolean,
@@ -762,11 +778,12 @@ private fun SteamStoreDetailContent(
     loadingRegionalPrices: Boolean,
     regionalPriceFailure: SteamLibraryFailureReason?,
     showRegionalPrices: Boolean,
-    onToggleCart: () -> Unit,
+    onToggleCart: (SteamStorePackageOption?) -> Unit,
     onToggleWishlist: () -> Unit,
     onOpenRegionalPrices: () -> Unit,
     onCloseRegionalPrices: () -> Unit,
     onRetryRegionalPrices: () -> Unit,
+    onOpenRelatedApp: (Int) -> Unit,
     modifier: Modifier
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
@@ -774,6 +791,20 @@ private fun SteamStoreDetailContent(
     val aboutText = detail.about.ifBlank { detail.shortDescription }
     var selectedScreenshotIndex by rememberSaveable(detail.appId) {
         mutableStateOf<Int?>(null)
+    }
+    var selectedPackageId by rememberSaveable(detail.appId) {
+        mutableStateOf(detail.packageId)
+    }
+    val packageIds = remember(detail.packageOptions) {
+        detail.packageOptions.map(SteamStorePackageOption::packageId)
+    }
+    LaunchedEffect(detail.appId, packageIds) {
+        if (selectedPackageId !in packageIds) {
+            selectedPackageId = detail.packageId ?: packageIds.firstOrNull()
+        }
+    }
+    val selectedPackage = detail.packageOptions.firstOrNull {
+        it.packageId == selectedPackageId
     }
     LazyColumn(
         modifier.fillMaxSize(),
@@ -915,6 +946,19 @@ private fun SteamStoreDetailContent(
         }
         if (cached) item { CachedNotice() }
         item {
+            SteamStorePurchaseContextSection(
+                detail = detail,
+                context = purchaseContext,
+                contextFromCache = purchaseContextFromCache,
+                loadingContext = loadingPurchaseContext,
+                contextFailure = purchaseContextFailure,
+                selectedPackageId = selectedPackageId,
+                onSelectPackage = { selectedPackageId = it },
+                onOpenRelatedApp = onOpenRelatedApp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            )
+        }
+        item {
             Column(
                 Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -923,10 +967,13 @@ private fun SteamStoreDetailContent(
                     inCart = inCart,
                     inWishlist = inWishlist,
                     purchaseAvailable = detail.availableInAccountRegion != false,
+                    alreadyOwned = purchaseContext?.ownership == SteamStoreOwnershipStatus.OWNED,
+                    hasPurchasablePackage = !detail.isFree &&
+                        (selectedPackage?.packageId ?: detail.packageId) != null,
                     wishlistAvailable = wishlistAvailable,
                     wishlistMutating = wishlistMutating,
                     wishlistError = wishlistError,
-                    onToggleCart = onToggleCart,
+                    onToggleCart = { onToggleCart(selectedPackage) },
                     onToggleWishlist = onToggleWishlist,
                     onOpenOfficial = onOpenOfficial,
                     modifier = Modifier.fillMaxWidth()
@@ -1038,6 +1085,33 @@ private fun SteamStoreDetailContent(
                     )
                     DetailLine(stringResource(R.string.steam_store_release_date), detail.releaseDate)
                     if (detail.genres.isNotEmpty()) DetailLine("类型", detail.genres.joinToString())
+                    if (detail.categories.isNotEmpty()) {
+                        DetailLine(
+                            stringResource(R.string.steam_store_categories),
+                            detail.categories.joinToString()
+                        )
+                    }
+                    if (detail.supportedLanguages.isNotBlank()) {
+                        DetailLine(
+                            stringResource(R.string.steam_store_supported_languages),
+                            detail.supportedLanguages
+                        )
+                    }
+                    if (detail.controllerSupport.isNotBlank()) {
+                        DetailLine(
+                            stringResource(R.string.steam_store_controller_support),
+                            detail.controllerSupport
+                        )
+                    }
+                    detail.recommendationCount?.let {
+                        DetailLine(stringResource(R.string.steam_store_recommendations), it.toString())
+                    }
+                    detail.achievementCount?.let {
+                        DetailLine(stringResource(R.string.steam_store_achievements), it.toString())
+                    }
+                    if (detail.website.isNotBlank()) {
+                        DetailLine(stringResource(R.string.steam_store_website), detail.website)
+                    }
                 }
             }
         }
@@ -1082,6 +1156,8 @@ private fun SteamStorePurchaseActions(
     inCart: Boolean,
     inWishlist: Boolean,
     purchaseAvailable: Boolean,
+    alreadyOwned: Boolean,
+    hasPurchasablePackage: Boolean,
     wishlistAvailable: Boolean,
     wishlistMutating: Boolean,
     wishlistError: String?,
@@ -1117,7 +1193,7 @@ private fun SteamStorePurchaseActions(
         }
         Button(
             onClick = onToggleCart,
-            enabled = purchaseAvailable || inCart,
+            enabled = inCart || (purchaseAvailable && !alreadyOwned && hasPurchasablePackage),
             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             shape = RoundedCornerShape(18.dp)
         ) {
@@ -1126,6 +1202,8 @@ private fun SteamStorePurchaseActions(
             Text(
                 if (inCart) {
                     stringResource(R.string.steam_store_cart_remove)
+                } else if (alreadyOwned) {
+                    stringResource(R.string.steam_store_already_owned)
                 } else {
                     stringResource(R.string.steam_store_add_cart)
                 }

@@ -91,7 +91,12 @@ class SteamStoreGlobalSearchTest {
         assertTrue(detail.contains("steam_store_unavailable_account_region"))
         assertTrue(detail.contains("onOpenRegionalPrices"))
         assertTrue(purchaseActions.contains("purchaseAvailable"))
-        assertTrue(purchaseActions.contains("enabled = purchaseAvailable || inCart"))
+        assertTrue(purchaseActions.contains("enabled = inCart ||"))
+        assertTrue(
+            purchaseActions.contains(
+                "purchaseAvailable && !alreadyOwned && hasPurchasablePackage"
+            )
+        )
     }
 
     private fun storeItem(

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,6 +30,16 @@ import takagi.ru.monica.steam.library.mergeCachedRegionalPriceConversions
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 import takagi.ru.monica.steam.session.domain.resolveOrKeep
+import takagi.ru.monica.steam.network.SteamApiException
+import takagi.ru.monica.steam.store.purchase.data.SteamStorePurchaseContextCache
+import takagi.ru.monica.steam.store.purchase.data.SteamStorePurchaseContextSessionException
+import takagi.ru.monica.steam.store.purchase.data.SteamStorePurchaseContextService
+import takagi.ru.monica.steam.store.purchase.data.SteamStorePurchasePreferencesCache
+import takagi.ru.monica.steam.store.purchase.domain.SteamStoreOwnershipStatus
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFailure
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextGateway
 
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -54,6 +65,10 @@ data class SteamStoreUiState(
     val detail: SteamStoreDetail? = null,
     val detailFromCache: Boolean = false,
     val loadingDetail: Boolean = false,
+    val purchaseContext: SteamStorePurchaseContext? = null,
+    val purchaseContextFromCache: Boolean = false,
+    val loadingPurchaseContext: Boolean = false,
+    val purchaseContextFailure: SteamStorePurchaseContextFailure? = null,
     val loadingMoreReviews: Boolean = false,
     val reviewLoadError: String? = null,
     val error: String? = null,
@@ -85,7 +100,10 @@ class SteamStoreViewModel(
     private val sessionResolver: SteamAccountSessionResolver? = null,
     private val libraryService: SteamGameLibraryService = SteamGameLibraryService(),
     private val currencyExchangeService: SteamCurrencyExchangeService =
-        SteamCurrencyExchangeService()
+        SteamCurrencyExchangeService(),
+    private val purchaseContextGateway: SteamStorePurchaseContextGateway =
+        SteamStorePurchaseContextService(),
+    private val purchaseContextCache: SteamStorePurchaseContextCache? = null
 ) : ViewModel() {
     private var searchDebounceJob: Job? = null
     private var searchRequestJob: Job? = null
@@ -258,6 +276,14 @@ class SteamStoreViewModel(
             detail = null,
             detailFromCache = false,
             loadingDetail = true,
+            purchaseContext = null,
+            purchaseContextFromCache = false,
+            loadingPurchaseContext = account?.hasRealSteamId == true,
+            purchaseContextFailure = if (account?.hasRealSteamId == true) {
+                null
+            } else {
+                SteamStorePurchaseContextFailure.SESSION_REQUIRED
+            },
             loadingMoreReviews = false,
             reviewLoadError = null,
             regionalPrices = emptyList(),
@@ -268,6 +294,7 @@ class SteamStoreViewModel(
             regionalPriceSheetOpen = false,
             error = null
         )
+        loadPurchaseContext(account, appId, generation)
         viewModelScope.launch {
             val cached = runCatching {
                 withContext(Dispatchers.IO) { cache.readDetail(accountId, appId) }
@@ -346,6 +373,10 @@ class SteamStoreViewModel(
             detailDiscoveryCountryCode = null,
             detail = null,
             loadingDetail = false,
+            purchaseContext = null,
+            purchaseContextFromCache = false,
+            loadingPurchaseContext = false,
+            purchaseContextFailure = null,
             loadingMoreReviews = false,
             reviewLoadError = null,
             regionalPrices = emptyList(),
@@ -522,21 +553,15 @@ class SteamStoreViewModel(
         }
     }
 
-    fun addDetailToCart(detail: SteamStoreDetail) {
+    fun addDetailToCart(
+        detail: SteamStoreDetail,
+        packageOption: SteamStorePackageOption? = detail.packageOptions.firstOrNull()
+    ) {
         if (detail.availableInAccountRegion == false) {
             _uiState.value = _uiState.value.copy(error = "当前账号地区不售卖该商品")
             return
         }
-        val item = SteamCartItem(
-            appId = detail.appId,
-            packageId = detail.packageId,
-            name = detail.name,
-            imageUrl = detail.headerImageUrl,
-            currency = detail.currency,
-            initialPriceCents = detail.initialPriceCents,
-            finalPriceCents = detail.finalPriceCents,
-            discountPercent = detail.discountPercent
-        )
+        val item = detail.toCartItem(packageOption)
         updateCart((_uiState.value.cart.filterNot { it.appId == item.appId } + item))
     }
 
@@ -550,7 +575,11 @@ class SteamStoreViewModel(
             collectionTab = SteamStoreCollectionTab.CART,
             detailAppId = null,
             detailDiscoveryCountryCode = null,
-            detail = null
+            detail = null,
+            purchaseContext = null,
+            purchaseContextFromCache = false,
+            loadingPurchaseContext = false,
+            purchaseContextFailure = null
         )
     }
     fun closeCart() { _uiState.value = _uiState.value.copy(cartOpen = false) }
@@ -836,6 +865,10 @@ class SteamStoreViewModel(
             detail = null,
             detailFromCache = false,
             loadingDetail = false,
+            purchaseContext = null,
+            purchaseContextFromCache = false,
+            loadingPurchaseContext = false,
+            purchaseContextFailure = null,
             loadingMoreReviews = false,
             reviewLoadError = null,
             error = null,
@@ -894,6 +927,103 @@ class SteamStoreViewModel(
             state.detailAppId == appId &&
             state.detail?.appId == appId
     }
+
+    private fun loadPurchaseContext(
+        account: SteamAccount?,
+        appId: Int,
+        generation: Long
+    ) {
+        if (account?.hasRealSteamId != true) return
+        viewModelScope.launch {
+            val cached = withContext(Dispatchers.IO) {
+                purchaseContextCache?.load(account.steamId, appId)
+            }
+            if (!purchaseContextRequestIsCurrent(account, appId, generation)) return@launch
+            if (cached != null) {
+                _uiState.value = _uiState.value.copy(
+                    purchaseContext = cached,
+                    purchaseContextFromCache = true,
+                    loadingPurchaseContext = true,
+                    purchaseContextFailure = null
+                )
+            }
+
+            val result = runSteamStorePurchaseContextCatching {
+                withContext(Dispatchers.IO) {
+                    fetchPurchaseContextWithSessionRetry(account, appId)
+                }
+            }
+            if (!purchaseContextRequestIsCurrent(account, appId, generation)) return@launch
+            val error = result.exceptionOrNull()
+            if (error != null) {
+                SteamDiagLogger.append(
+                    "store_purchase_context failed app_id=$appId " +
+                        "type=${error.javaClass.simpleName}"
+                )
+                _uiState.value = _uiState.value.copy(
+                    loadingPurchaseContext = false,
+                    purchaseContextFromCache = cached != null,
+                    purchaseContextFailure = error.toPurchaseContextFailure()
+                )
+                return@launch
+            }
+
+            val fresh = result.getOrThrow()
+            if (fresh.ownership == SteamStoreOwnershipStatus.UNKNOWN && cached != null) {
+                _uiState.value = _uiState.value.copy(
+                    purchaseContext = cached,
+                    purchaseContextFromCache = true,
+                    loadingPurchaseContext = false,
+                    purchaseContextFailure = fresh.failure
+                )
+                return@launch
+            }
+            if (steamStorePurchaseContextIsCacheable(fresh)) {
+                withContext(Dispatchers.IO) { purchaseContextCache?.save(fresh) }
+            }
+            if (!purchaseContextRequestIsCurrent(account, appId, generation)) return@launch
+            _uiState.value = _uiState.value.copy(
+                purchaseContext = fresh,
+                purchaseContextFromCache = false,
+                loadingPurchaseContext = false,
+                purchaseContextFailure = fresh.failure
+            )
+        }
+    }
+
+    private suspend fun fetchPurchaseContextWithSessionRetry(
+        account: SteamAccount,
+        appId: Int
+    ): SteamStorePurchaseContext {
+        val prepared = refreshAccountSession(account, force = false)
+        val first = try {
+            purchaseContextGateway.fetch(prepared, appId, "schinese")
+        } catch (error: Throwable) {
+            if (!error.requiresPurchaseContextSessionRefresh()) throw error
+            val refreshed = refreshAccountSession(prepared, force = true)
+            if (refreshed.accessToken == prepared.accessToken) throw error
+            return purchaseContextGateway.fetch(refreshed, appId, "schinese")
+        }
+        if (first.failure != SteamStorePurchaseContextFailure.SESSION_REQUIRED) return first
+        val refreshed = refreshAccountSession(prepared, force = true)
+        return if (refreshed.accessToken != prepared.accessToken) {
+            purchaseContextGateway.fetch(refreshed, appId, "schinese")
+        } else {
+            first
+        }
+    }
+
+    private fun purchaseContextRequestIsCurrent(
+        account: SteamAccount,
+        appId: Int,
+        generation: Long
+    ): Boolean = steamStorePurchaseContextRequestIsCurrent(
+        state = _uiState.value,
+        account = account,
+        appId = appId,
+        generation = generation,
+        currentGeneration = detailRequestGeneration
+    )
 
     private fun regionalPricesAreReady(prices: List<SteamRegionalPrice>): Boolean {
         if (prices.isEmpty()) return false
@@ -986,7 +1116,8 @@ class SteamStoreViewModel(
                     return SteamStoreViewModel(
                         accountSourceRepository = accountSourceRepository,
                         cache = SteamStoreCache(appContext),
-                        sessionResolver = accountSourceRepository.sessionResolver()
+                        sessionResolver = accountSourceRepository.sessionResolver(),
+                        purchaseContextCache = SteamStorePurchasePreferencesCache(appContext)
                     ) as T
                 }
             }
@@ -1004,4 +1135,54 @@ internal fun steamStoreDetailRequestIsCurrent(
     return generation == currentGeneration &&
         state.selectedAccountId == accountId &&
         state.detailAppId == appId
+}
+
+internal fun steamStorePurchaseContextRequestIsCurrent(
+    state: SteamStoreUiState,
+    account: SteamAccount,
+    appId: Int,
+    generation: Long,
+    currentGeneration: Long
+): Boolean {
+    val selected = state.accounts.firstOrNull { it.id == state.selectedAccountId }
+    return generation == currentGeneration &&
+        state.detailAppId == appId &&
+        state.selectedAccountId == account.id &&
+        selected?.steamId == account.steamId
+}
+
+internal fun steamStorePurchaseContextIsCacheable(
+    context: SteamStorePurchaseContext
+): Boolean = context.failure == null &&
+    context.ownership != SteamStoreOwnershipStatus.UNKNOWN
+
+private fun Throwable.requiresPurchaseContextSessionRefresh(): Boolean = when (this) {
+    is SteamStorePurchaseContextSessionException -> true
+    is SteamApiException -> eResult?.let { it == 5 || it == 15 || it == 401 || it == 403 } == true ||
+        httpStatusCode?.let { it == 401 || it == 403 } == true
+    else -> false
+}
+
+private fun Throwable.toPurchaseContextFailure(): SteamStorePurchaseContextFailure = when (this) {
+    is SteamStorePurchaseContextSessionException -> SteamStorePurchaseContextFailure.SESSION_REQUIRED
+    is SteamApiException -> when {
+        requiresPurchaseContextSessionRefresh() -> SteamStorePurchaseContextFailure.SESSION_REQUIRED
+        eResult == 429 || httpStatusCode == 429 -> SteamStorePurchaseContextFailure.RATE_LIMITED
+        else -> SteamStorePurchaseContextFailure.NETWORK
+    }
+    is IOException -> SteamStorePurchaseContextFailure.NETWORK
+    is IllegalArgumentException,
+    is IllegalStateException,
+    is IndexOutOfBoundsException -> SteamStorePurchaseContextFailure.INVALID_RESPONSE
+    else -> SteamStorePurchaseContextFailure.NETWORK
+}
+
+private suspend fun <T> runSteamStorePurchaseContextCatching(
+    block: suspend () -> T
+): Result<T> = try {
+    Result.success(block())
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (error: Throwable) {
+    Result.failure(error)
 }
