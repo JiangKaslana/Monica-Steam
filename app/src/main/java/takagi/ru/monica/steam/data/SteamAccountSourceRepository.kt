@@ -213,6 +213,33 @@ class SteamAccountSourceRepository private constructor(
         return SteamAccountSessionHandle(account = account, origin = origin)
     }
 
+    /**
+     * Resolves a handle from the visible source without consulting the
+     * cross-source id cache. This is required by background work and deep
+     * links because MDBX runtime ids and Room ids occupy different namespaces.
+     */
+    fun sessionHandleForSource(
+        account: SteamAccount,
+        source: SteamStorageSource
+    ): SteamAccountSessionHandle? {
+        val current = _state.value
+        if (current.storageSource != source) return null
+        val visibleAccount = current.accounts.firstOrNull { candidate ->
+            candidate.id == account.id && candidate.steamId == account.steamId
+        } ?: return null
+        val origin = when (source) {
+            SteamStorageSource.Local -> SteamAccountSessionOrigin(SteamStorageSource.Local)
+            is SteamStorageSource.Mdbx -> mdbxRecords.firstOrNull { record ->
+                record.account.id == visibleAccount.id &&
+                    record.account.steamId == visibleAccount.steamId
+            }?.let { record ->
+                SteamAccountSessionOrigin(source = source, entryId = record.entryId)
+            } ?: return null
+        }
+        accountOrigins[visibleAccount.id] = origin
+        return SteamAccountSessionHandle(account = visibleAccount, origin = origin)
+    }
+
     suspend fun resolveSession(
         account: SteamAccount,
         forceRefresh: Boolean = false

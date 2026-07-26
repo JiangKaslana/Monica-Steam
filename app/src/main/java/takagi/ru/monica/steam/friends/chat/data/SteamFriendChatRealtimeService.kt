@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.chat.data
 
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -69,12 +70,16 @@ internal class SteamFriendChatRealtimeService(
             var announcedConnected = false
             try {
                 while (isActive) {
-                    val connected = runCatching {
+                    val connected = try {
                         withContext(ioDispatcher) {
                             if (!transport.isConnected(sessionAccount)) transport.connect(sessionAccount)
                             transport.isConnected(sessionAccount)
                         }
-                    }.getOrDefault(false)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Throwable) {
+                        false
+                    }
                     if (connected != announcedConnected) {
                         announcedConnected = connected
                         send(SteamChatRealtimeEvent.ConnectionChanged(connected))

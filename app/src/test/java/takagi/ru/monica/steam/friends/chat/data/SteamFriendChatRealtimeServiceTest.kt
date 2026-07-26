@@ -2,9 +2,11 @@ package takagi.ru.monica.steam.friends.chat.data
 
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -99,6 +101,26 @@ class SteamFriendChatRealtimeServiceTest {
         assertEquals(listOf(SteamChatRealtimeEvent.ConnectionChanged(true)), events.await())
     }
 
+    @Test
+    fun propagatesCancellationFromTheConnectionBoundary() = runTest {
+        val service = SteamFriendChatRealtimeService(
+            transport = FakeRealtimeTransport(
+                terminalConnectFailure = CancellationException("cancelled")
+            ),
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+            healthyCheckMillis = 60_000L
+        )
+        var cancellationPropagated = false
+
+        try {
+            service.events(account(1L, ACCOUNT_STEAM_ID)).first()
+        } catch (_: CancellationException) {
+            cancellationPropagated = true
+        }
+
+        assertTrue(cancellationPropagated)
+    }
+
     private fun incomingEnvelope() = SteamCmEnvelope(
         eMsg = SteamCmProtocol.EMSG_SERVICE_METHOD,
         header = SteamCmHeader(targetJobName = "FriendMessagesClient.IncomingMessage#1"),
@@ -139,7 +161,8 @@ class SteamFriendChatRealtimeServiceTest {
 }
 
 private class FakeRealtimeTransport(
-    private var failuresBeforeSuccess: Int = 0
+    private var failuresBeforeSuccess: Int = 0,
+    private val terminalConnectFailure: Throwable? = null
 ) : SteamFriendChatRealtimeTransport {
     private val buses = ConcurrentHashMap<String, MutableSharedFlow<SteamCmEnvelope>>()
     private val connected = ConcurrentHashMap.newKeySet<String>()
@@ -156,6 +179,7 @@ private class FakeRealtimeTransport(
 
     override fun connect(account: SteamAccount) {
         connectCalls++
+        terminalConnectFailure?.let { throw it }
         if (failuresBeforeSuccess > 0) {
             failuresBeforeSuccess--
             throw IOException("offline")

@@ -1,14 +1,32 @@
 package takagi.ru.monica
 
 import android.app.Application
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import takagi.ru.monica.steam.diagnostics.SteamCrashDiagnostics
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
+import takagi.ru.monica.steam.friends.chat.background.data.SteamChatBackgroundServiceController
 
 class MonicaSteamApplication : Application() {
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     override fun onCreate() {
         SteamCrashDiagnostics.install(this)
         SteamDiagLogger.initialize(this)
         super.onCreate()
+        applicationScope.launch {
+            try {
+                SteamChatBackgroundServiceController.sync(this@MonicaSteamApplication)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                SteamDiagLogger.append(
+                    "chat_background_application_sync failed type=${error::class.java.simpleName}"
+                )
+            }
+        }
     }
 }
-

@@ -4925,4 +4925,27 @@
     <string name="steam_library_context_dlc_family_shared">Family shared</string>
     <string name="steam_library_context_dlc_not_owned">Not owned</string>
     <string name="steam_library_context_dlc_unknown">Unknown</string>
+    <string name="steam_chat_background_section">Steam chat</string>
+    <string name="steam_chat_background_title">Background chat notifications</string>
+    <string name="steam_chat_background_description">Keeps the selected Steam account connected with a persistent notification. This may increase battery and network usage.</string>
+    <string name="steam_chat_background_permission_required">Notification permission is required for background chat alerts.</string>
+    <string name="steam_chat_background_start_failed">Unable to start background Steam chat.</string>
+    <string name="steam_chat_background_target_unavailable">The Steam account for this notification is no longer available.</string>
+    <string name="steam_chat_background_service_title">Steam chat is running</string>
+    <string name="steam_chat_background_waiting">Waiting for a selected Steam account</string>
+    <string name="steam_chat_background_connecting">Connecting as %1$s…</string>
+    <string name="steam_chat_background_connected">Listening as %1$s</string>
+    <string name="steam_chat_background_reconnecting">Reconnecting as %1$s…</string>
+    <string name="steam_chat_background_channel_name">Steam chat connection</string>
+    <string name="steam_chat_background_channel_description">Persistent connection used for incoming Steam chat messages</string>
+    <string name="steam_chat_message_channel_name">Steam chat messages</string>
+    <string name="steam_chat_message_channel_description">Incoming private Steam chat messages</string>
+    <string name="steam_chat_notification_public_title">New Steam message</string>
+    <string name="steam_chat_notification_public_text">Open Monica Steam to view it</string>
+    <string name="steam_chat_notification_sticker">Sticker · %1$s</string>
+    <string name="steam_chat_notification_image">Image · %1$s</string>
+    <string name="steam_chat_notification_video">Video · %1$s</string>
+    <string name="steam_chat_notification_file">Attachment · %1$s</string>
+    <string name="steam_chat_notification_game_invite">Steam game invitation</string>
+    <string name="steam_chat_notification_steam_event">Steam notification</string>
 </resources>

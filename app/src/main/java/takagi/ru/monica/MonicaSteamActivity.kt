@@ -1,5 +1,6 @@
 package takagi.ru.monica
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -48,6 +49,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import takagi.ru.monica.steam.navigation.SteamDockPreferences
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.ui.SteamEssentialsFloatingToolbar
@@ -76,6 +78,10 @@ import takagi.ru.monica.steam.foundation.ui.ProvideSteamContentDensity
 import takagi.ru.monica.steam.foundation.ui.setSteamUiScaledContent
 import takagi.ru.monica.steam.store.ui.SteamStoreScreen
 import takagi.ru.monica.steam.alerts.data.SteamAlertScheduler
+import takagi.ru.monica.steam.data.SteamAccountSourceRepository
+import takagi.ru.monica.steam.friends.chat.background.data.SteamChatNotificationContract
+import takagi.ru.monica.steam.friends.chat.background.data.activateChatNotificationTarget
+import takagi.ru.monica.steam.friends.chat.background.domain.SteamChatNotificationRequest
 import takagi.ru.monica.ui.base.BaseMonicaActivity
 import takagi.ru.monica.ui.screens.MonicaSteamSettingsScreen
 import takagi.ru.monica.ui.screens.WebDavBackupScreen
@@ -118,10 +124,14 @@ private const val STEAM_AUTO_BACKUP_INIT_DELAY_MS = 1_500L
 private const val STEAM_AUTO_BACKUP_INTERVAL_HOURS = 12L
 
 class MonicaSteamActivity : BaseMonicaActivity() {
+    private val pendingChatNotificationRequest =
+        MutableStateFlow<SteamChatNotificationRequest?>(null)
+
     override fun shouldEnforceSharedSessionLock(): Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        consumeChatNotificationIntent(intent)
 
         lifecycleScope.launch {
             SteamAlertScheduler.sync(this@MonicaSteamActivity)
@@ -156,6 +166,12 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 val securityManager = remember {
                     SecurityManager(this@MonicaSteamActivity.applicationContext)
                 }
+                val accountSourceRepository = remember {
+                    SteamAccountSourceRepository.get(
+                        this@MonicaSteamActivity.applicationContext
+                    )
+                }
+                val chatNotificationRequest by pendingChatNotificationRequest.collectAsState()
                 val mdbxRepository: MdbxRepository = remember(passwordDatabase, securityManager) {
                     MdbxVaultStore(
                         this@MonicaSteamActivity.applicationContext,
@@ -230,6 +246,24 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                         currentPage = homePage
                         pageHistory = emptyList()
                         appliedInitialDockPage = true
+                    }
+                }
+
+                LaunchedEffect(chatNotificationRequest) {
+                    val request = chatNotificationRequest ?: return@LaunchedEffect
+                    val activated = accountSourceRepository.activateChatNotificationTarget(request)
+                    pendingChatNotificationRequest.value = null
+                    if (activated) {
+                        appliedInitialDockPage = true
+                        pageHistory = emptyList()
+                        pendingChatPartnerSteamId = request.partnerSteamId
+                        currentPage = MonicaSteamPage.CHAT
+                    } else {
+                        Toast.makeText(
+                            this@MonicaSteamActivity,
+                            R.string.steam_chat_background_target_unavailable,
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
 
@@ -557,6 +591,18 @@ class MonicaSteamActivity : BaseMonicaActivity() {
 }
 
 }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeChatNotificationIntent(intent)
+    }
+
+    private fun consumeChatNotificationIntent(intent: Intent?) {
+        SteamChatNotificationContract.consume(intent)?.let { request ->
+            pendingChatNotificationRequest.value = request
+        }
+    }
 
     private fun initializeWebDavAutoBackupDeferred() {
         lifecycleScope.launch {
