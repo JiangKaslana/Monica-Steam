@@ -4391,6 +4391,11 @@
     <string name="steam_store_web_title">Steam 官方商店</string>
     <string name="steam_store_close">关闭商店</string>
     <string name="steam_store_security_note">结算与支付仅由 Steam 官方网页处理。</string>
+    <string name="steam_web_session_unavailable">Steam 网页会话不可用</string>
+    <string name="steam_web_session_login_required">当前账号没有有效的 Steam 网页会话，请刷新账号登录状态后重试。</string>
+    <string name="steam_web_session_identity_mismatch">保存的网页会话属于另一个 Steam 账号。为避免串号，该会话已被清除。</string>
+    <string name="steam_web_session_invalid">当前账号的 Steam 网页会话无效，请刷新账号登录状态后继续。</string>
+    <string name="steam_web_session_account_required">无法确认这份 Steam 网页会话对应的账号身份。</string>
     <string name="steam_support_log_export">导出支持日志</string>
     <string name="steam_support_log_export_description">保存近期崩溃与 Steam 诊断信息，自动隐藏凭据、令牌和 Steam ID。</string>
     <string name="steam_support_log_exported">支持日志已导出</string>

@@ -3,6 +3,84 @@ package takagi.ru.monica.steam.store.data
 import android.webkit.CookieManager
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * Android WebView owns one process-wide cookie jar. Serialize replacement so an
+ * older account cannot finish installing cookies after a newer account switch.
+ * Pending requests are latest-wins; every executed request starts by clearing
+ * the jar, which also removes host-only Steam cookies created by web pages.
+ */
+private object SteamWebCookieSessionCoordinator {
+    private data class Request(
+        val generation: Long,
+        val manager: CookieManager,
+        val writes: List<SteamWebCookieWrite>,
+        val onCookiesReady: () -> Unit,
+    )
+
+    private val lock = Any()
+    private var active = false
+    private var pending: Request? = null
+    private var latestGeneration = 0L
+
+    fun replace(
+        manager: CookieManager,
+        writes: List<SteamWebCookieWrite>,
+        onCookiesReady: () -> Unit,
+    ) {
+        val next = synchronized(lock) {
+            latestGeneration += 1
+            pending = Request(latestGeneration, manager, writes, onCookiesReady)
+            if (active) {
+                null
+            } else {
+                active = true
+                pending.also { pending = null }
+            }
+        }
+        next?.let(::execute)
+    }
+
+    private fun execute(request: Request) {
+        request.manager.removeAllCookies {
+            request.manager.flush()
+            request.manager.installSteamCookies(request.writes) {
+                complete(request)
+            }
+        }
+    }
+
+    private fun complete(request: Request) {
+        var notifyReady = false
+        val next = synchronized(lock) {
+            val queued = pending
+            pending = null
+            if (queued == null) {
+                active = false
+                notifyReady = true
+            }
+            queued
+        }
+        val stillLatest = notifyReady && synchronized(lock) {
+            request.generation == latestGeneration && !active && pending == null
+        }
+        if (stillLatest) {
+            request.onCookiesReady()
+        }
+        next?.let(::execute)
+    }
+}
+
+internal fun CookieManager.replaceSteamCookies(
+    writes: List<SteamWebCookieWrite>,
+    onCookiesReady: () -> Unit,
+) {
+    SteamWebCookieSessionCoordinator.replace(this, writes, onCookiesReady)
+}
+
+internal fun CookieManager.clearSteamCookies(onCookiesCleared: () -> Unit = {}) {
+    SteamWebCookieSessionCoordinator.replace(this, emptyList(), onCookiesCleared)
+}
+
 internal fun CookieManager.installSteamCookies(
     writes: List<SteamWebCookieWrite>,
     onCookiesReady: () -> Unit

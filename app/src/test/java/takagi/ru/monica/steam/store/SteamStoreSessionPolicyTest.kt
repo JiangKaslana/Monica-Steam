@@ -9,6 +9,69 @@ import org.junit.Test
 
 class SteamStoreSessionPolicyTest {
     @Test
+    fun accountSessionAcceptsMatchingRawAndEncodedIdentities() {
+        val raw = SteamWebAccountSessionPolicy.decide(
+            expectedSteamId = "76561198000000000",
+            steamLoginSecure = "76561198000000000||token",
+            requireAuthenticatedSession = true,
+        )
+        val encoded = SteamWebAccountSessionPolicy.decide(
+            expectedSteamId = "76561198000000000",
+            steamLoginSecure = "76561198000000000%7C%7Ctoken%2Fvalue",
+            requireAuthenticatedSession = true,
+        )
+
+        assertTrue(raw.canLoad)
+        assertTrue(raw.installAuthenticatedCookie)
+        assertEquals("76561198000000000", encoded.cookieSteamId)
+        assertTrue(encoded.canLoad)
+    }
+
+    @Test
+    fun accountSessionRejectsAnotherAccountsCookie() {
+        val decision = SteamWebAccountSessionPolicy.decide(
+            expectedSteamId = "76561198000000001",
+            steamLoginSecure = "76561198000000000||token",
+            requireAuthenticatedSession = false,
+        )
+
+        assertFalse(decision.canLoad)
+        assertFalse(decision.installAuthenticatedCookie)
+        assertEquals(SteamWebSessionProblem.IDENTITY_MISMATCH, decision.problem)
+    }
+
+    @Test
+    fun missingSessionCanOnlyOpenPublicNonSensitivePages() {
+        val publicPage = SteamWebAccountSessionPolicy.decide(
+            expectedSteamId = "76561198000000000",
+            steamLoginSecure = null,
+            requireAuthenticatedSession = false,
+        )
+        val checkout = SteamWebAccountSessionPolicy.decide(
+            expectedSteamId = "76561198000000000",
+            steamLoginSecure = null,
+            requireAuthenticatedSession = true,
+        )
+
+        assertTrue(publicPage.canLoad)
+        assertFalse(publicPage.installAuthenticatedCookie)
+        assertFalse(checkout.canLoad)
+        assertEquals(SteamWebSessionProblem.AUTHENTICATED_SESSION_REQUIRED, checkout.problem)
+    }
+
+    @Test
+    fun malformedAuthenticatedSessionFailsClosed() {
+        val decision = SteamWebAccountSessionPolicy.decide(
+            expectedSteamId = "76561198000000000",
+            steamLoginSecure = "not-a-steam-session",
+            requireAuthenticatedSession = false,
+        )
+
+        assertFalse(decision.canLoad)
+        assertEquals(SteamWebSessionProblem.INVALID_SESSION, decision.problem)
+    }
+
+    @Test
     fun allowsOnlyOfficialSteamHttpsNavigation() {
         assertTrue(SteamStoreNavigationPolicy.isAllowed("https://store.steampowered.com/cart/"))
         assertTrue(SteamStoreNavigationPolicy.isAllowed("https://checkout.steampowered.com/"))

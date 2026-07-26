@@ -147,6 +147,7 @@ fun SteamStoreScreen(
     }
     val webUrl = state.webUrl
     val detailAppId = state.detailAppId
+    val selectedStoreAccount = viewModel.selectedAccount()
     val storeDestination = when {
         webUrl != null -> SteamStoreDestination.Web(webUrl)
         detailAppId != null -> SteamStoreDestination.Detail(detailAppId)
@@ -179,8 +180,13 @@ fun SteamStoreScreen(
         when (destination) {
             is SteamStoreDestination.Web -> SteamStoreWebScreen(
                 url = destination.url,
-                steamLoginSecure = viewModel.selectedAccount()?.steamLoginSecure,
+                steamLoginSecure = selectedStoreAccount?.steamLoginSecure
+                    ?: selectedStoreAccount?.accessToken?.let { token ->
+                        "${selectedStoreAccount.steamId}||$token"
+                    },
+                expectedSteamId = selectedStoreAccount?.steamId,
                 checkoutPackageIds = state.checkoutPackageIds,
+                requireAuthenticatedSession = state.checkoutPackageIds.isNotEmpty(),
                 onClose = viewModel::closeStoreWeb,
                 modifier = Modifier.fillMaxSize()
             )

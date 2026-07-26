@@ -20,6 +20,85 @@ data class SteamWebCookieWrite(
     val value: String
 )
 
+enum class SteamWebSessionProblem {
+    AUTHENTICATED_SESSION_REQUIRED,
+    INVALID_SESSION,
+    EXPECTED_ACCOUNT_REQUIRED,
+    IDENTITY_MISMATCH,
+}
+
+data class SteamWebSessionDecision(
+    val canLoad: Boolean,
+    val installAuthenticatedCookie: Boolean,
+    val cookieSteamId: String? = null,
+    val problem: SteamWebSessionProblem? = null,
+)
+
+object SteamWebAccountSessionPolicy {
+    fun decide(
+        expectedSteamId: String?,
+        steamLoginSecure: String?,
+        requireAuthenticatedSession: Boolean,
+    ): SteamWebSessionDecision {
+        val expectedId = expectedSteamId?.trim().orEmpty()
+        val loginSecure = steamLoginSecure?.trim().orEmpty()
+        if (loginSecure.isEmpty()) {
+            return if (requireAuthenticatedSession) {
+                SteamWebSessionDecision(
+                    canLoad = false,
+                    installAuthenticatedCookie = false,
+                    problem = SteamWebSessionProblem.AUTHENTICATED_SESSION_REQUIRED,
+                )
+            } else {
+                SteamWebSessionDecision(
+                    canLoad = true,
+                    installAuthenticatedCookie = false,
+                )
+            }
+        }
+
+        val normalized = normalizeEncodedValue(loginSecure)
+        val separatorIndex = normalized.indexOf("||")
+        if (separatorIndex <= 0 || separatorIndex + 2 >= normalized.length) {
+            return SteamWebSessionDecision(
+                canLoad = false,
+                installAuthenticatedCookie = false,
+                problem = SteamWebSessionProblem.INVALID_SESSION,
+            )
+        }
+        val cookieSteamId = normalized.substring(0, separatorIndex)
+        val sessionToken = normalized.substring(separatorIndex + 2)
+        if (cookieSteamId.isBlank() || sessionToken.isBlank()) {
+            return SteamWebSessionDecision(
+                canLoad = false,
+                installAuthenticatedCookie = false,
+                problem = SteamWebSessionProblem.INVALID_SESSION,
+            )
+        }
+        if (expectedId.isEmpty()) {
+            return SteamWebSessionDecision(
+                canLoad = false,
+                installAuthenticatedCookie = false,
+                cookieSteamId = cookieSteamId,
+                problem = SteamWebSessionProblem.EXPECTED_ACCOUNT_REQUIRED,
+            )
+        }
+        if (cookieSteamId != expectedId) {
+            return SteamWebSessionDecision(
+                canLoad = false,
+                installAuthenticatedCookie = false,
+                cookieSteamId = cookieSteamId,
+                problem = SteamWebSessionProblem.IDENTITY_MISMATCH,
+            )
+        }
+        return SteamWebSessionDecision(
+            canLoad = true,
+            installAuthenticatedCookie = true,
+            cookieSteamId = cookieSteamId,
+        )
+    }
+}
+
 enum class SteamWebClientMode {
     DEFAULT,
     COMMUNITY_DESKTOP
@@ -114,15 +193,15 @@ object SteamStoreSessionPolicy {
         }
     }
 
-    private fun normalizeEncodedValue(value: String): String {
-        if (!Regex("%[0-9a-fA-F]{2}").containsMatchIn(value)) return value
-        return runCatching {
-            URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
-        }.getOrDefault(value)
-    }
-
     private fun encode(value: String): String = URLEncoder.encode(
         value,
         StandardCharsets.UTF_8.name()
     ).replace("+", "%20")
+}
+
+private fun normalizeEncodedValue(value: String): String {
+    if (!Regex("%[0-9a-fA-F]{2}").containsMatchIn(value)) return value
+    return runCatching {
+        URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
+    }.getOrDefault(value)
 }
