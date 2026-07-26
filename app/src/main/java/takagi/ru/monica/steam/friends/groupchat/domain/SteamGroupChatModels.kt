@@ -86,21 +86,59 @@ internal fun mergeSteamGroupMessages(
     val merged = linkedMapOf<String, SteamGroupChatMessage>()
     (current + incoming).forEach { message ->
         val serverKey = "${message.timestamp}:${message.ordinal}:${message.senderSteamId}"
-        val existing = merged.values.firstOrNull {
-            it.stableId == message.stableId ||
-                (message.ordinal != Int.MAX_VALUE && it.ordinal != Int.MAX_VALUE &&
-                    it.timestamp == message.timestamp && it.ordinal == message.ordinal &&
-                    it.senderSteamId == message.senderSteamId)
-        }
+        val existing = merged.values
+            .filter { it.stableId == message.stableId || sameServerMessage(it, message) }
+            .minByOrNull { candidate ->
+                kotlin.math.abs(candidate.timestamp - message.timestamp)
+            }
         if (existing != null) merged.remove(existing.stableId)
-        val replacement = if (message.clientMessageId.isBlank() && existing?.clientMessageId?.isNotBlank() == true) {
-            message.copy(
-                clientMessageId = existing.clientMessageId,
-                localCreatedAtMillis = existing.localCreatedAtMillis,
-                deliveryState = SteamGroupChatDeliveryState.SENT
-            )
-        } else message
+        val replacement = when {
+            message.clientMessageId.isBlank() && existing?.clientMessageId?.isNotBlank() == true ->
+                message.copy(
+                    clientMessageId = existing.clientMessageId,
+                    localCreatedAtMillis = existing.localCreatedAtMillis,
+                    deliveryState = SteamGroupChatDeliveryState.SENT
+                )
+            message.clientMessageId.isNotBlank() && existing?.clientMessageId.isNullOrBlank() &&
+                existing != null && sameServerMessage(existing, message) ->
+                existing.copy(
+                    clientMessageId = message.clientMessageId,
+                    localCreatedAtMillis = message.localCreatedAtMillis,
+                    deliveryState = message.deliveryState
+                )
+            else -> message
+        }
         merged[replacement.stableId.ifBlank { serverKey }] = replacement
     }
     return merged.values.sortedWith(compareBy<SteamGroupChatMessage> { it.timestamp }.thenBy { it.ordinal })
 }
+
+private fun sameServerMessage(
+    first: SteamGroupChatMessage,
+    second: SteamGroupChatMessage
+): Boolean {
+    if (first.groupId != second.groupId || first.chatId != second.chatId ||
+        first.senderSteamId != second.senderSteamId
+    ) return false
+    if (first.ordinal != Int.MAX_VALUE && second.ordinal != Int.MAX_VALUE) {
+        return first.timestamp == second.timestamp && first.ordinal == second.ordinal
+    }
+
+    val local = if (first.ordinal == Int.MAX_VALUE) first else second
+    val server = if (first.ordinal == Int.MAX_VALUE) second else first
+    if (server.ordinal == Int.MAX_VALUE) return false
+    // A server row already bound to another local send belongs to that send, so
+    // repeating the same text within the echo window must stay two messages.
+    if (server.clientMessageId.isNotBlank() &&
+        server.clientMessageId != local.clientMessageId
+    ) return false
+    if (local.body.trim() != server.body.trim()) return false
+    val localTimestamp = local.localCreatedAtMillis
+        .takeIf { it > 0L }
+        ?.div(1_000L)
+        ?: local.timestamp
+    if (localTimestamp <= 0L || server.timestamp <= 0L) return false
+    return kotlin.math.abs(localTimestamp - server.timestamp) <= OPTIMISTIC_ECHO_WINDOW_SECONDS
+}
+
+private const val OPTIMISTIC_ECHO_WINDOW_SECONDS = 90L

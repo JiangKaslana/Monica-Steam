@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import java.io.IOException
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -13,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
@@ -29,6 +31,10 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatThreadSnapshot
 import takagi.ru.monica.steam.friends.groupchat.domain.mergeSteamGroupMessages
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRealtimeEvent
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRealtimeGateway
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
+import takagi.ru.monica.steam.session.domain.resolveOrKeep
 
 data class SteamGroupChatUiState(
     val accountSteamId: String = "",
@@ -42,6 +48,7 @@ data class SteamGroupChatUiState(
     val loadingOlder: Boolean = false,
     val creatingGroup: Boolean = false,
     val createdGroupId: String? = null,
+    val realtimeConnected: Boolean = false,
     val failure: String? = null
 )
 
@@ -50,30 +57,39 @@ class SteamGroupChatViewModel(
     private val cache: SteamGroupChatCache,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val nowMillis: () -> Long = System::currentTimeMillis,
-    private val newClientId: () -> String = { UUID.randomUUID().toString() }
+    private val newClientId: () -> String = { UUID.randomUUID().toString() },
+    private val realtime: SteamGroupChatRealtimeGateway? = null,
+    private val sessionResolver: SteamAccountSessionResolver? = null
 ) : ViewModel() {
     private val _state = MutableStateFlow(SteamGroupChatUiState())
     val state: StateFlow<SteamGroupChatUiState> = _state.asStateFlow()
     private var account: SteamAccount? = null
-    private var generation = 0L
+    private var accountGeneration = 0L
+    private var roomGeneration = 0L
     private var foreground = false
     private var pollingJob: Job? = null
+    private var realtimeJob: Job? = null
 
     fun selectAccount(account: SteamAccount?) {
         if (this.account?.id == account?.id && this.account?.steamId == account?.steamId) {
             this.account = account
+            restartRealtime()
             restartPolling()
             return
         }
         this.account = account
-        restartPolling()
-        generation++
+        accountGeneration++
+        roomGeneration++
         if (account == null) {
             _state.value = SteamGroupChatUiState(failure = "Steam account required")
+            restartRealtime()
+            restartPolling()
             return
         }
-        val currentGeneration = generation
+        val currentGeneration = accountGeneration
         _state.value = SteamGroupChatUiState(accountSteamId = account.steamId, groupsLoading = true)
+        restartRealtime()
+        restartPolling()
         viewModelScope.launch {
             val cached = withContext(ioDispatcher) { cache.loadGroups(account.steamId) }
             if (!isCurrent(account, currentGeneration)) return@launch
@@ -89,13 +105,14 @@ class SteamGroupChatViewModel(
     fun refreshGroups() {
         val current = account ?: return
         _state.value = _state.value.copy(groupsRefreshing = _state.value.groups.isNotEmpty(), groupsLoading = _state.value.groups.isEmpty())
-        fetchGroups(current, generation)
+        fetchGroups(current, accountGeneration)
     }
 
     fun openRoom(groupId: String, chatId: String) {
         val current = account ?: return
         if (groupId.isBlank() || chatId.isBlank()) return
-        val currentGeneration = ++generation
+        val currentAccountGeneration = accountGeneration
+        val currentRoomGeneration = ++roomGeneration
         _state.value = _state.value.copy(
             selectedGroupId = groupId,
             selectedChatId = chatId,
@@ -105,14 +122,27 @@ class SteamGroupChatViewModel(
         )
         viewModelScope.launch {
             val cached = withContext(ioDispatcher) { cache.loadThread(current.steamId, groupId, chatId) }
-            if (!isRoomCurrent(current, groupId, chatId, currentGeneration)) return@launch
+            if (!isRoomCurrent(
+                    current,
+                    groupId,
+                    chatId,
+                    currentAccountGeneration,
+                    currentRoomGeneration
+                )
+            ) return@launch
             _state.value = _state.value.copy(thread = cached, threadLoading = cached == null)
-            fetchThread(current, groupId, chatId, currentGeneration)
+            fetchThread(
+                current,
+                groupId,
+                chatId,
+                currentAccountGeneration,
+                currentRoomGeneration
+            )
         }
     }
 
     fun closeRoom() {
-        generation++
+        roomGeneration++
         _state.value = _state.value.copy(selectedGroupId = null, selectedChatId = null, thread = null, threadLoading = false)
     }
 
@@ -121,7 +151,17 @@ class SteamGroupChatViewModel(
         val groupId = _state.value.selectedGroupId ?: return
         val chatId = _state.value.selectedChatId ?: return
         _state.value = _state.value.copy(threadLoading = _state.value.thread == null, failure = null)
-        viewModelScope.launch { fetchThread(current, groupId, chatId, generation) }
+        val currentAccountGeneration = accountGeneration
+        val currentRoomGeneration = roomGeneration
+        viewModelScope.launch {
+            fetchThread(
+                current,
+                groupId,
+                chatId,
+                currentAccountGeneration,
+                currentRoomGeneration
+            )
+        }
     }
 
     fun loadOlder() {
@@ -129,18 +169,28 @@ class SteamGroupChatViewModel(
         val thread = _state.value.thread ?: return
         if (!thread.moreAvailable || _state.value.loadingOlder) return
         val oldest = thread.messages.firstOrNull() ?: return
-        val currentGeneration = generation
+        val currentAccountGeneration = accountGeneration
+        val currentRoomGeneration = roomGeneration
         _state.value = _state.value.copy(loadingOlder = true)
         viewModelScope.launch {
-            val result = runCatching { withContext(ioDispatcher) {
-                gateway.getHistory(
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.getHistory(
+                        prepared,
+                        thread.groupId,
+                        thread.chatId,
+                        SteamGroupChatHistoryBoundary(oldest.timestamp, oldest.ordinal)
+                    )
+                }
+            } }
+            if (!isRoomCurrent(
                     current,
                     thread.groupId,
                     thread.chatId,
-                    SteamGroupChatHistoryBoundary(oldest.timestamp, oldest.ordinal)
+                    currentAccountGeneration,
+                    currentRoomGeneration
                 )
-            } }
-            if (!isRoomCurrent(current, thread.groupId, thread.chatId, currentGeneration)) return@launch
+            ) return@launch
             result.fold(
                 onSuccess = { page ->
                     val updated = thread.copy(
@@ -173,20 +223,39 @@ class SteamGroupChatViewModel(
             deliveryState = SteamGroupChatDeliveryState.QUEUED
         )
         updateMessage(optimistic)
-        val currentGeneration = generation
+        val currentAccountGeneration = accountGeneration
+        val currentRoomGeneration = roomGeneration
         viewModelScope.launch {
             updateMessage(optimistic.copy(deliveryState = SteamGroupChatDeliveryState.SENDING))
-            val result = runCatching { withContext(ioDispatcher) {
-                gateway.sendMessage(current, thread.groupId, thread.chatId, normalized)
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.sendMessage(prepared, thread.groupId, thread.chatId, normalized)
+                }
             } }
-            if (!isRoomCurrent(current, thread.groupId, thread.chatId, currentGeneration)) return@launch
+            if (!isRoomCurrent(
+                    current,
+                    thread.groupId,
+                    thread.chatId,
+                    currentAccountGeneration,
+                    currentRoomGeneration
+                )
+            ) return@launch
             result.fold(
                 onSuccess = { sent -> updateMessage(sent.copy(
                     clientMessageId = optimistic.clientMessageId,
                     localCreatedAtMillis = optimistic.localCreatedAtMillis,
                     deliveryState = SteamGroupChatDeliveryState.SENT
                 )) },
-                onFailure = { error -> recoverTimedOutSend(current, optimistic, error, currentGeneration) }
+                onFailure = {
+                    error ->
+                    recoverTimedOutSend(
+                        current,
+                        optimistic,
+                        error,
+                        currentAccountGeneration,
+                        currentRoomGeneration
+                    )
+                }
             )
         }
     }
@@ -196,8 +265,10 @@ class SteamGroupChatViewModel(
         if (_state.value.creatingGroup) return
         _state.value = _state.value.copy(creatingGroup = true, createdGroupId = null, failure = null)
         viewModelScope.launch {
-            val result = runCatching { withContext(ioDispatcher) {
-                gateway.createGroup(current, SteamGroupChatCreateRequest(name, inviteeSteamIds))
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.createGroup(prepared, SteamGroupChatCreateRequest(name, inviteeSteamIds))
+                }
             } }
             result.fold(
                 onSuccess = { groupId ->
@@ -214,7 +285,11 @@ class SteamGroupChatViewModel(
         val groupId = _state.value.selectedGroupId ?: return
         val chatId = _state.value.selectedChatId ?: return
         viewModelScope.launch {
-            runCatching { withContext(ioDispatcher) { gateway.inviteFriend(current, groupId, chatId, steamId) } }
+            runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.inviteFriend(prepared, groupId, chatId, steamId)
+                }
+            } }
                 .onFailure { _state.value = _state.value.copy(failure = it.groupChatMessage()) }
         }
     }
@@ -225,12 +300,153 @@ class SteamGroupChatViewModel(
     fun setForeground(active: Boolean) {
         if (foreground == active) return
         foreground = active
+        restartRealtime()
         restartPolling()
+    }
+
+    private fun restartRealtime() {
+        realtimeJob?.cancel()
+        realtimeJob = null
+        val current = account
+        val gateway = realtime
+        if (!foreground || current == null || gateway == null) {
+            _state.value = _state.value.copy(realtimeConnected = false)
+            return
+        }
+        val currentGeneration = accountGeneration
+        realtimeJob = viewModelScope.launch {
+            try {
+                gateway.events(current).collect { event ->
+                    if (!isCurrent(current, currentGeneration)) return@collect
+                    when (event) {
+                        is SteamGroupChatRealtimeEvent.ConnectionChanged -> {
+                            if (_state.value.realtimeConnected != event.connected) {
+                                _state.value = _state.value.copy(
+                                    realtimeConnected = event.connected
+                                )
+                                restartPolling()
+                            }
+                        }
+                        is SteamGroupChatRealtimeEvent.Message ->
+                            applyRealtimeMessage(current, event.message)
+                        is SteamGroupChatRealtimeEvent.MessageModified ->
+                            applyRealtimeModification(event)
+                        is SteamGroupChatRealtimeEvent.Acknowledged ->
+                            applyRealtimeAcknowledgement(event)
+                        is SteamGroupChatRealtimeEvent.RoomChanged -> {
+                            refreshGroups()
+                            if (_state.value.selectedGroupId == event.groupId) refreshThread()
+                        }
+                        is SteamGroupChatRealtimeEvent.Disconnected -> {
+                            if (event.groupIds.isEmpty() ||
+                                _state.value.selectedGroupId in event.groupIds
+                            ) {
+                                refreshGroups()
+                                if (_state.value.selectedChatId != null) refreshThread()
+                            }
+                        }
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                if (isCurrent(current, currentGeneration) && _state.value.realtimeConnected) {
+                    _state.value = _state.value.copy(realtimeConnected = false)
+                    restartPolling()
+                }
+            }
+        }
+    }
+
+    private fun applyRealtimeMessage(
+        current: SteamAccount,
+        message: SteamGroupChatMessage
+    ) {
+        val thread = _state.value.thread
+        if (thread?.groupId == message.groupId && thread.chatId == message.chatId) {
+            val updated = thread.copy(
+                messages = mergeSteamGroupMessages(thread.messages, listOf(message)),
+                fetchedAt = nowMillis()
+            )
+            updateThread(updated)
+            acknowledgeLatest(current, updated)
+            return
+        }
+        val groups = _state.value.groups.map { group ->
+            if (group.groupId != message.groupId) return@map group
+            val updatedRooms = group.rooms.map { room ->
+                if (room.chatId != message.chatId ||
+                    room.lastMessageTimestamp > message.timestamp ||
+                    (room.lastMessageTimestamp == message.timestamp &&
+                        room.lastMessage == message.body)
+                ) return@map room
+                room.copy(
+                    lastMessageTimestamp = message.timestamp,
+                    lastMessage = message.body,
+                    lastSenderSteamId = message.senderSteamId,
+                    unread = message.senderSteamId != current.steamId
+                )
+            }
+            group.copy(
+                rooms = updatedRooms,
+                unreadCount = updatedRooms.count { it.unread }
+            )
+        }
+        _state.value = _state.value.copy(groups = groups)
+        viewModelScope.launch(ioDispatcher) {
+            cache.saveGroups(
+                SteamGroupChatGroupsSnapshot(current.steamId, groups, nowMillis())
+            )
+        }
+    }
+
+    private fun applyRealtimeModification(
+        event: SteamGroupChatRealtimeEvent.MessageModified
+    ) {
+        val thread = _state.value.thread ?: return
+        if (thread.groupId != event.groupId || thread.chatId != event.chatId) return
+        val updatedMessages = thread.messages.map { message ->
+            val modification = event.changes.firstOrNull {
+                it.timestamp == message.timestamp && it.ordinal == message.ordinal
+            }
+            if (modification != null) {
+                message.copy(deleted = modification.deleted)
+            } else {
+                message
+            }
+        }
+        if (updatedMessages == thread.messages) return
+        updateThread(thread.copy(messages = updatedMessages, fetchedAt = nowMillis()))
+    }
+
+    private fun applyRealtimeAcknowledgement(
+        event: SteamGroupChatRealtimeEvent.Acknowledged
+    ) {
+        val groups = _state.value.groups.map { group ->
+            if (group.groupId != event.groupId) return@map group
+            val updatedRooms = group.rooms.map { room ->
+                if (room.chatId != event.chatId) return@map room
+                room.copy(
+                    lastAcknowledgedTimestamp = maxOf(
+                        room.lastAcknowledgedTimestamp,
+                        event.timestamp
+                    ),
+                    unread = room.lastMessageTimestamp > event.timestamp
+                )
+            }
+            group.copy(
+                rooms = updatedRooms,
+                unreadCount = updatedRooms.count { it.unread }
+            )
+        }
+        _state.value = _state.value.copy(groups = groups)
     }
 
     private fun fetchGroups(current: SteamAccount, currentGeneration: Long) {
         viewModelScope.launch {
-            val result = runCatching { withContext(ioDispatcher) { gateway.getMyGroups(current) } }
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared -> gateway.getMyGroups(prepared) }
+            } }
             if (!isCurrent(current, currentGeneration)) return@launch
             result.fold(
                 onSuccess = { groups ->
@@ -243,9 +459,26 @@ class SteamGroupChatViewModel(
         }
     }
 
-    private suspend fun fetchThread(current: SteamAccount, groupId: String, chatId: String, currentGeneration: Long) {
-        val result = runCatching { withContext(ioDispatcher) { gateway.getHistory(current, groupId, chatId) } }
-        if (!isRoomCurrent(current, groupId, chatId, currentGeneration)) return
+    private suspend fun fetchThread(
+        current: SteamAccount,
+        groupId: String,
+        chatId: String,
+        currentAccountGeneration: Long,
+        currentRoomGeneration: Long
+    ) {
+        val result = runCatchingCancellable { withContext(ioDispatcher) {
+            withPreparedSession(current) { prepared ->
+                gateway.getHistory(prepared, groupId, chatId)
+            }
+        } }
+        if (!isRoomCurrent(
+                current,
+                groupId,
+                chatId,
+                currentAccountGeneration,
+                currentRoomGeneration
+            )
+        ) return
         result.fold(
             onSuccess = { page ->
                 val snapshot = SteamGroupChatThreadSnapshot(
@@ -265,17 +498,27 @@ class SteamGroupChatViewModel(
         current: SteamAccount,
         optimistic: SteamGroupChatMessage,
         error: Throwable,
-        currentGeneration: Long
+        currentAccountGeneration: Long,
+        currentRoomGeneration: Long
     ) {
         if (error !is IOException) {
             updateMessage(optimistic.copy(deliveryState = SteamGroupChatDeliveryState.FAILED))
             return
         }
         updateMessage(optimistic.copy(deliveryState = SteamGroupChatDeliveryState.VERIFYING))
-        val history = runCatching { withContext(ioDispatcher) {
-            gateway.getHistory(current, optimistic.groupId, optimistic.chatId)
+        val history = runCatchingCancellable { withContext(ioDispatcher) {
+            withPreparedSession(current) { prepared ->
+                gateway.getHistory(prepared, optimistic.groupId, optimistic.chatId)
+            }
         } }.getOrNull()
-        if (!isRoomCurrent(current, optimistic.groupId, optimistic.chatId, currentGeneration)) return
+        if (!isRoomCurrent(
+                current,
+                optimistic.groupId,
+                optimistic.chatId,
+                currentAccountGeneration,
+                currentRoomGeneration
+            )
+        ) return
         val echo = history?.messages?.firstOrNull { message ->
             message.senderSteamId == current.steamId && message.body.trim() == optimistic.body &&
                 kotlin.math.abs(message.timestamp - optimistic.localCreatedAtMillis / 1_000L) <= 45L
@@ -290,7 +533,11 @@ class SteamGroupChatViewModel(
     private fun acknowledgeLatest(current: SteamAccount, snapshot: SteamGroupChatThreadSnapshot) {
         val timestamp = snapshot.messages.lastOrNull()?.timestamp?.takeIf { it > 0L } ?: return
         viewModelScope.launch(ioDispatcher) {
-            runCatching { gateway.acknowledge(current, snapshot.groupId, snapshot.chatId, timestamp) }
+            runCatchingCancellable {
+                withPreparedSession(current) { prepared ->
+                    gateway.acknowledge(prepared, snapshot.groupId, snapshot.chatId, timestamp)
+                }
+            }
         }
     }
 
@@ -304,11 +551,31 @@ class SteamGroupChatViewModel(
         viewModelScope.launch(ioDispatcher) { cache.saveThread(snapshot) }
     }
 
-    private fun isCurrent(current: SteamAccount, expectedGeneration: Long): Boolean =
-        account?.id == current.id && generation == expectedGeneration
+    private suspend fun <T> withPreparedSession(
+        current: SteamAccount,
+        block: (SteamAccount) -> T
+    ): T {
+        val prepared = sessionResolver.resolveOrKeep(current)
+        if (account?.id == current.id && account?.steamId == current.steamId) {
+            account = prepared
+        }
+        return block(prepared)
+    }
 
-    private fun isRoomCurrent(current: SteamAccount, groupId: String, chatId: String, expectedGeneration: Long) =
-        isCurrent(current, expectedGeneration) && _state.value.selectedGroupId == groupId && _state.value.selectedChatId == chatId
+    private fun isCurrent(current: SteamAccount, expectedGeneration: Long): Boolean =
+        account?.id == current.id && account?.steamId == current.steamId &&
+            accountGeneration == expectedGeneration
+
+    private fun isRoomCurrent(
+        current: SteamAccount,
+        groupId: String,
+        chatId: String,
+        expectedAccountGeneration: Long,
+        expectedRoomGeneration: Long
+    ) = isCurrent(current, expectedAccountGeneration) &&
+        roomGeneration == expectedRoomGeneration &&
+        _state.value.selectedGroupId == groupId &&
+        _state.value.selectedChatId == chatId
 
     private fun restartPolling() {
         pollingJob?.cancel()
@@ -316,22 +583,53 @@ class SteamGroupChatViewModel(
         if (!foreground || account == null) return
         pollingJob = viewModelScope.launch {
             while (isActive) {
-                delay(15_000L)
+                delay(
+                    if (_state.value.realtimeConnected) REALTIME_RECONCILIATION_MILLIS
+                    else LEGACY_POLLING_MILLIS
+                )
                 if (_state.value.selectedChatId != null) refreshThread() else refreshGroups()
             }
         }
     }
 
     companion object {
-        fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = SteamGroupChatViewModel(
-                gateway = SteamGroupChatService(),
-                cache = SteamGroupChatPreferencesCache(context.applicationContext)
-            ) as T
+        private const val LEGACY_POLLING_MILLIS = 15_000L
+        private const val REALTIME_RECONCILIATION_MILLIS = 60_000L
+
+        fun factory(context: Context): ViewModelProvider.Factory {
+            val appContext = context.applicationContext
+            val sourceRepository = takagi.ru.monica.steam.data.SteamAccountSourceRepository
+                .get(appContext)
+            val resolver = sourceRepository.sessionResolver()
+            val accountKeyResolver = { account: SteamAccount ->
+                sourceRepository.sessionHandle(account)?.stableKey
+                    ?: takagi.ru.monica.steam.network.cm.steamCmAccountKey(account)
+            }
+            val cm = takagi.ru.monica.steam.network.cm.SteamCmClient(accountKeyResolver)
+            return object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    SteamGroupChatViewModel(
+                        gateway = SteamGroupChatService(cm = cm),
+                        cache = SteamGroupChatPreferencesCache(appContext),
+                        realtime = takagi.ru.monica.steam.friends.groupchat.data
+                            .SteamGroupChatRealtimeService(cm, resolver),
+                        sessionResolver = resolver
+                    ) as T
+            }
         }
     }
 }
 
 private fun Throwable.groupChatMessage(): String = message?.takeIf(String::isNotBlank)?.take(220)
     ?: "Steam group chat is temporarily unavailable"
+
+private suspend inline fun <T> runCatchingCancellable(
+    crossinline block: suspend () -> T
+): Result<T> = try {
+    Result.success(block())
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (error: Throwable) {
+    Result.failure(error)
+}
