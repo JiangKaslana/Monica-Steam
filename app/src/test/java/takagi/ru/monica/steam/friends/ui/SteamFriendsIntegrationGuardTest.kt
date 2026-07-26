@@ -102,6 +102,9 @@ class SteamFriendsIntegrationGuardTest {
         assertTrue(viewModel.contains("SteamFriendsPreferencesCache"))
         assertTrue(viewModel.contains("requestGeneration"))
         assertTrue(viewModel.contains("SteamDiagLogger.append"))
+        assertTrue(viewModel.contains("SteamAccountSessionResolver"))
+        assertTrue(viewModel.contains("sessionResolver.resolveOrKeep"))
+        assertFalse(viewModel.contains("SteamSessionRefreshService"))
     }
 
     @Test

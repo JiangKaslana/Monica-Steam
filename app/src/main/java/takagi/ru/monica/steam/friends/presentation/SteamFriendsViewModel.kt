@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import java.io.IOException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.friends.data.SteamFriendsCache
 import takagi.ru.monica.steam.friends.data.SteamFriendsPreferencesCache
@@ -20,12 +22,14 @@ import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
 import takagi.ru.monica.steam.friends.domain.SteamFriendsGateway
 import takagi.ru.monica.steam.network.SteamApiException
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
+import takagi.ru.monica.steam.session.domain.resolveOrKeep
 
 class SteamFriendsViewModel(
     private val gateway: SteamFriendsGateway,
     private val cache: SteamFriendsCache,
-    private val sessionRefreshService: SteamSessionRefreshService = SteamSessionRefreshService()
+    private val sessionResolver: SteamAccountSessionResolver? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SteamFriendsUiState())
     val uiState: StateFlow<SteamFriendsUiState> = _uiState.asStateFlow()
@@ -53,7 +57,7 @@ class SteamFriendsViewModel(
             loading = true
         )
         viewModelScope.launch {
-            val cached = withContext(Dispatchers.IO) { cache.load(account.steamId) }
+            val cached = withContext(ioDispatcher) { cache.load(account.steamId) }
             if (!isCurrent(account.id, generation)) return@launch
             _uiState.value = _uiState.value.copy(
                 snapshot = cached,
@@ -92,9 +96,10 @@ class SteamFriendsViewModel(
         )
         viewModelScope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    val prepared = prepareSession(account)
-                    gateway.respondToInvite(prepared, friend.steamId, accept)
+                withContext(ioDispatcher) {
+                    withSessionRetry(account) { prepared ->
+                        gateway.respondToInvite(prepared, friend.steamId, accept)
+                    }
                 }
             }
             if (!isActionCurrent(account.id, generation)) return@launch
@@ -129,7 +134,7 @@ class SteamFriendsViewModel(
                     }
                 )
                 if (updated != null) {
-                    withContext(Dispatchers.IO) { cache.save(account.steamId, updated) }
+                    withContext(ioDispatcher) { cache.save(account.steamId, updated) }
                 }
                 if (!isActionCurrent(account.id, generation)) return@launch
                 _uiState.value = _uiState.value.copy(
@@ -164,9 +169,8 @@ class SteamFriendsViewModel(
     private fun fetch(account: SteamAccount, generation: Long, silent: Boolean) {
         viewModelScope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    val prepared = prepareSession(account)
-                    gateway.fetch(prepared)
+                withContext(ioDispatcher) {
+                    withSessionRetry(account) { prepared -> gateway.fetch(prepared) }
                 }
             }
             if (!isCurrent(account.id, generation)) return@launch
@@ -184,7 +188,7 @@ class SteamFriendsViewModel(
                 return@launch
             }
             val snapshot = result.getOrThrow()
-            withContext(Dispatchers.IO) { cache.save(account.steamId, snapshot) }
+            withContext(ioDispatcher) { cache.save(account.steamId, snapshot) }
             if (!isCurrent(account.id, generation)) return@launch
             _uiState.value = _uiState.value.copy(
                 snapshot = snapshot,
@@ -196,13 +200,30 @@ class SteamFriendsViewModel(
         }
     }
 
-    private fun prepareSession(account: SteamAccount): SteamAccount {
-        val refreshed = sessionRefreshService.refreshIfNeeded(account) ?: return account
-        return account.copy(
-            accessToken = refreshed.accessToken,
-            refreshToken = refreshed.refreshToken ?: account.refreshToken,
-            steamLoginSecure = "${account.steamId}||${refreshed.accessToken}"
-        )
+    private suspend fun prepareSession(
+        account: SteamAccount,
+        forceRefresh: Boolean = false
+    ): SteamAccount {
+        val resolved = sessionResolver.resolveOrKeep(account, forceRefresh)
+        val current = activeAccount
+        if (current?.id == account.id && current.steamId == account.steamId) {
+            activeAccount = resolved
+        }
+        return resolved
+    }
+
+    private suspend fun <T> withSessionRetry(
+        account: SteamAccount,
+        block: (SteamAccount) -> T
+    ): T {
+        val prepared = prepareSession(account)
+        return try {
+            block(prepared)
+        } catch (error: Throwable) {
+            if (!error.requiresSessionRefresh()) throw error
+            val refreshed = prepareSession(account, forceRefresh = true)
+            block(refreshed)
+        }
     }
 
     private fun isCurrent(accountId: Long, generation: Long): Boolean =
@@ -221,15 +242,25 @@ class SteamFriendsViewModel(
         else -> SteamFriendsFailureReason.UNAVAILABLE
     }
 
+    private fun Throwable.requiresSessionRefresh(): Boolean {
+        val error = this as? SteamApiException ?: return false
+        return error.eResult?.let { it == 5 || it == 15 } == true ||
+            error.httpStatusCode?.let { it == 401 || it == 403 } == true
+    }
+
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val sessionResolver = SteamAccountSourceRepository
+                .get(appContext)
+                .sessionResolver()
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     return SteamFriendsViewModel(
                         gateway = SteamFriendsService(),
-                        cache = SteamFriendsPreferencesCache(appContext)
+                        cache = SteamFriendsPreferencesCache(appContext),
+                        sessionResolver = sessionResolver
                     ) as T
                 }
             }
