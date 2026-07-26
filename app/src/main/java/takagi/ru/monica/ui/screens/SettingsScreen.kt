@@ -45,6 +45,7 @@ import androidx.core.content.FileProvider
 import androidx.fragment.app.FragmentActivity
 import takagi.ru.monica.BuildConfig
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.foundation.release.SteamReleaseConfig
 import takagi.ru.monica.data.AppSettings
 import takagi.ru.monica.data.BottomNavContentTab
 import takagi.ru.monica.data.Language
@@ -1446,7 +1447,7 @@ fun SettingsScreen(
             title = { Text(stringResource(R.string.version_info_dialog_title)) },
             text = {
                 Column {
-                    val githubUrl = "https://github.com/Monica-Pass/Monica"
+                    val githubUrl = SteamReleaseConfig.repositoryUrl
                     val websiteUrl = "https://joyinjoester.github.io/Monica/"
                     val iconSourceUrl = "https://github.com/stratumauth/app/tree/v1.4.0/icons"
                     val iconReleaseUrl = "https://github.com/stratumauth/app/releases/tag/v1.4.0"

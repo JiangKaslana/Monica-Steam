@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.foundation.release.SteamReleaseConfig
 import takagi.ru.monica.ui.components.OutlinedTextField
 
 /**
@@ -904,7 +905,7 @@ private suspend fun exportAppListToFile(context: Context, currentList: List<AppI
         sb.appendLine("当前黑名单规则数量: ${getBlacklistPatterns().size}")
         sb.appendLine()
         sb.appendLine("如需调整黑名单，请访问:")
-        sb.appendLine("https://github.com/Monica-Pass/Monica-for-Android/issues")
+        sb.appendLine(SteamReleaseConfig.issuesUrl)
         sb.appendLine()
         sb.appendLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         sb.appendLine()

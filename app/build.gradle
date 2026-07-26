@@ -7,6 +7,66 @@ plugins {
     id 'kotlin-parcelize'
 }
 
+// Release signing is intentionally external. A missing or partial contract
+// produces an unsigned release configuration and never falls back to the
+// Android public debug certificate.
+def releaseSigningProperties = new Properties()
+def releaseSigningPropertiesFile = rootProject.file('keystore.properties')
+if (releaseSigningPropertiesFile.isFile()) {
+    releaseSigningPropertiesFile.withInputStream { stream ->
+        releaseSigningProperties.load(stream)
+    }
+}
+
+def readReleaseSigningValue = { String propertyName, String environmentName ->
+    def projectValue = project.findProperty(propertyName)?.toString()?.trim()
+    def environmentValue = System.getenv(environmentName)?.toString()?.trim()
+    def fileValue = releaseSigningProperties.getProperty(propertyName)?.toString()?.trim()
+    projectValue ?: environmentValue ?: fileValue
+}
+
+def releaseStoreFilePath = readReleaseSigningValue(
+        'storeFile',
+        'MONICA_STEAM_RELEASE_STORE_FILE'
+)
+def releaseStorePassword = readReleaseSigningValue(
+        'storePassword',
+        'MONICA_STEAM_RELEASE_STORE_PASSWORD'
+)
+def releaseKeyAlias = readReleaseSigningValue(
+        'keyAlias',
+        'MONICA_STEAM_RELEASE_KEY_ALIAS'
+)
+def releaseKeyPassword = readReleaseSigningValue(
+        'keyPassword',
+        'MONICA_STEAM_RELEASE_KEY_PASSWORD'
+)
+def releaseSigningValues = [
+        releaseStoreFilePath,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword
+]
+def hasAnyReleaseSigningValue = releaseSigningValues.any { value -> value }
+def hasCompleteReleaseSigning = releaseSigningValues.every { value -> value }
+if (hasAnyReleaseSigningValue && !hasCompleteReleaseSigning) {
+    throw new GradleException(
+            'Incomplete release signing configuration. Supply storeFile, storePassword, keyAlias, and keyPassword together.'
+    )
+}
+
+def resolveReleaseStoreFile = { String rawPath ->
+    def candidate = new File(rawPath)
+    candidate.isAbsolute() ? candidate : rootProject.file(rawPath)
+}
+def releaseStoreFile = hasCompleteReleaseSigning
+        ? resolveReleaseStoreFile(releaseStoreFilePath)
+        : null
+if (hasCompleteReleaseSigning && !releaseStoreFile.isFile()) {
+    throw new GradleException("Release signing keystore does not exist: ${releaseStoreFile}")
+}
+def requireReleaseSigning = project.findProperty('requireReleaseSigning')?.toString()?.toBoolean() ?: false
+
 android {
     namespace 'takagi.ru.monica'
     compileSdk 35
@@ -137,14 +197,29 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasCompleteReleaseSigning) {
+            release {
+                storeFile releaseStoreFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            // Keep locally generated release APKs directly installable. Replace this
-            // with a private production keystore before publishing to any store.
-            signingConfig signingConfigs.debug
+            if (hasCompleteReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                // An unsigned release is intentional until external credentials
+                // are supplied. Never inherit signingConfigs.debug here.
+                signingConfig null
+            }
         }
         debug {
             // Delivery builds stay debug-signed for direct installation, but disabling
@@ -220,6 +295,25 @@ android {
             // neither of which is reachable from the standalone Steam experience.
             excludes += 'com/nulabinc/zxcvbn/matchers/dictionaries/**'
             excludes += 'org/bouncycastle/pqc/crypto/picnic/**'
+        }
+    }
+}
+
+tasks.register('verifyReleaseSigningConfiguration') {
+    group = 'verification'
+    description = 'Verifies the external Monica Steam release signing contract.'
+    doLast {
+        if (!hasCompleteReleaseSigning) {
+            if (requireReleaseSigning) {
+                throw new GradleException(
+                        'Release signing is required. Configure keystore.properties or MONICA_STEAM_RELEASE_* environment variables.'
+                )
+            }
+            logger.lifecycle(
+                    'Release signing is absent; release variants remain unsigned and never use the debug certificate.'
+            )
+        } else {
+            logger.lifecycle("Release signing is configured from external keystore: ${releaseStoreFile.name}")
         }
     }
 }

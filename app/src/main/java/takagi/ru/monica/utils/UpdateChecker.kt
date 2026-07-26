@@ -12,6 +12,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import takagi.ru.monica.steam.foundation.release.SteamReleaseConfig
 import java.io.IOException
 import java.io.File
 import java.security.MessageDigest
@@ -40,9 +41,6 @@ data class UpdateDownloadProgress(
 }
 
 object UpdateChecker {
-    private const val RELEASE_API_URL =
-        "https://api.github.com/repos/Monica-Pass/Monica/releases/latest"
-
     private val json = Json {
         ignoreUnknownKeys = true
     }
@@ -62,9 +60,9 @@ object UpdateChecker {
         withContext(Dispatchers.IO) {
             runCatching {
                 val request = Request.Builder()
-                    .url(RELEASE_API_URL)
+                    .url(SteamReleaseConfig.latestReleaseApiUrl)
                     .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "Monica-Android")
+                    .header("User-Agent", SteamReleaseConfig.updateUserAgent)
                     .build()
 
                 client.newCall(request).execute().use { response ->
@@ -79,7 +77,7 @@ object UpdateChecker {
 
                     val release = json.decodeFromString(GitHubRelease.serializer(), body)
                     val latestVersion = release.tagName.trim()
-                    val apkAsset = release.apkAsset()
+                    val apkAsset = release.apkAsset(Build.SUPPORTED_ABIS.toList())
                     UpdateCheckResult(
                         currentVersion = currentVersion,
                         latestVersion = latestVersion,
@@ -108,7 +106,7 @@ object UpdateChecker {
                     ?.forEach { it.delete() }
 
                 val safeName = outputName
-                    .ifBlank { "Monica-update.apk" }
+                    .ifBlank { "Monica-Steam-update.apk" }
                     .replace(Regex("""[\\/:*?"<>|]"""), "_")
                     .let { if (it.endsWith(".apk", ignoreCase = true)) it else "$it.apk" }
                 val outputFile = File(outputDir, safeName)
@@ -116,7 +114,7 @@ object UpdateChecker {
                 val request = Request.Builder()
                     .url(downloadUrl)
                     .header("Accept", "application/octet-stream")
-                    .header("User-Agent", "Monica-Android")
+                    .header("User-Agent", SteamReleaseConfig.updateUserAgent)
                     .build()
 
                 downloadClient.newCall(request).execute().use { response ->
@@ -165,7 +163,7 @@ object UpdateChecker {
             val installedPackage = packageManager.getInstalledPackageInfo(context.packageName)
 
             if (downloadedPackage.packageName != context.packageName) {
-                throw IOException("Downloaded APK package name does not match Monica")
+                throw IOException("Downloaded APK package name does not match Monica Steam")
             }
 
             val downloadedDigests = downloadedPackage.signingCertificateDigests()
@@ -178,7 +176,7 @@ object UpdateChecker {
                 installedDigests.any { installed -> downloaded.contentEquals(installed) }
             }
             if (!hasMatchingSigner) {
-                throw IOException("Downloaded APK signature does not match installed Monica")
+                throw IOException("Downloaded APK signature does not match installed Monica Steam")
             }
         }
 
@@ -256,11 +254,20 @@ private data class GitHubRelease(
     val body: String? = null,
     val assets: List<GitHubReleaseAsset> = emptyList()
 ) {
-    fun apkAsset(): GitHubReleaseAsset? =
-        assets.firstOrNull { asset ->
+    fun apkAsset(preferredAbis: List<String>): GitHubReleaseAsset? {
+        val candidates = assets.filter { asset ->
             asset.name.endsWith(".apk", ignoreCase = true) ||
-                asset.contentType?.equals("application/vnd.android.package-archive", ignoreCase = true) == true
+                asset.contentType?.equals(
+                    "application/vnd.android.package-archive",
+                    ignoreCase = true
+                ) == true
         }
+        val selectedName = SteamReleaseConfig.selectReleaseApkAssetName(
+            assetNames = candidates.map { it.name },
+            supportedAbis = preferredAbis
+        ) ?: return null
+        return candidates.firstOrNull { it.name == selectedName }
+    }
 }
 
 @Serializable
