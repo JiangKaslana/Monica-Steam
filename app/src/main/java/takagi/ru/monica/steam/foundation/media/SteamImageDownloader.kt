@@ -1,4 +1,4 @@
-package takagi.ru.monica.steam.store.ui.gallery
+package takagi.ru.monica.steam.foundation.media
 
 import android.Manifest
 import android.content.ContentValues
@@ -14,23 +14,24 @@ import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 
-internal sealed interface SteamScreenshotDownloadResult {
-    data class Success(val displayName: String) : SteamScreenshotDownloadResult
-    data object PermissionRequired : SteamScreenshotDownloadResult
-    data object InvalidSource : SteamScreenshotDownloadResult
-    data object UnsupportedImage : SteamScreenshotDownloadResult
-    data object TooLarge : SteamScreenshotDownloadResult
-    data object NetworkFailure : SteamScreenshotDownloadResult
-    data object StorageFailure : SteamScreenshotDownloadResult
+internal sealed interface SteamImageDownloadResult {
+    data class Success(val displayName: String) : SteamImageDownloadResult
+    data object PermissionRequired : SteamImageDownloadResult
+    data object InvalidSource : SteamImageDownloadResult
+    data object UnsupportedImage : SteamImageDownloadResult
+    data object TooLarge : SteamImageDownloadResult
+    data object NetworkFailure : SteamImageDownloadResult
+    data object StorageFailure : SteamImageDownloadResult
 }
 
-internal class SteamScreenshotDownloader(
+internal class SteamImageDownloader(
     context: Context,
     private val client: OkHttpClient = defaultClient(),
     private val clock: () -> Long = System::currentTimeMillis
@@ -47,15 +48,14 @@ internal class SteamScreenshotDownloader(
 
     suspend fun download(
         imageUrl: String,
-        gameName: String,
-        screenshotIndex: Int
-    ): SteamScreenshotDownloadResult = withContext(Dispatchers.IO) {
-        if (!SteamScreenshotDownloadPolicy.isAllowedUrl(imageUrl)) {
+        fileStem: String
+    ): SteamImageDownloadResult = withContext(Dispatchers.IO) {
+        if (!SteamImageDownloadPolicy.isAllowedUrl(imageUrl)) {
             logResult("invalid_source")
-            return@withContext SteamScreenshotDownloadResult.InvalidSource
+            return@withContext SteamImageDownloadResult.InvalidSource
         }
         if (requiresLegacyStoragePermission()) {
-            return@withContext SteamScreenshotDownloadResult.PermissionRequired
+            return@withContext SteamImageDownloadResult.PermissionRequired
         }
 
         val request = Request.Builder()
@@ -67,30 +67,29 @@ internal class SteamScreenshotDownloader(
         try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful ||
-                    !SteamScreenshotDownloadPolicy.isAllowedUrl(response.request.url.toString())
+                    !SteamImageDownloadPolicy.isAllowedUrl(response.request.url.toString())
                 ) {
                     logResult("http_failure", "code=${response.code}")
-                    return@withContext SteamScreenshotDownloadResult.NetworkFailure
+                    return@withContext SteamImageDownloadResult.NetworkFailure
                 }
 
                 val body = response.body ?: run {
                     logResult("empty_body")
-                    return@withContext SteamScreenshotDownloadResult.NetworkFailure
+                    return@withContext SteamImageDownloadResult.NetworkFailure
                 }
-                val mimeType = SteamScreenshotDownloadPolicy.normalizeMimeType(
+                val mimeType = SteamImageDownloadPolicy.normalizeMimeType(
                     body.contentType()?.toString()
                 ) ?: run {
                     logResult("unsupported_image")
-                    return@withContext SteamScreenshotDownloadResult.UnsupportedImage
+                    return@withContext SteamImageDownloadResult.UnsupportedImage
                 }
                 if (body.contentLength() > MAX_IMAGE_BYTES) {
                     logResult("too_large", "declared_bytes=${body.contentLength()}")
-                    return@withContext SteamScreenshotDownloadResult.TooLarge
+                    return@withContext SteamImageDownloadResult.TooLarge
                 }
 
-                val displayName = SteamScreenshotDownloadPolicy.buildDisplayName(
-                    gameName = gameName,
-                    screenshotIndex = screenshotIndex,
+                val displayName = SteamImageDownloadPolicy.buildDisplayName(
+                    fileStem = fileStem,
                     mimeType = mimeType,
                     timestampMillis = clock()
                 )
@@ -102,18 +101,20 @@ internal class SteamScreenshotDownloader(
                     }
                 } ?: run {
                     logResult("storage_failure")
-                    return@withContext SteamScreenshotDownloadResult.StorageFailure
+                    return@withContext SteamImageDownloadResult.StorageFailure
                 }
 
                 logResult("success", "bytes=$bytesWritten mime=$mimeType")
-                SteamScreenshotDownloadResult.Success(displayName)
+                SteamImageDownloadResult.Success(displayName)
             }
-        } catch (_: ScreenshotTooLargeException) {
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: ImageTooLargeException) {
             logResult("too_large_stream")
-            SteamScreenshotDownloadResult.TooLarge
+            SteamImageDownloadResult.TooLarge
         } catch (error: Exception) {
             logResult("exception", "type=${error.javaClass.simpleName}")
-            SteamScreenshotDownloadResult.NetworkFailure
+            SteamImageDownloadResult.NetworkFailure
         }
     }
 
@@ -194,7 +195,7 @@ internal class SteamScreenshotDownloader(
             val count = input.read(buffer)
             if (count < 0) break
             total += count
-            if (total > MAX_IMAGE_BYTES) throw ScreenshotTooLargeException()
+            if (total > MAX_IMAGE_BYTES) throw ImageTooLargeException()
             output.write(buffer, 0, count)
         }
         output.flush()
@@ -222,7 +223,7 @@ internal class SteamScreenshotDownloader(
     private fun logResult(result: String, details: String = "") {
         SteamDiagLogger.append(
             buildString {
-                append("store_screenshot_download result=")
+                append("steam_image_download result=")
                 append(result)
                 if (details.isNotBlank()) {
                     append(' ')
@@ -232,7 +233,7 @@ internal class SteamScreenshotDownloader(
         )
     }
 
-    private class ScreenshotTooLargeException : Exception()
+    private class ImageTooLargeException : Exception()
 
     private companion object {
         const val MAX_IMAGE_BYTES = 24L * 1024L * 1024L

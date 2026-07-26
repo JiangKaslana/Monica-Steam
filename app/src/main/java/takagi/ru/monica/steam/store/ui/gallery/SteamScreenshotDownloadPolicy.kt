@@ -1,25 +1,14 @@
 package takagi.ru.monica.steam.store.ui.gallery
 
-import takagi.ru.monica.steam.profile.SteamRemoteImageCache
+import takagi.ru.monica.steam.foundation.media.SteamImageDownloadPolicy
 
 internal object SteamScreenshotDownloadPolicy {
-    private const val MAX_FILE_STEM_LENGTH = 56
-    private val invalidFilenameCharacters = Regex("""[\\/:*?"<>|\p{Cc}]""")
-    private val repeatedSeparators = Regex("[_\\s]+")
-
     fun isAllowedUrl(rawUrl: String): Boolean {
-        return SteamRemoteImageCache.isAllowedSteamImageUrl(rawUrl)
+        return SteamImageDownloadPolicy.isAllowedUrl(rawUrl)
     }
 
     fun normalizeMimeType(rawMimeType: String?): String? {
-        return when (rawMimeType.orEmpty().substringBefore(';').trim().lowercase()) {
-            "image/jpeg", "image/jpg", "image/pjpeg" -> "image/jpeg"
-            "image/png" -> "image/png"
-            "image/webp" -> "image/webp"
-            "image/gif" -> "image/gif"
-            "image/avif" -> "image/avif"
-            else -> null
-        }
+        return SteamImageDownloadPolicy.normalizeMimeType(rawMimeType)
     }
 
     fun buildDisplayName(
@@ -28,31 +17,22 @@ internal object SteamScreenshotDownloadPolicy {
         mimeType: String,
         timestampMillis: Long
     ): String {
-        val extension = when (normalizeMimeType(mimeType)) {
-            "image/png" -> "png"
-            "image/webp" -> "webp"
-            "image/gif" -> "gif"
-            "image/avif" -> "avif"
-            else -> "jpg"
-        }
-        return buildString {
-            append(safeFileStem(gameName))
-            append("_screenshot_")
-            append(screenshotIndex.coerceAtLeast(0) + 1)
-            append('_')
-            append(timestampMillis.coerceAtLeast(0L))
-            append('.')
-            append(extension)
-        }
+        return SteamImageDownloadPolicy.buildDisplayName(
+            fileStem = fileStem(gameName, screenshotIndex),
+            mimeType = mimeType,
+            timestampMillis = timestampMillis,
+            fallbackStem = "steam_game_screenshot"
+        )
     }
 
     fun safeFileStem(rawName: String): String {
-        return rawName
-            .replace(invalidFilenameCharacters, "_")
-            .replace(repeatedSeparators, "_")
-            .trim(' ', '.', '_')
-            .take(MAX_FILE_STEM_LENGTH)
-            .trim(' ', '.', '_')
-            .ifBlank { "steam_game" }
+        return SteamImageDownloadPolicy.safeFileStem(
+            rawName = rawName,
+            fallbackStem = "steam_game",
+            maxLength = 56
+        )
     }
+
+    fun fileStem(gameName: String, screenshotIndex: Int): String =
+        "${safeFileStem(gameName)}_screenshot_${screenshotIndex.coerceAtLeast(0) + 1}"
 }

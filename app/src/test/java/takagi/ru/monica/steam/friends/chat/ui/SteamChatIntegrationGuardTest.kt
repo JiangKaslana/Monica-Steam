@@ -145,9 +145,13 @@ class SteamChatIntegrationGuardTest {
         val richContent = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRichMessageContent.kt"
         ).readText()
+        val attachmentContent = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatAttachmentContent.kt"
+        ).readText()
         assertTrue(richContent.contains("OfficialMessage"))
-        assertTrue(richContent.contains("steam_chat_spoiler_reveal"))
-        assertTrue(richContent.contains("Crossfade("))
+        assertTrue(attachmentContent.contains("steam_chat_spoiler_reveal"))
+        assertTrue(attachmentContent.contains("Crossfade("))
+        assertTrue(attachmentContent.contains("SteamFullscreenImageViewer("))
     }
 
     @Test

@@ -14,27 +14,37 @@ class SteamStoreDetailInteractionGuardTest {
         val viewerUi = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/gallery/SteamStoreScreenshotGallery.kt"
         )
+        val sharedViewer = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/foundation/media/SteamFullscreenImageViewer.kt"
+        )
+        val sharedPage = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/foundation/media/SteamFullscreenImagePage.kt"
+        )
         val downloader = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/ui/gallery/SteamScreenshotDownloader.kt"
+            "app/src/main/java/takagi/ru/monica/steam/foundation/media/SteamImageDownloader.kt"
         )
 
         assertTrue(viewerUi.exists())
+        assertTrue(sharedViewer.exists())
+        assertTrue(sharedPage.exists())
         assertTrue(downloader.exists())
         val viewerSource = viewerUi.readText()
+        val sharedViewerSource = sharedViewer.readText()
+        val sharedPageSource = sharedPage.readText()
         assertTrue(detailUi.contains("itemsIndexed(detail.screenshots"))
         assertTrue(detailUi.contains("SteamStoreScreenshotViewer("))
         assertTrue(detailUi.contains("selectedScreenshotIndex = index"))
-        assertTrue(viewerSource.contains("DialogProperties("))
-        assertTrue(viewerSource.contains("usePlatformDefaultWidth = false"))
-        assertTrue(viewerSource.contains("HorizontalPager("))
-        assertTrue(viewerSource.contains("rememberPagerState("))
-        assertTrue(viewerSource.contains("initialPage = initialIndex.coerceIn"))
-        assertTrue(viewerSource.contains("pagerState.animateScrollToPage"))
-        assertTrue(viewerSource.contains("ContentScale.Fit"))
-        assertTrue(viewerSource.contains("background(Color.Black)"))
-        assertTrue(viewerSource.contains("canPan = { scale > 1f }"))
-        assertTrue(viewerSource.contains("Icons.Default.Download"))
-        assertTrue(viewerSource.contains("SteamScreenshotDownloader("))
+        assertTrue(viewerSource.contains("SteamFullscreenImageViewer("))
+        assertTrue(sharedViewerSource.contains("DialogProperties("))
+        assertTrue(sharedViewerSource.contains("usePlatformDefaultWidth = false"))
+        assertTrue(sharedViewerSource.contains("HorizontalPager("))
+        assertTrue(sharedViewerSource.contains("rememberPagerState("))
+        assertTrue(sharedViewerSource.contains("initialPage = initialIndex.coerceIn"))
+        assertTrue(sharedViewerSource.contains("pagerState.animateScrollToPage"))
+        assertTrue(sharedViewerSource.contains("background(Color.Black)"))
+        assertTrue(sharedViewerSource.contains("SteamImageDownloader("))
+        assertTrue(sharedPageSource.contains("ContentScale.Fit"))
+        assertTrue(sharedPageSource.contains("canPan = { scale > 1f }"))
         assertTrue(viewerSource.contains("R.string.steam_store_screenshot_previous"))
         assertTrue(viewerSource.contains("R.string.steam_store_screenshot_next"))
         assertTrue(viewerSource.contains("R.string.steam_store_screenshot_download"))

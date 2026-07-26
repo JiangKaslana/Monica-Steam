@@ -2,14 +2,10 @@ package takagi.ru.monica.steam.friends.chat.richmedia.ui
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
@@ -20,9 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -33,7 +26,6 @@ import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -50,7 +42,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,7 +51,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import takagi.ru.monica.R
-import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentKind
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEmoticon
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContent
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContentParser
@@ -318,101 +308,6 @@ private fun SteamChatEmoticonText(body: String, modifier: Modifier) {
         modifier = modifier,
         style = MaterialTheme.typography.bodyLarge
     )
-}
-
-@Composable
-private fun AttachmentContent(
-    content: SteamChatRichContent.Attachment,
-    modifier: Modifier
-) {
-    val context = LocalContext.current
-    var revealed by remember(content.url, content.spoiler) {
-        mutableStateOf(!content.spoiler)
-    }
-    val open = {
-        runCatching {
-            val uri = Uri.parse(content.url)
-            if (uri.scheme == "https") {
-                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-            }
-        }
-        Unit
-    }
-    Column(
-        modifier = modifier.widthIn(min = 180.dp, max = 260.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Crossfade(
-            targetState = revealed,
-            animationSpec = tween(durationMillis = 220),
-            label = "steam-chat-spoiler-image"
-        ) { isRevealed ->
-            if (!isRevealed) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 132.dp)
-                        .clickable { revealed = true },
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(20.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Visibility,
-                                contentDescription = null,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.steam_chat_spoiler_reveal),
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-                    }
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (content.kind == SteamChatAttachmentKind.IMAGE) {
-                        SteamChatRemoteImage(
-                            url = content.url,
-                            contentDescription = content.label,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(16f / 10f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable(onClick = open)
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.clickable(onClick = open),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = when (content.kind) {
-                                SteamChatAttachmentKind.IMAGE -> Icons.Default.Image
-                                SteamChatAttachmentKind.VIDEO -> Icons.Default.Movie
-                                else -> Icons.AutoMirrored.Filled.InsertDriveFile
-                            },
-                            contentDescription = null
-                        )
-                        Text(
-                            text = content.label,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
 
 private val emoticonPattern = Regex("(?<![A-Za-z0-9]):([A-Za-z0-9_+\\-]{2,64}):(?![A-Za-z0-9])")

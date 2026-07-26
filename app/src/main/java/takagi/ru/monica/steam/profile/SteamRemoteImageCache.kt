@@ -126,9 +126,9 @@ class SteamRemoteImageCache private constructor(context: Context) {
     }
 
     companion object {
-        private const val MAX_SINGLE_IMAGE_BYTES = 6L * 1024L * 1024L
-        private const val MAX_CACHE_BYTES = 48L * 1024L * 1024L
-        private const val MAX_DECODE_DIMENSION = 1_024
+        private const val MAX_SINGLE_IMAGE_BYTES = 24L * 1024L * 1024L
+        private const val MAX_CACHE_BYTES = 96L * 1024L * 1024L
+        private const val MAX_DECODE_DIMENSION = 2_048
 
         @Volatile
         private var instance: SteamRemoteImageCache? = null
@@ -145,7 +145,11 @@ class SteamRemoteImageCache private constructor(context: Context) {
             if (!url.isHttps) return false
             val host = url.host.lowercase()
             return host == "steamstatic.com" || host.endsWith(".steamstatic.com") ||
-                host == "steampowered.com" || host.endsWith(".steampowered.com")
+                host == "steampowered.com" || host.endsWith(".steampowered.com") ||
+                host == "steamcommunity.com" || host.endsWith(".steamcommunity.com") ||
+                host == "steamusercontent.com" || host.endsWith(".steamusercontent.com") ||
+                host == "steamuserimages-a.akamaihd.net" ||
+                host == "steamcdn-a.akamaihd.net"
         }
     }
 }

@@ -40,7 +40,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteBytes
+import takagi.ru.monica.steam.foundation.ui.normalizeSteamImageUrl
 import takagi.ru.monica.steam.foundation.ui.steamRemoteImageCacheFile
+import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 
 /** Rendering policy for the small, fixed-size assets served by Steam. */
 internal enum class SteamChatRemoteImageMode {
@@ -70,16 +72,20 @@ internal fun SteamChatRemoteImage(
     mode: SteamChatRemoteImageMode = SteamChatRemoteImageMode.CONTENT
 ) {
     val context = LocalContext.current
-    var drawable by remember(url) { mutableStateOf<Drawable?>(null) }
-    var bitmap by remember(url) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(url) {
+    val normalizedUrl = remember(url) { normalizeSteamImageUrl(url) }
+    var drawable by remember(normalizedUrl) { mutableStateOf<Drawable?>(null) }
+    var bitmap by remember(normalizedUrl) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(normalizedUrl) {
         drawable = null
         bitmap = null
-        val payload = loadSteamRemoteBytes(context, url) ?: return@LaunchedEffect
+        if (!SteamRemoteImageCache.isAllowedSteamImageUrl(normalizedUrl)) {
+            return@LaunchedEffect
+        }
+        val payload = loadSteamRemoteBytes(context, normalizedUrl) ?: return@LaunchedEffect
         if (isAnimatedPng(payload)) {
             val animationResult = runCatching {
                 withContext(Dispatchers.Default) {
-                    val cacheFile = steamRemoteImageCacheFile(context, url)
+                    val cacheFile = steamRemoteImageCacheFile(context, normalizedUrl)
                     if (!cacheFile.isFile) return@withContext null
                     val source = APNGDrawable.fromFile(cacheFile.absolutePath).apply {
                         // The host view controls visibility, but APNG4Android
