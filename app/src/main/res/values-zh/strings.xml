@@ -1614,6 +1614,7 @@
     <!-- WebDAV Encryption -->
     <string name="webdav_enable_encryption">启用加密</string>
     <string name="webdav_encryption_description">使用 AES-256 加密备份</string>
+    <string name="webdav_steam_mafile_encryption_required">Steam maFile 云备份始终使用 AES-256 加密。请设置至少 8 个字符的密码并妥善保存，换设备恢复时仍需使用。</string>
     <string name="webdav_encryption_password">加密密码</string>
     <string name="webdav_encryption_password_hint">输入加密密码</string>
     <string name="webdav_encryption_password_confirm">确认密码</string>

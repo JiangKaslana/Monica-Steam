@@ -37,6 +37,7 @@ import takagi.ru.monica.repository.SecureItemRepository
 import takagi.ru.monica.utils.BackupFile
 import takagi.ru.monica.utils.BackupContent
 import takagi.ru.monica.utils.BackupContentScope
+import takagi.ru.monica.utils.BackupEncryptionPolicy
 import takagi.ru.monica.utils.BackupRestoreApplier
 import takagi.ru.monica.utils.RestoreResult
 import takagi.ru.monica.utils.WebDavHelper
@@ -200,6 +201,13 @@ fun WebDavBackupScreen(
     var encryptionEnabled by remember { mutableStateOf(false) }
     var encryptionPassword by remember { mutableStateOf("") }
     var encryptionPasswordVisible by remember { mutableStateOf(false) }
+    val steamEncryptionProblem = BackupEncryptionPolicy.decide(
+        contentScope = BackupContentScope.STEAM_MAFILE_ONLY,
+        allowBackupEncryption = true,
+        encryptionEnabled = encryptionEnabled,
+        encryptionPassword = encryptionPassword,
+    ).problem
+    val steamEncryptionReady = !steamMaFileOnly || steamEncryptionProblem == null
     
     // 选择性备份状态
     var backupPreferences by remember(steamMaFileOnly) {
@@ -243,15 +251,34 @@ fun WebDavBackupScreen(
             }
         }
         
-        // 加载自动备份状态
-        autoBackupEnabled = webDavHelper.isAutoBackupEnabled()
-        lastBackupTime = webDavHelper.getLastBackupTime()
-        
         // 加载加密配置
         val encryptionConfig = webDavHelper.getEncryptionConfig()
-        encryptionEnabled = encryptionConfig.enabled
         encryptionPassword = encryptionConfig.password
-        
+        encryptionEnabled = if (steamMaFileOnly) true else encryptionConfig.enabled
+        if (
+            steamMaFileOnly &&
+            !encryptionConfig.enabled &&
+            BackupEncryptionPolicy.decide(
+                contentScope = BackupContentScope.STEAM_MAFILE_ONLY,
+                allowBackupEncryption = true,
+                encryptionEnabled = true,
+                encryptionPassword = encryptionConfig.password,
+            ).problem == null
+        ) {
+            webDavHelper.setEncryptionConfig(true, encryptionConfig.password)
+        }
+
+        // Steam maFile 保护未就绪时，不允许后台任务继续上传。
+        autoBackupEnabled = webDavHelper.isAutoBackupEnabled()
+        if (steamMaFileOnly && autoBackupEnabled && !webDavHelper.isSteamMaFileCloudBackupReady()) {
+            autoBackupEnabled = false
+            webDavHelper.configureAutoBackup(false)
+            autoBackupManager.cancelAutoBackup()
+        } else if (autoBackupEnabled) {
+            autoBackupManager.scheduleAutoBackup(steamMaFileOnly = steamMaFileOnly)
+        }
+        lastBackupTime = webDavHelper.getLastBackupTime()
+
         if (steamMaFileOnly) {
             backupPreferences = takagi.ru.monica.data.BackupPreferences.steamMaFileOnly()
         } else {
@@ -327,7 +354,9 @@ fun WebDavBackupScreen(
                         },
                         onClear = {
                             webDavHelper.clearConfig()
+                            autoBackupManager.cancelAutoBackup()
                             isConfigured = false
+                            autoBackupEnabled = false
                             serverUrl = ""
                             username = ""
                             password = ""
@@ -357,13 +386,20 @@ fun WebDavBackupScreen(
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Text(
-                                    text = stringResource(R.string.webdav_encryption_description),
+                                    text = stringResource(
+                                        if (steamMaFileOnly) {
+                                            R.string.webdav_steam_mafile_encryption_required
+                                        } else {
+                                            R.string.webdav_encryption_description
+                                        }
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             Switch(
-                                checked = encryptionEnabled,
+                                checked = steamMaFileOnly || encryptionEnabled,
+                                enabled = !steamMaFileOnly,
                                 onCheckedChange = { enabled ->
                                     encryptionEnabled = enabled
                                     if (!enabled) {
@@ -379,12 +415,27 @@ fun WebDavBackupScreen(
                             )
                         }
                         
-                        if (encryptionEnabled) {
+                        if (steamMaFileOnly || encryptionEnabled) {
                             OutlinedTextField(
                                 value = encryptionPassword,
-                                onValueChange = { 
-                                    encryptionPassword = it
-                                    webDavHelper.setEncryptionConfig(true, it)
+                                onValueChange = { newPassword ->
+                                    encryptionPassword = newPassword
+                                    encryptionEnabled = true
+                                    webDavHelper.setEncryptionConfig(true, newPassword)
+                                    if (
+                                        steamMaFileOnly &&
+                                        autoBackupEnabled &&
+                                        BackupEncryptionPolicy.decide(
+                                            contentScope = BackupContentScope.STEAM_MAFILE_ONLY,
+                                            allowBackupEncryption = true,
+                                            encryptionEnabled = true,
+                                            encryptionPassword = newPassword,
+                                        ).problem != null
+                                    ) {
+                                        autoBackupEnabled = false
+                                        webDavHelper.configureAutoBackup(false)
+                                        autoBackupManager.cancelAutoBackup()
+                                    }
                                 },
                                 label = { Text(stringResource(R.string.webdav_encryption_password)) },
                                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
@@ -398,10 +449,32 @@ fun WebDavBackupScreen(
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
+                                supportingText = if (
+                                    steamMaFileOnly &&
+                                    !steamEncryptionReady
+                                ) {
+                                    {
+                                        Text(
+                                            stringResource(
+                                                if (encryptionPassword.isBlank()) {
+                                                    R.string.webdav_encryption_password_empty
+                                                } else {
+                                                    R.string.webdav_encryption_password_short
+                                                }
+                                            )
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                                isError = steamMaFileOnly &&
+                                    encryptionPassword.isNotEmpty() &&
+                                    !steamEncryptionReady,
                                 keyboardOptions = KeyboardOptions(
                                     keyboardType = KeyboardType.Password,
                                     imeAction = ImeAction.Done
-                                )
+                                ),
+                                singleLine = true,
                             )
                         }
                     }
@@ -652,19 +725,39 @@ fun WebDavBackupScreen(
                             Switch(
                                 checked = autoBackupEnabled,
                                 onCheckedChange = { enabled ->
-                                    autoBackupEnabled = enabled
-                                    webDavHelper.configureAutoBackup(enabled)
-                                    
-                                    Toast.makeText(
-                                        context,
+                                    if (enabled && steamMaFileOnly && !steamEncryptionReady) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                if (encryptionPassword.isBlank()) {
+                                                    R.string.webdav_encryption_password_empty
+                                                } else {
+                                                    R.string.webdav_encryption_password_short
+                                                }
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        autoBackupEnabled = enabled
+                                        webDavHelper.configureAutoBackup(enabled)
                                         if (enabled) {
-                                            context.getString(R.string.webdav_auto_backup_enabled)
+                                            autoBackupManager.scheduleAutoBackup(steamMaFileOnly = steamMaFileOnly)
                                         } else {
-                                            context.getString(R.string.webdav_auto_backup_disabled)
-                                        },
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
+                                            autoBackupManager.cancelAutoBackup()
+                                        }
+
+                                        Toast.makeText(
+                                            context,
+                                            if (enabled) {
+                                                context.getString(R.string.webdav_auto_backup_enabled)
+                                            } else {
+                                                context.getString(R.string.webdav_auto_backup_disabled)
+                                            },
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                },
+                                enabled = !steamMaFileOnly || steamEncryptionReady || autoBackupEnabled,
                             )
                         }
                         
@@ -739,7 +832,7 @@ fun WebDavBackupScreen(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !isLoading && isConfigured
+                            enabled = !isLoading && isConfigured && steamEncryptionReady
                         ) {
                             Icon(Icons.Default.PlayArrow, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -971,7 +1064,7 @@ fun WebDavBackupScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isLoading && !isBackupInProgress
+                    enabled = !isLoading && !isBackupInProgress && steamEncryptionReady
                 ) {
                     if (isBackupInProgress) {
                         CircularProgressIndicator(

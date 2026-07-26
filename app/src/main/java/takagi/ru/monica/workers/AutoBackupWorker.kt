@@ -132,6 +132,21 @@ class AutoBackupWorker(
                 return androidx.work.ListenableWorker.Result.success()
             }
 
+            if (steamMaFileOnly && !webDavHelper.isSteamMaFileCloudBackupReady()) {
+                if (!isManualTrigger) {
+                    webDavHelper.configureAutoBackup(false)
+                }
+                android.util.Log.w(TAG, "Steam maFile backup skipped: encryption protection is not ready")
+                SyncDiagnostics.blocked(
+                    taskId,
+                    target,
+                    trigger,
+                    "steam_backup_encryption_required",
+                    startedAt,
+                )
+                return androidx.work.ListenableWorker.Result.success()
+            }
+
             if (!isManualTrigger && !webDavHelper.shouldAutoBackup()) {
                 android.util.Log.d(TAG, "Backup not needed yet (< 12 hours since last backup)")
                 SyncDiagnostics.skipped(taskId, target, trigger, "not_due", startedAt)

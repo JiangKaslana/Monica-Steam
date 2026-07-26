@@ -3165,7 +3165,9 @@ class MultiPasswordSaveRegressionGuardTest {
         assertTrue(
             "Backup ZIP creation should only return an encrypted .enc.zip when the caller allows backup encryption and an encryption password exists.",
             webDavHelperSource.contains("allowBackupEncryption: Boolean = true") &&
-                webDavHelperSource.contains("val shouldEncryptBackup = allowBackupEncryption && enableEncryption && encryptionPassword.isNotEmpty()") &&
+                webDavHelperSource.contains("val encryptionDecision = BackupEncryptionPolicy.decide(") &&
+                webDavHelperSource.contains("allowBackupEncryption = allowBackupEncryption") &&
+                webDavHelperSource.contains("val shouldEncryptBackup = encryptionDecision.shouldEncrypt") &&
                 webDavHelperSource.contains("val finalFile = if (shouldEncryptBackup)")
         )
         assertFalse(

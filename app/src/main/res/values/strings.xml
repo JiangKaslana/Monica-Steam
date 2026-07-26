@@ -1654,6 +1654,7 @@
     <!-- WebDAV Encryption -->
     <string name="webdav_enable_encryption">Enable Encryption</string>
     <string name="webdav_encryption_description">Encrypt backups with AES-256</string>
+    <string name="webdav_steam_mafile_encryption_required">Steam maFile cloud backups always use AES-256 encryption. Set a password of at least 8 characters and keep it safe for restores on another device.</string>
     <string name="webdav_encryption_password">Encryption Password</string>
     <string name="webdav_encryption_password_hint">Enter encryption password</string>
     <string name="webdav_encryption_password_confirm">Confirm Password</string>

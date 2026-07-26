@@ -783,6 +783,13 @@ class WebDavHelper(
      * 
      */
     fun hasEncryptionPassword(): Boolean = enableEncryption && encryptionPassword.isNotEmpty()
+
+    fun isSteamMaFileCloudBackupReady(): Boolean = BackupEncryptionPolicy.decide(
+        contentScope = BackupContentScope.STEAM_MAFILE_ONLY,
+        allowBackupEncryption = true,
+        encryptionEnabled = enableEncryption,
+        encryptionPassword = encryptionPassword,
+    ).problem == null
     
     /**
      * 
@@ -1139,6 +1146,16 @@ class WebDavHelper(
                 return@withContext Result.failure(Exception("没有可备份的 Steam maFile"))
             }
 
+            val encryptionDecision = BackupEncryptionPolicy.decide(
+                contentScope = contentScope,
+                allowBackupEncryption = allowBackupEncryption,
+                encryptionEnabled = enableEncryption,
+                encryptionPassword = encryptionPassword,
+            )
+            encryptionDecision.problem?.let { problem ->
+                return@withContext Result.failure(steamCloudEncryptionException(problem))
+            }
+
             // 1. 创建临时导出文件/目录
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val cacheBackupDir = File(context.cacheDir, "Monica_${timestamp}_backup")
@@ -1150,7 +1167,7 @@ class WebDavHelper(
             
             val historyJsonFile = File(context.cacheDir, "Monica_${timestamp}_generated_history.json")
             val zipFile = File(context.cacheDir, "monica_backup_$timestamp.zip")
-            val shouldEncryptBackup = allowBackupEncryption && enableEncryption && encryptionPassword.isNotEmpty()
+            val shouldEncryptBackup = encryptionDecision.shouldEncrypt
             val finalFile = if (shouldEncryptBackup) {
                 File(context.cacheDir, "monica_backup_$timestamp.enc.zip")
             } else {
@@ -5341,6 +5358,20 @@ class WebDavHelper(
 
     private fun currentBackupEncryptionPassword(): String? {
         return encryptionPassword.takeIf { enableEncryption && it.isNotEmpty() }
+    }
+
+    private fun steamCloudEncryptionException(problem: BackupEncryptionProblem): IllegalStateException {
+        val message = when (problem) {
+            BackupEncryptionProblem.ENCRYPTION_NOT_ALLOWED ->
+                "Steam maFile 云备份不允许关闭文件加密"
+            BackupEncryptionProblem.ENCRYPTION_DISABLED ->
+                "Steam maFile 云备份必须启用加密"
+            BackupEncryptionProblem.PASSWORD_REQUIRED ->
+                "请先设置 Steam maFile 云备份加密密码"
+            BackupEncryptionProblem.PASSWORD_TOO_SHORT ->
+                "Steam maFile 云备份加密密码至少需要 ${BackupEncryptionPolicy.MIN_STEAM_CLOUD_PASSWORD_LENGTH} 个字符"
+        }
+        return IllegalStateException(message)
     }
 
     private fun encryptSensitiveBackupValue(value: String?, backupEncryptPassword: String?): String? {
