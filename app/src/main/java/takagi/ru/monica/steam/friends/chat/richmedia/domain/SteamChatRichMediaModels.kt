@@ -62,6 +62,13 @@ data class SteamChatPendingAttachment(
     val height: Int = 0
 )
 
+data class SteamChatUploadedAttachment(
+    val url: String,
+    val label: String,
+    val kind: SteamChatAttachmentKind,
+    val spoiler: Boolean
+)
+
 sealed interface SteamChatRichContent {
     data class Text(val body: String) : SteamChatRichContent
 
@@ -86,12 +93,17 @@ sealed interface SteamChatRichContent {
     data class Attachment(
         val url: String,
         val label: String,
-        val kind: SteamChatAttachmentKind
+        val kind: SteamChatAttachmentKind,
+        val spoiler: Boolean = false
     ) : SteamChatRichContent
 }
 
 object SteamChatRichContentParser {
     private val stickerPattern = Regex("^/sticker\\s+(.+?)\\s*$", RegexOption.IGNORE_CASE)
+    private val spoilerPattern = Regex(
+        "^\\[spoiler(?:=[^]]+)?](.*?)\\[/spoiler]$",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
     /**
      * Steam's web client receives rich media in both slash-command form and
      * BBCode form.  The latter is what GetRecentMessages returns for older
@@ -252,21 +264,48 @@ object SteamChatRichContentParser {
             )
         }
 
-        imagePattern.find(body)?.let { match ->
-            val url = match.groupValues[1].trim()
-            return SteamChatRichContent.Attachment(url, fileLabel(url), SteamChatAttachmentKind.IMAGE)
-        }
-        videoPattern.find(body)?.let { match ->
-            val url = match.groupValues[1].trim()
-            return SteamChatRichContent.Attachment(url, fileLabel(url), SteamChatAttachmentKind.VIDEO)
-        }
-        urlPattern.find(body)?.let { match ->
-            val url = match.groupValues[1].trim()
-            val label = match.groupValues[2].trim().ifBlank { fileLabel(url) }
-            return SteamChatRichContent.Attachment(url, label, attachmentKind(url))
+        val spoiler = spoilerPattern.matchEntire(body.trim())
+        parseAttachment(spoiler?.groupValues?.getOrNull(1) ?: body, spoiler != null)?.let {
+            return it
         }
         return SteamChatRichContent.Text(body)
     }
+
+    private fun parseAttachment(body: String, spoiler: Boolean): SteamChatRichContent.Attachment? {
+        imagePattern.find(body)?.let { match ->
+            val url = normalizeAttachmentUrl(match.groupValues[1])
+            return SteamChatRichContent.Attachment(
+                url = url,
+                label = fileLabel(url),
+                kind = SteamChatAttachmentKind.IMAGE,
+                spoiler = spoiler
+            )
+        }
+        videoPattern.find(body)?.let { match ->
+            val url = normalizeAttachmentUrl(match.groupValues[1])
+            return SteamChatRichContent.Attachment(
+                url = url,
+                label = fileLabel(url),
+                kind = SteamChatAttachmentKind.VIDEO,
+                spoiler = spoiler
+            )
+        }
+        urlPattern.find(body)?.let { match ->
+            val url = normalizeAttachmentUrl(match.groupValues[1])
+            val label = match.groupValues[2].trim().ifBlank { fileLabel(url) }
+            return SteamChatRichContent.Attachment(
+                url = url,
+                label = label,
+                kind = attachmentKind(url),
+                spoiler = spoiler
+            )
+        }
+        return null
+    }
+
+    private fun normalizeAttachmentUrl(value: String): String = value
+        .trim()
+        .replace("&amp;", "&", ignoreCase = true)
 
     private fun parseAttributes(raw: String): Map<String, String> =
         Regex("""([A-Za-z0-9_]+)=(?:"([^"]*)"|'([^']*)'|([^\s]+))""")

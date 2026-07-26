@@ -143,6 +143,8 @@ class SteamChatIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRichMessageContent.kt"
         ).readText()
         assertTrue(richContent.contains("OfficialMessage"))
+        assertTrue(richContent.contains("steam_chat_spoiler_reveal"))
+        assertTrue(richContent.contains("Crossfade("))
     }
 
     @Test

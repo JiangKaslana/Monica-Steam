@@ -4611,6 +4611,7 @@
     <string name="steam_chat_attachment_title">发送附件</string>
     <string name="steam_chat_attachment_spoiler">标记为剧透</string>
     <string name="steam_chat_attachment_spoiler_summary">收件人点击后显示内容</string>
+    <string name="steam_chat_spoiler_reveal">点击显示剧透媒体</string>
     <string name="steam_chat_attachment_cancel">取消</string>
     <string name="steam_chat_attachment_sending">正在发送</string>
     <string name="steam_chat_attachment_select">选择附件</string>

@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEffect
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEmoticon
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatCatalogGateway
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichMediaCatalog
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatSticker
 import takagi.ru.monica.steam.network.SteamProtoField
@@ -23,8 +24,8 @@ import takagi.ru.monica.steam.network.cm.SteamCmProtocol
  */
 class SteamChatCatalogService(
     private val cm: SteamCmGateway = SteamCmClient()
-) {
-    fun loadCatalog(account: SteamAccount): SteamChatRichMediaCatalog {
+) : SteamChatCatalogGateway {
+    override fun loadCatalog(account: SteamAccount): SteamChatRichMediaCatalog {
         account.accessToken?.takeIf(String::isNotBlank)
             ?: throw IllegalStateException("Steam access token required for chat media")
         val response = cm.exchangeClientMessage(

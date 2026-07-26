@@ -97,6 +97,17 @@ class SteamChatRichMediaModelsTest {
     }
 
     @Test
+    fun preservesSteamSpoilerImagesAndDecodesEscapedQueryParameters() {
+        val image = SteamChatRichContentParser.parse(
+            "[spoiler][img]https://steamusercontent.com/chat/photo.png?x=1&amp;y=2[/img][/spoiler]"
+        ) as SteamChatRichContent.Attachment
+
+        assertEquals(SteamChatAttachmentKind.IMAGE, image.kind)
+        assertEquals("https://steamusercontent.com/chat/photo.png?x=1&y=2", image.url)
+        assertTrue(image.spoiler)
+    }
+
+    @Test
     fun keepsOrdinaryTextUntouched() {
         val body = "hello :steamthumbsup:"
         assertEquals(SteamChatRichContent.Text(body), SteamChatRichContentParser.parse(body))

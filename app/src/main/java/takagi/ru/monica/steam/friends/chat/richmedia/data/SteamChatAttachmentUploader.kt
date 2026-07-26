@@ -10,14 +10,6 @@ import java.net.InetAddress
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -27,17 +19,21 @@ import okhttp3.Response
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okio.BufferedSink
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentGateway
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentKind
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatPendingAttachment
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatUploadedAttachment
 
-class SteamChatAttachmentUploader(
+class SteamChatAttachmentUploader internal constructor(
     context: Context,
     private val client: OkHttpClient = defaultClient(),
-    private val json: Json = Json { ignoreUnknownKeys = true }
-) {
+    private val responseParser: SteamChatAttachmentUploadResponseParser =
+        SteamChatAttachmentUploadResponseParser()
+) : SteamChatAttachmentGateway {
     private val resolver = context.applicationContext.contentResolver
 
-    fun inspect(uri: Uri): SteamChatPendingAttachment {
+    override suspend fun inspect(rawUri: String): SteamChatPendingAttachment {
+        val uri = Uri.parse(rawUri)
         val metadata = queryMetadata(uri)
         val reportedMimeType = resolver.getType(uri).orEmpty()
         val mimeType = if (reportedMimeType.isBlank() ||
@@ -68,13 +64,13 @@ class SteamChatAttachmentUploader(
         )
     }
 
-    fun upload(
+    override suspend fun upload(
         account: SteamAccount,
         partnerSteamId: String,
         attachment: SteamChatPendingAttachment,
         spoiler: Boolean,
-        onProgress: (Float) -> Unit = {}
-    ) {
+        onProgress: (Float) -> Unit
+    ): SteamChatUploadedAttachment {
         val secure = account.steamLoginSecure?.takeIf(String::isNotBlank)
             ?: throw SteamChatUploadException("Steam community session required for attachments")
         require(partnerSteamId.matches(Regex("7656119\\d{10}"))) { "Valid Steam friend ID required" }
@@ -108,7 +104,7 @@ class SteamChatAttachmentUploader(
             }
             throw error
         }
-        commitUpload(
+        val committed = commitUpload(
             secure = secure,
             sessionId = sessionId,
             partnerSteamId = partnerSteamId,
@@ -118,8 +114,14 @@ class SteamChatAttachmentUploader(
             begin = begin,
             spoiler = spoiler,
             success = true
-        )
+        ) ?: throw SteamChatUploadException("Steam returned no attachment result")
         onProgress(1f)
+        return SteamChatUploadedAttachment(
+            url = committed.url,
+            label = attachment.displayName,
+            kind = attachment.kind,
+            spoiler = spoiler
+        )
     }
 
     private fun beginUpload(
@@ -128,7 +130,7 @@ class SteamChatAttachmentUploader(
         attachment: SteamChatPendingAttachment,
         uploadName: String,
         sha: String
-    ): BeginUpload {
+    ): SteamChatBeginUploadResponse {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("sessionid", sessionId)
             .addFormDataPart("l", "schinese")
@@ -145,42 +147,19 @@ class SteamChatAttachmentUploader(
             .post(body)
             .build()
         return client.newCall(request).execute().use { response ->
-            val payload = response.requireJson("begin Steam chat attachment")
-            val result = payload["result"] as? JsonObject
-                ?: throw SteamChatUploadException("Steam did not issue an attachment upload URL")
-            val host = result.string("url_host")
-            val path = result.string("url_path")
-            val useHttps = result["use_https"]?.jsonPrimitive?.let { primitive ->
-                primitive.contentOrNull == "true" || primitive.intOrNull == 1
-            } != false
-            if (!useHttps) throw SteamChatUploadException("Steam returned an insecure upload URL")
-            val cloudUrl = "https://$host$path".toHttpUrlOrNull()
-                ?: throw SteamChatUploadException("Steam returned an invalid upload URL")
-            requireSafeCloudHost(cloudUrl.host)
-            BeginUpload(
-                cloudUrl = cloudUrl.toString(),
-                requestHeaders = (result["request_headers"] as? JsonArray).orEmpty().mapNotNull { value ->
-                    val header = value as? JsonObject ?: return@mapNotNull null
-                    val name = header.string("name").trim()
-                    val content = header.string("value")
-                    if (name.isBlank() || name.equals("Host", true) ||
-                        name.equals("Content-Length", true) || name.equals("Cookie", true) ||
-                        name.equals("Authorization", true)
-                    ) null else name to content
-                },
-                ugcId = result["ugcid"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                timestamp = payload["timestamp"]?.jsonPrimitive?.longOrNull ?: 0L,
-                hmac = payload.string("hmac")
-            ).also {
-                if (it.ugcId.isBlank() || it.timestamp <= 0L || it.hmac.isBlank()) {
-                    throw SteamChatUploadException("Steam returned incomplete upload credentials")
-                }
-            }
+            val parsed = responseParser.parseBegin(
+                response.requireBody("begin Steam chat attachment")
+            )
+            requireSafeCloudHost(
+                parsed.cloudUrl.toHttpUrlOrNull()?.host
+                    ?: throw SteamChatUploadException("Steam returned an invalid upload URL")
+            )
+            parsed
         }
     }
 
     private fun putToCloud(
-        begin: BeginUpload,
+        begin: SteamChatBeginUploadResponse,
         uri: Uri,
         attachment: SteamChatPendingAttachment,
         onProgress: (Float) -> Unit
@@ -203,10 +182,10 @@ class SteamChatAttachmentUploader(
         attachment: SteamChatPendingAttachment,
         uploadName: String,
         sha: String,
-        begin: BeginUpload,
+        begin: SteamChatBeginUploadResponse,
         spoiler: Boolean,
         success: Boolean
-    ) {
+    ): SteamChatCommitUploadResponse? {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("sessionid", sessionId)
             .addFormDataPart("l", "schinese")
@@ -227,10 +206,16 @@ class SteamChatAttachmentUploader(
             .headers(communityHeaders(secure, sessionId))
             .post(body)
             .build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful && success) {
-                throw SteamChatUploadException("Steam could not commit the attachment (${response.code})")
-            }
+        return client.newCall(request).execute().use { response ->
+            if (!success) return@use null
+            val committed = responseParser.parseCommit(
+                response.requireBody("commit Steam chat attachment")
+            )
+            requireSafeCloudHost(
+                committed.url.toHttpUrlOrNull()?.host
+                    ?: throw SteamChatUploadException("Steam returned an invalid attachment URL")
+            )
+            committed
         }
     }
 
@@ -320,24 +305,11 @@ class SteamChatAttachmentUploader(
         .add("Cookie", "steamLoginSecure=$secure; sessionid=$sessionId")
         .build()
 
-    private fun Response.requireJson(operation: String): JsonObject {
+    private fun Response.requireBody(operation: String): String {
         val raw = body?.string().orEmpty()
         if (!isSuccessful) throw SteamChatUploadException("Unable to $operation (${code})")
-        return runCatching { json.parseToJsonElement(raw).jsonObject }.getOrElse {
-            throw SteamChatUploadException("Steam returned invalid attachment data", it)
-        }
+        return raw
     }
-
-    private fun JsonObject.string(key: String): String =
-        this[key]?.jsonPrimitive?.contentOrNull.orEmpty()
-
-    private data class BeginUpload(
-        val cloudUrl: String,
-        val requestHeaders: List<Pair<String, String>>,
-        val ugcId: String,
-        val timestamp: Long,
-        val hmac: String
-    )
 
     companion object {
         const val MAX_FILE_BYTES = 30L * 1024L * 1024L
