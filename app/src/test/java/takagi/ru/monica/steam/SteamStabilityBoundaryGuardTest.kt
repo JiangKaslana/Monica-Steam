@@ -73,6 +73,19 @@ class SteamStabilityBoundaryGuardTest {
         assertFalse(library.contains("requireNotNull(bitmap)"))
     }
 
+    @Test
+    fun tokenPageUsesTheSharedSessionResolverForItsSelectedAccount() {
+        val token = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/token/presentation/SteamViewModel.kt"
+        ).readText()
+
+        assertTrue(token.contains("SteamAccountSessionResolver"))
+        assertTrue(token.contains("sessionResolver.resolveOrKeep(account)"))
+        assertTrue(token.contains("sessionResolver = accountSourceRepository.sessionResolver()"))
+        assertFalse(token.contains("SteamSessionRefreshService"))
+        assertFalse(token.contains("persistRefreshedSession"))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (

@@ -31,6 +31,7 @@ import takagi.ru.monica.steam.analytics.SteamListingAnalysis
 import takagi.ru.monica.steam.analytics.SteamMarketAnalytics
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.data.SteamAccountRepository
+import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.data.SteamDatabase
 import takagi.ru.monica.steam.data.SteamSecurityEvent
 import takagi.ru.monica.steam.data.SteamSecurityEventRepository
@@ -72,7 +73,6 @@ import takagi.ru.monica.steam.network.SteamConfirmationService
 import takagi.ru.monica.steam.network.SteamLoginApprovalService
 import takagi.ru.monica.steam.network.SteamPendingLogin
 import takagi.ru.monica.steam.network.SteamQrChallenge
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
 import takagi.ru.monica.steam.gifts.data.SteamGiftService
 import takagi.ru.monica.steam.gifts.domain.SteamGiftAction
 import takagi.ru.monica.steam.gifts.domain.SteamPendingGift
@@ -94,6 +94,8 @@ import takagi.ru.monica.steam.trade.SteamTradeOfferAction
 import takagi.ru.monica.steam.trade.SteamTradeOfferActionResult
 import takagi.ru.monica.steam.trade.SteamTradeOfferService
 import takagi.ru.monica.steam.trade.SteamTradeOffersSnapshot
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
+import takagi.ru.monica.steam.session.domain.resolveOrKeep
 
 enum class SteamMarketActionType {
     SELL,
@@ -224,7 +226,7 @@ class SteamViewModel(
     private val authenticatorService: SteamAuthenticatorService = SteamAuthenticatorService(),
     private val authorizedDeviceService: SteamAuthorizedDeviceService = SteamAuthorizedDeviceService(),
     private val loginApprovalService: SteamLoginApprovalService = SteamLoginApprovalService(),
-    private val sessionRefreshService: SteamSessionRefreshService = SteamSessionRefreshService(),
+    private val sessionResolver: SteamAccountSessionResolver? = null,
     private val loginImportService: SteamLoginImportService = SteamLoginImportService(),
     private val inventoryService: SteamInventoryService = SteamInventoryService(),
     private val marketService: SteamMarketService = SteamMarketService(),
@@ -2702,36 +2704,6 @@ class SteamViewModel(
         )
     }
 
-    private suspend fun persistRefreshedSession(
-        originalAccount: SteamAccount,
-        refreshedAccount: SteamAccount,
-        source: SteamStorageSource
-    ) {
-        when (source) {
-            SteamStorageSource.Local -> {
-                repository.updateSessionTokens(
-                    id = originalAccount.id,
-                    accessToken = refreshedAccount.accessToken.orEmpty(),
-                    refreshToken = refreshedAccount.refreshToken,
-                    steamLoginSecure = refreshedAccount.steamLoginSecure
-                )
-            }
-            is SteamStorageSource.Mdbx -> {
-                val store = mdbxAccountStore ?: return
-                val record = mdbxAccountRecords.firstOrNull { it.account.id == originalAccount.id }
-                    ?: return
-                val updatedRecord = store.upsertAccount(
-                    databaseId = source.databaseId,
-                    entryId = record.entryId,
-                    account = refreshedAccount
-                )
-                mdbxAccountRecords = mdbxAccountRecords.map { existing ->
-                    if (existing.entryId == record.entryId) updatedRecord else existing
-                }
-            }
-        }
-    }
-
     private fun accountById(accountId: Long): SteamAccount? {
         return _uiState.value.accounts.firstOrNull { it.id == accountId }
             ?: mdbxAccountRecords.firstOrNull { it.account.id == accountId }?.account
@@ -2791,30 +2763,34 @@ class SteamViewModel(
             SteamDiagLogger.append("session_refresh skipped no_tokens")
             return@withContext null
         }
-        if (!sessionRefreshService.shouldRefresh(account)) {
-            return@withContext account
-        }
-        val refreshResult = sessionRefreshService.refreshIfNeeded(account)
-        if (refreshResult == null) {
-            SteamDiagLogger.append("session_refresh failed refresh_token_present=${!account.refreshToken.isNullOrBlank()}")
-            if (account.accessToken.isNullOrBlank()) null else account
-        } else {
-            val refreshedAccount = account.copy(
-                accessToken = refreshResult.accessToken,
-                refreshToken = refreshResult.refreshToken ?: account.refreshToken,
-                steamLoginSecure = "${account.steamId}||${refreshResult.accessToken}"
+        val resolved = runCatching {
+            sessionResolver.resolveOrKeep(account)
+        }.onFailure { error ->
+            SteamDiagLogger.append(
+                "session_resolve failed type=${error::class.java.simpleName}"
             )
-            persistRefreshedSession(account, refreshedAccount, source)
+        }.getOrElse {
+            return@withContext account.takeIf { !it.accessToken.isNullOrBlank() }
+        }
+        if (resolved.accessToken.isNullOrBlank() && resolved.refreshToken.isNullOrBlank()) {
+            SteamDiagLogger.append("session_resolve failed no_tokens_after_resolution")
+            return@withContext null
+        }
+        if (
+            resolved.accessToken != account.accessToken ||
+            resolved.refreshToken != account.refreshToken ||
+            resolved.steamLoginSecure != account.steamLoginSecure
+        ) {
             if (storageSourceRequestIsCurrent(source, sourceGeneration)) {
                 _uiState.value = _uiState.value.copy(
                     accounts = _uiState.value.accounts.map { existing ->
-                        if (existing.id == refreshedAccount.id) refreshedAccount else existing
+                        if (existing.id == resolved.id) resolved else existing
                     }
                 )
             }
-            SteamDiagLogger.append("session_refresh success refresh_rotated=${!refreshResult.refreshToken.isNullOrBlank()}")
-            refreshedAccount
+            SteamDiagLogger.append("session_resolve success")
         }
+        resolved
     }
 
     private fun updateForAccounts(
@@ -2972,10 +2948,12 @@ class SteamViewModel(
                         secureItemDao = passwordDatabase.secureItemDao(),
                         customFieldDao = passwordDatabase.customFieldDao()
                     )
+                    val accountSourceRepository = SteamAccountSourceRepository.get(appContext)
                     return SteamViewModel(
                         appContext = appContext,
                         repository = SteamAccountRepository(database.steamAccountDao(), securityManager),
                         mdbxRepository = mdbxRepository,
+                        sessionResolver = accountSourceRepository.sessionResolver(),
                         securityEventRepository = SteamSecurityEventRepository(
                             database.steamSecurityEventDao(),
                             securityManager
