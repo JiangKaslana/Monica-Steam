@@ -98,9 +98,8 @@ internal fun SteamChatComposer(
     }
 
     Surface(
-        // The thread is hosted in an edge-to-edge activity. Window resize/IME
-        // insets are consumed by the host; applying imePadding here as well
-        // creates a second, visible gap above the keyboard.
+        // IME insets are owned by SteamChatThread's root layout. Keeping the
+        // composer free of another imePadding avoids a duplicate keyboard gap.
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 2.dp

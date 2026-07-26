@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -117,7 +118,11 @@ internal fun SteamChatThread(
         }
     }
 
-    Column(modifier = modifier) {
+    // The activity is edge-to-edge, so the private thread must own the IME
+    // inset. Keeping it on the root shrinks the message viewport and moves
+    // the composer as one unit, without adding a second gap inside the
+    // composer itself.
+    Column(modifier = modifier.fillMaxSize().imePadding()) {
         ChatThreadHeader(
             friend = friend,
             partnerSteamId = state.selectedPartnerSteamId.orEmpty(),

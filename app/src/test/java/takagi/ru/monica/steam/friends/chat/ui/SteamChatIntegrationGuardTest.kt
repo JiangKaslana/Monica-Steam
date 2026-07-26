@@ -66,6 +66,7 @@ class SteamChatIntegrationGuardTest {
         assertTrue(thread.contains("animateScrollToItem"))
         assertTrue(thread.contains("animateItem()"))
         assertTrue(thread.contains("statusBarsPadding()"))
+        assertTrue(thread.contains("Column(modifier = modifier.fillMaxSize().imePadding())"))
         assertTrue(bubble.contains("SteamChatDeliveryState.FAILED"))
         assertTrue(bubble.contains("RoundedCornerShape"))
         assertFalse(composer.contains("imePadding()"))
