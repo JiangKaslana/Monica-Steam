@@ -80,14 +80,17 @@ internal fun SteamChatRemoteImage(
         if (drawable == null && image == null) image = decodeStaticSteamImage(payload)
     }
     val currentDrawable = drawable
-    val animated = currentDrawable as? Animatable
-    DisposableEffect(animated) {
+    val platformAnimated = currentDrawable as? Animatable
+    val apngAnimated = currentDrawable as? APNGDrawable
+    val animated = platformAnimated ?: apngAnimated
+    DisposableEffect(currentDrawable) {
         onDispose {
-            animated?.stop()
+            stopSteamAnimation(currentDrawable)
         }
     }
-    LaunchedEffect(animated, playAnimation) {
-        if (playAnimation) animated?.start() else animated?.stop()
+    LaunchedEffect(currentDrawable, playAnimation) {
+        if (playAnimation) startSteamAnimation(currentDrawable)
+        else stopSteamAnimation(currentDrawable)
     }
     when {
         animated != null -> AndroidView(
@@ -102,8 +105,8 @@ internal fun SteamChatRemoteImage(
                 if (view.drawable !== currentDrawable) view.setImageDrawable(currentDrawable)
                 view.scaleType = imageScaleType(mode)
                 view.contentDescription = contentDescription
-                if (playAnimation && !animated.isRunning) animated.start()
-                if (!playAnimation && animated.isRunning) animated.stop()
+                if (playAnimation) startSteamAnimation(currentDrawable)
+                else stopSteamAnimation(currentDrawable)
             }
         )
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && drawable != null -> AndroidView(
@@ -123,13 +126,10 @@ internal fun SteamChatRemoteImage(
         image != null -> Image(
             painter = BitmapPainter(
                 image = requireNotNull(image),
-                filterQuality = if (mode == SteamChatRemoteImageMode.EMOTICON) {
-                    // Steam emoticons are pixel art. Bilinear filtering is the
-                    // reason they looked like blurred coloured blobs when enlarged.
-                    FilterQuality.None
-                } else {
-                    FilterQuality.High
-                }
+                // The large Steam endpoint is 54px.  The picker renders it at
+                // a density-aware size, so high-quality sampling keeps diagonal
+                // edges legible when the asset is slightly downscaled or enlarged.
+                filterQuality = FilterQuality.High
             ),
             contentDescription = contentDescription,
             modifier = modifier,
@@ -144,6 +144,28 @@ internal fun SteamChatRemoteImage(
         else -> Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Icon(Icons.Default.EmojiEmotions, contentDescription = contentDescription)
         }
+    }
+}
+
+/** APNG4Android implements Animatable2Compat rather than android.graphics.Animatable. */
+private fun startSteamAnimation(drawable: Drawable?) {
+    when (drawable) {
+        is APNGDrawable -> {
+            if (!drawable.isRunning) drawable.start()
+            drawable.setVisible(true, true)
+        }
+        is Animatable -> if (!drawable.isRunning) drawable.start()
+    }
+}
+
+private fun stopSteamAnimation(drawable: Drawable?) {
+    // Keep the Android Animatable stop path explicit; APNGDrawable is handled
+    // separately because it implements Animatable2Compat instead.
+    val animated = drawable as? Animatable
+    animated?.stop()
+    when (drawable) {
+        is APNGDrawable -> if (drawable.isRunning) drawable.stop()
+        is Animatable -> Unit
     }
 }
 

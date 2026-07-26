@@ -39,13 +39,21 @@ private fun loadSteamRemoteBytesBlocking(context: Context, imageUrl: String): By
     }.getOrNull() ?: cachedBytes
 }
 
-private fun normalizeSteamImageUrl(imageUrl: String): String {
+internal fun normalizeSteamImageUrl(imageUrl: String): String {
     val trimmed = imageUrl.trim()
-    return when {
+    val normalized = when {
         trimmed.startsWith("//") -> "https:$trimmed"
         trimmed.startsWith("/") -> "https://steamcommunity.com$trimmed"
         else -> trimmed
     }
+    // Steam's community host intermittently serves a resized/empty response
+    // after its redirect.  The static CDN is the same asset origin used by
+    // Steam Web and preserves the original APNG bytes.
+    return normalized.replace(
+        oldValue = "https://steamcommunity.com/economy/",
+        newValue = "https://community.cloudflare.steamstatic.com/economy/",
+        ignoreCase = true
+    )
 }
 
 private fun downloadSteamRemoteImageBytes(imageUrl: String): ByteArray? {
@@ -53,9 +61,15 @@ private fun downloadSteamRemoteImageBytes(imageUrl: String): ByteArray? {
         connectTimeout = STEAM_IMAGE_TIMEOUT_MS
         readTimeout = STEAM_IMAGE_TIMEOUT_MS
         requestMethod = "GET"
+        instanceFollowRedirects = true
+        setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/png,image/*;q=0.8")
+        setRequestProperty("User-Agent", "MonicaSteam/Android")
     }
     return try {
-        connection.inputStream.use { it.readBytes() }
+        if (connection.responseCode !in 200..299) return null
+        connection.inputStream.use { stream ->
+            stream.readBytes().takeIf { bytes -> bytes.isNotEmpty() }
+        }
     } finally {
         connection.disconnect()
     }
