@@ -12,6 +12,11 @@ import kotlinx.coroutines.withContext
 
 private const val STEAM_IMAGE_TIMEOUT_MS = 4_000
 private const val STEAM_IMAGE_CACHE_TTL_MS = 3L * 24L * 60L * 60L * 1000L
+// v2 intentionally bypasses bytes cached by the old bitmap/thumbnail path.
+// Chat stickers must retain their original APNG container, not a first-frame
+// derivative that may already be present on an upgraded installation.
+private const val STEAM_IMAGE_CACHE_VERSION = "v2"
+private val steamImageCacheLock = Any()
 
 internal suspend fun loadSteamRemoteImage(context: Context, imageUrl: String): ImageBitmap? =
     withContext(Dispatchers.IO) {
@@ -28,13 +33,33 @@ private fun loadSteamRemoteBytesBlocking(context: Context, imageUrl: String): By
     if (!normalizedUrl.startsWith("https://") && !normalizedUrl.startsWith("http://")) return null
 
     val cacheFile = steamRemoteImageCacheFileForNormalizedUrl(context, normalizedUrl)
-    val cachedBytes = cacheFile.takeIf(File::isFile)?.let { runCatching { it.readBytes() }.getOrNull() }
+    val cachedBytes = synchronized(steamImageCacheLock) {
+        cacheFile.takeIf(File::isFile)?.let { runCatching { it.readBytes() }.getOrNull() }
+    }
     if (cachedBytes != null && !isSteamRemoteImageCacheExpired(cacheFile)) return cachedBytes
 
     return runCatching {
         downloadSteamRemoteImageBytes(normalizedUrl)?.also { bytes ->
-            cacheFile.parentFile?.mkdirs()
-            cacheFile.writeBytes(bytes)
+            synchronized(steamImageCacheLock) {
+                cacheFile.parentFile?.mkdirs()
+                val temporaryFile = File(
+                    requireNotNull(cacheFile.parentFile),
+                    "${cacheFile.name}.${System.nanoTime()}.tmp"
+                )
+                try {
+                    temporaryFile.writeBytes(bytes)
+                    // renameTo stays on the same filesystem, so readers never
+                    // observe a partially-written APNG/PNG payload.
+                    if (cacheFile.exists()) cacheFile.delete()
+                    if (!temporaryFile.renameTo(cacheFile)) {
+                        // Extremely unusual filesystems may reject rename;
+                        // retain the old behavior as a last-resort fallback.
+                        cacheFile.writeBytes(bytes)
+                    }
+                } finally {
+                    temporaryFile.delete()
+                }
+            }
         } ?: cachedBytes
     }.getOrNull() ?: cachedBytes
 }
@@ -82,7 +107,10 @@ internal fun steamRemoteImageCacheFile(context: Context, imageUrl: String): File
 
 private fun steamRemoteImageCacheFileForNormalizedUrl(context: Context, imageUrl: String): File {
     val safeName = imageUrl.hashCode().toUInt().toString(16)
-    return File(File(context.cacheDir, "steam_confirmation_images"), "$safeName.png")
+    return File(
+        File(context.cacheDir, "steam_confirmation_images_$STEAM_IMAGE_CACHE_VERSION"),
+        "$safeName.bin"
+    )
 }
 
 private fun isSteamRemoteImageCacheExpired(cacheFile: File): Boolean {

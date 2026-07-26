@@ -1,21 +1,38 @@
 package takagi.ru.monica.steam.friends.chat.ui
 
 import java.io.File
+import androidx.compose.ui.graphics.FilterQuality
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImageMode
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.staticSteamImageFilterQuality
 
 class SteamChatEmoticonSizingTest {
     @Test
-    fun remoteSteamImagesUseNearestNeighborForEmoticonsAndDoNotUpscaleStickers() {
+    fun remoteSteamImagesUseNearestNeighborForPixelEmoticons() {
+        assertEquals(
+            FilterQuality.None,
+            staticSteamImageFilterQuality(SteamChatRemoteImageMode.EMOTICON)
+        )
+        assertEquals(
+            FilterQuality.High,
+            staticSteamImageFilterQuality(SteamChatRemoteImageMode.CONTENT)
+        )
+    }
+
+    @Test
+    fun remoteSteamImagesKeepAnimationAndStickerSizingPolicies() {
         val source = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRemoteImage.kt"
         ).readText()
 
         assertTrue(source.contains("ImageView.ScaleType.FIT_CENTER"))
         assertTrue(source.contains("ImageView.ScaleType.CENTER_INSIDE"))
-        assertTrue(source.contains("FilterQuality.None"))
         assertTrue(source.contains("ContentScale.Inside"))
         assertTrue(source.contains("setAutoPlay(true)"))
+        assertTrue(source.contains("setVisible(true, true)"))
+        assertTrue(source.contains("doOnLayout"))
     }
 
     @Test

@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.doOnLayout
 import com.github.penfeizhou.animation.apng.APNGDrawable
 import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,18 @@ internal enum class SteamChatRemoteImageMode {
     EMOTICON,
     STICKER
 }
+
+/**
+ * Steam emoticons are deliberately pixel-art assets (54×54).  Filtering them
+ * while enlarging a picker cell blends their hard edges into the dark
+ * background, so nearest-neighbour sampling is the only readable policy.
+ */
+internal fun staticSteamImageFilterQuality(mode: SteamChatRemoteImageMode): FilterQuality =
+    if (mode == SteamChatRemoteImageMode.EMOTICON) {
+        FilterQuality.None
+    } else {
+        FilterQuality.High
+    }
 
 @Composable
 internal fun SteamChatRemoteImage(
@@ -107,8 +120,15 @@ internal fun SteamChatRemoteImage(
                 if (view.drawable !== currentDrawable) view.setImageDrawable(currentDrawable)
                 view.scaleType = imageScaleType(mode)
                 view.contentDescription = contentDescription
-                if (playAnimation) startSteamAnimation(currentDrawable)
-                else stopSteamAnimation(currentDrawable)
+                if (playAnimation) {
+                    // APNG4Android refuses to start while its drawable bounds
+                    // are empty.  Compose can run the effect before the
+                    // AndroidView has received its first layout, so retry at
+                    // the first laid-out frame as well as from the effect.
+                    view.doOnLayout { startSteamAnimation(currentDrawable) }
+                } else {
+                    stopSteamAnimation(currentDrawable)
+                }
             }
         )
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && drawable != null -> AndroidView(
@@ -123,15 +143,20 @@ internal fun SteamChatRemoteImage(
                 if (view.drawable !== drawable) view.setImageDrawable(drawable)
                 view.scaleType = imageScaleType(mode)
                 view.contentDescription = contentDescription
+                if (playAnimation) {
+                    view.doOnLayout { startSteamAnimation(drawable) }
+                } else {
+                    stopSteamAnimation(drawable)
+                }
             }
         )
         image != null -> Image(
             painter = BitmapPainter(
                 image = requireNotNull(image),
-                // The large Steam endpoint is 54px.  The picker renders it at
-                // a density-aware size, so high-quality sampling keeps diagonal
-                // edges legible when the asset is slightly downscaled or enlarged.
-                filterQuality = FilterQuality.High
+                // The large Steam endpoint is only 54px. Pixel-art emoticons
+                // use nearest-neighbour sampling; photos/other content retain
+                // high-quality filtering.
+                filterQuality = staticSteamImageFilterQuality(mode)
             ),
             contentDescription = contentDescription,
             modifier = modifier,
@@ -151,23 +176,32 @@ internal fun SteamChatRemoteImage(
 
 /** APNG4Android implements Animatable2Compat rather than android.graphics.Animatable. */
 private fun startSteamAnimation(drawable: Drawable?) {
+    drawable ?: return
+    // Register the ImageView callback before starting.  APNGDrawable uses the
+    // callback to invalidate each decoded frame; starting it before visibility
+    // is established can leave the first frame permanently on screen.
+    drawable.setVisible(true, true)
     when (drawable) {
         is APNGDrawable -> {
             if (!drawable.isRunning) drawable.start()
-            drawable.setVisible(true, true)
         }
         is Animatable -> if (!drawable.isRunning) drawable.start()
     }
 }
 
 private fun stopSteamAnimation(drawable: Drawable?) {
+    drawable ?: return
     // Keep the Android Animatable stop path explicit; APNGDrawable is handled
     // separately because it implements Animatable2Compat instead.
-    val animated = drawable as? Animatable
-    animated?.stop()
     when (drawable) {
-        is APNGDrawable -> if (drawable.isRunning) drawable.stop()
-        is Animatable -> Unit
+        is APNGDrawable -> {
+            if (drawable.isRunning) drawable.stop()
+            drawable.setVisible(false, false)
+        }
+        is Animatable -> {
+            if (drawable.isRunning) drawable.stop()
+            drawable.setVisible(false, false)
+        }
     }
 }
 
