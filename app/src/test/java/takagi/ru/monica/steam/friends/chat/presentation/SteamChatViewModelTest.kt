@@ -26,6 +26,7 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatThreadSnapshot
 import takagi.ru.monica.steam.network.SteamApiException
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SteamChatViewModelTest {
@@ -132,8 +133,16 @@ class SteamChatViewModelTest {
         val viewModel = SteamChatViewModel(
             gateway = gateway,
             cache = MemoryCache(),
-            sessionRefreshService = null,
-            forceSessionRefresh = { account -> account.copy(accessToken = "fresh-token") },
+            sessionResolver = SteamAccountSessionResolver { account, forceRefresh ->
+                if (forceRefresh) {
+                    account.copy(
+                        accessToken = "fresh-token",
+                        steamLoginSecure = "${account.steamId}||fresh-token"
+                    )
+                } else {
+                    account
+                }
+            },
             ioDispatcher = mainDispatcher,
             nowMillis = { 100_000L },
             clientMessageId = { "client-2" }
@@ -268,7 +277,6 @@ class SteamChatViewModelTest {
     ) = SteamChatViewModel(
         gateway = gateway,
         cache = MemoryCache(),
-        sessionRefreshService = null,
         ioDispatcher = ioDispatcher,
         nowMillis = { 100_000L },
         clientMessageId = { "client-1" }

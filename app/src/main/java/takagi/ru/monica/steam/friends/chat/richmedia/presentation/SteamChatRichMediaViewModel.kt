@@ -14,13 +14,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatAttachmentUploader
 import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatCatalogService
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEmoticon
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEffect
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatPendingAttachment
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatSticker
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
+import takagi.ru.monica.steam.session.domain.resolveOrKeep
 
 data class SteamChatRichMediaUiState(
     val emoticons: List<SteamChatEmoticon> = emptyList(),
@@ -40,7 +42,7 @@ data class SteamChatRichMediaUiState(
 class SteamChatRichMediaViewModel(
     private val catalogService: SteamChatCatalogService,
     private val attachmentUploader: SteamChatAttachmentUploader,
-    private val sessionRefreshService: SteamSessionRefreshService? = SteamSessionRefreshService(),
+    private val sessionResolver: SteamAccountSessionResolver? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val nowMillis: () -> Long = System::currentTimeMillis
 ) : ViewModel() {
@@ -123,7 +125,7 @@ class SteamChatRichMediaViewModel(
             val result = runCatching {
                 withContext(ioDispatcher) {
                     attachmentUploader.upload(
-                        account = prepareRichMediaSession(currentAccount, sessionRefreshService),
+                        account = sessionResolver.resolveOrKeep(currentAccount),
                         partnerSteamId = currentPartner,
                         attachment = attachment,
                         spoiler = spoiler,
@@ -174,7 +176,7 @@ class SteamChatRichMediaViewModel(
         viewModelScope.launch {
             val catalogResult = async(ioDispatcher) {
                 runCatching {
-                    catalogService.loadCatalog(prepareRichMediaSession(account, sessionRefreshService))
+                    catalogService.loadCatalog(sessionResolver.resolveOrKeep(account))
                 }
             }.await()
             if (generation != catalogGeneration || this@SteamChatRichMediaViewModel.account?.id != account.id) {
@@ -199,29 +201,14 @@ class SteamChatRichMediaViewModel(
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
                     SteamChatRichMediaViewModel(
                         catalogService = SteamChatCatalogService(),
-                        attachmentUploader = SteamChatAttachmentUploader(appContext)
+                        attachmentUploader = SteamChatAttachmentUploader(appContext),
+                        sessionResolver = SteamAccountSourceRepository
+                            .get(appContext)
+                            .sessionResolver()
                     ) as T
             }
         }
     }
-}
-
-private fun prepareRichMediaSession(
-    account: SteamAccount,
-    service: SteamSessionRefreshService?
-): SteamAccount {
-    val refreshed = service?.refreshIfNeeded(account)
-    val accessToken = refreshed?.accessToken ?: account.accessToken
-    val secureCookie = account.steamLoginSecure?.takeIf(String::isNotBlank)
-        ?: accessToken?.takeIf(String::isNotBlank)?.let { "${account.steamId}||$it" }
-    if (refreshed == null && secureCookie == account.steamLoginSecure) return account
-    return account.copy(
-        accessToken = accessToken,
-        refreshToken = refreshed?.refreshToken ?: account.refreshToken,
-        steamLoginSecure = accessToken?.takeIf(String::isNotBlank)?.let {
-            "${account.steamId}||$it"
-        } ?: secureCookie
-    )
 }
 
 private fun Throwable.userFacingMessage(): String = message

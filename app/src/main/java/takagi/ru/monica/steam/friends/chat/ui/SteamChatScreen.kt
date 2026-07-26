@@ -78,7 +78,7 @@ fun SteamChatScreen(
         factory = remember(context) { SteamChatRichMediaViewModel.factory(context) }
     )
     val messageActionViewModel: SteamChatMessageActionViewModel = viewModel(
-        factory = remember { SteamChatMessageActionViewModel.factory() }
+        factory = remember(context) { SteamChatMessageActionViewModel.factory(context) }
     )
     val friendsState by friendsViewModel.uiState.collectAsState()
     val chatState by chatViewModel.uiState.collectAsState()

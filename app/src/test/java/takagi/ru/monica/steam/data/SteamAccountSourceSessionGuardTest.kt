@@ -55,6 +55,20 @@ class SteamAccountSourceSessionGuardTest {
         assertTrue(library.contains("accountSourceRepository.resolveSession(account, forceRefresh = force)"))
     }
 
+    @Test
+    fun sourceRepositoryExposesTheSameResolverToSocialFeatures() {
+        val source = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/data/SteamAccountSourceRepository.kt"
+        ).readText()
+        val factory = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/presentation/SteamChatViewModelFactory.kt"
+        ).readText()
+
+        assertTrue(source.contains("fun sessionResolver(): SteamAccountSessionResolver"))
+        assertTrue(source.contains("sessionManager.resolve(handle, forceRefresh).account"))
+        assertTrue(factory.contains("accountSourceRepository.sessionResolver()"))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (

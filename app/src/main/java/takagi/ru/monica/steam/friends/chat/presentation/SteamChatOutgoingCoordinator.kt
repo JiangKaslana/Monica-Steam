@@ -11,15 +11,13 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatGateway
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage
 import takagi.ru.monica.steam.friends.chat.domain.mergeSteamChatMessages
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
 import takagi.ru.monica.steam.outbox.domain.SteamOutboxStatus
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 internal class SteamChatOutgoingCoordinator(
     private val scope: CoroutineScope,
     private val gateway: SteamChatGateway,
-    private val sessionRefreshService: SteamSessionRefreshService?,
-    private val forceSessionRefresh: ((SteamAccount) -> SteamAccount?)?,
-    private val persistSession: suspend (SteamAccount) -> Unit,
+    private val sessionResolver: SteamAccountSessionResolver?,
     private val ioDispatcher: CoroutineDispatcher,
     private val outbox: SteamChatOutbox? = null
 ) {
@@ -59,7 +57,7 @@ internal class SteamChatOutgoingCoordinator(
                 outboxRecord?.status == SteamOutboxStatus.IN_FLIGHT ||
                 outboxRecord?.status == SteamOutboxStatus.AWAITING_CONFIRMATION
             if (needsVerification) {
-                verify(account, partnerSteamId, pending)?.let {
+                verify(account, partnerSteamId, pending, onSessionRefreshed)?.let {
                     completeOutbox(pending.clientMessageId)
                     if (isCurrent()) onUpdate(it)
                     return@launch
@@ -92,11 +90,9 @@ internal class SteamChatOutgoingCoordinator(
                     account = account,
                     partnerSteamId = partnerSteamId,
                     pending = pending,
-                    sessionRefreshService = sessionRefreshService,
-                    forceSessionRefresh = forceSessionRefresh,
+                    sessionResolver = sessionResolver,
                     onSessionRefreshed = { refreshed ->
                         onSessionRefreshed(refreshed)
-                        persistSession(refreshed)
                     }
                 )
             }
@@ -115,7 +111,7 @@ internal class SteamChatOutgoingCoordinator(
                 }.onFailure { logSteamChatFailure("outbox_await_confirmation", it) }
                 val verifying = pending.copy(deliveryState = SteamChatDeliveryState.VERIFYING)
                 if (isCurrent()) onUpdate(verifying)
-                val verified = verify(account, partnerSteamId, verifying)
+                val verified = verify(account, partnerSteamId, verifying, onSessionRefreshed)
                 if (verified != null) {
                     completeOutbox(pending.clientMessageId)
                     if (isCurrent()) onUpdate(verified)
@@ -146,17 +142,25 @@ internal class SteamChatOutgoingCoordinator(
     private suspend fun verify(
         account: SteamAccount,
         partnerSteamId: String,
-        pending: SteamChatMessage
+        pending: SteamChatMessage,
+        onSessionRefreshed: (SteamAccount) -> Unit
     ): SteamChatMessage? {
         val page = runCatching {
             withContext(ioDispatcher) {
-                gateway.fetchMessages(prepareSteamChatSession(account, sessionRefreshService), partnerSteamId)
+                val resolved = resolveSteamChatSession(account, sessionResolver)
+                if (hasSessionChanged(account, resolved)) onSessionRefreshed(resolved)
+                gateway.fetchMessages(resolved, partnerSteamId)
             }
         }.onFailure { logSteamChatFailure("send_verify", it) }.getOrNull() ?: return null
         return mergeSteamChatMessages(listOf(pending), page.messages)
             .firstOrNull { it.clientMessageId == pending.clientMessageId && it.ordinal != Int.MAX_VALUE }
             ?.copy(deliveryState = SteamChatDeliveryState.SENT)
     }
+
+    private fun hasSessionChanged(previous: SteamAccount, current: SteamAccount): Boolean =
+        previous.accessToken != current.accessToken ||
+            previous.refreshToken != current.refreshToken ||
+            previous.steamLoginSecure != current.steamLoginSecure
 
     private suspend fun completeOutbox(clientMessageId: String) {
         runCatching {

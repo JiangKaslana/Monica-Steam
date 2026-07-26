@@ -140,7 +140,6 @@ class SteamChatRealtimeViewModelTest {
     ) = SteamChatViewModel(
         gateway = gateway,
         cache = MemoryCache(),
-        sessionRefreshService = null,
         ioDispatcher = dispatcher,
         nowMillis = { 100_000L },
         clientMessageId = { "client-1" },

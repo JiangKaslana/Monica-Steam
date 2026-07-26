@@ -13,6 +13,8 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatRealtimeEvent
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatRealtimeGateway
 import takagi.ru.monica.steam.network.cm.SteamCmClient
 import takagi.ru.monica.steam.network.cm.SteamCmEnvelope
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
+import takagi.ru.monica.steam.session.domain.resolveOrKeep
 
 internal interface SteamFriendChatRealtimeTransport {
     fun events(account: SteamAccount): Flow<SteamCmEnvelope>
@@ -41,18 +43,24 @@ internal class SteamFriendChatRealtimeService(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val healthyCheckMillis: Long = HEALTHY_CHECK_MILLIS,
     private val initialRetryMillis: Long = INITIAL_RETRY_MILLIS,
-    private val maximumRetryMillis: Long = MAXIMUM_RETRY_MILLIS
+    private val maximumRetryMillis: Long = MAXIMUM_RETRY_MILLIS,
+    private val sessionResolver: SteamAccountSessionResolver? = null
 ) : SteamChatRealtimeGateway {
-    internal constructor(cm: SteamCmClient) : this(
-        transport = SteamCmFriendChatRealtimeTransport(cm)
+    internal constructor(
+        cm: SteamCmClient,
+        sessionResolver: SteamAccountSessionResolver? = null
+    ) : this(
+        transport = SteamCmFriendChatRealtimeTransport(cm),
+        sessionResolver = sessionResolver
     )
 
     override fun events(account: SteamAccount): Flow<SteamChatRealtimeEvent> =
         channelFlow {
+            val sessionAccount = sessionResolver.resolveOrKeep(account)
             val eventCollector = launch {
-                transport.events(account).collect { envelope ->
+                transport.events(sessionAccount).collect { envelope ->
                     runCatching {
-                        SteamFriendChatRealtimeParser.parse(envelope, account.steamId)
+                        SteamFriendChatRealtimeParser.parse(envelope, sessionAccount.steamId)
                     }.getOrNull()
                         ?.let { send(it) }
                 }
@@ -63,8 +71,8 @@ internal class SteamFriendChatRealtimeService(
                 while (isActive) {
                     val connected = runCatching {
                         withContext(ioDispatcher) {
-                            if (!transport.isConnected(account)) transport.connect(account)
-                            transport.isConnected(account)
+                            if (!transport.isConnected(sessionAccount)) transport.connect(sessionAccount)
+                            transport.isConnected(sessionAccount)
                         }
                     }.getOrDefault(false)
                     if (connected != announcedConnected) {

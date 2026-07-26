@@ -22,6 +22,7 @@ import takagi.ru.monica.steam.session.data.SteamAccountSessionManager
 import takagi.ru.monica.steam.session.data.SteamAccountSourceSessionStore
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionHandle
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionOrigin
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 data class SteamAccountSourceState(
     val storageSource: SteamStorageSource = SteamStorageSource.Local,
@@ -218,6 +219,18 @@ class SteamAccountSourceRepository private constructor(
         val handle = sessionHandle(account) ?: return account
         return sessionManager.resolve(handle, forceRefresh).account
     }
+
+    /**
+     * Creates the feature boundary used by chat and other social consumers.
+     * The handle is captured immediately before each refresh, so a later
+     * database/account selection change cannot redirect the write-back.
+     */
+    fun sessionResolver(): SteamAccountSessionResolver =
+        SteamAccountSessionResolver { account, forceRefresh ->
+            sessionHandle(account)?.let { handle ->
+                sessionManager.resolve(handle, forceRefresh).account
+            } ?: account
+        }
 
     private fun publishLocalAccounts(accounts: List<SteamAccount>) {
         accounts.forEach { account ->

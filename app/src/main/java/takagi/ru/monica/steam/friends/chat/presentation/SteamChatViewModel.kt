@@ -22,14 +22,12 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatGateway
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatRealtimeGateway
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 class SteamChatViewModel(
     private val gateway: SteamChatGateway,
     private val cache: SteamChatCache,
-    private val sessionRefreshService: SteamSessionRefreshService? = SteamSessionRefreshService(),
-    private val forceSessionRefresh: ((SteamAccount) -> SteamAccount?)? = null,
-    private val persistSession: suspend (SteamAccount) -> Unit = {},
+    private val sessionResolver: SteamAccountSessionResolver? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val clientMessageId: () -> String = { UUID.randomUUID().toString() },
@@ -73,20 +71,19 @@ class SteamChatViewModel(
         scope = viewModelScope,
         gateway = gateway,
         cache = cache,
-        sessionRefreshService = sessionRefreshService,
+        sessionResolver = sessionResolver,
         ioDispatcher = ioDispatcher,
         nowMillis = nowMillis,
         state = { _uiState.value },
         updateState = { _uiState.value = it },
         isSessionsCurrent = ::isSessionsCurrent,
-        isThreadCurrent = ::isThreadCurrent
+        isThreadCurrent = ::isThreadCurrent,
+        onSessionResolved = ::onSessionResolved
     )
     private val outgoingCoordinator = SteamChatOutgoingCoordinator(
         scope = viewModelScope,
         gateway = gateway,
-        sessionRefreshService = sessionRefreshService,
-        forceSessionRefresh = forceSessionRefresh,
-        persistSession = persistSession,
+        sessionResolver = sessionResolver,
         ioDispatcher = ioDispatcher,
         outbox = outbox
     )
@@ -318,6 +315,18 @@ class SteamChatViewModel(
     private fun resolveAccountKey(account: SteamAccount): String = runCatching {
         accountKeyResolver(account).takeIf(String::isNotBlank)
     }.getOrNull() ?: "${account.id}|${account.steamId}"
+
+    private fun onSessionResolved(resolved: SteamAccount) {
+        val current = activeAccount ?: return
+        if (current.id != resolved.id || current.steamId != resolved.steamId) return
+        val credentialsChanged = current.accessToken != resolved.accessToken ||
+            current.refreshToken != resolved.refreshToken ||
+            current.steamLoginSecure != resolved.steamLoginSecure
+        activeAccount = resolved
+        if (credentialsChanged) {
+            realtimeCoordinator.selectAccount(resolved, activeAccountKey)
+        }
+    }
 
     private fun restartPolling() {
         pollingJob?.cancel()

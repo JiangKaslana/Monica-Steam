@@ -3,7 +3,7 @@ package takagi.ru.monica.steam.friends.chat.presentation
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatGateway
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 /** Sends a chat message and performs one bounded recovery for an expired session. */
 internal suspend fun sendSteamChatMessageWithSessionRecovery(
@@ -11,12 +11,11 @@ internal suspend fun sendSteamChatMessageWithSessionRecovery(
     account: SteamAccount,
     partnerSteamId: String,
     pending: SteamChatMessage,
-    sessionRefreshService: SteamSessionRefreshService?,
-    forceSessionRefresh: ((SteamAccount) -> SteamAccount?)?,
+    sessionResolver: SteamAccountSessionResolver?,
     onSessionRefreshed: suspend (SteamAccount) -> Unit = {}
 ): Result<SteamChatMessage> {
-    val preparedAccount = prepareSteamChatSession(account, sessionRefreshService)
-    persistSessionIfChanged(account, preparedAccount, onSessionRefreshed)
+    val preparedAccount = resolveSteamChatSession(account, sessionResolver)
+    notifySessionChanged(account, preparedAccount, onSessionRefreshed)
     val firstAttempt = runCatching {
         gateway.sendMessage(
             account = preparedAccount,
@@ -30,12 +29,9 @@ internal suspend fun sendSteamChatMessageWithSessionRecovery(
 
     logSteamChatFailure("send_session_refresh", firstError)
     val refreshedAccount = runCatching {
-        forceSessionRefresh?.invoke(account) ?: refreshSteamChatSessionForRetry(
-            account,
-            sessionRefreshService
-        )
+        resolveSteamChatSession(account, sessionResolver, forceRefresh = true)
     }.getOrNull() ?: return firstAttempt
-    persistSessionIfChanged(account, refreshedAccount, onSessionRefreshed)
+    notifySessionChanged(account, refreshedAccount, onSessionRefreshed)
 
     return runCatching {
         gateway.sendMessage(
@@ -47,10 +43,10 @@ internal suspend fun sendSteamChatMessageWithSessionRecovery(
     }
 }
 
-private suspend fun persistSessionIfChanged(
+private suspend fun notifySessionChanged(
     previous: SteamAccount,
     current: SteamAccount,
-    persist: suspend (SteamAccount) -> Unit
+    onSessionRefreshed: suspend (SteamAccount) -> Unit
 ) {
     if (previous.accessToken == current.accessToken &&
         previous.refreshToken == current.refreshToken &&
@@ -58,20 +54,6 @@ private suspend fun persistSessionIfChanged(
     ) {
         return
     }
-    runCatching { persist(current) }
-        .onFailure { logSteamChatFailure("session_persist", it) }
-}
-
-private fun refreshSteamChatSessionForRetry(
-    account: SteamAccount,
-    service: SteamSessionRefreshService?
-): SteamAccount? {
-    val refreshService = service ?: return null
-    val refreshToken = account.refreshToken?.takeIf(String::isNotBlank) ?: return null
-    val result = refreshService.refresh(account.steamId, refreshToken) ?: return null
-    return account.copy(
-        accessToken = result.accessToken,
-        refreshToken = result.refreshToken ?: account.refreshToken,
-        steamLoginSecure = "${account.steamId}||${result.accessToken}"
-    )
+    runCatching { onSessionRefreshed(current) }
+        .onFailure { logSteamChatFailure("session_resolved", it) }
 }

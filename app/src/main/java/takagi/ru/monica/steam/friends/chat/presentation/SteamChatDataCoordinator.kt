@@ -11,26 +11,27 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatHistoryBoundary
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatThreadSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.mergeSteamChatMessages
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 /** Coordinates authoritative chat reads and cache writes outside the screen ViewModel. */
 internal class SteamChatDataCoordinator(
     private val scope: CoroutineScope,
     private val gateway: SteamChatGateway,
     private val cache: SteamChatCache,
-    private val sessionRefreshService: SteamSessionRefreshService?,
+    private val sessionResolver: SteamAccountSessionResolver?,
     private val ioDispatcher: CoroutineDispatcher,
     private val nowMillis: () -> Long,
     private val state: () -> SteamChatUiState,
     private val updateState: (SteamChatUiState) -> Unit,
     private val isSessionsCurrent: (SteamAccount, Long) -> Boolean,
-    private val isThreadCurrent: (SteamAccount, String, Long) -> Boolean
+    private val isThreadCurrent: (SteamAccount, String, Long) -> Boolean,
+    private val onSessionResolved: (SteamAccount) -> Unit = {}
 ) {
     fun fetchSessions(account: SteamAccount, generation: Long, silent: Boolean) {
         scope.launch {
             val result = runCatching {
                 withContext(ioDispatcher) {
-                    gateway.fetchSessions(prepareSteamChatSession(account, sessionRefreshService))
+                    gateway.fetchSessions(resolve(account))
                 }
             }
             if (!isSessionsCurrent(account, generation)) return@launch
@@ -75,7 +76,7 @@ internal class SteamChatDataCoordinator(
             val result = runCatching {
                 withContext(ioDispatcher) {
                     gateway.fetchMessages(
-                        prepareSteamChatSession(account, sessionRefreshService),
+                        resolve(account),
                         partnerSteamId
                     )
                 }
@@ -129,7 +130,7 @@ internal class SteamChatDataCoordinator(
             val result = runCatching {
                 withContext(ioDispatcher) {
                     gateway.fetchMessages(
-                        account = prepareSteamChatSession(account, sessionRefreshService),
+                        account = resolve(account),
                         partnerSteamId = partnerSteamId,
                         before = SteamChatHistoryBoundary(oldest.timestamp, oldest.ordinal)
                     )
@@ -180,7 +181,7 @@ internal class SteamChatDataCoordinator(
             runCatching {
                 withContext(ioDispatcher) {
                     gateway.acknowledge(
-                        prepareSteamChatSession(account, sessionRefreshService),
+                        resolve(account),
                         partnerSteamId,
                         timestamp
                     )
@@ -207,4 +208,15 @@ internal class SteamChatDataCoordinator(
     ) {
         scope.launch(ioDispatcher) { cache.saveThread(account.steamId, partnerSteamId, snapshot) }
     }
+
+    private suspend fun resolve(account: SteamAccount): SteamAccount {
+        val resolved = resolveSteamChatSession(account, sessionResolver)
+        if (hasSessionChanged(account, resolved)) onSessionResolved(resolved)
+        return resolved
+    }
+
+    private fun hasSessionChanged(previous: SteamAccount, current: SteamAccount): Boolean =
+        previous.accessToken != current.accessToken ||
+            previous.refreshToken != current.refreshToken ||
+            previous.steamLoginSecure != current.steamLoginSecure
 }

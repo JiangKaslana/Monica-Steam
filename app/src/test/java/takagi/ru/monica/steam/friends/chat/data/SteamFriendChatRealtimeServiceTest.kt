@@ -21,6 +21,7 @@ import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.network.cm.SteamCmEnvelope
 import takagi.ru.monica.steam.network.cm.SteamCmHeader
 import takagi.ru.monica.steam.network.cm.SteamCmProtocol
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SteamFriendChatRealtimeServiceTest {
@@ -74,6 +75,30 @@ class SteamFriendChatRealtimeServiceTest {
         assertEquals(2, transport.connectCalls)
     }
 
+    @Test
+    fun resolvesTheAccountBeforeOpeningTheCmTransport() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val transport = FakeRealtimeTransport()
+        var resolverCalls = 0
+        val service = SteamFriendChatRealtimeService(
+            transport = transport,
+            ioDispatcher = dispatcher,
+            healthyCheckMillis = 60_000L,
+            sessionResolver = SteamAccountSessionResolver { account, forceRefresh ->
+                resolverCalls++
+                assertEquals(false, forceRefresh)
+                account.copy(accessToken = "fresh-token")
+            }
+        )
+        val events = async { service.events(account(1L, ACCOUNT_STEAM_ID)).take(1).toList() }
+
+        runCurrent()
+
+        assertEquals(1, resolverCalls)
+        assertEquals(listOf("fresh-token"), transport.collectedAccessTokens)
+        assertEquals(listOf(SteamChatRealtimeEvent.ConnectionChanged(true)), events.await())
+    }
+
     private fun incomingEnvelope() = SteamCmEnvelope(
         eMsg = SteamCmProtocol.EMSG_SERVICE_METHOD,
         header = SteamCmHeader(targetJobName = "FriendMessagesClient.IncomingMessage#1"),
@@ -119,11 +144,13 @@ private class FakeRealtimeTransport(
     private val buses = ConcurrentHashMap<String, MutableSharedFlow<SteamCmEnvelope>>()
     private val connected = ConcurrentHashMap.newKeySet<String>()
     val collectedAccounts = mutableListOf<String>()
+    val collectedAccessTokens = mutableListOf<String?>()
     var connectCalls: Int = 0
         private set
 
     override fun events(account: SteamAccount): Flow<SteamCmEnvelope> {
         collectedAccounts += account.steamId
+        collectedAccessTokens += account.accessToken
         return bus(account)
     }
 

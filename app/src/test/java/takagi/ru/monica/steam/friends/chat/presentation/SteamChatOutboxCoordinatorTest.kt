@@ -49,9 +49,7 @@ class SteamChatOutboxCoordinatorTest {
         SteamChatOutgoingCoordinator(
             scope = this,
             gateway = gateway,
-            sessionRefreshService = null,
-            forceSessionRefresh = null,
-            persistSession = {},
+            sessionResolver = null,
             ioDispatcher = dispatcher,
             outbox = outbox
         ).dispatch(
@@ -89,9 +87,7 @@ class SteamChatOutboxCoordinatorTest {
         SteamChatOutgoingCoordinator(
             scope = this,
             gateway = gateway,
-            sessionRefreshService = null,
-            forceSessionRefresh = null,
-            persistSession = {},
+            sessionResolver = null,
             ioDispatcher = dispatcher,
             outbox = outbox
         ).dispatch(

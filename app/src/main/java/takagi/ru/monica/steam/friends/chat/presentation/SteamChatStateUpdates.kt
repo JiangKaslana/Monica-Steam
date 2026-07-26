@@ -10,7 +10,8 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatThreadSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.mergeSteamChatMessages
 import takagi.ru.monica.steam.network.SteamApiException
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
+import takagi.ru.monica.steam.session.domain.resolveOrKeep
 
 internal fun newPendingSteamChatMessage(
     accountSteamId: String,
@@ -109,17 +110,11 @@ internal fun SteamChatThreadSnapshot.failUnresolvedVerification(): SteamChatThre
     }
 )
 
-internal fun prepareSteamChatSession(
+internal suspend fun resolveSteamChatSession(
     account: SteamAccount,
-    service: SteamSessionRefreshService?
-): SteamAccount {
-    val refreshed = service?.refreshIfNeeded(account) ?: return account
-    return account.copy(
-        accessToken = refreshed.accessToken,
-        refreshToken = refreshed.refreshToken ?: account.refreshToken,
-        steamLoginSecure = "${account.steamId}||${refreshed.accessToken}"
-    )
-}
+    resolver: SteamAccountSessionResolver?,
+    forceRefresh: Boolean = false
+): SteamAccount = resolver.resolveOrKeep(account, forceRefresh)
 
 internal fun logSteamChatFailure(operation: String, error: Throwable) {
     runCatching {

@@ -162,6 +162,39 @@ class SteamChatIntegrationGuardTest {
         assertTrue(guard.contains("accountSteamId == account.steamId"))
     }
 
+    @Test
+    fun privateChatUsesTheSharedSourceAwareSessionBoundary() {
+        val factory = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/presentation/SteamChatViewModelFactory.kt"
+        ).readText()
+        val realtime = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/data/SteamFriendChatRealtimeService.kt"
+        ).readText()
+        val actions = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/actions/presentation/SteamChatMessageActionViewModel.kt"
+        ).readText()
+        val richMedia = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/presentation/SteamChatRichMediaViewModel.kt"
+        ).readText()
+        val chatRoot = projectFile("app/src/main/java/takagi/ru/monica/steam/friends/chat")
+
+        assertTrue(factory.contains("sessionResolver"))
+        assertTrue(realtime.contains("sessionResolver.resolveOrKeep"))
+        assertTrue(actions.contains("sessionResolver.resolveOrKeep"))
+        assertTrue(richMedia.contains("sessionResolver.resolveOrKeep"))
+        assertFalse(factory.contains("SteamChatSessionStore"))
+        assertFalse(chatRoot.resolve("data/SteamChatSessionStore.kt").exists())
+
+        chatRoot.resolve("presentation").listFiles().orEmpty()
+            .filter { it.extension == "kt" }
+            .forEach { file ->
+                assertFalse(
+                    "${file.name} must not own a feature-local refresh service",
+                    file.readText().contains("SteamSessionRefreshService")
+                )
+            }
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (

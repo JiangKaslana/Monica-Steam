@@ -46,6 +46,21 @@ data class SteamSessionResolution(
     val refreshAttempted: Boolean
 )
 
+/**
+ * Feature-facing session boundary.  Features receive an account value only;
+ * the implementation captures its storage origin before refreshing and owns
+ * persistence of rotated credentials.
+ */
+fun interface SteamAccountSessionResolver {
+    suspend fun resolve(account: SteamAccount, forceRefresh: Boolean): SteamAccount
+}
+
+/** Keeps deterministic tests and read-only callers usable without a session store. */
+suspend fun SteamAccountSessionResolver?.resolveOrKeep(
+    account: SteamAccount,
+    forceRefresh: Boolean = false
+): SteamAccount = this?.resolve(account, forceRefresh) ?: account
+
 /** Network-facing abstraction kept injectable for deterministic JVM tests. */
 interface SteamAccountSessionRefresher {
     fun shouldRefresh(account: SteamAccount, nowSeconds: Long): Boolean
