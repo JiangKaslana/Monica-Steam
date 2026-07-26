@@ -30,7 +30,7 @@ class SteamChatEmoticonSizingTest {
         assertTrue(source.contains("ImageView.ScaleType.FIT_CENTER"))
         assertTrue(source.contains("ImageView.ScaleType.CENTER_INSIDE"))
         assertTrue(source.contains("ContentScale.Inside"))
-        assertTrue(source.contains("setAutoPlay(true)"))
+        assertTrue(source.contains("setAutoPlay(false)"))
         assertTrue(source.contains("setVisible(true, true)"))
         assertTrue(source.contains("doOnLayout"))
     }
@@ -42,7 +42,7 @@ class SteamChatEmoticonSizingTest {
         ).readText()
 
         assertTrue(source.contains("GridCells.Adaptive(56.dp)"))
-        assertTrue(source.contains("Modifier.padding(4.dp)"))
+        assertTrue(source.contains("Modifier.padding(1.dp)"))
     }
 
     private fun projectFile(path: String): File {

@@ -277,7 +277,9 @@ private fun EmoticonGrid(
                 SteamChatRemoteImage(
                     url = emoticon.imageUrl,
                     contentDescription = emoticon.name,
-                    modifier = Modifier.padding(4.dp),
+                    // 56dp cell - 1dp on each edge = Steam's native 54dp
+                    // large emoticon, avoiding a second resampling pass.
+                    modifier = Modifier.padding(1.dp),
                     mode = SteamChatRemoteImageMode.EMOTICON
                 )
             }

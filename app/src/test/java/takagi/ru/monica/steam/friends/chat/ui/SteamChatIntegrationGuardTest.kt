@@ -121,7 +121,7 @@ class SteamChatIntegrationGuardTest {
         assertTrue(remoteImage.contains("onDispose"))
         assertTrue(remoteImage.contains("stopSteamAnimation"))
         assertTrue(remoteImage.contains("staticSteamImageFilterQuality"))
-        assertTrue(remoteImage.contains("setAutoPlay(true)"))
+        assertTrue(remoteImage.contains("setAutoPlay(false)"))
         assertTrue(remoteImage.contains("startSteamAnimation"))
         assertTrue(picker.contains("catalogFailure"))
         assertFalse(picker.contains("ModalBottomSheet"))

@@ -204,7 +204,7 @@ private fun EmoticonReactionGrid(
                 SteamChatRemoteImage(
                     url = emoticon.imageUrl,
                     contentDescription = emoticon.name,
-                    modifier = Modifier.padding(6.dp).size(52.dp),
+                    modifier = Modifier.padding(5.dp).size(54.dp),
                     mode = SteamChatRemoteImageMode.EMOTICON
                 )
             }
