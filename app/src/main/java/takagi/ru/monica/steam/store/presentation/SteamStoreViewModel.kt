@@ -80,7 +80,11 @@ class SteamStoreViewModel(
     private val accountSourceRepository: SteamAccountSourceRepository,
     private val cache: SteamStoreCache,
     private val service: SteamStoreService = SteamStoreService(),
-    private val sessionRefreshService: SteamSessionRefreshService = SteamSessionRefreshService(),
+    /**
+     * Kept injectable for focused legacy tests. Production factories leave it
+     * null so accountSourceRepository's shared session manager owns refreshes.
+     */
+    private val sessionRefreshService: SteamSessionRefreshService? = null,
     private val libraryService: SteamGameLibraryService = SteamGameLibraryService(),
     private val currencyExchangeService: SteamCurrencyExchangeService =
         SteamCurrencyExchangeService()
@@ -958,6 +962,9 @@ class SteamStoreViewModel(
         account: SteamAccount,
         force: Boolean
     ): SteamAccount {
+        if (sessionRefreshService == null) {
+            return accountSourceRepository.resolveSession(account, forceRefresh = force)
+        }
         val refreshResult = if (force) {
             val refreshToken = account.refreshToken?.takeIf(String::isNotBlank) ?: return account
             sessionRefreshService.refresh(account.steamId, refreshToken)

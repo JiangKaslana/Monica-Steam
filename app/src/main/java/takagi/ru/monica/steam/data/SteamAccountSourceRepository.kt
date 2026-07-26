@@ -2,6 +2,7 @@ package takagi.ru.monica.steam.data
 
 import android.content.Context
 import java.io.Closeable
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,6 +18,10 @@ import takagi.ru.monica.repository.MdbxVaultStore
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.scanner.data.readSteamStorageSource
 import takagi.ru.monica.steam.scanner.data.saveSteamStorageSource
+import takagi.ru.monica.steam.session.data.SteamAccountSessionManager
+import takagi.ru.monica.steam.session.data.SteamAccountSourceSessionStore
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionHandle
+import takagi.ru.monica.steam.session.domain.SteamAccountSessionOrigin
 
 data class SteamAccountSourceState(
     val storageSource: SteamStorageSource = SteamStorageSource.Local,
@@ -47,6 +52,13 @@ class SteamAccountSourceRepository private constructor(
     private var localAccounts: List<SteamAccount> = emptyList()
     private var mdbxRecords: List<SteamMdbxAccountRecord> = emptyList()
     private var sourceLoadGeneration = 0L
+    private val accountOrigins = ConcurrentHashMap<Long, SteamAccountSessionOrigin>()
+
+    val sessionManager: SteamAccountSessionManager by lazy {
+        SteamAccountSessionManager(
+            store = SteamAccountSourceSessionStore(this)
+        )
+    }
 
     init {
         scope.launch {
@@ -130,7 +142,28 @@ class SteamAccountSourceRepository private constructor(
         refreshToken: String?,
         steamLoginSecure: String?
     ) {
-        when (val source = _state.value.storageSource) {
+        val origin = accountOrigins[id] ?: currentOriginFor(id) ?: return
+        updateSessionTokens(
+            origin = origin,
+            id = id,
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            steamLoginSecure = steamLoginSecure
+        )
+    }
+
+    /**
+     * Writes rotated credentials to the source captured when the request began.
+     * This remains correct if the active account/database changes meanwhile.
+     */
+    suspend fun updateSessionTokens(
+        origin: SteamAccountSessionOrigin,
+        id: Long,
+        accessToken: String,
+        refreshToken: String?,
+        steamLoginSecure: String?
+    ) {
+        when (val source = origin.source) {
             SteamStorageSource.Local -> localRepository.updateSessionTokens(
                 id = id,
                 accessToken = accessToken,
@@ -138,7 +171,13 @@ class SteamAccountSourceRepository private constructor(
                 steamLoginSecure = steamLoginSecure
             )
             is SteamStorageSource.Mdbx -> {
-                val record = mdbxRecords.firstOrNull { it.account.id == id } ?: return
+                val record = mdbxRecords.firstOrNull {
+                    it.account.id == id && it.entryId == origin.entryId
+                } ?: runCatching {
+                    mdbxAccountStore.loadAccounts(source.databaseId).firstOrNull {
+                        it.account.id == id && it.entryId == origin.entryId
+                    }
+                }.getOrNull() ?: return
                 val updatedAccount = record.account.copy(
                     accessToken = accessToken,
                     refreshToken = refreshToken ?: record.account.refreshToken,
@@ -150,21 +189,40 @@ class SteamAccountSourceRepository private constructor(
                     entryId = record.entryId,
                     account = updatedAccount
                 )
-                mdbxRecords = mdbxRecords.map { existing ->
-                    if (existing.entryId == record.entryId) updatedRecord else existing
-                }
-                _state.update { current ->
-                    current.copy(
-                        accounts = current.accounts.map { account ->
-                            if (account.id == id) updatedRecord.account else account
-                        }
-                    )
+                accountOrigins[id] = origin
+                if (_state.value.storageSource == source) {
+                    mdbxRecords = mdbxRecords
+                        .filterNot { existing -> existing.entryId == record.entryId }
+                        .plus(updatedRecord)
+                    _state.update { current ->
+                        current.copy(
+                            accounts = current.accounts.map { account ->
+                                if (account.id == id) updatedRecord.account else account
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 
+    fun sessionHandle(account: SteamAccount): SteamAccountSessionHandle? {
+        val origin = accountOrigins[account.id] ?: currentOriginFor(account.id) ?: return null
+        return SteamAccountSessionHandle(account = account, origin = origin)
+    }
+
+    suspend fun resolveSession(
+        account: SteamAccount,
+        forceRefresh: Boolean = false
+    ): SteamAccount {
+        val handle = sessionHandle(account) ?: return account
+        return sessionManager.resolve(handle, forceRefresh).account
+    }
+
     private fun publishLocalAccounts(accounts: List<SteamAccount>) {
+        accounts.forEach { account ->
+            accountOrigins[account.id] = SteamAccountSessionOrigin(SteamStorageSource.Local)
+        }
         val previousId = _state.value.selectedAccountId
         val selected = accounts.firstOrNull { it.id == previousId }
             ?: accounts.firstOrNull(SteamAccount::selected)
@@ -193,6 +251,12 @@ class SteamAccountSourceRepository private constructor(
                         return@onSuccess
                     }
                     mdbxRecords = records
+                    records.forEach { record ->
+                        accountOrigins[record.account.id] = SteamAccountSessionOrigin(
+                            source = source,
+                            entryId = record.entryId
+                        )
+                    }
                     val previousId = _state.value.selectedAccountId
                     val selected = records.firstOrNull { it.account.id == previousId }?.account
                         ?: records.firstOrNull { it.account.selected }?.account
@@ -224,6 +288,20 @@ class SteamAccountSourceRepository private constructor(
     }
 
     override fun close() = Unit
+
+    private fun currentOriginFor(id: Long): SteamAccountSessionOrigin? {
+        return when (val source = _state.value.storageSource) {
+            SteamStorageSource.Local -> localAccounts.firstOrNull { it.id == id }
+                ?.let { SteamAccountSessionOrigin(SteamStorageSource.Local) }
+            is SteamStorageSource.Mdbx -> mdbxRecords.firstOrNull { it.account.id == id }
+                ?.let {
+                    SteamAccountSessionOrigin(
+                        source = source,
+                        entryId = it.entryId
+                    )
+                }
+        }
+    }
 
     companion object {
         @Volatile
@@ -263,4 +341,3 @@ private fun LocalMdbxDatabase.supportsSteamAccounts(): Boolean =
     sourceTypeEnum == MdbxSourceType.LOCAL_INTERNAL ||
         sourceTypeEnum == MdbxSourceType.LOCAL_EXTERNAL ||
         sourceTypeEnum == MdbxSourceType.REMOTE_WEBDAV
-
