@@ -26,7 +26,6 @@ class SteamChatIntegrationGuardTest {
         val chatScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
         ).readText()
-
         assertTrue(activity.contains("MonicaSteamPage.CHAT"))
         assertTrue(activity.contains("standalone = true"))
         assertTrue(dock.contains("CHAT"))
@@ -78,6 +77,9 @@ class SteamChatIntegrationGuardTest {
         val chatScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
         ).readText()
+        val threadLifecycle = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatThreadLifecycle.kt"
+        ).readText()
         val steamScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/token/ui/SteamScreen.kt"
         ).readText()
@@ -86,7 +88,8 @@ class SteamChatIntegrationGuardTest {
         ).readText()
 
         assertTrue(chatScreen.contains("onThreadVisibilityChange"))
-        assertTrue(chatScreen.contains("DisposableEffect(Unit)"))
+        assertTrue(chatScreen.contains("SteamChatThreadLifecycle("))
+        assertTrue(threadLifecycle.contains("DisposableEffect(Unit)"))
         assertTrue(activity.contains("onThreadVisibilityChange"))
         assertTrue(activity.contains("MonicaSteamPage.CHAT"))
         assertTrue(activity.contains("isSteamChatThreadOpen"))

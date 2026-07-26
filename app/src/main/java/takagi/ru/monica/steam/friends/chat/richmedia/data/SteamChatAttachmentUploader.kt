@@ -21,6 +21,7 @@ import okio.BufferedSink
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentGateway
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentKind
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentTarget
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatPendingAttachment
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatUploadedAttachment
 
@@ -66,14 +67,14 @@ class SteamChatAttachmentUploader internal constructor(
 
     override suspend fun upload(
         account: SteamAccount,
-        partnerSteamId: String,
+        target: SteamChatAttachmentTarget,
         attachment: SteamChatPendingAttachment,
         spoiler: Boolean,
         onProgress: (Float) -> Unit
     ): SteamChatUploadedAttachment {
         val secure = account.steamLoginSecure?.takeIf(String::isNotBlank)
             ?: throw SteamChatUploadException("Steam community session required for attachments")
-        require(partnerSteamId.matches(Regex("7656119\\d{10}"))) { "Valid Steam friend ID required" }
+        val targetFields = target.commitFields(spoiler)
         val uri = Uri.parse(attachment.uri)
         val sessionId = UUID.randomUUID().toString().replace("-", "")
         val uploadName = "${System.nanoTime()}_${sanitizeFilename(attachment.displayName)}"
@@ -93,12 +94,11 @@ class SteamChatAttachmentUploader internal constructor(
                 commitUpload(
                     secure = secure,
                     sessionId = sessionId,
-                    partnerSteamId = partnerSteamId,
                     attachment = attachment,
                     uploadName = uploadName,
                     sha = sha,
                     begin = begin,
-                    spoiler = spoiler,
+                    targetFields = targetFields,
                     success = false
                 )
             }
@@ -107,12 +107,11 @@ class SteamChatAttachmentUploader internal constructor(
         val committed = commitUpload(
             secure = secure,
             sessionId = sessionId,
-            partnerSteamId = partnerSteamId,
             attachment = attachment,
             uploadName = uploadName,
             sha = sha,
             begin = begin,
-            spoiler = spoiler,
+            targetFields = targetFields,
             success = true
         ) ?: throw SteamChatUploadException("Steam returned no attachment result")
         onProgress(1f)
@@ -178,12 +177,11 @@ class SteamChatAttachmentUploader internal constructor(
     private fun commitUpload(
         secure: String,
         sessionId: String,
-        partnerSteamId: String,
         attachment: SteamChatPendingAttachment,
         uploadName: String,
         sha: String,
         begin: SteamChatBeginUploadResponse,
-        spoiler: Boolean,
+        targetFields: List<Pair<String, String>>,
         success: Boolean
     ): SteamChatCommitUploadResponse? {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -198,13 +196,12 @@ class SteamChatAttachmentUploader internal constructor(
             .addFormDataPart("file_image_height", attachment.height.toString())
             .addFormDataPart("timestamp", begin.timestamp.toString())
             .addFormDataPart("hmac", begin.hmac)
-            .addFormDataPart("friend_steamid", partnerSteamId)
-            .addFormDataPart("spoiler", if (spoiler) "1" else "0")
-            .build()
+        targetFields.forEach { (name, value) -> body.addFormDataPart(name, value) }
+        val requestBody = body.build()
         val request = Request.Builder()
             .url(COMMIT_URL)
             .headers(communityHeaders(secure, sessionId))
-            .post(body)
+            .post(requestBody)
             .build()
         return client.newCall(request).execute().use { response ->
             if (!success) return@use null

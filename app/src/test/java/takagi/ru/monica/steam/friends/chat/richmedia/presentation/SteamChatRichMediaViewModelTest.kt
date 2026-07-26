@@ -21,6 +21,7 @@ import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentGateway
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentKind
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentTarget
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatCatalogGateway
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatPendingAttachment
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichMediaCatalog
@@ -43,11 +44,11 @@ class SteamChatRichMediaViewModelTest {
 
     @Test
     fun currentFriendImageUploadReportsCompletionOnlyAfterGatewaySuccess() = runTest(scheduler) {
-        var uploadedPartner = ""
+        var uploadedTarget: SteamChatAttachmentTarget? = null
         var uploadedSpoiler = false
         val gateway = FakeAttachmentGateway().apply {
-            uploadBlock = { _, partner, attachment, spoiler, progress ->
-                uploadedPartner = partner
+            uploadBlock = { _, target, attachment, spoiler, progress ->
+                uploadedTarget = target
                 uploadedSpoiler = spoiler
                 progress(0.6f)
                 SteamChatUploadedAttachment(
@@ -71,7 +72,7 @@ class SteamChatRichMediaViewModelTest {
         viewModel.uploadAttachment()
         runCurrent()
 
-        assertEquals(PARTNER_A, uploadedPartner)
+        assertEquals(SteamChatAttachmentTarget.Friend(PARTNER_A), uploadedTarget)
         assertTrue(uploadedSpoiler)
         assertEquals(123_456L, viewModel.uiState.value.uploadCompletedAt)
         assertNull(viewModel.uiState.value.pendingAttachment)
@@ -105,6 +106,75 @@ class SteamChatRichMediaViewModelTest {
             SteamChatUploadedAttachment(
                 url = "https://steamusercontent.com/ugc/late.png",
                 label = "late.png",
+                kind = SteamChatAttachmentKind.IMAGE,
+                spoiler = false
+            )
+        )
+        runCurrent()
+
+        assertEquals(0L, viewModel.uiState.value.uploadCompletedAt)
+        assertNull(viewModel.uiState.value.pendingAttachment)
+        assertNull(viewModel.uiState.value.attachmentFailure)
+    }
+
+    @Test
+    fun groupRoomUploadUsesTheSelectedSteamGroupAndChatIds() = runTest(scheduler) {
+        var uploadedTarget: SteamChatAttachmentTarget? = null
+        val gateway = FakeAttachmentGateway().apply {
+            uploadBlock = { _, target, attachment, spoiler, _ ->
+                uploadedTarget = target
+                SteamChatUploadedAttachment(
+                    url = "https://steamusercontent.com/ugc/group.png",
+                    label = attachment.displayName,
+                    kind = attachment.kind,
+                    spoiler = spoiler
+                )
+            }
+        }
+        val viewModel = viewModel(gateway)
+        viewModel.selectAccount(account(1L, "76561198000000001"))
+        viewModel.selectGroupRoom(GROUP_ID, CHAT_ID)
+        runCurrent()
+        viewModel.selectAttachment("content://images/group")
+        runCurrent()
+
+        viewModel.uploadAttachment()
+        runCurrent()
+
+        assertEquals(
+            SteamChatAttachmentTarget.GroupRoom(GROUP_ID, CHAT_ID),
+            uploadedTarget
+        )
+        assertEquals(123_456L, viewModel.uiState.value.uploadCompletedAt)
+    }
+
+    @Test
+    fun lateUploadCannotCompleteInsideANewGroupRoom() = runTest(scheduler) {
+        val uploadGate = CompletableDeferred<SteamChatUploadedAttachment>()
+        val gateway = FakeAttachmentGateway().apply {
+            uploadBlock = { _, _, _, _, progress ->
+                progress(0.4f)
+                withContext(NonCancellable) { uploadGate.await() }
+            }
+        }
+        val viewModel = viewModel(gateway)
+        viewModel.selectAccount(account(1L, "76561198000000001"))
+        viewModel.selectGroupRoom(GROUP_ID, CHAT_ID)
+        runCurrent()
+        viewModel.selectAttachment("content://images/group")
+        runCurrent()
+        viewModel.uploadAttachment()
+        runCurrent()
+        assertTrue(viewModel.uiState.value.attachmentUploading)
+
+        viewModel.selectGroupRoom(GROUP_ID_B, CHAT_ID_B)
+        assertFalse(viewModel.uiState.value.attachmentUploading)
+        assertEquals(0L, viewModel.uiState.value.uploadCompletedAt)
+
+        uploadGate.complete(
+            SteamChatUploadedAttachment(
+                url = "https://steamusercontent.com/ugc/late-group.png",
+                label = "late-group.png",
                 kind = SteamChatAttachmentKind.IMAGE,
                 spoiler = false
             )
@@ -157,7 +227,7 @@ class SteamChatRichMediaViewModelTest {
         }
         var uploadBlock: suspend (
             SteamAccount,
-            String,
+            SteamChatAttachmentTarget,
             SteamChatPendingAttachment,
             Boolean,
             (Float) -> Unit
@@ -175,16 +245,20 @@ class SteamChatRichMediaViewModelTest {
 
         override suspend fun upload(
             account: SteamAccount,
-            partnerSteamId: String,
+            target: SteamChatAttachmentTarget,
             attachment: SteamChatPendingAttachment,
             spoiler: Boolean,
             onProgress: (Float) -> Unit
         ): SteamChatUploadedAttachment =
-            uploadBlock(account, partnerSteamId, attachment, spoiler, onProgress)
+            uploadBlock(account, target, attachment, spoiler, onProgress)
     }
 
     private companion object {
         const val PARTNER_A = "76561198000000002"
         const val PARTNER_B = "76561198000000003"
+        const val GROUP_ID = "123456789012345678"
+        const val CHAT_ID = "987654321098765432"
+        const val GROUP_ID_B = "223456789012345678"
+        const val CHAT_ID_B = "887654321098765432"
     }
 }

@@ -14,18 +14,26 @@ class SteamGroupChatIntegrationTest {
         assertTrue(root.resolve("ui").isDirectory)
 
         val service = root.resolve("data/SteamGroupChatService.kt").readText()
+        val attachmentTargets = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/data/SteamChatAttachmentTargetFields.kt"
+        ).readText()
         assertTrue(service.contains("ChatRoom.\$method#1"))
         assertTrue(service.contains("CreateChatRoomGroup"))
         assertTrue(service.contains("GetMyChatRoomGroups"))
         assertTrue(service.contains("GetMessageHistory"))
         assertTrue(service.contains("SendChatMessage"))
         assertTrue(service.contains("InviteFriendToChatRoomGroup"))
+        assertTrue(attachmentTargets.contains("chat_group_id"))
+        assertTrue(attachmentTargets.contains("chat_id"))
     }
 
     @Test
     fun chatPageExposesGroupListCreateInviteAndFullScreenThread() {
         val chatScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
+        ).readText()
+        val threadLifecycle = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatThreadLifecycle.kt"
         ).readText()
         val groupList = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatList.kt"
@@ -42,10 +50,15 @@ class SteamGroupChatIntegrationTest {
         assertTrue(chatScreen.contains("SteamGroupChatThreadHost("))
         assertTrue(chatScreen.contains("SteamGroupChatDialogsHost("))
         assertTrue(chatScreen.contains("groupChatState.selectedChatId != null"))
+        assertTrue(chatScreen.contains("SteamChatThreadLifecycle("))
+        assertTrue(threadLifecycle.contains("richMediaViewModel.selectGroupRoom"))
+        assertTrue(threadLifecycle.contains("groupChatViewModel.refreshThread()"))
         assertTrue(groupList.contains("SteamExpressivePullToRefresh"))
         assertTrue(groupList.contains("ExtendedFloatingActionButton"))
         assertTrue(thread.contains("SteamGroupChatThread("))
         assertTrue(thread.contains("SteamChatRichMessageContent"))
+        assertTrue(thread.contains("SteamChatComposer("))
+        assertTrue(thread.contains("onUploadAttachment"))
         assertTrue(thread.contains("statusBarsPadding()"))
         assertTrue(dialogs.contains("SteamCreateGroupDialog("))
         assertTrue(dialogs.contains("SteamInviteFriendDialog("))

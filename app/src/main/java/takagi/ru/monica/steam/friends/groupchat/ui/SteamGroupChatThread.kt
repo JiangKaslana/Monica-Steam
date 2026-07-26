@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,26 +21,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -50,7 +44,9 @@ import androidx.compose.ui.unit.dp
 import java.text.DateFormat
 import java.util.Date
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaUiState
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMessageContent
+import takagi.ru.monica.steam.friends.chat.ui.SteamChatComposer
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
@@ -60,6 +56,7 @@ import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiSta
 @Composable
 internal fun SteamGroupChatThread(
     state: SteamGroupChatUiState,
+    richMediaState: SteamChatRichMediaUiState,
     group: SteamGroupChatSummary,
     friends: List<SteamFriend>,
     onBack: () -> Unit,
@@ -67,6 +64,12 @@ internal fun SteamGroupChatThread(
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
     onInvite: () -> Unit,
+    onAttachmentSelected: (String) -> Unit,
+    onAttachmentSpoilerChanged: (Boolean) -> Unit,
+    onUploadAttachment: () -> Unit,
+    onClearAttachment: () -> Unit,
+    onClearAttachmentFailure: () -> Unit,
+    onRefreshCatalogs: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
@@ -122,24 +125,42 @@ internal fun SteamGroupChatThread(
                 }
             }
         }
-        GroupComposer(onSend)
+        SteamChatComposer(
+            richMediaState = richMediaState,
+            onSend = onSend,
+            onAttachmentSelected = onAttachmentSelected,
+            onAttachmentSpoilerChanged = onAttachmentSpoilerChanged,
+            onUploadAttachment = onUploadAttachment,
+            onClearAttachment = onClearAttachment,
+            onClearAttachmentFailure = onClearAttachmentFailure,
+            onRefreshCatalogs = onRefreshCatalogs,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 @Composable
 internal fun SteamGroupChatThreadHost(
     state: SteamGroupChatUiState,
+    richMediaState: SteamChatRichMediaUiState,
     friends: List<SteamFriend>,
     onBack: () -> Unit,
     onOpenRoom: (String, String) -> Unit,
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
     onInvite: () -> Unit,
+    onAttachmentSelected: (String) -> Unit,
+    onAttachmentSpoilerChanged: (Boolean) -> Unit,
+    onUploadAttachment: () -> Unit,
+    onClearAttachment: () -> Unit,
+    onClearAttachmentFailure: () -> Unit,
+    onRefreshCatalogs: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val group = state.groups.firstOrNull { it.groupId == state.selectedGroupId } ?: return
     SteamGroupChatThread(
         state = state,
+        richMediaState = richMediaState,
         group = group,
         friends = friends,
         onBack = onBack,
@@ -147,6 +168,12 @@ internal fun SteamGroupChatThreadHost(
         onLoadOlder = onLoadOlder,
         onSend = onSend,
         onInvite = onInvite,
+        onAttachmentSelected = onAttachmentSelected,
+        onAttachmentSpoilerChanged = onAttachmentSpoilerChanged,
+        onUploadAttachment = onUploadAttachment,
+        onClearAttachment = onClearAttachment,
+        onClearAttachmentFailure = onClearAttachmentFailure,
+        onRefreshCatalogs = onRefreshCatalogs,
         modifier = modifier
     )
 }
@@ -208,32 +235,6 @@ private fun GroupMessageBubble(message: SteamGroupChatMessage, outgoing: Boolean
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun GroupComposer(onSend: (String) -> Unit) {
-    var text by remember { mutableStateOf("") }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier.weight(1f).heightIn(min = 52.dp, max = 132.dp),
-                placeholder = { Text(stringResource(R.string.steam_group_chat_message_hint)) },
-                shape = RoundedCornerShape(24.dp),
-                maxLines = 5
-            )
-            FilledIconButton(
-                onClick = { val body = text.trim(); if (body.isNotBlank()) { onSend(body); text = "" } },
-                enabled = text.isNotBlank(),
-                modifier = Modifier.size(48.dp)
-            ) { Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.steam_chat_send_message)) }
         }
     }
 }

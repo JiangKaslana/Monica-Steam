@@ -20,6 +20,7 @@ import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatAttachmentUploader
 import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatCatalogService
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentGateway
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentTarget
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatCatalogGateway
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEmoticon
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEffect
@@ -54,7 +55,7 @@ class SteamChatRichMediaViewModel(
     val uiState: StateFlow<SteamChatRichMediaUiState> = _uiState.asStateFlow()
 
     private var account: SteamAccount? = null
-    private var partnerSteamId: String? = null
+    private var attachmentTarget: SteamChatAttachmentTarget? = null
     private var catalogGeneration = 0L
     private var attachmentGeneration = 0L
     private var attachmentPreparationJob: Job? = null
@@ -73,8 +74,24 @@ class SteamChatRichMediaViewModel(
     }
 
     fun selectPartner(steamId: String?) {
-        if (partnerSteamId == steamId) return
-        partnerSteamId = steamId
+        selectAttachmentTarget(
+            steamId?.takeIf(String::isNotBlank)?.let { SteamChatAttachmentTarget.Friend(it) }
+        )
+    }
+
+    fun selectGroupRoom(groupId: String?, chatId: String?) {
+        selectAttachmentTarget(
+            if (!groupId.isNullOrBlank() && !chatId.isNullOrBlank()) {
+                SteamChatAttachmentTarget.GroupRoom(groupId, chatId)
+            } else {
+                null
+            }
+        )
+    }
+
+    private fun selectAttachmentTarget(target: SteamChatAttachmentTarget?) {
+        if (attachmentTarget == target) return
+        attachmentTarget = target
         clearAttachment()
     }
 
@@ -134,7 +151,7 @@ class SteamChatRichMediaViewModel(
 
     fun uploadAttachment() {
         val currentAccount = account ?: return
-        val currentPartner = partnerSteamId ?: return
+        val currentTarget = attachmentTarget ?: return
         val attachment = _uiState.value.pendingAttachment ?: return
         if (_uiState.value.attachmentUploading) return
         val spoiler = _uiState.value.attachmentSpoiler
@@ -152,11 +169,11 @@ class SteamChatRichMediaViewModel(
                 withContext(ioDispatcher) {
                     attachmentGateway.upload(
                         account = sessionResolver.resolveOrKeep(currentAccount),
-                        partnerSteamId = currentPartner,
+                        target = currentTarget,
                         attachment = attachment,
                         spoiler = spoiler,
                         onProgress = { progress ->
-                            if (isCurrentAttachmentRequest(generation, currentAccount, currentPartner)) {
+                            if (isCurrentAttachmentRequest(generation, currentAccount, currentTarget)) {
                                 _uiState.update {
                                     it.copy(attachmentProgress = progress.coerceIn(0f, 1f))
                                 }
@@ -165,7 +182,7 @@ class SteamChatRichMediaViewModel(
                     )
                 }
             }
-            if (!isCurrentAttachmentRequest(generation, currentAccount, currentPartner)) {
+            if (!isCurrentAttachmentRequest(generation, currentAccount, currentTarget)) {
                 return@launch
             }
             result.fold(
@@ -246,10 +263,10 @@ class SteamChatRichMediaViewModel(
     private fun isCurrentAttachmentRequest(
         generation: Long,
         expectedAccount: SteamAccount,
-        expectedPartner: String
+        expectedTarget: SteamChatAttachmentTarget
     ): Boolean = generation == attachmentGeneration &&
         sameRichMediaAccount(account, expectedAccount) &&
-        partnerSteamId == expectedPartner
+        attachmentTarget == expectedTarget
 
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory {

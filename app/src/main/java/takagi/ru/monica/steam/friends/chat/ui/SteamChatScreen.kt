@@ -120,37 +120,23 @@ fun SteamChatScreen(
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
-    LaunchedEffect(chatState.selectedPartnerSteamId, groupChatState.selectedChatId) {
-        richMediaViewModel.selectPartner(chatState.selectedPartnerSteamId)
-        onThreadVisibilityChange(
-            chatState.selectedPartnerSteamId != null || groupChatState.selectedChatId != null
-        )
-    }
-    DisposableEffect(Unit) {
-        onDispose { onThreadVisibilityChange(false) }
-    }
-    LaunchedEffect(richMediaState.uploadCompletedAt) {
-        if (richMediaState.uploadCompletedAt > 0L) chatViewModel.refreshThread()
-    }
+    SteamChatThreadLifecycle(
+        chatState = chatState,
+        groupChatState = groupChatState,
+        uploadCompletedAt = richMediaState.uploadCompletedAt,
+        refreshRequest = refreshRequest,
+        chatViewModel = chatViewModel,
+        groupChatViewModel = groupChatViewModel,
+        richMediaViewModel = richMediaViewModel,
+        friendsViewModel = friendsViewModel,
+        onThreadVisibilityChange = onThreadVisibilityChange
+    )
     LaunchedEffect(requestedPartnerSteamId, selectedAccount?.id) {
         val partner = requestedPartnerSteamId?.takeIf(String::isNotBlank) ?: return@LaunchedEffect
         if (selectedAccount != null) {
             showFriends = false
             chatViewModel.openThread(partner)
             onConsumeRequestedPartner()
-        }
-    }
-
-    LaunchedEffect(refreshRequest) {
-        if (refreshRequest <= 0L) return@LaunchedEffect
-        if (groupChatState.selectedChatId != null) {
-            groupChatViewModel.refreshThread()
-        } else if (chatState.selectedPartnerSteamId == null) {
-            chatViewModel.refreshSessions()
-            groupChatViewModel.refreshGroups()
-            friendsViewModel.refresh()
-        } else {
-            chatViewModel.refreshThread()
         }
     }
 
@@ -358,12 +344,19 @@ fun SteamChatScreen(
         } else {
             SteamGroupChatThreadHost(
                 state = groupChatState,
+                richMediaState = richMediaState,
                 friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
                 onBack = groupChatViewModel::closeRoom,
                 onOpenRoom = groupChatViewModel::openRoom,
                 onLoadOlder = groupChatViewModel::loadOlder,
                 onSend = groupChatViewModel::sendMessage,
                 onInvite = { showInviteFriend = true },
+                onAttachmentSelected = richMediaViewModel::selectAttachment,
+                onAttachmentSpoilerChanged = richMediaViewModel::setAttachmentSpoiler,
+                onUploadAttachment = richMediaViewModel::uploadAttachment,
+                onClearAttachment = richMediaViewModel::clearAttachment,
+                onClearAttachmentFailure = richMediaViewModel::clearAttachmentFailure,
+                onRefreshCatalogs = richMediaViewModel::refreshCatalogs,
                 modifier = Modifier.fillMaxSize()
             )
         }
