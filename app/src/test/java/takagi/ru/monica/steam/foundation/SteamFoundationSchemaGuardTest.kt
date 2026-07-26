@@ -7,7 +7,7 @@ import org.junit.Test
 
 class SteamFoundationSchemaGuardTest {
     @Test
-    fun steamDatabaseV5KeepsV4MigrationAndAddsEncryptedLibraryCaches() {
+    fun steamDatabaseV6KeepsEarlierMigrationsAndAddsDurableOutbox() {
         val database = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/data/SteamDatabase.kt"
         ).readText()
@@ -31,9 +31,11 @@ class SteamFoundationSchemaGuardTest {
         assertTrue(database.contains("SteamSecurityEventEntity::class"))
         assertTrue(database.contains("SteamLibraryCacheEntity::class"))
         assertTrue(database.contains("SteamAchievementsCacheEntity::class"))
-        assertTrue(database.contains("version = 5"))
+        assertTrue(database.contains("SteamOutboxEntity::class"))
+        assertTrue(database.contains("version = 6"))
         assertTrue(database.contains(".addMigrations(migration3To4())"))
         assertTrue(database.contains(".addMigrations(migration4To5())"))
+        assertTrue(database.contains(".addMigrations(migration5To6())"))
         assertTrue(database.contains("ALTER TABLE steam_accounts ADD COLUMN groupName TEXT"))
         assertTrue(database.contains("ALTER TABLE steam_accounts ADD COLUMN tagsJson TEXT NOT NULL DEFAULT '[]'"))
         assertTrue(database.contains("ALTER TABLE steam_accounts ADD COLUMN accentArgb INTEGER"))
@@ -43,6 +45,7 @@ class SteamFoundationSchemaGuardTest {
         assertTrue(database.contains("CREATE TABLE IF NOT EXISTS steam_security_events"))
         assertTrue(database.contains("CREATE TABLE IF NOT EXISTS steam_library_cache"))
         assertTrue(database.contains("CREATE TABLE IF NOT EXISTS steam_achievements_cache"))
+        assertTrue(database.contains("CREATE TABLE IF NOT EXISTS steam_outbox"))
         val migration3To4 = database
             .substringAfter("private fun migration3To4")
             .substringBefore("private fun migration1To2")

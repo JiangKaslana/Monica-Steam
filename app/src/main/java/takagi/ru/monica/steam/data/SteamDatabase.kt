@@ -10,21 +10,25 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import takagi.ru.monica.security.SecurityManager
+import takagi.ru.monica.steam.outbox.data.SteamOutboxDao
+import takagi.ru.monica.steam.outbox.data.SteamOutboxEntity
 
 @Database(
     entities = [
         SteamAccountEntity::class,
         SteamSecurityEventEntity::class,
         SteamLibraryCacheEntity::class,
-        SteamAchievementsCacheEntity::class
+        SteamAchievementsCacheEntity::class,
+        SteamOutboxEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class SteamDatabase : RoomDatabase() {
     abstract fun steamAccountDao(): SteamAccountDao
     abstract fun steamSecurityEventDao(): SteamSecurityEventDao
     abstract fun steamLibraryCacheDao(): SteamLibraryCacheDao
+    abstract fun steamOutboxDao(): SteamOutboxDao
 
     companion object {
         @Volatile
@@ -41,6 +45,7 @@ abstract class SteamDatabase : RoomDatabase() {
                     .addMigrations(migration2To3())
                     .addMigrations(migration3To4())
                     .addMigrations(migration4To5())
+                    .addMigrations(migration5To6())
                     .build()
                 INSTANCE = instance
                 instance
@@ -141,6 +146,39 @@ abstract class SteamDatabase : RoomDatabase() {
             return object : Migration(1, 2) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     encryptExistingSteamRows(db, SecurityManager(context))
+                }
+            }
+        }
+
+        private fun migration5To6(): Migration {
+            return object : Migration(5, 6) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS steam_outbox (
+                            id TEXT NOT NULL PRIMARY KEY,
+                            account_id INTEGER NOT NULL,
+                            account_steam_id TEXT NOT NULL,
+                            operation TEXT NOT NULL,
+                            dedupe_key TEXT NOT NULL,
+                            payload TEXT NOT NULL,
+                            status TEXT NOT NULL,
+                            attempt_count INTEGER NOT NULL,
+                            next_attempt_at INTEGER NOT NULL,
+                            created_at INTEGER NOT NULL,
+                            updated_at INTEGER NOT NULL,
+                            last_error TEXT
+                        )
+                        """.trimIndent()
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_steam_outbox_account_id_status_next_attempt_at " +
+                            "ON steam_outbox(account_id, status, next_attempt_at)"
+                    )
+                    db.execSQL(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS index_steam_outbox_dedupe_key " +
+                            "ON steam_outbox(dedupe_key)"
+                    )
                 }
             }
         }

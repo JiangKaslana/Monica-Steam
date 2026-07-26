@@ -10,7 +10,7 @@ import takagi.ru.monica.data.BottomNavVisibility
 
 class SteamBoundaryGuardTest {
     @Test
-    fun standaloneSettingsDoNotExposeCrossDeviceOrCloudSurfaces() {
+    fun standaloneSettingsDoNotExposeUnscopedCrossDeviceSurfaces() {
         val activity = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
         ).readText()
@@ -21,7 +21,9 @@ class SteamBoundaryGuardTest {
         assertTrue(activity.contains("MonicaSteamSettingsScreen("))
         assertFalse(activity.contains("import takagi.ru.monica.ui.screens.SettingsScreen"))
         assertFalse(settings.contains("onNavigateToSyncBackup"))
-        assertFalse(settings.contains("WebDav"))
+        // Steam maFile WebDAV backup is intentionally retained, but it must
+        // remain behind the Steam-specific encrypted flow.
+        assertTrue(settings.contains("onOpenWebDavBackup"))
         assertFalse(settings.contains("Bitwarden"))
         assertFalse(settings.contains("SyncBackupScreen"))
         assertFalse(settings.contains("Wear"))
@@ -138,11 +140,12 @@ class SteamBoundaryGuardTest {
         assertTrue(daoSource.contains("ORDER BY sortOrder ASC, id ASC"))
         assertTrue(daoSource.contains("updateSortOrders(items: List<Pair<Long, Int>>)"))
 
-        assertTrue(databaseSource.contains("version = 5"))
+        assertTrue(databaseSource.contains("version = 6"))
         assertTrue(databaseSource.contains(".addMigrations(migration1To2(context.applicationContext))"))
         assertTrue(databaseSource.contains(".addMigrations(migration2To3())"))
         assertTrue(databaseSource.contains(".addMigrations(migration3To4())"))
         assertTrue(databaseSource.contains(".addMigrations(migration4To5())"))
+        assertTrue(databaseSource.contains(".addMigrations(migration5To6())"))
         assertTrue(databaseSource.contains("encryptExistingSteamRows"))
         assertTrue(databaseSource.contains("ALTER TABLE steam_accounts ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0"))
         assertTrue(databaseSource.contains("SELECT id FROM steam_accounts ORDER BY selected DESC, updatedAt DESC"))
@@ -858,7 +861,7 @@ class SteamBoundaryGuardTest {
         assertTrue(qrCameraSessionSource.contains("controller.unbind()"))
         assertTrue(qrScannerSource.contains("scanGeneration"))
         assertTrue(qrScannerSource.contains("QR_SCAN_SESSION_RESTART_DELAY_MS"))
-        assertTrue(qrCameraSessionSource.contains("processingFrame.compareAndSet(false, true)"))
+        assertTrue(qrScannerSource.contains("scanConsumed.compareAndSet(false, true)"))
         assertTrue(qrHealthPolicySource.contains("DEFAULT_REFOCUS_INTERVAL_MS"))
         assertTrue(qrHealthPolicySource.contains("FrameStreamStopped"))
         assertFalse(qrCameraSessionSource.contains("DecoratedBarcodeView"))

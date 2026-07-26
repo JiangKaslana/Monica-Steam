@@ -17,9 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.chat.data.SteamChatCache
-import takagi.ru.monica.steam.friends.chat.data.SteamChatPreferencesCache
-import takagi.ru.monica.steam.friends.chat.data.SteamChatSessionStore
-import takagi.ru.monica.steam.friends.chat.data.SteamFriendChatService
+import takagi.ru.monica.steam.friends.chat.data.SteamChatOutbox
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatGateway
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatHistoryBoundary
@@ -28,7 +26,6 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatThreadSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.mergeSteamChatMessages
 import takagi.ru.monica.steam.network.SteamSessionRefreshService
-
 class SteamChatViewModel(
     private val gateway: SteamChatGateway,
     private val cache: SteamChatCache,
@@ -37,11 +34,11 @@ class SteamChatViewModel(
     private val persistSession: suspend (SteamAccount) -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val nowMillis: () -> Long = System::currentTimeMillis,
-    private val clientMessageId: () -> String = { UUID.randomUUID().toString() }
+    private val clientMessageId: () -> String = { UUID.randomUUID().toString() },
+    private val outbox: SteamChatOutbox? = null
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SteamChatUiState())
     val uiState: StateFlow<SteamChatUiState> = _uiState.asStateFlow()
-
     private var activeAccount: SteamAccount? = null
     private val requestGuard = SteamChatRequestGuard()
     private var pollingJob: Job? = null
@@ -52,7 +49,8 @@ class SteamChatViewModel(
         sessionRefreshService = sessionRefreshService,
         forceSessionRefresh = forceSessionRefresh,
         persistSession = persistSession,
-        ioDispatcher = ioDispatcher
+        ioDispatcher = ioDispatcher,
+        outbox = outbox
     )
 
     fun selectAccount(account: SteamAccount?) {
@@ -87,7 +85,6 @@ class SteamChatViewModel(
         }
         restartPolling()
     }
-
     fun openThread(partnerSteamId: String) {
         val account = activeAccount ?: return
         if (partnerSteamId.isBlank()) return
@@ -111,10 +108,25 @@ class SteamChatViewModel(
                 threadRefreshing = cached != null,
                 threadFromCache = cached != null
             )
+            recoverPendingSteamChatOutbox(
+                outbox = outbox,
+                account = account,
+                partnerSteamId = partnerSteamId,
+                ioDispatcher = ioDispatcher,
+                isCurrent = { isThreadCurrent(account, partnerSteamId, generation) },
+                onRecovered = { item ->
+                    updateMessage(account, partnerSteamId, item.message)
+                    dispatchSend(
+                        account = account,
+                        partnerSteamId = partnerSteamId,
+                        pending = item.message,
+                        verifyBeforeSend = item.verifyBeforeSend
+                    )
+                }
+            )
             fetchThread(account, partnerSteamId, generation, silent = cached != null)
         }
     }
-
     fun closeThread() {
         requestGuard.closeThread()
         _uiState.value = _uiState.value.copy(
@@ -127,7 +139,6 @@ class SteamChatViewModel(
             threadFailure = null
         )
     }
-
     fun refreshSessions() {
         val account = activeAccount ?: return
         val generation = requestGuard.nextSessions()
@@ -138,7 +149,6 @@ class SteamChatViewModel(
         )
         fetchSessions(account, generation, silent = false)
     }
-
     fun refreshThread() {
         val account = activeAccount ?: return
         val partnerSteamId = _uiState.value.selectedPartnerSteamId ?: return
@@ -348,6 +358,7 @@ class SteamChatViewModel(
             onUpdate = { updateMessage(account, partnerSteamId, it) }
         )
     }
+
     private fun updateMessage(
         account: SteamAccount,
         partnerSteamId: String,
@@ -433,18 +444,7 @@ class SteamChatViewModel(
     companion object {
         private const val POLL_INTERVAL_MILLIS = 15_000L
 
-        fun factory(context: Context): ViewModelProvider.Factory {
-            val appContext = context.applicationContext
-            val sessionStore = lazy { SteamChatSessionStore.from(appContext) }
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    SteamChatViewModel(
-                        gateway = SteamFriendChatService(),
-                        cache = SteamChatPreferencesCache(appContext),
-                        persistSession = { account -> sessionStore.value.persist(account) }
-                    ) as T
-            }
-        }
+        fun factory(context: Context): ViewModelProvider.Factory =
+            SteamChatViewModelFactory.create(context)
     }
 }

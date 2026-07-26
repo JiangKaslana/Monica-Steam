@@ -95,8 +95,9 @@ class SteamLibraryIntegrationGuardTest {
             .substringAfter("is SteamLibraryResult.Failure -> {")
             .substringBefore("fun openGame")
         assertFalse(failureBranch.contains("cacheRepository.saveLibrary"))
-        assertTrue(database.contains("version = 5"))
+        assertTrue(database.contains("version = 6"))
         assertTrue(database.contains("migration4To5()"))
+        assertTrue(database.contains("migration5To6()"))
         assertTrue(database.contains("ON DELETE CASCADE"))
     }
 
