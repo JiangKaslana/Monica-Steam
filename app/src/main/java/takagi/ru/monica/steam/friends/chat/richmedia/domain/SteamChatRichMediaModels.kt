@@ -12,7 +12,7 @@ data class SteamChatEmoticon(
 ) {
     val messageCode: String get() = ":$name:"
     val imageUrl: String get() =
-        "https://steamcommunity.com/economy/emoticon/${encodeSteamChatPath(name)}"
+        "https://steamcommunity.com/economy/emoticonlarge/${encodeSteamChatPath(name)}"
 }
 
 data class SteamChatSticker(

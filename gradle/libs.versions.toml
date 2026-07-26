@@ -35,9 +35,11 @@ work = "2.8.1"  # WorkManager for auto backup
 reorderable = "3.0.0"  # Compose Reorderable for drag-and-drop sorting
 koin = "3.5.6"  # Koin dependency injection for autofill architecture
 jsoup = "1.18.3"
+apng = "3.0.5"
 
 [libraries]
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
+apng = { group = "com.github.penfeizhou.android.animation", name = "apng", version.ref = "apng" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }  # 添加splashscreen库
 junit = { group = "junit", name = "junit", version.ref = "junit" }

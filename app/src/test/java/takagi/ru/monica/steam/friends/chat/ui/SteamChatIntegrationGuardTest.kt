@@ -113,7 +113,9 @@ class SteamChatIntegrationGuardTest {
         val remoteImage = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRemoteImage.kt"
         ).readText()
-        assertTrue(remoteImage.contains("AnimatedImageDrawable"))
+        assertTrue(remoteImage.contains("Animatable"))
+        assertTrue(remoteImage.contains("APNGDrawable"))
+        assertTrue(remoteImage.contains("isAnimatedPng"))
         assertTrue(remoteImage.contains("onDispose { animated?.stop() }"))
         assertTrue(picker.contains("catalogFailure"))
         assertFalse(picker.contains("ModalBottomSheet"))

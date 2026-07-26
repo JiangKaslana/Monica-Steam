@@ -1,7 +1,7 @@
 package takagi.ru.monica.steam.friends.chat.richmedia.ui
 
 import android.graphics.ImageDecoder
-import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.Animatable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.widget.ImageView
@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.github.penfeizhou.animation.apng.APNGDrawable
+import com.github.penfeizhou.animation.loader.ByteBufferLoader
 import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,7 +43,14 @@ internal fun SteamChatRemoteImage(
     var image by remember(url) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(url) {
         val payload = loadSteamRemoteBytes(context, url) ?: return@LaunchedEffect
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (isAnimatedPng(payload)) {
+            drawable = withContext(Dispatchers.Default) {
+                APNGDrawable(SteamChatByteBufferLoader(payload)).apply {
+                    setAutoPlay(false)
+                    setLoopLimit(0)
+                }
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             drawable = runCatching {
                 withContext(Dispatchers.Default) {
                     ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(payload)))
@@ -53,25 +62,40 @@ internal fun SteamChatRemoteImage(
             }
         }
     }
-    val animated = drawable as? AnimatedImageDrawable
+    val currentDrawable = drawable
+    val animated = currentDrawable as? Animatable
     DisposableEffect(animated, playAnimation) {
         if (playAnimation) animated?.start() else animated?.stop()
         onDispose { animated?.stop() }
     }
     when {
         animated != null -> AndroidView(
-            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
+            factory = {
+                ImageView(it).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    this.contentDescription = contentDescription
+                }
+            },
             modifier = modifier,
             update = { view ->
-                if (view.drawable !== animated) view.setImageDrawable(animated)
+                if (view.drawable !== currentDrawable) view.setImageDrawable(currentDrawable)
+                view.contentDescription = contentDescription
                 if (playAnimation && !animated.isRunning) animated.start()
                 if (!playAnimation && animated.isRunning) animated.stop()
             }
         )
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && drawable != null -> AndroidView(
-            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
+            factory = {
+                ImageView(it).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    this.contentDescription = contentDescription
+                }
+            },
             modifier = modifier,
-            update = { view -> if (view.drawable !== drawable) view.setImageDrawable(drawable) }
+            update = { view ->
+                if (view.drawable !== drawable) view.setImageDrawable(drawable)
+                view.contentDescription = contentDescription
+            }
         )
         image != null -> Image(
             bitmap = requireNotNull(image),
@@ -83,4 +107,10 @@ internal fun SteamChatRemoteImage(
             Icon(Icons.Default.EmojiEmotions, contentDescription = contentDescription)
         }
     }
+}
+
+private class SteamChatByteBufferLoader(
+    private val payload: ByteArray
+) : ByteBufferLoader() {
+    override fun getByteBuffer(): ByteBuffer = ByteBuffer.wrap(payload)
 }

@@ -6,6 +6,22 @@ import org.junit.Test
 
 class SteamChatRichMediaModelsTest {
     @Test
+    fun usesOfficialHighResolutionEmoticonsAndAnimatedStickerEndpoint() {
+        assertEquals(
+            "https://steamcommunity.com/economy/emoticonlarge/steamthumbsup",
+            SteamChatEmoticon("steamthumbsup").imageUrl
+        )
+        assertEquals(
+            "https://steamcommunity.com/economy/sticker/steamhappy",
+            SteamChatSticker("steamhappy").imageUrl
+        )
+        assertEquals(
+            "https://steamcommunity.com/economy/sticker/steamhappy",
+            SteamChatRichContent.Sticker("steamhappy").imageUrl
+        )
+    }
+
+    @Test
     fun parsesOfficialStickerSlashCommand() {
         val content = SteamChatRichContentParser.parse("/sticker Mesmer spin")
 
