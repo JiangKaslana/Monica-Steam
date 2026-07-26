@@ -9,6 +9,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import takagi.ru.monica.data.LocalMdbxDatabase
@@ -231,6 +232,36 @@ class SteamAccountSourceRepository private constructor(
                 sessionManager.resolve(handle, forceRefresh).account
             } ?: account
         }
+
+    /**
+     * Takes an immutable background-work snapshot across Room and every
+     * configured Steam-capable MDBX source.  Each handle carries the exact
+     * origin that owns any future token rotation.
+     */
+    suspend fun loadAllSessionHandles(): List<SteamAccountSessionHandle> {
+        val localHandles = localRepository.observeAccounts().first().map { account ->
+            SteamAccountSessionHandle(
+                account = account,
+                origin = SteamAccountSessionOrigin(SteamStorageSource.Local)
+            ).also { handle -> accountOrigins[account.id] = handle.origin }
+        }
+        val mdbxHandles = databaseDao.getAllDatabases().first()
+            .filter(LocalMdbxDatabase::supportsSteamAccounts)
+            .flatMap { database ->
+                runCatching { mdbxAccountStore.loadAccounts(database.id) }
+                    .getOrDefault(emptyList())
+                    .map { record ->
+                        SteamAccountSessionHandle(
+                            account = record.account,
+                            origin = SteamAccountSessionOrigin(
+                                source = SteamStorageSource.Mdbx(database.id),
+                                entryId = record.entryId
+                            )
+                        ).also { handle -> accountOrigins[record.account.id] = handle.origin }
+                    }
+            }
+        return (localHandles + mdbxHandles).distinctBy(SteamAccountSessionHandle::stableKey)
+    }
 
     private fun publishLocalAccounts(accounts: List<SteamAccount>) {
         accounts.forEach { account ->

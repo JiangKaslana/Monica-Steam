@@ -64,6 +64,24 @@ class SteamAlertIntegrationGuardTest {
         assertTrue(settings.contains("SteamAlertScheduler.sync(context)"))
     }
 
+    @Test
+    fun receiverUsesSourceAwareHandlesInsteadOfWritingRoomDirectly() {
+        val receiver = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/alerts/data/SteamAlertReceiver.kt"
+        ).readText()
+        val sources = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/data/SteamAccountSourceRepository.kt"
+        ).readText()
+
+        assertTrue(receiver.contains("SteamAlertAccountSessionProvider"))
+        assertTrue(receiver.contains("sourceRepository.loadAllSessionHandles()"))
+        assertTrue(receiver.contains("sourceRepository.sessionManager.resolve(handle)"))
+        assertFalse(receiver.contains("SteamSessionRefreshService"))
+        assertFalse(receiver.contains("SteamAccountRepository("))
+        assertTrue(sources.contains("suspend fun loadAllSessionHandles()"))
+        assertTrue(sources.contains("SteamStorageSource.Mdbx(database.id)"))
+    }
+
     private fun projectFile(path: String): File {
         var dir = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (

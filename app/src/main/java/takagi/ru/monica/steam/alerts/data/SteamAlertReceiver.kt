@@ -8,13 +8,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import takagi.ru.monica.security.SecurityManager
-import takagi.ru.monica.steam.data.SteamAccount
-import takagi.ru.monica.steam.data.SteamAccountRepository
+import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.data.SteamDatabase
 import takagi.ru.monica.steam.network.SteamAuthorizedDeviceService
 import takagi.ru.monica.steam.network.SteamConfirmationService
-import takagi.ru.monica.steam.network.SteamSessionRefreshService
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.alerts.domain.*
 import takagi.ru.monica.steam.notifications.data.SteamNotificationService
@@ -50,48 +47,17 @@ class SteamAlertReceiver : BroadcastReceiver() {
         if (!settings.enabled) return
 
         val database = SteamDatabase.getDatabase(context)
-        val repository = SteamAccountRepository(
-            database.steamAccountDao(),
-            SecurityManager(context)
-        )
-        val accounts = repository.observeAccounts().first()
-        val sessionService = SteamSessionRefreshService()
+        val sourceRepository = SteamAccountSourceRepository.get(context)
+        val sessionSnapshot = SteamAlertAccountSessionProvider(
+            loadHandles = { sourceRepository.loadAllSessionHandles() },
+            resolve = { handle -> sourceRepository.sessionManager.resolve(handle) }
+        ).load(refreshSessions = settings.sessionEnabled)
+        val accounts = sessionSnapshot.allAccounts
+        val usableAccounts = sessionSnapshot.usableAccounts
+        val sessionIssues = sessionSnapshot.sessionIssues
         val confirmationService = SteamConfirmationService()
         val deviceService = SteamAuthorizedDeviceService()
         val notificationService = SteamNotificationService()
-        val usableAccounts = mutableListOf<SteamAccount>()
-        var sessionIssues = 0
-
-        accounts.forEach { account ->
-            val refreshed = if (
-                settings.sessionEnabled &&
-                sessionService.shouldRefresh(account)
-            ) {
-                sessionService.refreshIfNeeded(account)?.also { result ->
-                    repository.updateSessionTokens(
-                        id = account.id,
-                        accessToken = result.accessToken,
-                        refreshToken = result.refreshToken,
-                        steamLoginSecure = "${account.steamId}||${result.accessToken}"
-                    )
-                }?.let { result ->
-                    account.copy(
-                        accessToken = result.accessToken,
-                        refreshToken = result.refreshToken ?: account.refreshToken,
-                        steamLoginSecure = "${account.steamId}||${result.accessToken}"
-                    )
-                }
-            } else {
-                account
-            }
-            if (refreshed == null) {
-                sessionIssues++
-            } else if (refreshed.accessToken.isNullOrBlank() && refreshed.refreshToken.isNullOrBlank()) {
-                sessionIssues++
-            } else {
-                usableAccounts += refreshed
-            }
-        }
 
         var unreadNotifications = 0
         if (settings.notificationsEnabled) {
