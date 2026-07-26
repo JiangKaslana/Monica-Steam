@@ -1,19 +1,21 @@
 package takagi.ru.monica.steam.friends.chat.ui
 
 import java.io.File
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SteamChatEmoticonSizingTest {
     @Test
-    fun remoteSteamImagesUpscaleSmallOfficialAssets() {
+    fun remoteSteamImagesUseNearestNeighborForEmoticonsAndDoNotUpscaleStickers() {
         val source = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRemoteImage.kt"
         ).readText()
 
         assertTrue(source.contains("ImageView.ScaleType.FIT_CENTER"))
-        assertFalse(source.contains("ImageView.ScaleType.CENTER_INSIDE"))
+        assertTrue(source.contains("ImageView.ScaleType.CENTER_INSIDE"))
+        assertTrue(source.contains("FilterQuality.None"))
+        assertTrue(source.contains("ContentScale.Inside"))
+        assertTrue(source.contains("setAutoPlay(true)"))
     }
 
     @Test

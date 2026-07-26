@@ -73,7 +73,8 @@ internal fun SteamChatRichMessageContent(
         is SteamChatRichContent.Sticker -> SteamChatRemoteImage(
             url = content.imageUrl,
             contentDescription = content.name,
-            modifier = modifier.size(184.dp)
+            modifier = modifier.size(184.dp),
+            mode = SteamChatRemoteImageMode.STICKER
         )
         is SteamChatRichContent.Attachment -> AttachmentContent(content, modifier)
     }
@@ -274,7 +275,8 @@ private fun SteamChatEmoticonText(body: String, modifier: Modifier) {
         SteamChatRemoteImage(
             url = SteamChatEmoticon(name).imageUrl,
             contentDescription = name,
-            modifier = modifier.size(60.dp)
+            modifier = modifier.size(60.dp),
+            mode = SteamChatRemoteImageMode.EMOTICON
         )
         return
     }
@@ -298,7 +300,8 @@ private fun SteamChatEmoticonText(body: String, modifier: Modifier) {
                 SteamChatRemoteImage(
                     url = SteamChatEmoticon(name).imageUrl,
                     contentDescription = name,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    mode = SteamChatRemoteImageMode.EMOTICON
                 )
             }
         }.toMap()

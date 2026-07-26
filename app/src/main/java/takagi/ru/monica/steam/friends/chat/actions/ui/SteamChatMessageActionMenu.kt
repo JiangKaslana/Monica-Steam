@@ -56,6 +56,7 @@ import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatSticker
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.RichPickerPage
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichPickerPageSplitButton
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImage
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImageMode
 
 @Composable
 fun SteamChatMessageActionMenu(
@@ -174,7 +175,8 @@ fun SteamChatReactionPicker(
                 SteamChatRemoteImage(
                     url = sticker.imageUrl,
                     contentDescription = sticker.title,
-                    modifier = Modifier.padding(18.dp).size(224.dp)
+                    modifier = Modifier.padding(18.dp).size(224.dp),
+                    mode = SteamChatRemoteImageMode.STICKER
                 )
             }
         }
@@ -202,7 +204,8 @@ private fun EmoticonReactionGrid(
                 SteamChatRemoteImage(
                     url = emoticon.imageUrl,
                     contentDescription = emoticon.name,
-                    modifier = Modifier.padding(6.dp).size(52.dp)
+                    modifier = Modifier.padding(6.dp).size(52.dp),
+                    mode = SteamChatRemoteImageMode.EMOTICON
                 )
             }
         }
@@ -234,7 +237,8 @@ private fun StickerReactionGrid(
                 SteamChatRemoteImage(
                     url = sticker.imageUrl,
                     contentDescription = sticker.title,
-                    modifier = Modifier.padding(5.dp).size(78.dp)
+                    modifier = Modifier.padding(5.dp).size(78.dp),
+                    mode = SteamChatRemoteImageMode.STICKER
                 )
             }
         }

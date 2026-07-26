@@ -263,7 +263,7 @@ private fun EmoticonGrid(
         emoticons.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
     }
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(44.dp),
+        columns = GridCells.Adaptive(56.dp),
         modifier = Modifier.fillMaxWidth().height(PICKER_GRID_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -277,7 +277,8 @@ private fun EmoticonGrid(
                 SteamChatRemoteImage(
                     url = emoticon.imageUrl,
                     contentDescription = emoticon.name,
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier.padding(4.dp),
+                    mode = SteamChatRemoteImageMode.EMOTICON
                 )
             }
         }
@@ -362,7 +363,8 @@ private fun StickerGrid(
                     SteamChatRemoteImage(
                         url = sticker.imageUrl,
                         contentDescription = sticker.title,
-                        modifier = Modifier.weight(1f).fillMaxWidth()
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        mode = SteamChatRemoteImageMode.STICKER
                     )
                     Text(
                         sticker.title,
@@ -391,7 +393,8 @@ private fun StickerGrid(
                 SteamChatRemoteImage(
                     url = sticker.imageUrl,
                     contentDescription = sticker.title,
-                    modifier = Modifier.padding(18.dp).size(224.dp)
+                    modifier = Modifier.padding(18.dp).size(224.dp),
+                    mode = SteamChatRemoteImageMode.STICKER
                 )
             }
         }
