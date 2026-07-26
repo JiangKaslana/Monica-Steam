@@ -53,6 +53,13 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 
+# Steam chat stickers use APNG4Android. Its decoder crosses worker-thread and
+# Drawable callback boundaries; keep the decoder graph intact in both the
+# minified debug delivery build and release builds so APNGs are not flattened
+# to their first PNG frame.
+-keep class com.github.penfeizhou.animation.** { *; }
+-dontwarn com.github.penfeizhou.animation.**
+
 # 保留 Parcelable
 -keepclassmembers class * implements android.os.Parcelable {
     public static final ** CREATOR;

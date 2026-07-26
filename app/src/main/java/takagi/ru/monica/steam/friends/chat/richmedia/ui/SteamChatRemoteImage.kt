@@ -4,12 +4,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.drawable.Animatable
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
+import android.content.Context
 import android.widget.ImageView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material3.Icon
@@ -22,17 +24,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.doOnLayout
 import com.github.penfeizhou.animation.apng.APNGDrawable
 import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteBytes
 import takagi.ru.monica.steam.foundation.ui.steamRemoteImageCacheFile
 
@@ -49,7 +55,7 @@ internal enum class SteamChatRemoteImageMode {
  * background, so nearest-neighbour sampling is the only readable policy.
  */
 internal fun staticSteamImageFilterQuality(mode: SteamChatRemoteImageMode): FilterQuality =
-    if (mode == SteamChatRemoteImageMode.EMOTICON) {
+    if (mode == SteamChatRemoteImageMode.EMOTICON || mode == SteamChatRemoteImageMode.STICKER) {
         FilterQuality.None
     } else {
         FilterQuality.High
@@ -71,19 +77,26 @@ internal fun SteamChatRemoteImage(
         bitmap = null
         val payload = loadSteamRemoteBytes(context, url) ?: return@LaunchedEffect
         if (isAnimatedPng(payload)) {
-            drawable = runCatching {
+            val animationResult = runCatching {
                 withContext(Dispatchers.Default) {
                     val cacheFile = steamRemoteImageCacheFile(context, url)
                     if (!cacheFile.isFile) return@withContext null
-                    APNGDrawable.fromFile(cacheFile.absolutePath).apply {
-                        // Starting is deferred until ImageView has attached the
-                        // drawable and assigned non-empty bounds. Starting from
-                        // the composition coroutine can leave APNG on frame one.
-                        setAutoPlay(false)
+                    val source = APNGDrawable.fromFile(cacheFile.absolutePath).apply {
+                        // The host view controls visibility, but APNG4Android
+                        // must still be allowed to start when that view attaches.
+                        setAutoPlay(true)
                         setLoopLimit(0)
                     }
+                    val width = source.intrinsicWidth.takeIf { it > 0 } ?: 150
+                    val height = source.intrinsicHeight.takeIf { it > 0 } ?: 150
+                    SteamPixelAnimatedDrawable(source, width, height)
                 }
-            }.getOrNull()
+            }
+            drawable = animationResult.getOrNull()
+            if (drawable == null) {
+                val reason = animationResult.exceptionOrNull()?.javaClass?.simpleName ?: "cache_unavailable"
+                SteamDiagLogger.append("chat_media apng_decode_failed reason=$reason")
+            }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isAnimatedSteamImage(payload)) {
             drawable = runCatching {
                 withContext(Dispatchers.Default) {
@@ -97,76 +110,29 @@ internal fun SteamChatRemoteImage(
         if (drawable == null && bitmap == null) bitmap = decodeStaticSteamBitmap(payload)
     }
     val currentDrawable = drawable
-    val platformAnimated = currentDrawable as? Animatable
-    val apngAnimated = currentDrawable as? APNGDrawable
-    val animated = platformAnimated ?: apngAnimated
+    val animated = currentDrawable as? Animatable
     DisposableEffect(currentDrawable) {
         onDispose {
-            stopSteamAnimation(currentDrawable)
+            when (currentDrawable) {
+                is SteamPixelAnimatedDrawable -> currentDrawable.release()
+                else -> stopSteamAnimation(currentDrawable)
+            }
         }
     }
     when {
-        animated != null -> AndroidView(
-            factory = {
-                ImageView(it).apply {
-                    scaleType = imageScaleType(mode)
-                    this.contentDescription = contentDescription
-                }
-            },
+        animated != null -> SteamAnimatedRemoteImage(
+            drawable = currentDrawable,
+            contentDescription = contentDescription,
             modifier = modifier,
-            update = { view ->
-                val drawableChanged = view.drawable !== currentDrawable
-                if (drawableChanged) {
-                    stopSteamAnimation(view.drawable)
-                    // setImageDrawable installs the callback and applies the
-                    // first bounds before the layout callback below runs.
-                    view.setImageDrawable(currentDrawable)
-                }
-                view.scaleType = imageScaleType(mode)
-                view.contentDescription = contentDescription
-                if (playAnimation) {
-                    // APNG4Android refuses to render while bounds are empty.
-                    // The callback must also be installed before start().
-                    if (drawableChanged || !isSteamAnimationRunning(currentDrawable)) {
-                        view.doOnLayout {
-                            if (view.drawable === currentDrawable) {
-                                startSteamAnimation(currentDrawable, restart = drawableChanged)
-                            }
-                        }
-                    }
-                } else {
-                    stopSteamAnimation(currentDrawable)
-                }
-            }
+            playAnimation = playAnimation,
+            mode = mode
         )
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && drawable != null -> AndroidView(
-            factory = {
-                ImageView(it).apply {
-                    scaleType = imageScaleType(mode)
-                    this.contentDescription = contentDescription
-                }
-            },
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && drawable != null -> SteamAnimatedRemoteImage(
+            drawable = drawable,
+            contentDescription = contentDescription,
             modifier = modifier,
-            update = { view ->
-                val drawableChanged = view.drawable !== drawable
-                if (drawableChanged) {
-                    stopSteamAnimation(view.drawable)
-                    view.setImageDrawable(drawable)
-                }
-                view.scaleType = imageScaleType(mode)
-                view.contentDescription = contentDescription
-                if (playAnimation) {
-                    if (drawableChanged || !isSteamAnimationRunning(drawable)) {
-                        view.doOnLayout {
-                            if (view.drawable === drawable) {
-                                startSteamAnimation(drawable, restart = drawableChanged)
-                            }
-                        }
-                    }
-                } else {
-                    stopSteamAnimation(drawable)
-                }
-            }
+            playAnimation = playAnimation,
+            mode = mode
         )
         bitmap != null && mode == SteamChatRemoteImageMode.EMOTICON ->
             SteamPixelEmoticonImage(
@@ -195,79 +161,128 @@ internal fun SteamChatRemoteImage(
     }
 }
 
-/**
- * Android's BitmapDrawable exposes the filter flag used by the hardware canvas.
- * Compose's filter quality alone is insufficient on a few GPU drivers when a
- * 54px Steam pixel asset is enlarged into a picker cell.
- */
+/** Draws the 54px Steam source directly with a deterministic nearest-neighbour pass. */
 @Composable
 private fun SteamPixelEmoticonImage(
     bitmap: Bitmap,
     contentDescription: String?,
     modifier: Modifier
 ) {
-    val context = LocalContext.current
+    val image = remember(bitmap) { bitmap.asImageBitmap() }
+    Box(
+        modifier = modifier.semantics {
+            contentDescription?.let { this.contentDescription = it }
+        }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            if (image.width <= 0 || image.height <= 0) return@Canvas
+            val scale = minOf(
+                size.width / image.width.toFloat(),
+                size.height / image.height.toFloat()
+            )
+            val dstWidth = (image.width * scale).toInt().coerceAtLeast(1)
+            val dstHeight = (image.height * scale).toInt().coerceAtLeast(1)
+            val dstOffset = IntOffset(
+                x = ((size.width - dstWidth) / 2f).toInt(),
+                y = ((size.height - dstHeight) / 2f).toInt()
+            )
+            drawImage(
+                image = image,
+                dstOffset = dstOffset,
+                dstSize = IntSize(dstWidth, dstHeight),
+                filterQuality = FilterQuality.None
+            )
+        }
+    }
+}
+
+@Composable
+private fun SteamAnimatedRemoteImage(
+    drawable: Drawable?,
+    contentDescription: String?,
+    modifier: Modifier,
+    playAnimation: Boolean,
+    mode: SteamChatRemoteImageMode
+) {
     AndroidView(
-        factory = {
-            ImageView(it).apply {
-                scaleType = ImageView.ScaleType.CENTER_INSIDE
-                this.contentDescription = contentDescription
+        factory = { context ->
+            SteamAnimatedImageView(context).apply {
+                scaleType = imageScaleType(mode)
             }
         },
         modifier = modifier,
         update = { view ->
-            view.scaleType = ImageView.ScaleType.CENTER_INSIDE
-            view.contentDescription = contentDescription
-            val current = view.drawable as? BitmapDrawable
-            if (current?.bitmap !== bitmap) {
-                view.setImageDrawable(BitmapDrawable(context.resources, bitmap))
-            }
-            (view.drawable as? BitmapDrawable)?.paint?.apply {
-                // Preserve the source's pixel edges while Android scales the
-                // 54px asset to the density-aware picker size.
-                isFilterBitmap = false
-                isAntiAlias = false
-            }
+            view.bind(
+                drawable = drawable,
+                contentDescription = contentDescription,
+                playAnimation = playAnimation,
+                scaleType = imageScaleType(mode)
+            )
         }
     )
 }
 
-/** APNG4Android implements Animatable2Compat rather than android.graphics.Animatable. */
-private fun startSteamAnimation(drawable: Drawable?, restart: Boolean = false) {
-    drawable ?: return
-    // Register the ImageView callback before starting.  APNGDrawable uses the
-    // callback to invalidate each decoded frame; starting it before visibility
-    // is established can leave the first frame permanently on screen.
-    if (restart) stopSteamAnimation(drawable)
-    drawable.setVisible(true, true)
-    when (drawable) {
-        is APNGDrawable -> {
-            if (!drawable.isRunning) drawable.start()
+private class SteamAnimatedImageView(context: Context) : ImageView(context) {
+    private var boundDrawable: Drawable? = null
+    private var shouldPlay = false
+
+    fun bind(
+        drawable: Drawable?,
+        contentDescription: String?,
+        playAnimation: Boolean,
+        scaleType: ScaleType
+    ) {
+        this.contentDescription = contentDescription
+        this.scaleType = scaleType
+        shouldPlay = playAnimation
+        if (boundDrawable !== drawable) {
+            stopSteamAnimation(boundDrawable)
+            boundDrawable = drawable
+            setImageDrawable(drawable)
         }
-        is Animatable -> if (!drawable.isRunning) drawable.start()
+        if (shouldPlay) scheduleStart() else stopSteamAnimation(boundDrawable)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (shouldPlay) scheduleStart()
+    }
+
+    override fun onDetachedFromWindow() {
+        stopSteamAnimation(boundDrawable)
+        super.onDetachedFromWindow()
+    }
+
+    override fun onVisibilityChanged(changedView: android.view.View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility == VISIBLE && shouldPlay) scheduleStart()
+        if (visibility != VISIBLE) stopSteamAnimation(boundDrawable)
+    }
+
+    private fun scheduleStart() {
+        post {
+            if (!shouldPlay || !isAttachedToWindow || visibility != VISIBLE) return@post
+            startSteamAnimation(boundDrawable)
+        }
     }
 }
 
-private fun isSteamAnimationRunning(drawable: Drawable?): Boolean = when (drawable) {
-    is APNGDrawable -> drawable.isRunning
-    is Animatable -> drawable.isRunning
-    else -> false
+/** APNG4Android implements Animatable2Compat rather than android.graphics.Animatable. */
+private fun startSteamAnimation(drawable: Drawable?) {
+    drawable ?: return
+    // AndroidView update may run for unrelated chat state changes. Do not use
+    // restart=true here or every recomposition pins an APNG near frame one.
+    drawable.setVisible(true, false)
+    if (!isSteamAnimationRunning(drawable)) (drawable as? Animatable)?.start()
 }
+
+private fun isSteamAnimationRunning(drawable: Drawable?): Boolean =
+    (drawable as? Animatable)?.isRunning == true
 
 private fun stopSteamAnimation(drawable: Drawable?) {
     drawable ?: return
-    // Keep the Android Animatable stop path explicit; APNGDrawable is handled
-    // separately because it implements Animatable2Compat instead.
-    when (drawable) {
-        is APNGDrawable -> {
-            if (drawable.isRunning) drawable.stop()
-            drawable.setVisible(false, false)
-        }
-        is Animatable -> {
-            if (drawable.isRunning) drawable.stop()
-            drawable.setVisible(false, false)
-        }
-    }
+    (drawable as? Animatable)?.let { if (it.isRunning) it.stop() }
+    drawable.setVisible(false, false)
 }
 
 private suspend fun decodeStaticSteamBitmap(payload: ByteArray): Bitmap? =
@@ -278,11 +293,7 @@ private suspend fun decodeStaticSteamBitmap(payload: ByteArray): Bitmap? =
             inScaled = false
             inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
         }
-        BitmapFactory.decodeByteArray(payload, 0, payload.size, options)?.also {
-            // Treat the 54px Steam asset as a density-independent source. The
-            // Android view then enlarges it with nearest-neighbour sampling.
-            it.density = android.util.DisplayMetrics.DENSITY_DEFAULT
-        }
+        BitmapFactory.decodeByteArray(payload, 0, payload.size, options)
     }
 
 private fun imageScaleType(mode: SteamChatRemoteImageMode): ImageView.ScaleType =

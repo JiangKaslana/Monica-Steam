@@ -16,6 +16,10 @@ class SteamChatEmoticonSizingTest {
             staticSteamImageFilterQuality(SteamChatRemoteImageMode.EMOTICON)
         )
         assertEquals(
+            FilterQuality.None,
+            staticSteamImageFilterQuality(SteamChatRemoteImageMode.STICKER)
+        )
+        assertEquals(
             FilterQuality.High,
             staticSteamImageFilterQuality(SteamChatRemoteImageMode.CONTENT)
         )
@@ -30,9 +34,14 @@ class SteamChatEmoticonSizingTest {
         assertTrue(source.contains("ImageView.ScaleType.FIT_CENTER"))
         assertTrue(source.contains("ImageView.ScaleType.CENTER_INSIDE"))
         assertTrue(source.contains("ContentScale.Inside"))
-        assertTrue(source.contains("setAutoPlay(false)"))
-        assertTrue(source.contains("setVisible(true, true)"))
-        assertTrue(source.contains("doOnLayout"))
+        assertTrue(source.contains("setAutoPlay(true)"))
+        assertTrue(source.contains("setVisible(true, false)"))
+        assertTrue(source.contains("SteamAnimatedImageView"))
+        assertTrue(source.contains("filterQuality = FilterQuality.None"))
+        assertTrue(source.contains("drawImage("))
+        assertTrue(source.contains("inScaled = false"))
+        assertTrue(source.contains("BitmapFactory.decodeByteArray"))
+        assertTrue(!source.contains("DENSITY_DEFAULT"))
     }
 
     @Test

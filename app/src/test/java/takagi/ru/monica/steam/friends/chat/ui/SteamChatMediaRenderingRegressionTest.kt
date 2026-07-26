@@ -27,18 +27,29 @@ class SteamChatMediaRenderingRegressionTest {
     }
 
     @Test
-    fun animationStartsOnlyAfterDrawableAttachmentAndPixelArtDisablesCanvasFiltering() {
-        val source = projectFile(
+    fun animationFollowsViewLifecycleAndPreservesNativeStickerPixels() {
+        val remoteImage = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRemoteImage.kt"
         ).readText()
+        val pixelDrawable = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamPixelAnimatedDrawable.kt"
+        ).readText()
+        val proguard = projectFile("app/proguard-rules.pro").readText()
 
-        assertTrue(source.contains("setAutoPlay(false)"))
-        assertTrue(source.contains("setImageDrawable(currentDrawable)"))
-        assertTrue(source.contains("startSteamAnimation(currentDrawable, restart = drawableChanged)"))
-        assertTrue(source.contains("BitmapDrawable"))
-        assertTrue(source.contains("isFilterBitmap = false"))
-        assertTrue(source.contains("isAntiAlias = false"))
-        assertFalse(source.contains("setAutoPlay(true)"))
+        assertTrue(remoteImage.contains("setAutoPlay(true)"))
+        assertTrue(remoteImage.contains("SteamPixelAnimatedDrawable(source, width, height)"))
+        assertTrue(remoteImage.contains("SteamAnimatedImageView"))
+        assertTrue(remoteImage.contains("onAttachedToWindow"))
+        assertTrue(remoteImage.contains("onDetachedFromWindow"))
+        assertTrue(remoteImage.contains("setVisible(true, false)"))
+        assertFalse(remoteImage.contains("setVisible(true, true)"))
+        assertTrue(pixelDrawable.contains("Drawable.Callback"))
+        assertTrue(pixelDrawable.contains("invalidateDrawable"))
+        assertTrue(pixelDrawable.contains("canvas.drawBitmap(bitmap, null, target, pixelPaint)"))
+        assertTrue(pixelDrawable.contains("isFilterBitmap = false"))
+        assertTrue(pixelDrawable.contains("source.setBounds(sourceBounds)"))
+        assertTrue(proguard.contains("-keep class com.github.penfeizhou.animation.**"))
+        assertFalse(remoteImage.contains("BitmapDrawable"))
     }
 
     private fun png(vararg chunks: ByteArray): ByteArray =
