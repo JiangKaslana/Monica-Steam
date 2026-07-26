@@ -20,6 +20,7 @@ import takagi.ru.monica.steam.friends.data.SteamFriendsPreferencesCache
 import takagi.ru.monica.steam.friends.data.SteamFriendsService
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.domain.SteamFriendsGateway
 import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
@@ -164,6 +165,39 @@ class SteamFriendsViewModel(
 
     fun consumeActionFeedback() {
         _uiState.value = _uiState.value.copy(actionFeedback = null)
+    }
+
+    fun changeRelationship(friend: SteamFriend, action: SteamFriendRelationshipAction) {
+        val account = activeAccount ?: return
+        if (_uiState.value.actionSteamId != null) return
+        val generation = ++actionGeneration
+        _uiState.value = _uiState.value.copy(
+            actionSteamId = friend.steamId,
+            actionFeedback = null
+        )
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(ioDispatcher) {
+                    withSessionRetry(account) { prepared ->
+                        gateway.changeRelationship(prepared, friend.steamId, action)
+                    }
+                }
+            }
+            if (!isActionCurrent(account, generation)) return@launch
+            val actionResult = result.getOrNull()
+            val success = actionResult?.success == true
+            _uiState.value = _uiState.value.copy(
+                actionSteamId = null,
+                actionFeedback = SteamFriendActionFeedback(
+                    steamId = friend.steamId,
+                    accepted = false,
+                    success = success,
+                    message = actionResult?.message ?: result.exceptionOrNull()?.message,
+                    relationshipAction = action
+                )
+            )
+            if (success) refresh()
+        }
     }
 
     private fun fetch(account: SteamAccount, generation: Long, silent: Boolean) {

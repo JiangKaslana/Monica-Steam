@@ -7,13 +7,20 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.domain.SteamFriendActionResult
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.domain.SteamFriendsGateway
 import takagi.ru.monica.steam.friends.domain.SteamFriendsSnapshot
 import takagi.ru.monica.steam.market.SteamInventoryService
 import takagi.ru.monica.steam.network.SteamApiClient
+import takagi.ru.monica.steam.network.SteamProtoReader
+import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.network.cm.SteamCmClient
+import takagi.ru.monica.steam.network.cm.SteamCmGateway
+import takagi.ru.monica.steam.network.cm.SteamCmProtocol
 
 class SteamFriendsService(
-    private val api: SteamApiClient = SteamApiClient()
+    private val api: SteamApiClient = SteamApiClient(),
+    private val cm: SteamCmGateway = SteamCmClient()
 ) : SteamFriendsGateway {
     override fun fetch(account: SteamAccount, fetchedAt: Long): SteamFriendsSnapshot {
         require(account.hasRealSteamId) { "real Steam ID required" }
@@ -80,6 +87,64 @@ class SteamFriendsService(
                 .takeIf(String::isNotBlank)
         )
     }
+
+    override fun changeRelationship(
+        account: SteamAccount,
+        friendSteamId: String,
+        action: SteamFriendRelationshipAction
+    ): SteamFriendActionResult {
+        require(account.hasRealSteamId) { "real Steam ID required" }
+        val friendId = friendSteamId.toSteamId64()
+        val accessToken = account.accessToken?.takeIf(String::isNotBlank)
+            ?: throw IllegalStateException("Steam access token required")
+        val request = when (action) {
+            SteamFriendRelationshipAction.ADD -> SteamCmFriendAction(
+                SteamCmProtocol.EMSG_CLIENT_ADD_FRIEND,
+                SteamCmProtocol.EMSG_CLIENT_ADD_FRIEND_RESPONSE,
+                SteamProtoWriter().apply { writeFixed64(1, friendId) }.toByteArray()
+            )
+            SteamFriendRelationshipAction.REMOVE -> SteamCmFriendAction(
+                SteamCmProtocol.EMSG_CLIENT_REMOVE_FRIEND,
+                SteamCmProtocol.EMSG_CLIENT_FRIENDS_LIST,
+                SteamProtoWriter().apply { writeFixed64(1, friendId) }.toByteArray()
+            )
+            SteamFriendRelationshipAction.BLOCK,
+            SteamFriendRelationshipAction.UNBLOCK -> SteamCmFriendAction(
+                SteamCmProtocol.EMSG_CLIENT_HIDE_FRIEND,
+                SteamCmProtocol.EMSG_CLIENT_FRIENDS_LIST,
+                SteamProtoWriter().apply {
+                    writeFixed64(1, friendId)
+                    writeBool(2, action == SteamFriendRelationshipAction.BLOCK)
+                }.toByteArray()
+            )
+        }
+        val body = cm.exchangeClientMessage(
+            account,
+            requestEMsg = request.requestEMsg,
+            responseEMsg = request.responseEMsg,
+            request = request.body
+        )
+        val eresult = if (action == SteamFriendRelationshipAction.ADD) {
+            SteamProtoReader(body).parse()[1]?.asInt ?: 2
+        } else {
+            null
+        }
+        return SteamFriendActionResult(
+            success = eresult == null || eresult == 1,
+            message = eresult?.takeIf { it != 1 }?.let { "Steam result $it" }
+        )
+    }
+
+    private fun String.toSteamId64(): Long {
+        require(matches(Regex("7656119\\d{10}"))) { "valid friend Steam ID required" }
+        return toLong()
+    }
+
+    private data class SteamCmFriendAction(
+        val requestEMsg: Int,
+        val responseEMsg: Int,
+        val body: ByteArray
+    )
 
     private fun JsonObject.successCode(): Int {
         val primitive = this["success"] as? JsonPrimitive ?: return 0

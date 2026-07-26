@@ -4723,6 +4723,13 @@
     <string name="steam_friend_location">Location</string>
     <string name="steam_friend_open_profile">Open Steam profile</string>
     <string name="steam_friend_unknown_time">Unavailable</string>
+    <string name="steam_friend_remove">Remove friend</string>
+    <string name="steam_friend_block">Block</string>
+    <string name="steam_friend_unblock">Unblock</string>
+    <string name="steam_friend_cancel_request">Cancel friend request</string>
+    <string name="steam_friend_relationship_action_success">Steam friend relationship updated.</string>
+    <string name="steam_friend_confirm_action">Confirm action</string>
+    <string name="steam_friend_confirm_action_summary">This changes the Steam relationship with %1$s.</string>
     <string name="steam_store_reviews_title">Player reviews</string>
     <string name="steam_store_reviews_overall">Overall</string>
     <string name="steam_store_reviews_recent">Recent 30 days</string>

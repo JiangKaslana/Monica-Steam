@@ -4644,4 +4644,11 @@
     <string name="steam_group_chat_created">Steam 群组已创建</string>
     <string name="steam_group_chat_groups">群组</string>
     <string name="steam_group_chat_direct">私聊</string>
+    <string name="steam_friend_remove">删除好友</string>
+    <string name="steam_friend_block">拉黑</string>
+    <string name="steam_friend_unblock">解除拉黑</string>
+    <string name="steam_friend_cancel_request">取消好友邀请</string>
+    <string name="steam_friend_relationship_action_success">Steam 好友关系已更新</string>
+    <string name="steam_friend_confirm_action">确认操作</string>
+    <string name="steam_friend_confirm_action_summary">此操作会修改与 %1$s 的 Steam 好友关系。</string>
 </resources>

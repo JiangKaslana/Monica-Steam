@@ -15,6 +15,9 @@ import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.data.SteamFriendsCache
 import takagi.ru.monica.steam.friends.domain.SteamFriendActionResult
+import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.domain.SteamFriendsGateway
 import takagi.ru.monica.steam.friends.domain.SteamFriendsSnapshot
 import takagi.ru.monica.steam.network.SteamApiException
@@ -68,6 +71,12 @@ class SteamFriendsViewModelTest {
                 friendSteamId: String,
                 accept: Boolean
             ) = SteamFriendActionResult(success = true)
+
+            override fun changeRelationship(
+                account: SteamAccount,
+                friendSteamId: String,
+                action: SteamFriendRelationshipAction
+            ) = SteamFriendActionResult(success = true)
         }
         val viewModel = SteamFriendsViewModel(
             gateway = gateway,
@@ -99,6 +108,12 @@ class SteamFriendsViewModelTest {
                 friendSteamId: String,
                 accept: Boolean
             ) = SteamFriendActionResult(success = true)
+
+            override fun changeRelationship(
+                account: SteamAccount,
+                friendSteamId: String,
+                action: SteamFriendRelationshipAction
+            ) = SteamFriendActionResult(success = true)
         }
         val viewModel = SteamFriendsViewModel(
             gateway = gateway,
@@ -113,6 +128,55 @@ class SteamFriendsViewModelTest {
         assertEquals(
             listOf("76561198000000009"),
             fetchedSteamIds
+        )
+    }
+
+    @Test
+    fun successfulRelationshipActionRefreshesAuthoritativeFriends() = runTest(scheduler) {
+        val friend = SteamFriend(
+            steamId = "76561198000000002",
+            relationship = SteamFriendRelationship.FRIEND
+        )
+        var fetchCalls = 0
+        val actions = mutableListOf<SteamFriendRelationshipAction>()
+        val gateway = object : SteamFriendsGateway {
+            override fun fetch(account: SteamAccount, fetchedAt: Long): SteamFriendsSnapshot {
+                fetchCalls++
+                return SteamFriendsSnapshot(listOf(friend), fetchedAt)
+            }
+
+            override fun respondToInvite(
+                account: SteamAccount,
+                friendSteamId: String,
+                accept: Boolean
+            ) = SteamFriendActionResult(success = true)
+
+            override fun changeRelationship(
+                account: SteamAccount,
+                friendSteamId: String,
+                action: SteamFriendRelationshipAction
+            ): SteamFriendActionResult {
+                actions += action
+                return SteamFriendActionResult(success = true)
+            }
+        }
+        val viewModel = SteamFriendsViewModel(
+            gateway = gateway,
+            cache = MemoryFriendsCache(),
+            ioDispatcher = dispatcher
+        )
+        viewModel.selectAccount(account())
+        advanceUntilIdle()
+
+        viewModel.changeRelationship(friend, SteamFriendRelationshipAction.BLOCK)
+        advanceUntilIdle()
+
+        assertEquals(listOf(SteamFriendRelationshipAction.BLOCK), actions)
+        assertEquals(2, fetchCalls)
+        assertEquals(true, viewModel.uiState.value.actionFeedback?.success)
+        assertEquals(
+            SteamFriendRelationshipAction.BLOCK,
+            viewModel.uiState.value.actionFeedback?.relationshipAction
         )
     }
 

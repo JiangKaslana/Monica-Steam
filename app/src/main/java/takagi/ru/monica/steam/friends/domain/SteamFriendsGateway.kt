@@ -13,4 +13,10 @@ interface SteamFriendsGateway {
         friendSteamId: String,
         accept: Boolean
     ): SteamFriendActionResult
+
+    fun changeRelationship(
+        account: SteamAccount,
+        friendSteamId: String,
+        action: SteamFriendRelationshipAction
+    ): SteamFriendActionResult
 }

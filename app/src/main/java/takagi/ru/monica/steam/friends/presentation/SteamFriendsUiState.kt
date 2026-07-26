@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.presentation
 
 import takagi.ru.monica.steam.friends.domain.SteamFriendsSnapshot
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 
 enum class SteamFriendsFailureReason {
     ACCOUNT_REQUIRED,
@@ -13,7 +14,8 @@ data class SteamFriendActionFeedback(
     val steamId: String,
     val accepted: Boolean,
     val success: Boolean,
-    val message: String? = null
+    val message: String? = null,
+    val relationshipAction: SteamFriendRelationshipAction? = null
 )
 
 data class SteamFriendsUiState(

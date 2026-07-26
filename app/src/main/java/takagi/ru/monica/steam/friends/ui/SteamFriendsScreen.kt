@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.friends.domain.SteamFriendsFilter
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.token.presentation.SteamViewModel
@@ -75,9 +76,11 @@ fun SteamFriendsScreen(
     val acceptSuccessText = stringResource(R.string.steam_friend_accept_success)
     val ignoreSuccessText = stringResource(R.string.steam_friend_ignore_success)
     val actionFailedText = stringResource(R.string.steam_friend_action_failed)
+    val relationshipSuccessText = stringResource(R.string.steam_friend_relationship_action_success)
     LaunchedEffect(feedback) {
         if (feedback != null) {
             val text = when {
+                feedback.success && feedback.relationshipAction != null -> relationshipSuccessText
                 feedback.success && feedback.accepted -> acceptSuccessText
                 feedback.success -> ignoreSuccessText
                 !feedback.message.isNullOrBlank() -> feedback.message
@@ -103,7 +106,11 @@ fun SteamFriendsScreen(
             if (animatedFriend != null) {
                 SteamFriendDetailScreen(
                     friend = animatedFriend,
-                    onStartChat = { onStartChat(animatedFriend.steamId) }
+                    actionInProgress = state.actionSteamId == animatedFriend.steamId,
+                    onStartChat = { onStartChat(animatedFriend.steamId) },
+                    onChangeRelationship = { action: SteamFriendRelationshipAction ->
+                        friendsViewModel.changeRelationship(animatedFriend, action)
+                    }
                 )
             } else {
                 SteamExpressivePullToRefresh(

@@ -12,7 +12,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.network.SteamApiClient
+import takagi.ru.monica.steam.network.SteamProtoReader
+import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.network.cm.SteamCmGateway
+import takagi.ru.monica.steam.network.cm.SteamCmProtocol
 
 class SteamFriendsServiceTest {
     @Test
@@ -85,6 +90,49 @@ class SteamFriendsServiceTest {
         assertEquals("76561198000000004", friend.displayName)
     }
 
+    @Test
+    fun addFriendUsesTheOfficialCmRequestAndResult() {
+        val cm = FakeFriendsCm(
+            SteamProtoWriter().apply { writeVarint(1, 1L) }.toByteArray()
+        )
+        val result = SteamFriendsService(cm = cm).changeRelationship(
+            account(),
+            FRIEND_STEAM_ID,
+            SteamFriendRelationshipAction.ADD
+        )
+
+        assertTrue(result.success)
+        assertEquals(SteamCmProtocol.EMSG_CLIENT_ADD_FRIEND, cm.requestEMsg)
+        assertEquals(SteamCmProtocol.EMSG_CLIENT_ADD_FRIEND_RESPONSE, cm.responseEMsg)
+        assertEquals(FRIEND_STEAM_ID, SteamProtoReader(cm.request).parse()[1]?.asFixed64UnsignedString)
+    }
+
+    @Test
+    fun removeBlockAndUnblockWaitForTheFriendsListStateEcho() {
+        SteamFriendRelationshipAction.entries
+            .filter { it != SteamFriendRelationshipAction.ADD }
+            .forEach { action ->
+                val cm = FakeFriendsCm(SteamProtoWriter().apply { writeBool(1, false) }.toByteArray())
+                val result = SteamFriendsService(cm = cm).changeRelationship(account(), FRIEND_STEAM_ID, action)
+
+                assertTrue(result.success)
+                assertEquals(SteamCmProtocol.EMSG_CLIENT_FRIENDS_LIST, cm.responseEMsg)
+                assertEquals(
+                    if (action == SteamFriendRelationshipAction.REMOVE) {
+                        SteamCmProtocol.EMSG_CLIENT_REMOVE_FRIEND
+                    } else {
+                        SteamCmProtocol.EMSG_CLIENT_HIDE_FRIEND
+                    },
+                    cm.requestEMsg
+                )
+                val fields = SteamProtoReader(cm.request).parse()
+                assertEquals(FRIEND_STEAM_ID, fields[1]?.asFixed64UnsignedString)
+                if (action != SteamFriendRelationshipAction.REMOVE) {
+                    assertEquals(action == SteamFriendRelationshipAction.BLOCK, fields[2]?.asBool)
+                }
+            }
+    }
+
     private fun account() = SteamAccount(
         id = 1L,
         steamId = "76561198000000001",
@@ -104,4 +152,29 @@ class SteamFriendsServiceTest {
         createdAt = 1L,
         updatedAt = 1L
     )
+
+    private companion object {
+        const val FRIEND_STEAM_ID = "76561198000000002"
+    }
+}
+
+private class FakeFriendsCm(private val response: ByteArray) : SteamCmGateway {
+    var requestEMsg: Int = 0
+    var responseEMsg: Int = 0
+    var request: ByteArray = ByteArray(0)
+
+    override fun callService(account: SteamAccount, method: String, request: ByteArray): ByteArray =
+        error("Unexpected service call")
+
+    override fun exchangeClientMessage(
+        account: SteamAccount,
+        requestEMsg: Int,
+        responseEMsg: Int,
+        request: ByteArray
+    ): ByteArray {
+        this.requestEMsg = requestEMsg
+        this.responseEMsg = responseEMsg
+        this.request = request
+        return response
+    }
 }

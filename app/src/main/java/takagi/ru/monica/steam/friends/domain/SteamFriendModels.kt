@@ -97,3 +97,10 @@ data class SteamFriendActionResult(
     val success: Boolean,
     val message: String? = null
 )
+
+enum class SteamFriendRelationshipAction {
+    ADD,
+    REMOVE,
+    BLOCK,
+    UNBLOCK
+}

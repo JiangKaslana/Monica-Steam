@@ -24,12 +24,18 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,16 +45,43 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.ui.theme.GoogleSansFlexFontFamily
 
 @Composable
 internal fun SteamFriendDetailScreen(
     friend: SteamFriend,
-    onStartChat: () -> Unit
+    actionInProgress: Boolean,
+    onStartChat: () -> Unit,
+    onChangeRelationship: (SteamFriendRelationshipAction) -> Unit
 ) {
     val context = LocalContext.current
     val dockContentClearance = LocalSteamDockContentClearance.current
+    var pendingAction by remember(friend.steamId) {
+        mutableStateOf<SteamFriendRelationshipAction?>(null)
+    }
+    pendingAction?.let { action ->
+        AlertDialog(
+            onDismissRequest = { pendingAction = null },
+            title = { Text(stringResource(R.string.steam_friend_confirm_action)) },
+            text = {
+                Text(stringResource(R.string.steam_friend_confirm_action_summary, friend.displayName))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingAction = null
+                    onChangeRelationship(action)
+                }) { Text(action.label(friend.relationship)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingAction = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -134,7 +167,45 @@ internal fun SteamFriendDetailScreen(
                 Text(stringResource(R.string.steam_friend_open_profile))
             }
         }
+        relationshipActions(friend.relationship).forEach { action ->
+            item(key = "friend-detail-action-${action.name}") {
+                FilledTonalButton(
+                    onClick = { pendingAction = action },
+                    enabled = !actionInProgress,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                ) {
+                    Text(action.label(friend.relationship))
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun SteamFriendRelationshipAction.label(
+    relationship: SteamFriendRelationship
+): String = stringResource(
+    when (this) {
+        SteamFriendRelationshipAction.ADD -> R.string.steam_friend_accept
+        SteamFriendRelationshipAction.REMOVE -> if (
+            relationship == SteamFriendRelationship.REQUEST_OUTGOING
+        ) R.string.steam_friend_cancel_request else R.string.steam_friend_remove
+        SteamFriendRelationshipAction.BLOCK -> R.string.steam_friend_block
+        SteamFriendRelationshipAction.UNBLOCK -> R.string.steam_friend_unblock
+    }
+)
+
+private fun relationshipActions(
+    relationship: SteamFriendRelationship
+): List<SteamFriendRelationshipAction> = when (relationship) {
+    SteamFriendRelationship.FRIEND -> listOf(
+        SteamFriendRelationshipAction.REMOVE,
+        SteamFriendRelationshipAction.BLOCK
+    )
+    SteamFriendRelationship.REQUEST_OUTGOING -> listOf(SteamFriendRelationshipAction.REMOVE)
+    SteamFriendRelationship.BLOCKED -> listOf(SteamFriendRelationshipAction.UNBLOCK)
+    SteamFriendRelationship.UNKNOWN -> listOf(SteamFriendRelationshipAction.ADD)
+    SteamFriendRelationship.REQUEST_INCOMING -> emptyList()
 }
 
 @Composable
