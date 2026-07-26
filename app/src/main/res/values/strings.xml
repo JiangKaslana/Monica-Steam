@@ -4551,6 +4551,15 @@
     <string name="steam_store_screenshot_previous">Previous screenshot</string>
     <string name="steam_store_screenshot_next">Next screenshot</string>
     <string name="steam_store_screenshot_position">%1$d / %2$d</string>
+    <string name="steam_store_screenshot_download">Download current screenshot</string>
+    <string name="steam_store_screenshot_downloading">Downloading screenshot</string>
+    <string name="steam_store_screenshot_download_success">Saved to Pictures/Monica Steam: %1$s</string>
+    <string name="steam_store_screenshot_download_failed">Download failed. Check the network and try again.</string>
+    <string name="steam_store_screenshot_download_unsupported">This screenshot format cannot be saved.</string>
+    <string name="steam_store_screenshot_download_too_large">The screenshot is too large, so the download was stopped.</string>
+    <string name="steam_store_screenshot_permission_denied">Android 8/9 needs storage permission to save screenshots to Pictures.</string>
+    <string name="steam_store_screenshot_invalid_source">This screenshot source is invalid and cannot be downloaded.</string>
+    <string name="steam_store_screenshot_load_failed">Could not load this screenshot.</string>
     <string name="steam_store_information">Game information</string>
     <string name="steam_store_developer">Developer</string>
     <string name="steam_store_publisher">Publisher</string>

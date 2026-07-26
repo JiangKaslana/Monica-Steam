@@ -12,20 +12,32 @@ class SteamStoreDetailInteractionGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
         val viewerUi = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreenshotViewer.kt"
+            "app/src/main/java/takagi/ru/monica/steam/store/ui/gallery/SteamStoreScreenshotGallery.kt"
+        )
+        val downloader = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/ui/gallery/SteamScreenshotDownloader.kt"
         )
 
         assertTrue(viewerUi.exists())
+        assertTrue(downloader.exists())
         val viewerSource = viewerUi.readText()
         assertTrue(detailUi.contains("itemsIndexed(detail.screenshots"))
         assertTrue(detailUi.contains("SteamStoreScreenshotViewer("))
         assertTrue(detailUi.contains("selectedScreenshotIndex = index"))
         assertTrue(viewerSource.contains("DialogProperties("))
         assertTrue(viewerSource.contains("usePlatformDefaultWidth = false"))
-        assertTrue(viewerSource.contains("rememberTransformableState"))
-        assertTrue(viewerSource.contains(".transformable("))
+        assertTrue(viewerSource.contains("HorizontalPager("))
+        assertTrue(viewerSource.contains("rememberPagerState("))
+        assertTrue(viewerSource.contains("initialPage = initialIndex.coerceIn"))
+        assertTrue(viewerSource.contains("pagerState.animateScrollToPage"))
+        assertTrue(viewerSource.contains("ContentScale.Fit"))
+        assertTrue(viewerSource.contains("background(Color.Black)"))
+        assertTrue(viewerSource.contains("canPan = { scale > 1f }"))
+        assertTrue(viewerSource.contains("Icons.Default.Download"))
+        assertTrue(viewerSource.contains("SteamScreenshotDownloader("))
         assertTrue(viewerSource.contains("R.string.steam_store_screenshot_previous"))
         assertTrue(viewerSource.contains("R.string.steam_store_screenshot_next"))
+        assertTrue(viewerSource.contains("R.string.steam_store_screenshot_download"))
     }
 
     @Test
