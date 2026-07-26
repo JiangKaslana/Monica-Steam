@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +38,8 @@ import kotlin.math.roundToInt
 import takagi.ru.monica.R
 
 private const val PULL_REFRESH_HIDDEN_EPSILON = 0.001f
+private const val PULL_REFRESH_OVERSHOOT_RESISTANCE = 0.18f
+private const val PULL_REFRESH_MAX_VISUAL_FRACTION = 1.15f
 
 @Composable
 fun SteamPageOverflowMenu(
@@ -88,6 +91,9 @@ fun SteamExpressivePullToRefresh(
     }
 
     val state = rememberPullToRefreshState()
+    val visualIndicatorState = remember(state) {
+        VisualPullToRefreshState(state)
+    }
     val positionalThresholdPx = with(LocalDensity.current) {
         PullToRefreshDefaults.PositionalThreshold.toPx()
     }
@@ -131,7 +137,7 @@ fun SteamExpressivePullToRefresh(
         state = state,
         indicator = {
             PullToRefreshDefaults.LoadingIndicator(
-                state = state,
+                state = visualIndicatorState,
                 isRefreshing = refreshing,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
@@ -160,5 +166,38 @@ internal fun calculatePullRefreshContentOffsetPx(
     ) {
         return 0f
     }
-    return distanceFraction.coerceAtLeast(0f) * positionalThresholdPx
+    return calculatePullRefreshVisualFraction(distanceFraction) * positionalThresholdPx
+}
+
+internal fun calculatePullRefreshVisualFraction(distanceFraction: Float): Float {
+    if (!distanceFraction.isFinite()) return 0f
+    val normalizedFraction = distanceFraction.coerceAtLeast(0f)
+    val resistedFraction = if (normalizedFraction <= 1f) {
+        normalizedFraction
+    } else {
+        1f + (normalizedFraction - 1f) * PULL_REFRESH_OVERSHOOT_RESISTANCE
+    }
+    return resistedFraction.coerceAtMost(PULL_REFRESH_MAX_VISUAL_FRACTION)
+}
+
+private class VisualPullToRefreshState(
+    private val delegate: PullToRefreshState
+) : PullToRefreshState {
+    override val distanceFraction: Float
+        get() = calculatePullRefreshVisualFraction(delegate.distanceFraction)
+
+    override val isAnimating: Boolean
+        get() = delegate.isAnimating
+
+    override suspend fun animateToThreshold() {
+        delegate.animateToThreshold()
+    }
+
+    override suspend fun animateToHidden() {
+        delegate.animateToHidden()
+    }
+
+    override suspend fun snapTo(targetValue: Float) {
+        delegate.snapTo(targetValue)
+    }
 }
