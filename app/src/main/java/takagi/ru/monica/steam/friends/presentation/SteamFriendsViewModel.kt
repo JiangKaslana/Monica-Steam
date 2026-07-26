@@ -39,7 +39,7 @@ class SteamFriendsViewModel(
     private var actionGeneration = 0L
 
     fun selectAccount(account: SteamAccount?) {
-        if (account?.id == activeAccount?.id) {
+        if (account?.id == activeAccount?.id && account?.steamId == activeAccount?.steamId) {
             activeAccount = account
             return
         }
@@ -58,7 +58,7 @@ class SteamFriendsViewModel(
         )
         viewModelScope.launch {
             val cached = withContext(ioDispatcher) { cache.load(account.steamId) }
-            if (!isCurrent(account.id, generation)) return@launch
+            if (!isCurrent(account, generation)) return@launch
             _uiState.value = _uiState.value.copy(
                 snapshot = cached,
                 loading = cached == null,
@@ -102,7 +102,7 @@ class SteamFriendsViewModel(
                     }
                 }
             }
-            if (!isActionCurrent(account.id, generation)) return@launch
+            if (!isActionCurrent(account, generation)) return@launch
             val error = result.exceptionOrNull()
             if (error != null) {
                 SteamDiagLogger.append(
@@ -136,7 +136,7 @@ class SteamFriendsViewModel(
                 if (updated != null) {
                     withContext(ioDispatcher) { cache.save(account.steamId, updated) }
                 }
-                if (!isActionCurrent(account.id, generation)) return@launch
+                if (!isActionCurrent(account, generation)) return@launch
                 _uiState.value = _uiState.value.copy(
                     snapshot = updated,
                     fromCache = false,
@@ -173,7 +173,7 @@ class SteamFriendsViewModel(
                     withSessionRetry(account) { prepared -> gateway.fetch(prepared) }
                 }
             }
-            if (!isCurrent(account.id, generation)) return@launch
+            if (!isCurrent(account, generation)) return@launch
             val error = result.exceptionOrNull()
             if (error != null) {
                 SteamDiagLogger.append(
@@ -189,7 +189,7 @@ class SteamFriendsViewModel(
             }
             val snapshot = result.getOrThrow()
             withContext(ioDispatcher) { cache.save(account.steamId, snapshot) }
-            if (!isCurrent(account.id, generation)) return@launch
+            if (!isCurrent(account, generation)) return@launch
             _uiState.value = _uiState.value.copy(
                 snapshot = snapshot,
                 loading = false,
@@ -226,11 +226,13 @@ class SteamFriendsViewModel(
         }
     }
 
-    private fun isCurrent(accountId: Long, generation: Long): Boolean =
-        activeAccount?.id == accountId && requestGeneration == generation
+    private fun isCurrent(account: SteamAccount, generation: Long): Boolean =
+        activeAccount?.id == account.id && activeAccount?.steamId == account.steamId &&
+            requestGeneration == generation
 
-    private fun isActionCurrent(accountId: Long, generation: Long): Boolean =
-        activeAccount?.id == accountId && actionGeneration == generation
+    private fun isActionCurrent(account: SteamAccount, generation: Long): Boolean =
+        activeAccount?.id == account.id && activeAccount?.steamId == account.steamId &&
+            actionGeneration == generation
 
     private fun Throwable.toFailureReason(): SteamFriendsFailureReason = when (this) {
         is IOException -> SteamFriendsFailureReason.NETWORK

@@ -85,9 +85,40 @@ class SteamFriendsViewModelTest {
         assertEquals(false, viewModel.uiState.value.loading)
     }
 
-    private fun account() = SteamAccount(
+    @Test
+    fun sameLocalIdWithDifferentSteamIdStillSwitchesAccounts() = runTest(scheduler) {
+        val fetchedSteamIds = mutableListOf<String>()
+        val gateway = object : SteamFriendsGateway {
+            override fun fetch(account: SteamAccount, fetchedAt: Long): SteamFriendsSnapshot {
+                fetchedSteamIds += account.steamId
+                return SteamFriendsSnapshot(fetchedAt = fetchedAt)
+            }
+
+            override fun respondToInvite(
+                account: SteamAccount,
+                friendSteamId: String,
+                accept: Boolean
+            ) = SteamFriendActionResult(success = true)
+        }
+        val viewModel = SteamFriendsViewModel(
+            gateway = gateway,
+            cache = MemoryFriendsCache(),
+            ioDispatcher = dispatcher
+        )
+
+        viewModel.selectAccount(account())
+        viewModel.selectAccount(account(steamId = "76561198000000009"))
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("76561198000000009"),
+            fetchedSteamIds
+        )
+    }
+
+    private fun account(steamId: String = "76561198000000001") = SteamAccount(
         id = 1L,
-        steamId = "76561198000000001",
+        steamId = steamId,
         accountName = "account",
         displayName = "Account",
         deviceId = "android:test",
@@ -97,7 +128,7 @@ class SteamFriendsViewModelTest {
         tokenGid = null,
         accessToken = "old-token",
         refreshToken = "refresh-token",
-        steamLoginSecure = "76561198000000001||old-token",
+        steamLoginSecure = "$steamId||old-token",
         rawSteamGuardJson = "{}",
         selected = true,
         sortOrder = 0,
