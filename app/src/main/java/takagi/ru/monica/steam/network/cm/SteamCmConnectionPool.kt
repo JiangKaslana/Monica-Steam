@@ -24,8 +24,11 @@ internal class SteamCmConnectionPool(
     private val connections = mutableMapOf<String, Entry>()
     private val bootstraps = mutableMapOf<String, CachedBootstrap>()
 
-    fun execute(account: SteamAccount, operation: SteamCmOperation): ByteArray {
-        val accountKey = accountKey(account)
+    fun execute(
+        account: SteamAccount,
+        operation: SteamCmOperation,
+        accountKey: String = steamCmAccountKey(account)
+    ): ByteArray {
         val session = loadBootstrap(account, accountKey)
         var lastFailure: Throwable? = null
         session.endpoints.take(MAX_ENDPOINT_ATTEMPTS).forEach { endpoint ->
@@ -43,6 +46,36 @@ internal class SteamCmConnectionPool(
         throw IOException("Steam CM is unavailable", lastFailure)
     }
 
+    /** Ensures the account's realtime socket is logged on even when no request is pending. */
+    fun connect(
+        account: SteamAccount,
+        accountKey: String = steamCmAccountKey(account)
+    ) {
+        val session = loadBootstrap(account, accountKey)
+        var lastFailure: Throwable? = null
+        session.endpoints.take(MAX_ENDPOINT_ATTEMPTS).forEach { endpoint ->
+            val connection = connectionFor(accountKey, session, endpoint)
+            try {
+                connection.connect()
+                return
+            } catch (error: SteamApiException) {
+                throw error
+            } catch (error: Exception) {
+                lastFailure = error
+                remove(accountKey, connection)
+                invalidateBootstrap(accountKey)
+            }
+        }
+        throw IOException("Steam CM is unavailable", lastFailure)
+    }
+
+    fun isConnected(
+        account: SteamAccount,
+        accountKey: String = steamCmAccountKey(account)
+    ): Boolean = synchronized(lock) {
+        connections[accountKey]?.connection?.isHealthy() == true
+    }
+
     override fun close() {
         val entries = synchronized(lock) {
             val current = connections.values.toList()
@@ -53,8 +86,11 @@ internal class SteamCmConnectionPool(
         entries.forEach { it.connection.close() }
     }
 
-    fun closeAccount(account: SteamAccount) {
-        val key = accountKey(account)
+    fun closeAccount(
+        account: SteamAccount,
+        accountKey: String = steamCmAccountKey(account)
+    ) {
+        val key = accountKey
         val entry = synchronized(lock) {
             bootstraps.remove(key)
             connections.remove(key)
@@ -124,9 +160,6 @@ internal class SteamCmConnectionPool(
     private fun invalidateBootstrap(accountKey: String) {
         synchronized(lock) { bootstraps.remove(accountKey) }
     }
-
-    private fun accountKey(account: SteamAccount): String =
-        "${account.id}|${account.steamId}"
 
     private fun accountFingerprint(account: SteamAccount): String =
         "${account.id}|${account.steamId}|${account.accessToken.orEmpty()}"

@@ -26,8 +26,10 @@ internal data class SteamCmEnvelope(
 
 internal object SteamCmProtocol {
     const val EMSG_MULTI = 1
+    const val EMSG_SERVICE_METHOD = 146
     const val EMSG_SERVICE_METHOD_RESPONSE = 147
     const val EMSG_SERVICE_METHOD_CALL_FROM_CLIENT = 151
+    const val EMSG_SERVICE_METHOD_SEND_TO_CLIENT = 152
     const val EMSG_CLIENT_LOGON_RESPONSE = 751
     const val EMSG_CLIENT_LOGGED_OFF = 757
     const val EMSG_CLIENT_LOGON = 5514

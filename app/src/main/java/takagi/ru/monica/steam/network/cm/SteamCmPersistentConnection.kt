@@ -54,6 +54,11 @@ internal class SteamCmPersistentConnection(
         !closed && loggedOn && activeSocket != null
     }
 
+    /** Opens and authenticates the socket without requiring a request first. */
+    fun connect() {
+        ensureConnected()
+    }
+
     fun execute(operation: SteamCmOperation): ByteArray {
         val serializesNoJobRequest = operation.targetJobName == null
         if (serializesNoJobRequest) noJobLock.lock()

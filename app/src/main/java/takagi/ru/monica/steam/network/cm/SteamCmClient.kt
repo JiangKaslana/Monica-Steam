@@ -1,9 +1,13 @@
 package takagi.ru.monica.steam.network.cm
 
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.data.SteamAccount
 
@@ -13,11 +17,29 @@ import takagi.ru.monica.steam.data.SteamAccount
  * The default constructor uses the process-wide pool so the chat, group-chat,
  * reaction, and rich-media services do not each create their own socket.
  */
-class SteamCmClient private constructor(
+class SteamCmClient internal constructor(
     private val pool: SteamCmConnectionPool,
-    private val eventFlow: SharedFlow<SteamCmEvent>? = null
+    private val eventFlow: SharedFlow<SteamCmEvent>? = null,
+    private val accountKeyResolver: (SteamAccount) -> String = ::steamCmAccountKey
 ) : SteamCmGateway {
     constructor() : this(SteamCmRuntime.pool, SteamCmRuntime.events)
+
+    internal constructor(
+        accountKeyResolver: (SteamAccount) -> String
+    ) : this(
+        pool = SteamCmRuntime.pool,
+        eventFlow = SteamCmRuntime.events,
+        accountKeyResolver = accountKeyResolver
+    )
+
+    internal constructor(
+        eventFlow: SharedFlow<SteamCmEvent>,
+        accountKeyResolver: (SteamAccount) -> String = ::steamCmAccountKey
+    ) : this(
+        pool = SteamCmRuntime.pool,
+        eventFlow = eventFlow,
+        accountKeyResolver = accountKeyResolver
+    )
 
     internal constructor(
         bootstrap: SteamCmBootstrap,
@@ -37,12 +59,29 @@ class SteamCmClient private constructor(
     internal val events: SharedFlow<SteamCmEvent>
         get() = requireNotNull(eventFlow)
 
+    /** Connects the shared account socket without sending a synthetic request. */
+    internal fun connect(account: SteamAccount) = pool.connect(
+        account = account,
+        accountKey = accountKeyResolver(account)
+    )
+
+    internal fun isConnected(account: SteamAccount): Boolean = pool.isConnected(
+        account = account,
+        accountKey = accountKeyResolver(account)
+    )
+
+    /** Hides the pool's routing key from feature modules. */
+    internal fun eventsFor(account: SteamAccount): Flow<SteamCmEnvelope> = events
+        .filter { it.accountKey == accountKeyResolver(account) }
+        .map { event: SteamCmEvent -> event.envelope }
+
     override fun callService(
         account: SteamAccount,
         method: String,
         request: ByteArray
     ): ByteArray = pool.execute(
         account = account,
+        accountKey = accountKeyResolver(account),
         operation = SteamCmOperation(
             requestEMsg = SteamCmProtocol.EMSG_SERVICE_METHOD_CALL_FROM_CLIENT,
             responseEMsg = SteamCmProtocol.EMSG_SERVICE_METHOD_RESPONSE,
@@ -58,6 +97,7 @@ class SteamCmClient private constructor(
         request: ByteArray
     ): ByteArray = pool.execute(
         account = account,
+        accountKey = accountKeyResolver(account),
         operation = SteamCmOperation(
             requestEMsg = requestEMsg,
             responseEMsg = responseEMsg,
@@ -68,7 +108,10 @@ class SteamCmClient private constructor(
 
 /** Process-wide lifecycle boundary; app shutdown can close this pool explicitly. */
 internal object SteamCmRuntime {
-    private val eventBus = MutableSharedFlow<SteamCmEvent>(extraBufferCapacity = 128)
+    private val eventBus = MutableSharedFlow<SteamCmEvent>(
+        extraBufferCapacity = 256,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     private val socketClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)

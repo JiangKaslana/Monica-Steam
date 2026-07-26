@@ -20,7 +20,8 @@ class SteamCmConnectionGuardTest {
 
         assertTrue(client.contains("SteamCmRuntime.pool"))
         assertTrue(client.contains("SteamCmConnectionPool"))
-        assertTrue(pool.contains("accountKey(account)"))
+        assertTrue(pool.contains("steamCmAccountKey(account)"))
+        assertTrue(client.contains("accountKeyResolver"))
         assertTrue(pool.contains("webLogonToken"))
         assertTrue(connection.contains("eventSink"))
         assertTrue(connection.contains("nextJobId"))
