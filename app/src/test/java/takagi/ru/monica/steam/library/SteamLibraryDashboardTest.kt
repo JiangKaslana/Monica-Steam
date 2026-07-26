@@ -93,6 +93,20 @@ class SteamLibraryDashboardTest {
     }
 
     @Test
+    fun steamCloudFilterIncludesOnlyKnownSupportedGames() {
+        val sections = buildSteamLibrarySections(
+            games = games + listOf(
+                SteamGame(6, "Cloud", 1, 0, supportsSteamCloud = true),
+                SteamGame(7, "Unknown", 1, 0, supportsSteamCloud = null)
+            ),
+            query = "",
+            filter = SteamLibraryGameFilter.STEAM_CLOUD
+        )
+
+        assertEquals(listOf("Cloud"), sections.single().games.map(SteamGame::name))
+    }
+
+    @Test
     fun localizedHeaderIsPreferredBeforeCdnAndIconFallbacks() {
         val game = SteamGame(
             appId = 10,

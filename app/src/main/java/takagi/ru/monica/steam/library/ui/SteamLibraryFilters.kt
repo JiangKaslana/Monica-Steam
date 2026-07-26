@@ -9,7 +9,8 @@ internal enum class SteamLibraryGameFilter {
     RECENT,
     LONG_PLAYED,
     PERFECT,
-    FAMILY_SHARED
+    FAMILY_SHARED,
+    STEAM_CLOUD
 }
 
 internal enum class SteamLibraryGameSectionType {
@@ -48,6 +49,9 @@ internal fun buildSteamLibrarySections(
         }
         SteamLibraryGameFilter.PERFECT -> searched.filter(SteamGame::isPerfectAchievementGame)
         SteamLibraryGameFilter.FAMILY_SHARED -> searched.filter(SteamGame::isFamilyShared)
+        SteamLibraryGameFilter.STEAM_CLOUD -> searched.filter {
+            it.supportsSteamCloud == true
+        }
     }
     if (filter != SteamLibraryGameFilter.ALL) {
         return listOf(

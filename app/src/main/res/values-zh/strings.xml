@@ -4718,4 +4718,24 @@
     <string name="steam_store_recommendations">推荐数量</string>
     <string name="steam_store_achievements">成就数量</string>
     <string name="steam_store_website">官方网站</string>
+    <string name="steam_library_filter_steam_cloud">Steam 云</string>
+    <string name="steam_library_context_owned_by_account">当前账号已拥有</string>
+    <string name="steam_library_context_family_shared">通过 Steam 家庭共享</string>
+    <string name="steam_library_context_family_owner_count">由 %1$d 位家庭成员共享</string>
+    <string name="steam_library_context_cached">正在显示缓存的拥有状态、DLC 或云数据</string>
+    <string name="steam_library_context_cloud_title">Steam 云</string>
+    <string name="steam_library_context_cloud_available">%1$d 个远端文件 · %2$s</string>
+    <string name="steam_library_context_cloud_empty">支持 Steam 云，暂未发现远端文件</string>
+    <string name="steam_library_context_cloud_unsupported">该游戏未声明支持 Steam 云</string>
+    <string name="steam_library_context_cloud_unknown">暂时无法确认 Steam 云支持状态</string>
+    <string name="steam_library_context_cloud_updated">最近文件更新于 %1$s</string>
+    <string name="steam_library_context_dlc_title">DLC</string>
+    <string name="steam_library_context_dlc_loading">正在加载 DLC 信息</string>
+    <string name="steam_library_context_dlc_unavailable">暂时无法刷新 DLC 信息</string>
+    <string name="steam_library_context_dlc_empty">该游戏未返回 DLC</string>
+    <string name="steam_library_context_dlc_summary">共 %1$d 个 · 已拥有 %2$d 个 · 家庭共享 %3$d 个</string>
+    <string name="steam_library_context_dlc_owned">已拥有</string>
+    <string name="steam_library_context_dlc_family_shared">家庭共享</string>
+    <string name="steam_library_context_dlc_not_owned">未拥有</string>
+    <string name="steam_library_context_dlc_unknown">状态未知</string>
 </resources>

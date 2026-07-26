@@ -4890,4 +4890,24 @@
     <string name="steam_store_recommendations">Recommendations</string>
     <string name="steam_store_achievements">Achievements</string>
     <string name="steam_store_website">Website</string>
+    <string name="steam_library_filter_steam_cloud">Steam Cloud</string>
+    <string name="steam_library_context_owned_by_account">Owned by this account</string>
+    <string name="steam_library_context_family_shared">Shared through Steam Families</string>
+    <string name="steam_library_context_family_owner_count">Shared by %1$d family member(s)</string>
+    <string name="steam_library_context_cached">Showing cached ownership, DLC, or Cloud data</string>
+    <string name="steam_library_context_cloud_title">Steam Cloud</string>
+    <string name="steam_library_context_cloud_available">%1$d remote files · %2$s</string>
+    <string name="steam_library_context_cloud_empty">Steam Cloud is supported; no remote files were found</string>
+    <string name="steam_library_context_cloud_unsupported">This game does not advertise Steam Cloud support</string>
+    <string name="steam_library_context_cloud_unknown">Steam Cloud support is unavailable</string>
+    <string name="steam_library_context_cloud_updated">Latest file %1$s</string>
+    <string name="steam_library_context_dlc_title">DLC</string>
+    <string name="steam_library_context_dlc_loading">Loading DLC information</string>
+    <string name="steam_library_context_dlc_unavailable">DLC information could not be refreshed</string>
+    <string name="steam_library_context_dlc_empty">No DLC was reported for this game</string>
+    <string name="steam_library_context_dlc_summary">%1$d total · %2$d owned · %3$d family shared</string>
+    <string name="steam_library_context_dlc_owned">Owned</string>
+    <string name="steam_library_context_dlc_family_shared">Family shared</string>
+    <string name="steam_library_context_dlc_not_owned">Not owned</string>
+    <string name="steam_library_context_dlc_unknown">Unknown</string>
 </resources>

@@ -21,6 +21,13 @@ import takagi.ru.monica.steam.data.SteamStorageSource
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.library.analytics.data.SteamPlayActivityRepository
 import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityHistory
+import takagi.ru.monica.steam.library.context.data.SteamLibraryGameContextCache
+import takagi.ru.monica.steam.library.context.data.SteamLibraryGameContextPreferencesCache
+import takagi.ru.monica.steam.library.context.data.SteamLibraryGameContextService
+import takagi.ru.monica.steam.library.context.domain.SteamLibraryGameContext
+import takagi.ru.monica.steam.library.context.domain.SteamLibraryGameContextGateway
+import takagi.ru.monica.steam.library.context.domain.mergeSteamLibraryGameContext
+import takagi.ru.monica.steam.library.context.domain.steamLibraryGameContextIsCacheable
 import takagi.ru.monica.steam.market.SteamInventoryService
 import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.quickaccess.SteamWidgetUpdater
@@ -40,6 +47,10 @@ data class SteamLibraryUiState(
     val loadingLibrary: Boolean = false,
     val libraryFailure: SteamLibraryFailureReason? = null,
     val selectedGame: SteamGame? = null,
+    val gameContext: SteamLibraryGameContext? = null,
+    val gameContextFromCache: Boolean = false,
+    val loadingGameContext: Boolean = false,
+    val gameContextFailure: SteamLibraryFailureReason? = null,
     val achievements: SteamGameAchievements? = null,
     val achievementsFromCache: Boolean = false,
     val loadingAchievements: Boolean = false,
@@ -58,6 +69,9 @@ class SteamLibraryViewModel(
     private val currencyExchangeService: SteamCurrencyExchangeService =
         SteamCurrencyExchangeService(),
     private val playActivityRepository: SteamPlayActivityRepository,
+    private val gameContextGateway: SteamLibraryGameContextGateway =
+        SteamLibraryGameContextService(),
+    private val gameContextCache: SteamLibraryGameContextCache? = null,
     private val appContext: Context? = null
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SteamLibraryUiState())
@@ -66,6 +80,7 @@ class SteamLibraryViewModel(
     private var libraryLoadGeneration: Long = 0L
     private var achievementLoadGeneration: Long = 0L
     private var regionalPriceLoadGeneration: Long = 0L
+    private var gameContextLoadGeneration: Long = 0L
 
     init {
         viewModelScope.launch {
@@ -89,11 +104,16 @@ class SteamLibraryViewModel(
                     libraryLoadGeneration++
                     achievementLoadGeneration++
                     regionalPriceLoadGeneration++
+                    gameContextLoadGeneration++
                     _uiState.value = _uiState.value.copy(
                         snapshot = null,
                         snapshotFromCache = false,
                         playActivity = null,
                         selectedGame = null,
+                        gameContext = null,
+                        gameContextFromCache = false,
+                        loadingGameContext = false,
+                        gameContextFailure = null,
                         achievements = null,
                         loadingLibrary = false,
                         libraryFailure = null
@@ -186,15 +206,26 @@ class SteamLibraryViewModel(
     fun openGame(game: SteamGame) {
         val account = selectedAccount() ?: return
         regionalPriceLoadGeneration++
+        val contextGeneration = ++gameContextLoadGeneration
         val generation = ++achievementLoadGeneration
         _uiState.value = _uiState.value.copy(
             selectedGame = game,
+            gameContext = null,
+            gameContextFromCache = false,
+            loadingGameContext = true,
+            gameContextFailure = null,
             achievements = null,
             achievementsFromCache = false,
             loadingAchievements = true,
             achievementFailure = null,
             loadingRegionalPrices = false,
             regionalPriceFailure = null
+        )
+        loadGameContext(
+            account = account,
+            game = game,
+            generation = contextGeneration,
+            readCache = true
         )
         viewModelScope.launch {
             val cached = runSteamLibraryCatching {
@@ -250,8 +281,13 @@ class SteamLibraryViewModel(
     fun closeGame() {
         achievementLoadGeneration++
         regionalPriceLoadGeneration++
+        gameContextLoadGeneration++
         _uiState.value = _uiState.value.copy(
             selectedGame = null,
+            gameContext = null,
+            gameContextFromCache = false,
+            loadingGameContext = false,
+            gameContextFailure = null,
             achievements = null,
             achievementsFromCache = false,
             loadingAchievements = false,
@@ -348,10 +384,119 @@ class SteamLibraryViewModel(
         }
     }
 
+    fun refreshGameContext() {
+        val account = selectedAccount() ?: return
+        val game = _uiState.value.selectedGame ?: return
+        if (_uiState.value.loadingGameContext) return
+        val generation = ++gameContextLoadGeneration
+        _uiState.value = _uiState.value.copy(
+            loadingGameContext = true,
+            gameContextFailure = null
+        )
+        loadGameContext(
+            account = account,
+            game = game,
+            generation = generation,
+            readCache = false
+        )
+    }
+
+    private fun loadGameContext(
+        account: SteamAccount,
+        game: SteamGame,
+        generation: Long,
+        readCache: Boolean
+    ) {
+        val countryCode = _uiState.value.snapshot?.region
+            ?.takeIf(String::isNotBlank)
+            ?: DEFAULT_STORE_COUNTRY_CODE
+        viewModelScope.launch {
+            val cached = if (readCache) {
+                runSteamLibraryCatching {
+                    withContext(Dispatchers.IO) {
+                        gameContextCache?.load(account.steamId, game.appId)
+                    }
+                }.getOrNull()
+            } else {
+                _uiState.value.gameContext?.takeIf {
+                    it.accountSteamId == account.steamId && it.appId == game.appId
+                }
+            }
+            if (!gameContextRequestIsCurrent(account, game.appId, generation)) return@launch
+            if (readCache && cached != null) {
+                _uiState.value = _uiState.value.copy(
+                    gameContext = cached,
+                    gameContextFromCache = true,
+                    loadingGameContext = true,
+                    gameContextFailure = null
+                )
+            }
+
+            val result = runSteamLibraryCatching {
+                withContext(Dispatchers.IO) {
+                    fetchGameContextWithSessionRetry(
+                        account = account,
+                        game = game,
+                        countryCode = countryCode
+                    )
+                }
+            }.getOrElse { error ->
+                SteamLibraryResult.Failure(steamLibraryFailureReason(error))
+            }
+            if (!gameContextRequestIsCurrent(account, game.appId, generation)) return@launch
+            when (result) {
+                is SteamLibraryResult.Success -> {
+                    val merged = mergeSteamLibraryGameContext(result.value, cached)
+                    if (steamLibraryGameContextIsCacheable(result.value)) {
+                        runSteamLibraryCatching {
+                            withContext(Dispatchers.IO) {
+                                gameContextCache?.save(result.value)
+                            }
+                        }
+                    }
+                    if (!gameContextRequestIsCurrent(account, game.appId, generation)) {
+                        return@launch
+                    }
+                    val currentState = _uiState.value
+                    val stateWithSupport = applyGameContextToLibraryState(
+                        state = currentState,
+                        context = merged.context
+                    )
+                    val supportChanged = currentState.selectedGame?.supportsSteamCloud !=
+                        stateWithSupport.selectedGame?.supportsSteamCloud
+                    _uiState.value = stateWithSupport.copy(
+                        gameContext = merged.context,
+                        gameContextFromCache = merged.usedCache,
+                        loadingGameContext = false,
+                        gameContextFailure = null
+                    )
+                    if (supportChanged) {
+                        stateWithSupport.snapshot?.let { snapshot ->
+                            runSteamLibraryCatching {
+                                withContext(Dispatchers.IO) {
+                                    cacheRepository.saveLibrary(snapshot)
+                                }
+                            }
+                        }
+                    }
+                }
+                is SteamLibraryResult.Failure -> {
+                    _uiState.value = _uiState.value.copy(
+                        gameContext = cached,
+                        gameContextFromCache = cached != null,
+                        loadingGameContext = false,
+                        gameContextFailure = result.reason
+                    )
+                }
+            }
+        }
+    }
+
     private suspend fun loadAccount(account: SteamAccount) {
         libraryLoadGeneration++
         achievementLoadGeneration++
         regionalPriceLoadGeneration++
+        gameContextLoadGeneration++
         val cachedData = runSteamLibraryCatching {
             withContext(Dispatchers.IO) {
                 cacheRepository.getLibrary(account.id) to playActivityRepository.load(account.id)
@@ -364,6 +509,10 @@ class SteamLibraryViewModel(
             snapshotFromCache = cached != null,
             playActivity = cachedData?.second,
             selectedGame = null,
+            gameContext = null,
+            gameContextFromCache = false,
+            loadingGameContext = false,
+            gameContextFailure = null,
             achievements = null,
             loadingLibrary = false,
             libraryFailure = null,
@@ -391,6 +540,18 @@ class SteamLibraryViewModel(
             currentGeneration = achievementLoadGeneration
         )
     }
+
+    private fun gameContextRequestIsCurrent(
+        account: SteamAccount,
+        appId: Int,
+        generation: Long
+    ): Boolean = steamLibraryGameContextRequestIsCurrent(
+        state = _uiState.value,
+        account = account,
+        appId = appId,
+        generation = generation,
+        currentGeneration = gameContextLoadGeneration
+    )
 
     private suspend fun fetchLibraryWithSessionRetry(
         account: SteamAccount
@@ -424,6 +585,36 @@ class SteamLibraryViewModel(
         val refreshed = refreshAccountSession(prepared, force = true)
         return if (refreshed.accessToken != prepared.accessToken) {
             service.fetchAchievements(refreshed, game, language = "schinese")
+        } else {
+            first
+        }
+    }
+
+    private suspend fun fetchGameContextWithSessionRetry(
+        account: SteamAccount,
+        game: SteamGame,
+        countryCode: String
+    ): SteamLibraryResult<SteamLibraryGameContext> {
+        val prepared = refreshAccountSession(account, force = false)
+        val first = gameContextGateway.fetch(
+            account = prepared,
+            game = game,
+            countryCode = countryCode,
+            language = "schinese"
+        )
+        if (first !is SteamLibraryResult.Failure ||
+            first.reason != SteamLibraryFailureReason.SESSION_REQUIRED
+        ) {
+            return first
+        }
+        val refreshed = refreshAccountSession(prepared, force = true)
+        return if (refreshed.accessToken != prepared.accessToken) {
+            gameContextGateway.fetch(
+                account = refreshed,
+                game = game,
+                countryCode = countryCode,
+                language = "schinese"
+            )
         } else {
             first
         }
@@ -525,6 +716,7 @@ class SteamLibraryViewModel(
         internal val REGIONAL_PRICE_COUNTRY_CODES =
             listOf("CN", "US", "JP", "KR", "HK", "TW", "UA", "IN", "ID")
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
+        private const val DEFAULT_STORE_COUNTRY_CODE = "CN"
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
@@ -545,6 +737,7 @@ class SteamLibraryViewModel(
                             securityManager
                         ),
                         sessionResolver = accountSourceRepository.sessionResolver(),
+                        gameContextCache = SteamLibraryGameContextPreferencesCache(appContext),
                         appContext = appContext
                     ) as T
                 }
@@ -594,6 +787,41 @@ internal fun steamLibraryAchievementRequestIsCurrent(
     return generation == currentGeneration &&
         state.selectedAccountId == accountId &&
         state.selectedGame?.appId == appId
+}
+
+internal fun steamLibraryGameContextRequestIsCurrent(
+    state: SteamLibraryUiState,
+    account: SteamAccount,
+    appId: Int,
+    generation: Long,
+    currentGeneration: Long
+): Boolean {
+    val selected = state.accounts.firstOrNull { it.id == state.selectedAccountId }
+    return generation == currentGeneration &&
+        state.selectedAccountId == account.id &&
+        state.selectedGame?.appId == appId &&
+        selected?.steamId == account.steamId
+}
+
+internal fun applyGameContextToLibraryState(
+    state: SteamLibraryUiState,
+    context: SteamLibraryGameContext
+): SteamLibraryUiState {
+    val supportsSteamCloud = context.supportsSteamCloud ?: return state
+    val selectedGame = state.selectedGame
+        ?.takeIf { it.appId == context.appId }
+        ?.copy(supportsSteamCloud = supportsSteamCloud)
+        ?: state.selectedGame
+    val snapshot = state.snapshot?.copy(
+        games = state.snapshot.games.map { game ->
+            if (game.appId == context.appId) {
+                game.copy(supportsSteamCloud = supportsSteamCloud)
+            } else {
+                game
+            }
+        }
+    )
+    return state.copy(selectedGame = selectedGame, snapshot = snapshot)
 }
 
 internal fun applyAchievementsToState(
@@ -681,7 +909,8 @@ internal fun mergeLibraryDashboardSnapshot(
                 game.allAchievementsUnlocked
             } else {
                 previous?.allAchievementsUnlocked == true
-            }
+            },
+            supportsSteamCloud = game.supportsSteamCloud ?: previous?.supportsSteamCloud
         )
     }
     val gamesWithFamilyCacheFallback = if (fresh.familyShareFailure != null) {

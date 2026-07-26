@@ -16,7 +16,8 @@ import takagi.ru.monica.steam.network.SteamProtoWriter
 
 internal data class SteamStoreMetadata(
     val headerImageUrl: String,
-    val price: SteamGamePrice?
+    val price: SteamGamePrice?,
+    val supportsSteamCloud: Boolean?
 )
 
 private data class SteamStoreMetadataResult(
@@ -61,7 +62,7 @@ class SteamGameLibraryService(
             sharedGames = familyLibrary.games
         )
         val storeMetadata = fetchStoreMetadata(
-            appIds = ownedGames.map(SteamGame::appId),
+            appIds = games.map(SteamGame::appId),
             countryCode = countryCode,
             language = language,
             accessToken = token
@@ -78,6 +79,7 @@ class SteamGameLibraryService(
             game.copy(
                 headerImageUrl = metadata?.headerImageUrl.orEmpty(),
                 price = metadata?.price,
+                supportsSteamCloud = metadata?.supportsSteamCloud,
                 achievementUnlockedCount = progress?.unlocked,
                 achievementTotalCount = progress?.total,
                 allAchievementsUnlocked = progress?.allUnlocked == true
@@ -286,6 +288,7 @@ class SteamGameLibraryService(
     companion object {
         private const val STORE_PRICE_BATCH_SIZE = 40
         private const val ACHIEVEMENT_PROGRESS_BATCH_SIZE = 100
+        private const val STEAM_CLOUD_CATEGORY_ID = 23
         private const val STORE_ASSET_BASE =
             "https://shared.akamai.steamstatic.com/store_item_assets/"
         private val json = Json { ignoreUnknownKeys = true }
@@ -413,6 +416,21 @@ class SteamGameLibraryService(
                         .mapNotNull { assets?.get(it)?.asString?.takeIf(String::isNotBlank) }
                         .firstOrNull()
                     val headerImageUrl = buildStoreAssetUrl(assetFormat, assetFilename)
+                    val supportsSteamCloud = item[22]?.bytes?.let { categoriesBytes ->
+                        SteamProtoReader(categoriesBytes).parseAll()
+                            .asSequence()
+                            .filter { it.number == 3 }
+                            .flatMap { field ->
+                                when {
+                                    field.wireType == 0 -> sequenceOf(field.asLong)
+                                    field.bytes != null -> SteamProtoReader
+                                        .decodePackedVarints(field.bytes)
+                                        .asSequence()
+                                    else -> emptySequence()
+                                }
+                            }
+                            .any { it.toInt() == STEAM_CLOUD_CATEGORY_ID }
+                    }
                     val isFree = item[13]?.asBool == true
                     val purchase = item[40]?.bytes?.let { SteamProtoReader(it).parse() }
                     val finalPrice = purchase?.get(5)?.asLong?.coerceAtLeast(0L)
@@ -436,7 +454,8 @@ class SteamGameLibraryService(
                     }
                     appId to SteamStoreMetadata(
                         headerImageUrl = headerImageUrl,
-                        price = price
+                        price = price,
+                        supportsSteamCloud = supportsSteamCloud
                     )
                 }
                 .toMap()
