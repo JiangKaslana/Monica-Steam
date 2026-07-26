@@ -28,11 +28,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.penfeizhou.animation.apng.APNGDrawable
-import com.github.penfeizhou.animation.loader.ByteBufferLoader
 import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteBytes
+import takagi.ru.monica.steam.foundation.ui.steamRemoteImageCacheFile
 
 /** Rendering policy for the small, fixed-size assets served by Steam. */
 internal enum class SteamChatRemoteImageMode {
@@ -59,7 +59,9 @@ internal fun SteamChatRemoteImage(
         if (isAnimatedPng(payload)) {
             drawable = runCatching {
                 withContext(Dispatchers.Default) {
-                    APNGDrawable(SteamChatByteBufferLoader(payload)).apply {
+                    val cacheFile = steamRemoteImageCacheFile(context, url)
+                    if (!cacheFile.isFile) return@withContext null
+                    APNGDrawable.fromFile(cacheFile.absolutePath).apply {
                         // Let ImageView visibility start/stop the decoder. Explicitly
                         // calling start() below also covers Compose re-attachment.
                         setAutoPlay(true)
@@ -186,9 +188,3 @@ private fun imageScaleType(mode: SteamChatRemoteImageMode): ImageView.ScaleType 
     } else {
         ImageView.ScaleType.FIT_CENTER
     }
-
-private class SteamChatByteBufferLoader(
-    private val payload: ByteArray
-) : ByteBufferLoader() {
-    override fun getByteBuffer(): ByteBuffer = ByteBuffer.wrap(payload)
-}

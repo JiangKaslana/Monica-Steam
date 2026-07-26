@@ -27,7 +27,7 @@ private fun loadSteamRemoteBytesBlocking(context: Context, imageUrl: String): By
     val normalizedUrl = normalizeSteamImageUrl(imageUrl)
     if (!normalizedUrl.startsWith("https://") && !normalizedUrl.startsWith("http://")) return null
 
-    val cacheFile = steamRemoteImageCacheFile(context, normalizedUrl)
+    val cacheFile = steamRemoteImageCacheFileForNormalizedUrl(context, normalizedUrl)
     val cachedBytes = cacheFile.takeIf(File::isFile)?.let { runCatching { it.readBytes() }.getOrNull() }
     if (cachedBytes != null && !isSteamRemoteImageCacheExpired(cacheFile)) return cachedBytes
 
@@ -75,7 +75,12 @@ private fun downloadSteamRemoteImageBytes(imageUrl: String): ByteArray? {
     }
 }
 
-private fun steamRemoteImageCacheFile(context: Context, imageUrl: String): File {
+internal fun steamRemoteImageCacheFile(context: Context, imageUrl: String): File {
+    val normalizedUrl = normalizeSteamImageUrl(imageUrl)
+    return steamRemoteImageCacheFileForNormalizedUrl(context, normalizedUrl)
+}
+
+private fun steamRemoteImageCacheFileForNormalizedUrl(context: Context, imageUrl: String): File {
     val safeName = imageUrl.hashCode().toUInt().toString(16)
     return File(File(context.cacheDir, "steam_confirmation_images"), "$safeName.png")
 }

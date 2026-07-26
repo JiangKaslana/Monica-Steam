@@ -115,6 +115,7 @@ class SteamChatIntegrationGuardTest {
         ).readText()
         assertTrue(remoteImage.contains("Animatable"))
         assertTrue(remoteImage.contains("APNGDrawable"))
+        assertTrue(remoteImage.contains("APNGDrawable.fromFile"))
         assertTrue(remoteImage.contains("apngAnimated"))
         assertTrue(remoteImage.contains("isAnimatedPng"))
         assertTrue(remoteImage.contains("onDispose"))
