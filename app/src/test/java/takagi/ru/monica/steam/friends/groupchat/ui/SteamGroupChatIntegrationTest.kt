@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.groupchat.ui
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,7 +47,8 @@ class SteamGroupChatIntegrationTest {
         ).readText()
 
         assertTrue(chatScreen.contains("SteamGroupChatViewModel"))
-        assertTrue(chatScreen.contains("SteamGroupChatList("))
+        assertTrue(chatScreen.contains("SteamConversationList("))
+        assertFalse(chatScreen.contains("SteamGroupChatList("))
         assertTrue(chatScreen.contains("SteamGroupChatThreadHost("))
         assertTrue(chatScreen.contains("SteamGroupChatDialogsHost("))
         assertTrue(chatScreen.contains("groupChatState.selectedChatId != null"))
@@ -63,6 +65,7 @@ class SteamGroupChatIntegrationTest {
         assertTrue(dialogs.contains("SteamCreateGroupDialog("))
         assertTrue(dialogs.contains("SteamInviteFriendDialog("))
         assertTrue(dialogs.contains("FriendSelectionList"))
+        assertTrue(chatScreen.contains("groupChatViewModel.openRoom(createdGroup.groupId"))
     }
 
     @Test
