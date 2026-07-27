@@ -53,4 +53,30 @@ class SteamStoreBundleParserTest {
         assertEquals(listOf(10), parsed.map { it.bundleId })
         assertTrue(parsed.single().items.isNotEmpty())
     }
+
+    @Test
+    fun parsesCyberpunkUltimateEditionFromCurrentSteamMarkup() {
+        val html = """
+            <div class="game_area_purchase_game_wrapper dynamic_bundle_description ds_no_flags"
+                 data-ds-bundleid="32470"
+                 data-ds-bundle-data='{"m_nDiscountPct":"8","m_bMustPurchaseAsSet":1,"m_rgItems":[{"m_nPackageID":367653,"m_rgIncludedAppIDs":[1091500]},{"m_nPackageID":938169,"m_rgIncludedAppIDs":[2138330]}],"m_bIsCommercial":false}'>
+              <div class="game_area_purchase_game_dropdown_subscription game_area_purchase_game">
+                <h2 class="title">购买 《赛博朋克 2077：终极版》</h2>
+                <p class="package_contents">
+                  <a href="https://store.steampowered.com/app/1091500/_2077/">赛博朋克 2077</a>
+                  <a href="https://store.steampowered.com/app/2138330/_2077/">《赛博朋克 2077：往日之影》</a>
+                </p>
+                <a href="https://store.steampowered.com/bundle/32470/_2077/?snr=test">捆绑包信息</a>
+                <div class="discount_block" data-price-final="16450"></div>
+              </div>
+            </div>
+        """.trimIndent()
+
+        val bundle = SteamStoreBundleParser.parse(html).single()
+
+        assertEquals(32470, bundle.bundleId)
+        assertEquals("《赛博朋克 2077：终极版》", bundle.title)
+        assertEquals(listOf(1091500, 2138330), bundle.items.map { it.appId })
+        assertEquals(16_450, bundle.finalPriceCents)
+    }
 }

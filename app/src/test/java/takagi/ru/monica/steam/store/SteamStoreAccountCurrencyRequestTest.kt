@@ -39,6 +39,21 @@ class SteamStoreAccountCurrencyRequestTest {
     }
 
     @Test
+    fun matureStorePageRequestIncludesAgeGateCookies() {
+        val request = buildSteamStoreRequest(
+            path = "/app/1091500/",
+            query = mapOf("l" to "schinese"),
+            steamLoginSecure = "76561198000000000||token",
+            countryCode = "CN"
+        )
+
+        val cookie = request.header("Cookie").orEmpty()
+        assertTrue(cookie.contains("birthtime=0"))
+        assertTrue(cookie.contains("lastagecheckage=1-January-1980"))
+        assertTrue(cookie.contains("steamLoginSecure="))
+    }
+
+    @Test
     fun authenticatedRequestsHaveAnExplicitCountryWhenResolved() {
         val request = buildSteamStoreRequest(
             path = "/api/appdetails",

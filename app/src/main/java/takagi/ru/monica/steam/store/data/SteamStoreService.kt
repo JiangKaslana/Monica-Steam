@@ -623,8 +623,17 @@ internal fun buildSteamStoreRequest(
         .header("User-Agent", "Monica-Steam/1.0")
         .header("Accept", "application/json")
         .apply {
-            steamLoginSecure?.takeIf(String::isNotBlank)?.let { value ->
-                header("Cookie", "steamLoginSecure=${encodeSteamCookieValue(value)}")
+            val cookies = buildList {
+                if (path.startsWith("/app/")) {
+                    add("birthtime=0")
+                    add("lastagecheckage=1-January-1980")
+                }
+                steamLoginSecure?.takeIf(String::isNotBlank)?.let { value ->
+                    add("steamLoginSecure=${encodeSteamCookieValue(value)}")
+                }
+            }
+            if (cookies.isNotEmpty()) {
+                header("Cookie", cookies.joinToString("; "))
             }
         }
         .get()
