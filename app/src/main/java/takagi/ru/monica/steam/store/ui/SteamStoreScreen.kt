@@ -278,10 +278,16 @@ fun SteamStoreScreen(
                     )
                 }
             }
-            SteamStoreDestination.Home -> Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-                topBar = {
+            SteamStoreDestination.Home -> SteamStoreBrowseDrawer(
+                selectedFilter = state.browseFilter,
+                onSelectFilter = viewModel::selectBrowseFilter,
+                onOpenPointsShop = viewModel::openPointsShop,
+                modifier = Modifier.fillMaxSize()
+            ) { openBrowseDrawer ->
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+                    topBar = {
                     ExpressiveTopBar(
                         title = stringResource(R.string.steam_store_title),
                         searchQuery = state.query,
@@ -305,9 +311,7 @@ fun SteamStoreScreen(
                         } else null,
                         actions = {
                             SteamStoreBrowseMenu(
-                                selectedFilter = state.browseFilter,
-                                onSelectFilter = viewModel::selectBrowseFilter,
-                                onOpenPointsShop = viewModel::openPointsShop
+                                onOpenDrawer = openBrowseDrawer
                             )
                             IconButton(
                                 onClick = { showAccounts = true },
@@ -353,8 +357,8 @@ fun SteamStoreScreen(
                             )
                         }
                     )
-                }
-            ) { padding ->
+                    }
+                ) { padding ->
                 SteamExpressivePullToRefresh(
                     refreshing = storeRefreshing,
                     onRefresh = refreshStore,
@@ -444,6 +448,7 @@ fun SteamStoreScreen(
                         }
                     }
                     }
+                }
                 }
             }
         }
