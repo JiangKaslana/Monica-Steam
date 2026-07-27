@@ -1739,7 +1739,6 @@
     <string name="import_type_steam_title">Steam Guard</string>
     <string name="import_type_steam_desc">Nhap token Steam tu tep maFile</string>
     <string name="import_type_steam_file_hint">Chon tep .maFile</string>
-    <string name="steam_login_fill_from_password_applied">Da dien thong tin dang nhap Steam tu mat khau da chon</string>
     <string name="import_type_csv_monica_title">Monica CSV</string>
     <string name="import_type_csv_monica_desc">Nhap CSV duoc xuat boi Monica</string>
     <string name="import_type_csv_monica_file_hint">Chon tep Monica .csv</string>

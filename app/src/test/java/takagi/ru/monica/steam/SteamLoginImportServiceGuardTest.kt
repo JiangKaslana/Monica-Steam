@@ -85,7 +85,7 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(viewModelSource.contains("displayName: String = \"\""))
         assertFalse(viewModelSource.contains("fun submitSteamLoginCode(code: String, displayName"))
 
-        assertTrue(loginDialogSource.contains("onBeginLogin: (String, String, String, Long?) -> Unit"))
+        assertTrue(loginDialogSource.contains("onBeginLogin: (String, String, String) -> Unit"))
         assertTrue(loginDialogSource.contains("onSubmitLoginCode: (String) -> Unit"))
         assertTrue(loginDialogSource.contains("pendingChallenge.canPoll"))
         assertFalse(loginDialogSource.contains("PasswordEntryPickerBottomSheet("))
@@ -101,7 +101,7 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(loginDialogSource.contains("R.string.steam_remark_optional_label"))
         assertTrue(
             loginDialogSource.contains(
-                "onBeginLogin(loginName, loginPassword, loginDisplayName, null)"
+                "onBeginLogin(loginName, loginPassword, loginDisplayName)"
             )
         )
         assertFalse(loginDialogSource.contains("steam_display_name_label"))

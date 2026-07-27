@@ -2949,7 +2949,6 @@
     <string name="import_type_steam_guard_json_hint">Вставьте полный JSON с shared_secret и serial_number</string>
     <string name="import_type_steam_custom_name_label">Отображаемое имя (необязательно)</string>
     <string name="import_type_steam_custom_name_hint">Оставьте пустым для account_name из JSON</string>
-    <string name="steam_login_fill_from_password_applied">Поля Steam заполнены из выбранного пароля</string>
     <string name="import_type_csv_monica_title">CSV Monica</string>
     <string name="import_type_csv_monica_desc">Импорт CSV из Monica</string>
     <string name="import_type_csv_monica_file_hint">Выберите .csv файл Monica</string>

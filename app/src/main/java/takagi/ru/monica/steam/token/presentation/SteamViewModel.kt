@@ -247,7 +247,6 @@ class SteamViewModel(
     private var localAccounts: List<SteamAccount> = emptyList()
     private var mdbxAccountRecords: List<SteamMdbxAccountRecord> = emptyList()
     private var pendingLoginDisplayName: String? = null
-    private var pendingLoginCredentialEntryId: Long? = null
     private var pendingLoginCompletionAccountId: Long? = null
     private var pendingLoginRebindAccount = false
     private var inventoryLoadGeneration: Long = 0L
@@ -579,14 +578,12 @@ class SteamViewModel(
     fun beginSteamLogin(
         userName: String,
         password: String,
-        displayName: String = "",
-        credentialEntryId: Long? = null
+        displayName: String = ""
     ) {
         viewModelScope.launch {
             pendingLoginPollJob?.cancel()
             clearPendingLoginTarget()
             pendingLoginDisplayName = displayName.trim().takeIf { it.isNotBlank() }
-            pendingLoginCredentialEntryId = credentialEntryId
             setLoading(true)
             _uiState.value = _uiState.value.copy(pendingQrLoginChallenge = null)
             when (val result = withContext(Dispatchers.IO) {
@@ -622,8 +619,7 @@ class SteamViewModel(
     fun beginSteamIdCompletionLogin(
         accountId: Long,
         userName: String,
-        password: String,
-        credentialEntryId: Long? = null
+        password: String
     ) {
         val account = accountById(accountId) ?: return
         if (account.hasRealSteamId) return
@@ -632,7 +628,6 @@ class SteamViewModel(
             pendingLoginCompletionAccountId = accountId
             pendingLoginRebindAccount = false
             pendingLoginDisplayName = null
-            pendingLoginCredentialEntryId = credentialEntryId
             setLoading(true)
             _uiState.value = _uiState.value.copy(pendingQrLoginChallenge = null)
             when (val result = withContext(Dispatchers.IO) {
@@ -666,8 +661,7 @@ class SteamViewModel(
     fun beginSteamAccountRebindLogin(
         accountId: Long,
         userName: String,
-        password: String,
-        credentialEntryId: Long? = null
+        password: String
     ) {
         accountById(accountId) ?: return
         viewModelScope.launch {
@@ -675,7 +669,6 @@ class SteamViewModel(
             pendingLoginCompletionAccountId = accountId
             pendingLoginRebindAccount = true
             pendingLoginDisplayName = null
-            pendingLoginCredentialEntryId = credentialEntryId
             setLoading(true)
             _uiState.value = _uiState.value.copy(pendingQrLoginChallenge = null)
             when (val result = withContext(Dispatchers.IO) {
@@ -2141,20 +2134,10 @@ class SteamViewModel(
     ): Int? {
         return runCatching {
             val message = saveLoginResult(result, displayNameOverride)
-            pendingLoginCredentialEntryId?.let { entryId ->
-                appContext.getSharedPreferences(
-                    "steam_credential_bindings",
-                    Context.MODE_PRIVATE
-                ).edit()
-                    .putLong("steam_${result.steamId}_password_entry_id", entryId)
-                    .apply()
-            }
-            pendingLoginCredentialEntryId = null
             message
         }.getOrElse { error ->
             clearPendingLoginTarget()
             pendingLoginDisplayName = null
-            pendingLoginCredentialEntryId = null
             setMessage(error.message ?: appContext.getString(R.string.steam_import_failed))
             null
         }
@@ -2881,7 +2864,6 @@ class SteamViewModel(
     private fun clearPendingLoginTarget() {
         pendingLoginCompletionAccountId = null
         pendingLoginRebindAccount = false
-        pendingLoginCredentialEntryId = null
     }
 
     private fun SteamAccount.loginApprovalUnavailableMessage(): String? {
