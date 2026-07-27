@@ -51,6 +51,13 @@ class SteamStorePurchaseContextService(
                 ownership = SteamStoreOwnershipStatus.OWNED
             )
         }
+        if (userOwnsStoreApp(appId, accessToken)) {
+            return context(
+                account = account,
+                appId = appId,
+                ownership = SteamStoreOwnershipStatus.OWNED
+            )
+        }
 
         val family = familyFor(account, language)
         val sharedGame = family.games.firstOrNull { it.appId == appId }
@@ -77,6 +84,19 @@ class SteamStorePurchaseContextService(
             )
         }
     }
+
+    private fun userOwnsStoreApp(appId: Int, accessToken: String): Boolean =
+        parseUserOwnsApp(
+            api.callProtobuf(
+                iface = "IStoreService",
+                method = "GetUserGameInterestState",
+                request = SteamProtoWriter().apply {
+                    writeVarint(1, appId.toLong())
+                },
+                accessToken = accessToken,
+                useGet = true
+            )
+        )
 
     private fun familyFor(account: SteamAccount, language: String): SteamFamilyLibraryFetch {
         val key = "${account.steamId}|$language"
@@ -135,6 +155,11 @@ class SteamStorePurchaseContextService(
                     ?.takeIf { it > 0 }
             }
         }
+
+        internal fun parseUserOwnsApp(response: ByteArray): Boolean =
+            SteamProtoReader(response).parseAll().any { field ->
+                field.number == 1 && field.wireType == 0 && field.asInt == 1
+            }
     }
 }
 

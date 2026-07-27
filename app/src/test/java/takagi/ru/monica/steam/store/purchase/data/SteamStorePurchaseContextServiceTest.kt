@@ -20,6 +20,28 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFai
 
 class SteamStorePurchaseContextServiceTest {
     @Test
+    fun storeInterestStateMarksOwnedDlcMissingFromOwnedGames() {
+        val requests = mutableListOf<Request>()
+        val client = client { request ->
+            requests += request
+            when {
+                request.url.encodedPath.contains("GetOwnedGames") -> ownedResponse()
+                request.url.encodedPath.contains("GetUserGameInterestState") ->
+                    userGameInterestStateResponse(owned = true)
+                else -> error("Family API should not be called for an owned DLC")
+            }
+        }
+
+        val context = SteamStorePurchaseContextService(
+            api = SteamApiClient(client),
+            nowMillis = { 42L }
+        ).fetch(account(), appId = 2896770, language = "schinese")
+
+        assertEquals(SteamStoreOwnershipStatus.OWNED, context.ownership)
+        assertTrue(requests.any { it.url.encodedPath.contains("GetUserGameInterestState") })
+    }
+
+    @Test
     fun filteredOwnedGamesMarksTheAppOwnedWithoutLoadingFamilyData() {
         val requests = mutableListOf<Request>()
         val client = client { request ->
@@ -52,6 +74,8 @@ class SteamStorePurchaseContextServiceTest {
         val client = client { request ->
             when {
                 request.url.encodedPath.contains("GetOwnedGames") -> ownedResponse()
+                request.url.encodedPath.contains("GetUserGameInterestState") ->
+                    userGameInterestStateResponse(owned = false)
                 request.url.encodedPath.contains("GetFamilyGroupForUser") -> {
                     familyGroupCalls++
                     SteamProtoWriter().apply { writeVarint(1, 42L) }.toByteArray()
@@ -87,6 +111,8 @@ class SteamStorePurchaseContextServiceTest {
         val client = client { request ->
             when {
                 request.url.encodedPath.contains("GetOwnedGames") -> ownedResponse()
+                request.url.encodedPath.contains("GetUserGameInterestState") ->
+                    userGameInterestStateResponse(owned = false)
                 request.url.encodedPath.contains("GetFamilyGroupForUser") -> {
                     familyGroupCalls++
                     if (familyGroupCalls == 1) {
@@ -150,6 +176,9 @@ class SteamStorePurchaseContextServiceTest {
             writeMessage(2, SteamProtoWriter().apply { writeVarint(1, appId.toLong()) })
         }
     }.toByteArray()
+
+    private fun userGameInterestStateResponse(owned: Boolean): ByteArray =
+        SteamProtoWriter().apply { writeBool(1, owned) }.toByteArray()
 
     private fun sharedApp(appId: Int, ownerSteamId: Long): SteamProtoWriter =
         SteamProtoWriter().apply {
