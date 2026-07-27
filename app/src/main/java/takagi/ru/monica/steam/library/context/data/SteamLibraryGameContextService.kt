@@ -15,12 +15,14 @@ import takagi.ru.monica.steam.library.family.SteamFamilyLibraryService
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.ownership.data.SteamStoreAppOwnershipService
 
 class SteamLibraryGameContextService(
     private val api: SteamApiClient = SteamApiClient(),
     private val nowMillis: () -> Long = System::currentTimeMillis
 ) : SteamLibraryGameContextGateway {
     private val familyService = SteamFamilyLibraryService(api)
+    private val appOwnershipService = SteamStoreAppOwnershipService(api)
 
     override fun fetch(
         account: SteamAccount,
@@ -208,7 +210,18 @@ class SteamLibraryGameContextService(
                 failure = failureReason(error)
             )
         }
-        val remainingIds = appIds.filterNot { it in ownedIds }
+        val interestOwnedIds = linkedSetOf<Int>()
+        val interestFailures = linkedMapOf<Int, SteamLibraryFailureReason>()
+        appIds.filterNot { it in ownedIds }.forEach { appId ->
+            runCatching {
+                appOwnershipService.isOwned(appId, accessToken)
+            }.onSuccess { owned ->
+                if (owned) interestOwnedIds += appId
+            }.onFailure { error ->
+                interestFailures[appId] = failureReason(error)
+            }
+        }
+        val remainingIds = appIds.filterNot { it in ownedIds || it in interestOwnedIds }
         val family = if (remainingIds.isEmpty()) null else familyService.fetch(account, language)
         val sharedById = family?.games.orEmpty()
             .filter { it.appId in remainingIds }
@@ -216,7 +229,9 @@ class SteamLibraryGameContextService(
         val statuses = appIds.associateWith { appId ->
             when {
                 appId in ownedIds -> SteamLibraryDlcOwnership.OWNED
+                appId in interestOwnedIds -> SteamLibraryDlcOwnership.OWNED
                 appId in sharedById -> SteamLibraryDlcOwnership.FAMILY_SHARED
+                appId in interestFailures -> SteamLibraryDlcOwnership.UNKNOWN
                 family?.failure != null -> SteamLibraryDlcOwnership.UNKNOWN
                 else -> SteamLibraryDlcOwnership.NOT_OWNED
             }
@@ -227,7 +242,7 @@ class SteamLibraryGameContextService(
                 ownerSteamIds = sharedById.mapValues { it.value.ownerSteamIds },
                 sharedNames = sharedById.mapValues { it.value.name }
             ),
-            failure = family?.failure
+            failure = interestFailures.values.firstOrNull() ?: family?.failure
         )
     }
 

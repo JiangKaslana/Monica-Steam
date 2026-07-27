@@ -24,6 +24,36 @@ import takagi.ru.monica.steam.network.SteamProtoWriter
 
 class SteamLibraryGameContextServiceTest {
     @Test
+    fun storeInterestStateMarksOwnedDlcMissingFromOwnedGames() {
+        val client = client { request ->
+            when {
+                request.url.encodedPath == "/api/appdetails" -> Stub.json(
+                    """{"620":{"success":true,"data":{"dlc":[621],"categories":[]}}}"""
+                )
+                request.url.encodedPath.contains("GetItems") -> Stub.proto(
+                    dlcStoreItems(621 to "Owned DLC")
+                )
+                request.url.encodedPath.contains("GetOwnedGames") -> Stub.proto(ownedGames())
+                request.url.encodedPath.contains("GetUserGameInterestState") -> Stub.proto(
+                    SteamProtoWriter().apply { writeBool(1, true) }.toByteArray()
+                )
+                else -> error("Family API should not be called for an owned DLC: ${request.url}")
+            }
+        }
+
+        val result = SteamLibraryGameContextService(
+            api = SteamApiClient(client)
+        ).fetch(
+            account = account(),
+            game = SteamGame(620, "Portal 2", 120, 0),
+            countryCode = "CN",
+            language = "schinese"
+        ) as SteamLibraryResult.Success
+
+        assertEquals(SteamLibraryDlcOwnership.OWNED, result.value.dlc.single().ownership)
+    }
+
+    @Test
     fun fetchBuildsOwnedSharedDlcAndCloudSummary() {
         val requests = mutableListOf<Request>()
         val client = client { request ->
@@ -42,6 +72,9 @@ class SteamLibraryGameContextServiceTest {
                 )
                 request.url.encodedPath.contains("GetOwnedGames") -> Stub.proto(
                     ownedGames(621)
+                )
+                request.url.encodedPath.contains("GetUserGameInterestState") -> Stub.proto(
+                    SteamProtoWriter().apply { writeBool(1, false) }.toByteArray()
                 )
                 request.url.encodedPath.contains("GetFamilyGroupForUser") -> Stub.proto(
                     SteamProtoWriter().apply { writeVarint(1, 42L) }.toByteArray()
