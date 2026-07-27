@@ -65,6 +65,15 @@ internal object SteamGroupChatParser {
     fun parseCreatedGroupId(payload: ByteArray): String =
         SteamProtoReader(payload).parse()[1]?.asUnsignedVarintString().orEmpty()
 
+    fun parseCreatedRoom(payload: ByteArray): SteamGroupChatRoom? =
+        SteamProtoReader(payload).parse()[1]?.bytes?.let(::parseRoomState)
+
+    fun parseRoomState(payload: ByteArray): SteamGroupChatRoom? =
+        parseRoom(payload, emptyMap())
+
+    fun parseVoiceChatId(payload: ByteArray): String =
+        SteamProtoReader(payload).parse()[1]?.asUnsignedVarintString().orEmpty()
+
     private fun parseSummaryPair(payload: ByteArray): SteamGroupChatSummary? {
         val pair = SteamProtoReader(payload).parse()
         val userState = pair[1]?.bytes?.let { SteamProtoReader(it).parseAll() }.orEmpty()

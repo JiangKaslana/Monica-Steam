@@ -2,11 +2,14 @@ package takagi.ru.monica.steam.friends.groupchat.data
 
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatCreateRequest
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatChannelCreateRequest
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGateway
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatHistoryBoundary
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessagePage
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatVoiceSession
 import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.network.cm.SteamCmClient
 import takagi.ru.monica.steam.network.cm.SteamCmGateway
@@ -95,6 +98,71 @@ class SteamGroupChatService(
         call(account, "SetChatRoomGroupAvatar", SteamProtoWriter().apply {
             writeUint64(1, groupId.requireUnsignedId("group"))
             writeBytes(2, avatarSha)
+        })
+    }
+
+    override fun createChannel(
+        account: SteamAccount,
+        groupId: String,
+        request: SteamGroupChatChannelCreateRequest
+    ): SteamGroupChatRoom {
+        val name = request.name.trim()
+        require(name.length in 1..64) { "Steam channel name must contain 1-64 characters" }
+        val response = call(account, "CreateChatRoom", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeString(2, name)
+            writeBool(3, request.allowVoice)
+        })
+        return SteamGroupChatParser.parseCreatedRoom(response)
+            ?: error("Steam did not return the created channel")
+    }
+
+    override fun deleteChannel(account: SteamAccount, groupId: String, chatId: String) {
+        call(account, "DeleteChatRoom", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeUint64(2, chatId.requireUnsignedId("chat"))
+        })
+    }
+
+    override fun renameChannel(account: SteamAccount, groupId: String, chatId: String, name: String) {
+        val normalized = name.trim()
+        require(normalized.length in 1..64) { "Steam channel name must contain 1-64 characters" }
+        call(account, "RenameChatRoom", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeUint64(2, chatId.requireUnsignedId("chat"))
+            writeString(3, normalized)
+        })
+    }
+
+    override fun reorderChannel(
+        account: SteamAccount,
+        groupId: String,
+        chatId: String,
+        moveAfterChatId: String?
+    ) {
+        call(account, "ReorderChatRoom", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeUint64(2, chatId.requireUnsignedId("chat"))
+            moveAfterChatId?.takeIf(String::isNotBlank)?.let {
+                writeUint64(3, it.requireUnsignedId("chat"))
+            }
+        })
+    }
+
+    override fun joinVoiceChat(account: SteamAccount, groupId: String, chatId: String): SteamGroupChatVoiceSession {
+        val response = call(account, "JoinVoiceChat", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeUint64(2, chatId.requireUnsignedId("chat"))
+        })
+        val voiceId = SteamGroupChatParser.parseVoiceChatId(response)
+            .takeIf(String::isNotBlank) ?: error("Steam did not return a voice chat ID")
+        return SteamGroupChatVoiceSession(groupId, chatId, voiceId)
+    }
+
+    override fun leaveVoiceChat(account: SteamAccount, groupId: String, chatId: String) {
+        call(account, "LeaveVoiceChat", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeUint64(2, chatId.requireUnsignedId("chat"))
         })
     }
 
