@@ -107,12 +107,12 @@ internal fun buildSteamConversationEntries(
         }
     }
     val groupEntries = groups.map { group ->
-        val room = group.rooms.maxByOrNull { it.lastMessageTimestamp }
-            ?: group.rooms.firstOrNull { it.chatId == group.defaultChatId }
+        val room = group.rooms.firstOrNull { it.chatId == group.preferredChatId }
+            ?: group.rooms.maxByOrNull { it.lastMessageTimestamp }
         SteamConversationListEntry(
             type = SteamConversationType.GROUP,
             id = group.groupId,
-            chatId = room?.chatId ?: group.defaultChatId,
+            chatId = room?.chatId ?: group.preferredChatId,
             title = group.name,
             subtitle = room?.lastMessage.orEmpty().ifBlank { group.tagline }
                 .ifBlank { "${group.activeMemberCount} members" },

@@ -203,7 +203,7 @@ fun SteamChatScreen(
             initialGroupInvitees = emptySet()
             subpage = null
             chatViewModel.closeThread()
-            groupChatViewModel.openRoom(createdGroup.groupId, createdGroup.defaultChatId)
+            groupChatViewModel.openRoom(createdGroup.groupId, createdGroup.preferredChatId)
             Toast.makeText(context, R.string.steam_group_chat_created, Toast.LENGTH_SHORT).show()
             groupChatViewModel.clearCreatedGroup()
         } else if (!groupChatState.groupsRefreshing && !groupChatState.groupsLoading) {

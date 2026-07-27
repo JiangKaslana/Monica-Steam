@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -122,18 +120,11 @@ internal fun SteamGroupChatThread(
 
     Column(modifier.fillMaxSize().imePadding()) {
         GroupThreadHeader(group, onBack, onOpenInfo, onInvite)
-        if (group.rooms.size > 1) LazyRow(
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(group.rooms, key = { it.chatId }) { room ->
-                FilterChip(
-                    selected = room.chatId == state.selectedChatId,
-                    onClick = { onOpenRoom(group.groupId, room.chatId) },
-                    label = { Text(room.name, maxLines = 1) }
-                )
-            }
-        }
+        SteamGroupChannelQuickFilter(
+            rooms = group.rooms,
+            selectedChatId = state.selectedChatId,
+            onSelect = { chatId -> onOpenRoom(group.groupId, chatId) }
+        )
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 state.threadLoading && state.thread == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))

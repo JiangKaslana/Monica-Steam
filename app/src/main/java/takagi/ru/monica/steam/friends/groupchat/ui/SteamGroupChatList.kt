@@ -82,7 +82,7 @@ internal fun SteamGroupChatList(
                 }
                 else -> {
                     items(groups, key = SteamGroupChatSummary::groupId) { group ->
-                        GroupCard(group) { onOpenRoom(group.groupId, group.defaultChatId) }
+                        GroupCard(group) { onOpenRoom(group.groupId, group.preferredChatId) }
                     }
                 }
             }

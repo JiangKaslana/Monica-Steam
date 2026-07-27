@@ -69,6 +69,24 @@ class SteamGroupChatIntegrationTest {
     }
 
     @Test
+    fun channelNavigationUsesMonicaQuickFilterAndPreferredEntryRoom() {
+        val quickFilter = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChannelQuickFilter.kt"
+        ).readText()
+        val conversationList = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamConversationList.kt"
+        ).readText()
+        val thread = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatThread.kt"
+        ).readText()
+
+        assertTrue(quickFilter.contains("MonicaExpressiveFilterChip"))
+        assertTrue(quickFilter.contains("rooms.size <= 1"))
+        assertTrue(thread.contains("SteamGroupChannelQuickFilter("))
+        assertTrue(conversationList.contains("group.preferredChatId"))
+    }
+
+    @Test
     fun inviteDialogPinsActionsInsideSafeScreenBounds() {
         val dialogs = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatDialogs.kt"
