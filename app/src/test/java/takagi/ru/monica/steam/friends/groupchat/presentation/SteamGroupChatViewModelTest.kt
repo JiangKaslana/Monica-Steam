@@ -1,7 +1,7 @@
 package takagi.ru.monica.steam.friends.groupchat.presentation
 
-import java.net.SocketTimeoutException
 import java.io.IOException
+import java.net.SocketTimeoutException
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -126,6 +126,34 @@ class SteamGroupChatViewModelTest {
         assertEquals(null, viewModel.state.value.failure)
         assertEquals(1, gateway.avatarUpdateCalls)
     }
+
+    @Test
+    fun staleGroupRefreshDoesNotReplaceANewlyUploadedAvatar() =
+        runTest(dispatcher.scheduler) {
+            val oldAvatar = "https://avatars.steamstatic.com/old_full.jpg"
+            val sha = ByteArray(20) { (it + 1).toByte() }
+            val newAvatar = steamGroupAvatarUrl(sha)
+            val gateway = FakeGateway().apply {
+                groups = listOf(group("8", "Group").copy(avatarUrl = oldAvatar))
+            }
+            val uploader = object : SteamGroupAvatarUploadGateway {
+                override suspend fun upload(account: SteamAccount, rawUri: String) = sha
+            }
+            val viewModel = viewModel(gateway, avatarUploader = uploader)
+            viewModel.selectAccount(account())
+            runCurrent()
+            viewModel.openRoom("8", "9")
+            runCurrent()
+
+            viewModel.updateGroupAvatar("content://avatar")
+            runCurrent()
+            assertEquals(newAvatar, viewModel.state.value.groups.single().avatarUrl)
+
+            viewModel.refreshGroups()
+            runCurrent()
+
+            assertEquals(newAvatar, viewModel.state.value.groups.single().avatarUrl)
+        }
 
     @Test
     fun realtimeMessageEntersTheOpenRoomWithoutPolling() = runTest(dispatcher.scheduler) {

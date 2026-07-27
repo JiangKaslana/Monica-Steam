@@ -77,6 +77,7 @@ class SteamGroupChatViewModel(
     private var foreground = false
     private var pollingJob: Job? = null
     private var realtimeJob: Job? = null
+    private val pendingAvatarUrls = mutableMapOf<String, PendingGroupAvatar>()
 
     fun selectAccount(account: SteamAccount?) {
         if (this.account?.id == account?.id && this.account?.steamId == account?.steamId) {
@@ -88,6 +89,7 @@ class SteamGroupChatViewModel(
         this.account = account
         accountGeneration++
         roomGeneration++
+        pendingAvatarUrls.clear()
         if (account == null) {
             _state.value = SteamGroupChatUiState(failure = "Steam account required")
             restartRealtime()
@@ -362,6 +364,10 @@ class SteamGroupChatViewModel(
             result.fold(
                 onSuccess = { update ->
                     val avatarUrl = steamGroupAvatarUrl(update.sha)
+                    pendingAvatarUrls[groupId] = PendingGroupAvatar(
+                        url = avatarUrl,
+                        expiresAtMillis = nowMillis() + AVATAR_OVERRIDE_TTL_MILLIS
+                    )
                     val groups = update.verifiedGroups ?: _state.value.groups.map { group ->
                         if (group.groupId == groupId) group.copy(avatarUrl = avatarUrl) else group
                     }
@@ -539,9 +545,16 @@ class SteamGroupChatViewModel(
             if (!isCurrent(current, currentGeneration)) return@launch
             result.fold(
                 onSuccess = { groups ->
-                    val snapshot = SteamGroupChatGroupsSnapshot(current.steamId, groups, nowMillis())
+                    val reconciledGroups = applyPendingAvatarUrls(groups)
+                    val snapshot = SteamGroupChatGroupsSnapshot(current.steamId, reconciledGroups, nowMillis())
                     withContext(ioDispatcher) { cache.saveGroups(snapshot) }
-                    _state.value = _state.value.copy(groups = groups, groupsLoading = false, groupsRefreshing = false, failure = null)
+                    _state.value = _state.value.copy(
+                        groups = reconciledGroups,
+                        groupsLoading = false,
+                        groupsRefreshing = false,
+                        groupsFailure = false,
+                        failure = null
+                    )
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -552,6 +565,30 @@ class SteamGroupChatViewModel(
                 }
             )
         }
+    }
+
+    private fun applyPendingAvatarUrls(
+        groups: List<SteamGroupChatSummary>
+    ): List<SteamGroupChatSummary> {
+        val now = nowMillis()
+        val updated = groups.map { group ->
+            val pending = pendingAvatarUrls[group.groupId]
+            when {
+                pending == null -> group
+                group.avatarUrl == pending.url -> {
+                    pendingAvatarUrls.remove(group.groupId)
+                    group
+                }
+                pending.expiresAtMillis <= now -> {
+                    pendingAvatarUrls.remove(group.groupId)
+                    group
+                }
+                else -> group.copy(avatarUrl = pending.url)
+            }
+        }
+        val returnedIds = groups.mapTo(mutableSetOf(), SteamGroupChatSummary::groupId)
+        pendingAvatarUrls.keys.removeAll { it !in returnedIds }
+        return updated
     }
 
     private suspend fun fetchThread(
@@ -721,6 +758,13 @@ private data class SteamGroupAvatarUpdateResult(
     val sha: ByteArray,
     val verifiedGroups: List<SteamGroupChatSummary>?
 )
+
+private data class PendingGroupAvatar(
+    val url: String,
+    val expiresAtMillis: Long
+)
+
+private const val AVATAR_OVERRIDE_TTL_MILLIS = 10 * 60 * 1_000L
 
 private fun Throwable.groupChatMessage(): String = message?.takeIf(String::isNotBlank)?.take(220)
     ?: "Steam group chat is temporarily unavailable"

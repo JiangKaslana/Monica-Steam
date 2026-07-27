@@ -44,6 +44,23 @@ class SteamChatInfoIntegrationGuardTest {
         assertTrue(host.contains("onUpdateGroupAvatar = groupChatViewModel::updateGroupAvatar"))
     }
 
+    @Test
+    fun groupAvatarEditButtonLivesOutsideTheCircularClip() {
+        val info = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/info/ui/SteamChatInfoScreen.kt"
+        ).readText()
+        val editor = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/info/ui/SteamGroupAvatarEditor.kt"
+        )
+
+        assertTrue(info.contains("SteamGroupAvatarEditor("))
+        assertTrue(editor.isFile)
+        val source = editor.readText()
+        assertTrue(source.contains("Modifier.align(Alignment.BottomEnd).size(48.dp)"))
+        assertTrue(source.contains(".clip(CircleShape)"))
+        assertTrue(source.indexOf(".clip(CircleShape)") < source.indexOf("IconButton("))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (directory.parentFile != null && !File(directory, "settings.gradle").exists()) {
