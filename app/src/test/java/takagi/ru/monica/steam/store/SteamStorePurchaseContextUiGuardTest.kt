@@ -1,9 +1,14 @@
 package takagi.ru.monica.steam.store
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import takagi.ru.monica.steam.store.purchase.domain.SteamStoreOwnershipStatus
+import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
+import takagi.ru.monica.steam.store.purchase.ui.steamStoreOwnershipStatusForDisplay
 
 class SteamStorePurchaseContextUiGuardTest {
     @Test
@@ -41,6 +46,34 @@ class SteamStorePurchaseContextUiGuardTest {
         assertFalse(packageOptionsSource.contains("maxLines ="))
         assertFalse(packageOptionsSource.contains("TextOverflow.Ellipsis"))
     }
+
+    @Test
+    fun unknownOrMissingOwnershipIsNotPresentedAsARealAccountStatus() {
+        assertNull(steamStoreOwnershipStatusForDisplay(null))
+        assertNull(
+            steamStoreOwnershipStatusForDisplay(
+                purchaseContext(SteamStoreOwnershipStatus.UNKNOWN)
+            )
+        )
+        assertEquals(
+            SteamStoreOwnershipStatus.OWNED,
+            steamStoreOwnershipStatusForDisplay(
+                purchaseContext(SteamStoreOwnershipStatus.OWNED)
+            )
+        )
+        assertEquals(
+            SteamStoreOwnershipStatus.FAMILY_SHARED,
+            steamStoreOwnershipStatusForDisplay(
+                purchaseContext(SteamStoreOwnershipStatus.FAMILY_SHARED)
+            )
+        )
+    }
+
+    private fun purchaseContext(status: SteamStoreOwnershipStatus) = SteamStorePurchaseContext(
+        accountSteamId = "76561198000000000",
+        appId = 620,
+        ownership = status
+    )
 
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile

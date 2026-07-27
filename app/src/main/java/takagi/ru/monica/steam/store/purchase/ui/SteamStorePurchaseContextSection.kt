@@ -56,12 +56,14 @@ fun SteamStorePurchaseContextSection(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OwnershipStatusCard(
-            context = context,
-            fromCache = contextFromCache,
-            loading = loadingContext,
-            failure = contextFailure
-        )
+        steamStoreOwnershipStatusForDisplay(context)?.let {
+            OwnershipStatusCard(
+                context = context,
+                fromCache = contextFromCache,
+                loading = loadingContext,
+                failure = contextFailure
+            )
+        }
         if (detail.packageOptions.isNotEmpty()) {
             PackageOptionsCard(
                 options = detail.packageOptions,
@@ -77,6 +79,12 @@ fun SteamStorePurchaseContextSection(
             )
         }
     }
+}
+
+internal fun steamStoreOwnershipStatusForDisplay(
+    context: SteamStorePurchaseContext?
+): SteamStoreOwnershipStatus? = context?.ownership?.takeUnless {
+    it == SteamStoreOwnershipStatus.UNKNOWN
 }
 
 @Composable
