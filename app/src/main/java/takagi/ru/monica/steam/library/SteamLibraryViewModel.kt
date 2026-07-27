@@ -206,13 +206,13 @@ class SteamLibraryViewModel(
     fun openGame(game: SteamGame) {
         val account = selectedAccount() ?: return
         regionalPriceLoadGeneration++
-        val contextGeneration = ++gameContextLoadGeneration
+        gameContextLoadGeneration++
         val generation = ++achievementLoadGeneration
         _uiState.value = _uiState.value.copy(
             selectedGame = game,
             gameContext = null,
             gameContextFromCache = false,
-            loadingGameContext = true,
+            loadingGameContext = false,
             gameContextFailure = null,
             achievements = null,
             achievementsFromCache = false,
@@ -220,12 +220,6 @@ class SteamLibraryViewModel(
             achievementFailure = null,
             loadingRegionalPrices = false,
             regionalPriceFailure = null
-        )
-        loadGameContext(
-            account = account,
-            game = game,
-            generation = contextGeneration,
-            readCache = true
         )
         viewModelScope.launch {
             val cached = runSteamLibraryCatching {

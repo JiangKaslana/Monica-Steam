@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.library
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -16,14 +17,10 @@ class SteamLibraryStoreNavigationGuardTest {
         val store = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
-        val contextSection = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/library/context/ui/SteamLibraryGameContextSection.kt"
-        ).readText()
 
         assertTrue(screen.contains("onOpenStoreApp: (Int) -> Unit"))
         assertTrue(screen.contains("onClick = { onOpenStoreApp(game.appId) }"))
-        assertTrue(screen.contains("onOpenStoreApp = onOpenStoreApp"))
-        assertTrue(contextSection.contains("onOpenStoreApp(dlc.appId)"))
+        assertFalse(screen.contains("SteamLibraryGameContextSection("))
         assertTrue(screen.contains("Icons.Default.Storefront"))
         assertTrue(screen.contains("R.string.steam_library_open_store"))
         assertTrue(activity.contains("pendingStoreAppId = appId"))

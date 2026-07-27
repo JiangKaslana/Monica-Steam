@@ -1,12 +1,13 @@
 package takagi.ru.monica.steam.library
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SteamLibraryGameContextUiGuardTest {
     @Test
-    fun libraryContextUsesFocusedReadOnlyModulesAndIsWiredIntoDetail() {
+    fun libraryDetailOmitsRedundantContextCardsAndNetworkRequest() {
         val root = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/context"
         )
@@ -27,13 +28,16 @@ class SteamLibraryGameContextUiGuardTest {
 
         assertTrue(root.resolve("domain").isDirectory)
         assertTrue(root.resolve("data").isDirectory)
-        assertTrue(root.resolve("ui").isDirectory)
-        assertTrue(component.readLines().size <= 500)
+        assertFalse(component.exists())
         assertTrue(service.contains("method = \"GetAppFileChangelist\""))
         assertTrue(service.contains("iface = \"ICloudService\""))
         assertTrue(!service.contains("CommitFileUpload"))
         assertTrue(!service.contains("ClientDeleteFile"))
-        assertTrue(screen.contains("SteamLibraryGameContextSection("))
+        assertFalse(screen.contains("SteamLibraryGameContextSection("))
+        val openGame = viewModel.substringAfter("fun openGame(game: SteamGame)")
+            .substringBefore("fun closeGame()")
+        assertFalse(openGame.contains("loadGameContext("))
+        assertFalse(openGame.contains("loadingGameContext = true"))
         assertTrue(viewModel.contains("gameContextCache?.load(account.steamId, game.appId)"))
         assertTrue(viewModel.contains("steamLibraryGameContextRequestIsCurrent"))
         assertTrue(filters.contains("STEAM_CLOUD"))

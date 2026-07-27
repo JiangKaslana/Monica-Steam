@@ -102,8 +102,6 @@ import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityHistory
 import takagi.ru.monica.steam.library.analytics.ui.SteamGameDistributionCard
 import takagi.ru.monica.steam.library.analytics.ui.SteamPlayHeatMapCard
-import takagi.ru.monica.steam.library.context.domain.SteamLibraryGameContext
-import takagi.ru.monica.steam.library.context.ui.SteamLibraryGameContextSection
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
@@ -228,11 +226,6 @@ fun SteamLibraryScreen(
                             fromCache = state.achievementsFromCache,
                             failure = state.achievementFailure,
                             onRetry = { viewModel.openGame(game) },
-                            gameContext = state.gameContext,
-                            gameContextFromCache = state.gameContextFromCache,
-                            loadingGameContext = state.loadingGameContext,
-                            gameContextFailure = state.gameContextFailure,
-                            onRetryGameContext = viewModel::refreshGameContext,
                             onNavigateBack = viewModel::closeGame,
                             onOpenRegionalPrices = {
                                 showRegionalPriceSheet = true
@@ -1420,11 +1413,6 @@ private fun SteamGameDetail(
     fromCache: Boolean,
     failure: SteamLibraryFailureReason?,
     onRetry: () -> Unit,
-    gameContext: SteamLibraryGameContext?,
-    gameContextFromCache: Boolean,
-    loadingGameContext: Boolean,
-    gameContextFailure: SteamLibraryFailureReason?,
-    onRetryGameContext: () -> Unit,
     onNavigateBack: () -> Unit,
     onOpenRegionalPrices: () -> Unit,
     onOpenStoreApp: (Int) -> Unit,
@@ -1472,20 +1460,6 @@ private fun SteamGameDetail(
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.steam_library_open_store))
             }
-        }
-        item {
-            SteamLibraryGameContextSection(
-                game = game,
-                context = gameContext,
-                fromCache = gameContextFromCache,
-                loading = loadingGameContext,
-                failure = gameContextFailure,
-                onRetry = onRetryGameContext,
-                onOpenStoreApp = onOpenStoreApp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
         }
         item {
             if (loading) {
