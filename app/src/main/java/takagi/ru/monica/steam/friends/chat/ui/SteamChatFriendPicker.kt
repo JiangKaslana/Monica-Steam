@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
 import takagi.ru.monica.steam.friends.ui.label
@@ -38,6 +39,7 @@ import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 @Composable
 internal fun SteamChatFriendPicker(
     friends: List<SteamFriend>,
+    sessions: List<SteamChatSession> = emptyList(),
     loading: Boolean,
     query: String,
     onOpenThread: (String) -> Unit,
@@ -46,7 +48,8 @@ internal fun SteamChatFriendPicker(
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
     val normalizedQuery = query.trim()
-    val visibleFriends = friends.filter { friend ->
+    val orderedFriends = sortSteamChatFriendsByRecentMessage(friends, sessions)
+    val visibleFriends = orderedFriends.filter { friend ->
         normalizedQuery.isBlank() ||
             friend.displayName.contains(normalizedQuery, ignoreCase = true) ||
             friend.realName.contains(normalizedQuery, ignoreCase = true) ||
@@ -135,3 +138,17 @@ internal fun SteamChatFriendPicker(
     }
 }
 
+/** Places active conversations first while keeping the source order for ties. */
+internal fun sortSteamChatFriendsByRecentMessage(
+    friends: List<SteamFriend>,
+    sessions: List<SteamChatSession>
+): List<SteamFriend> {
+    val lastMessageByFriend = sessions.associate { it.partnerSteamId to it.lastMessageTimestamp }
+    return friends.withIndex()
+        .sortedWith(
+            compareByDescending<IndexedValue<SteamFriend>> {
+                lastMessageByFriend[it.value.steamId] ?: 0L
+            }.thenBy { it.index }
+        )
+        .map(IndexedValue<SteamFriend>::value)
+}
