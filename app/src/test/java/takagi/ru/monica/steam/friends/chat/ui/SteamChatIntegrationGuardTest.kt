@@ -40,6 +40,18 @@ class SteamChatIntegrationGuardTest {
     }
 
     @Test
+    fun friendPickerUsesFriendsTitleInsteadOfChatTitle() {
+        val chatScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
+        ).readText()
+
+        val topBarTitle = chatScreen.substringAfter("ExpressiveTopBar(")
+            .substringBefore("searchQuery =")
+        assertTrue(topBarTitle.contains("if (showFriends) R.string.steam_friends_title"))
+        assertTrue(topBarTitle.contains("else R.string.steam_chat_title"))
+    }
+
+    @Test
     fun chatKeepsDataPresentationAndTelegramStyleUiSeparated() {
         val root = projectFile("app/src/main/java/takagi/ru/monica/steam/friends/chat")
         assertTrue(root.resolve("domain").isDirectory)

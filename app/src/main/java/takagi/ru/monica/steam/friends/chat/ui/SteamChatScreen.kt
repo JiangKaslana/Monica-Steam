@@ -272,7 +272,10 @@ fun SteamChatScreen(
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     topBar = {
                         ExpressiveTopBar(
-                            title = stringResource(R.string.steam_chat_title),
+                            title = stringResource(
+                                if (showFriends) R.string.steam_friends_title
+                                else R.string.steam_chat_title
+                            ),
                             searchQuery = standaloneSearchQuery,
                             onSearchQueryChange = { standaloneSearchQuery = it },
                             isSearchExpanded = searchExpanded,
