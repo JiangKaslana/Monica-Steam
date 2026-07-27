@@ -4542,6 +4542,9 @@
     <string name="steam_store_open_official">Open official store</string>
     <string name="steam_store_buy">View purchase options</string>
     <string name="steam_store_about">About this game</string>
+    <string name="steam_store_system_requirements">System requirements</string>
+    <string name="steam_store_minimum_requirements">Minimum</string>
+    <string name="steam_store_recommended_requirements">Recommended</string>
     <string name="steam_store_screenshots">Screenshots</string>
     <string name="steam_store_screenshot_description">Game screenshot %1$d</string>
     <string name="steam_store_screenshot_close">Close screenshot viewer</string>

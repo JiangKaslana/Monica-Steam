@@ -101,6 +101,7 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFailure
 import takagi.ru.monica.steam.store.purchase.ui.SteamStorePurchaseContextSection
+import takagi.ru.monica.steam.store.requirements.ui.SteamStoreSystemRequirementsSection
 import takagi.ru.monica.steam.store.ui.gallery.SteamStoreScreenshotViewer
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
@@ -1008,6 +1009,14 @@ private fun SteamStoreDetailContent(
                 DetailTextSection(
                     stringResource(R.string.steam_store_about),
                     aboutText
+                )
+            }
+        }
+        if (detail.systemRequirements.hasContent) {
+            item(key = "store_system_requirements_${detail.appId}") {
+                SteamStoreSystemRequirementsSection(
+                    requirements = detail.systemRequirements,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
         }

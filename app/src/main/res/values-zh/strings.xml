@@ -4372,6 +4372,9 @@
     <string name="steam_store_open_official">打开官方商店</string>
     <string name="steam_store_buy">查看购买选项</string>
     <string name="steam_store_about">关于此游戏</string>
+    <string name="steam_store_system_requirements">系统需求</string>
+    <string name="steam_store_minimum_requirements">最低配置</string>
+    <string name="steam_store_recommended_requirements">推荐配置</string>
     <string name="steam_store_screenshots">游戏截图</string>
     <string name="steam_store_screenshot_description">游戏截图 %1$d</string>
     <string name="steam_store_screenshot_close">关闭截图查看器</string>

@@ -1,5 +1,6 @@
 package takagi.ru.monica.steam.store
 
+import kotlinx.serialization.json.Json
 import takagi.ru.monica.steam.store.data.*
 import takagi.ru.monica.steam.store.domain.*
 
@@ -39,5 +40,28 @@ class SteamStoreParserTest {
         assertEquals("£12.34", formatSteamPrice(1234, "GBP"))
         assertEquals("₩1234", formatSteamPrice(123400, "KRW"))
         assertEquals("HK$45.67", formatSteamPrice(4567, "HKD"))
+    }
+
+    @Test
+    fun parsesPcRequirementsAndKeepsLegacyDetailCacheCompatible() {
+        val detail = SteamStoreParser.parseDetail(
+            appId = 620,
+            payload = """{"620":{"success":true,"data":{"type":"game","name":"Portal 2","steam_appid":620,"pc_requirements":{"minimum":"<strong>最低配置:</strong><br><ul><li><strong>操作系统:</strong> Windows 10</li><li><strong>内存:</strong> 8 GB RAM</li></ul>","recommended":"<strong>推荐配置:</strong><br><ul><li><strong>处理器:</strong> Intel Core i7</li><li><strong>内存:</strong> 16 GB RAM</li></ul>"}}}}"""
+        )
+
+        assertEquals(
+            "最低配置:\n操作系统: Windows 10\n内存: 8 GB RAM",
+            detail?.systemRequirements?.minimum
+        )
+        assertEquals(
+            "推荐配置:\n处理器: Intel Core i7\n内存: 16 GB RAM",
+            detail?.systemRequirements?.recommended
+        )
+        assertTrue(detail?.systemRequirements?.hasContent == true)
+
+        val legacy = Json { ignoreUnknownKeys = true }.decodeFromString<SteamStoreDetail>(
+            """{"appId":620,"name":"Portal 2"}"""
+        )
+        assertTrue(!legacy.systemRequirements.hasContent)
     }
 }

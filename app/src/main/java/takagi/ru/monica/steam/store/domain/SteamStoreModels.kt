@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreBaseGame
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreDemo
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
+import takagi.ru.monica.steam.store.requirements.domain.SteamStoreSystemRequirements
 
 @Serializable
 data class SteamStoreItem(
@@ -129,6 +130,7 @@ data class SteamStoreDetail(
     val categories: List<String> = emptyList(),
     val supportedLanguages: String = "",
     val controllerSupport: String = "",
+    val systemRequirements: SteamStoreSystemRequirements = SteamStoreSystemRequirements(),
     val website: String = "",
     val recommendationCount: Int? = null,
     val achievementCount: Int? = null,

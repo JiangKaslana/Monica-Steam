@@ -15,6 +15,7 @@ import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreBaseGame
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreDemo
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
+import takagi.ru.monica.steam.store.requirements.domain.SteamStoreSystemRequirements
 
 object SteamStoreParser {
     private val json = Json { ignoreUnknownKeys = true }
@@ -92,6 +93,7 @@ object SteamStoreParser {
         val data = wrapper.obj("data") ?: return null
         val price = data.obj("price_overview")
         val platforms = data.obj("platforms")
+        val pcRequirements = data.obj("pc_requirements")
         val packageOptions = data.array("package_groups")
             .asSequence()
             .mapNotNull { it as? JsonObject }
@@ -168,6 +170,12 @@ object SteamStoreParser {
             },
             supportedLanguages = stripHtml(data.string("supported_languages").orEmpty()),
             controllerSupport = data.string("controller_support").orEmpty(),
+            systemRequirements = SteamStoreSystemRequirements(
+                minimum = stripRequirementHtml(pcRequirements?.string("minimum").orEmpty()),
+                recommended = stripRequirementHtml(
+                    pcRequirements?.string("recommended").orEmpty()
+                )
+            ),
             website = data.string("website").orEmpty(),
             recommendationCount = data.obj("recommendations")?.int("total"),
             achievementCount = data.obj("achievements")?.int("total")
@@ -207,6 +215,12 @@ object SteamStoreParser {
         .replace("&gt;", ">")
         .replace(Regex("\\n{3,}"), "\n\n")
         .trim()
+
+    private fun stripRequirementHtml(value: String): String = stripHtml(value)
+        .lineSequence()
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .joinToString("\n")
 
     private fun eventImage(container: org.jsoup.nodes.Element): String {
         val candidates = listOf(
