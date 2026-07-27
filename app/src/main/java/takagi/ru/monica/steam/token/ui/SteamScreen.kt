@@ -5710,18 +5710,13 @@ private fun SteamLoginImportDialog(
     val context = LocalContext.current
     val pickerSecurityManager = remember(context) { SecurityManager(context) }
     val passwordDatabase = remember(context) { PasswordDatabase.getDatabase(context) }
-    val passwordEntriesForPicker by passwordDatabase.passwordEntryDao()
-        .getAllPasswordEntries()
-        .collectAsState(initial = emptyList())
     val legacyTotpItems by passwordDatabase.secureItemDao()
         .getActiveItemsByType(ItemType.TOTP)
         .collectAsState(initial = emptyList())
     var loginName by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
     var loginDisplayName by remember { mutableStateOf("") }
-    var selectedPasswordEntryId by remember { mutableStateOf<Long?>(null) }
     var challengeCode by remember { mutableStateOf("") }
-    var showSteamPasswordPicker by remember { mutableStateOf(false) }
     var showMonicaCodePicker by remember { mutableStateOf(false) }
     val waitingForCode = pendingChallenge != null
     val requiresCode = pendingChallenge?.requiresCode == true
@@ -5769,14 +5764,6 @@ private fun SteamLoginImportDialog(
                             text = stringResource(resId),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    OutlinedButton(
-                        onClick = { showSteamPasswordPicker = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Key, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.autofill_select_password))
                     }
                     OutlinedTextField(
                         value = loginName,
@@ -5868,7 +5855,7 @@ private fun SteamLoginImportDialog(
                         if (waitingForCode) {
                             onSubmitLoginCode(challengeCode)
                         } else {
-                            onBeginLogin(loginName, loginPassword, loginDisplayName, selectedPasswordEntryId)
+                            onBeginLogin(loginName, loginPassword, loginDisplayName, null)
                         }
                     },
                     enabled = if (waitingForCode) {
@@ -5910,36 +5897,6 @@ private fun SteamLoginImportDialog(
         )
     }
 
-    if (showSteamPasswordPicker && pendingChallenge == null) {
-        PasswordEntryPickerBottomSheet(
-            visible = true,
-            title = stringResource(R.string.select_password_to_bind),
-            passwords = passwordEntriesForPicker.filter { !it.isDeleted && !it.isArchived },
-            onDismiss = { showSteamPasswordPicker = false },
-            onSelect = { entry ->
-                val resolvedUsername = runCatching { pickerSecurityManager.decryptData(entry.username) }
-                    .getOrNull()
-                    ?.trim()
-                    .takeUnless { it.isNullOrBlank() }
-                    ?: entry.username.trim()
-                val resolvedPassword = runCatching { pickerSecurityManager.decryptData(entry.password) }
-                    .getOrNull()
-                    ?.trim()
-                    .takeUnless { it.isNullOrBlank() }
-                    ?: entry.password.trim()
-
-                loginName = resolvedUsername
-                loginPassword = resolvedPassword
-                selectedPasswordEntryId = entry.id
-                showSteamPasswordPicker = false
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.steam_login_fill_from_password_applied),
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        )
-    }
 }
 
 private fun badgeCountText(count: Int): String {

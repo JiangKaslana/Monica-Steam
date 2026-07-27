@@ -995,7 +995,7 @@ class SteamBoundaryGuardTest {
 
         val loginDialog = screenSource
             .substringAfter("private fun SteamLoginImportDialog(")
-            .substringBefore("if (showSteamPasswordPicker && pendingChallenge == null)")
+            .substringBefore("private fun badgeCountText")
         assertTrue(loginDialog.contains("availableCodeAccounts: List<SteamAccount>"))
         assertTrue(loginDialog.contains("legacyTotpItems by passwordDatabase.secureItemDao()"))
         assertTrue(loginDialog.contains("getActiveItemsByType(ItemType.TOTP)"))
@@ -1006,6 +1006,8 @@ class SteamBoundaryGuardTest {
         assertTrue(loginDialog.contains("SteamAuthenticatorCodePickerBottomSheet("))
         assertTrue(loginDialog.contains("legacyTotpItems = legacyTotpItems"))
         assertTrue(loginDialog.contains("challengeCode = code"))
+        assertFalse(loginDialog.contains("PasswordEntryPickerBottomSheet("))
+        assertFalse(loginDialog.contains("R.string.autofill_select_password"))
 
         val codePicker = screenSource
             .substringAfter("private fun SteamAuthenticatorCodePickerBottomSheet(")

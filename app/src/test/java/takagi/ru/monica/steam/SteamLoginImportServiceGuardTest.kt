@@ -88,15 +88,10 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(loginDialogSource.contains("onBeginLogin: (String, String, String, Long?) -> Unit"))
         assertTrue(loginDialogSource.contains("onSubmitLoginCode: (String) -> Unit"))
         assertTrue(loginDialogSource.contains("pendingChallenge.canPoll"))
-        assertTrue(loginDialogSource.contains("PasswordDatabase.getDatabase(context)"))
-        assertTrue(loginDialogSource.contains("SecurityManager(context)"))
-        assertTrue(loginDialogSource.contains("PasswordEntryPickerBottomSheet("))
-        assertTrue(loginDialogSource.contains("R.string.autofill_select_password"))
-        assertTrue(loginDialogSource.contains("R.string.steam_login_fill_from_password_applied"))
-        assertTrue(loginDialogSource.contains("passwordEntriesForPicker.filter { !it.isDeleted && !it.isArchived }"))
-        assertTrue(loginDialogSource.contains("pickerSecurityManager.decryptData(entry.username)"))
-        assertTrue(loginDialogSource.contains("pickerSecurityManager.decryptData(entry.password)"))
-        assertTrue(loginDialogSource.contains("if (showSteamPasswordPicker && pendingChallenge == null)"))
+        assertFalse(loginDialogSource.contains("PasswordEntryPickerBottomSheet("))
+        assertFalse(loginDialogSource.contains("R.string.autofill_select_password"))
+        assertFalse(loginDialogSource.contains("R.string.steam_login_fill_from_password_applied"))
+        assertFalse(loginDialogSource.contains("showSteamPasswordPicker"))
         assertTrue(loginDialogSource.contains("pendingChallenge?.captchaImageUrl"))
         assertTrue(loginDialogSource.contains("SteamLoginCaptchaContent("))
         assertTrue(loginDialogSource.contains("challengeCode = \"\""))
@@ -106,7 +101,7 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(loginDialogSource.contains("R.string.steam_remark_optional_label"))
         assertTrue(
             loginDialogSource.contains(
-                "onBeginLogin(loginName, loginPassword, loginDisplayName, selectedPasswordEntryId)"
+                "onBeginLogin(loginName, loginPassword, loginDisplayName, null)"
             )
         )
         assertFalse(loginDialogSource.contains("steam_display_name_label"))
