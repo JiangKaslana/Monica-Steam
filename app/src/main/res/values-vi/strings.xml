@@ -1854,8 +1854,6 @@
     <string name="plus_feature_validator_vibration_desc">Rung nhac truoc khi ma xac thuc het han de tranh bo lo.</string>
     <string name="plus_feature_copy_next_code_title">Sao chep ma tiep theo thong minh</string>
     <string name="plus_feature_copy_next_code_desc">Neu con duoi 5 giay, thao tac sao chep se tu dong lay ma TOTP tiep theo.</string>
-    <string name="plus_feature_bitwarden_sync_title">Dong bo Bitwarden</string>
-    <string name="plus_feature_bitwarden_sync_desc">Ket noi Bitwarden de dong bo mat khau, the va du lieu khac.</string>
     <string name="plus_feature_keepass_webdav_title">KeePass WebDAV</string>
     <string name="plus_feature_keepass_webdav_desc">Dong bo du lieu KeePass (.kdbx) thong qua WebDAV.</string>
     <string name="monica_plus_title">Monica Plus</string>

@@ -36,13 +36,6 @@ object PlusFeatures {
             titleRes = R.string.plus_feature_copy_next_code_title,
             descriptionRes = R.string.plus_feature_copy_next_code_desc,
             isAvailable = true
-        ),
-        PlusFeature(
-            id = "bitwarden_sync",
-            icon = Icons.Default.CloudSync,
-            titleRes = R.string.plus_feature_bitwarden_sync_title,
-            descriptionRes = R.string.plus_feature_bitwarden_sync_desc,
-            isAvailable = true
         )
     )
 }

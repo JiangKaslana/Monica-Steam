@@ -1835,8 +1835,6 @@
     <string name="plus_feature_validator_vibration_desc">コード更新直前に振動で通知し、入力タイミングを逃しません。</string>
     <string name="plus_feature_copy_next_code_title">次のコードを自動コピー</string>
     <string name="plus_feature_copy_next_code_desc">残り 5 秒未満でコピーすると次の TOTP コードを自動コピーします。</string>
-    <string name="plus_feature_bitwarden_sync_title">Bitwarden 同期</string>
-    <string name="plus_feature_bitwarden_sync_desc">Bitwarden に接続してパスワードやカードなどを同期します。</string>
     <string name="plus_feature_keepass_webdav_title">KeePass WebDAV</string>
     <string name="plus_feature_keepass_webdav_desc">WebDAV 経由で KeePass（.kdbx）データを同期します。</string>
     <string name="monica_plus_title">Monica Plus</string>

@@ -3746,8 +3746,6 @@
     <string name="plus_feature_validator_vibration_desc">Vibrate before a code refreshes so you do not miss the input window.</string>
     <string name="plus_feature_copy_next_code_title">Smart next-code copy</string>
     <string name="plus_feature_copy_next_code_desc">If less than 5 seconds remain, copy will automatically grab the next TOTP code.</string>
-    <string name="plus_feature_bitwarden_sync_title">Bitwarden sync</string>
-    <string name="plus_feature_bitwarden_sync_desc">Connect Bitwarden to sync passwords, cards, and other data across devices.</string>
     <string name="plus_feature_keepass_webdav_title">KeePass WebDAV</string>
     <string name="plus_feature_keepass_webdav_desc">Sync KeePass (.kdbx) data through WebDAV.</string>
     <string name="page_adjust_custom_title">Page Adjustment Customization</string>

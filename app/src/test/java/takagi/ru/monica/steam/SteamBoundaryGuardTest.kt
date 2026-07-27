@@ -385,6 +385,25 @@ class SteamBoundaryGuardTest {
     }
 
     @Test
+    fun steamPlusDoesNotAdvertiseUnsupportedBitwardenSync() {
+        val plusFeaturesSource = projectFile(
+            "app/src/main/java/takagi/ru/monica/data/PlusFeature.kt"
+        ).readText()
+        val stringResources = listOf(
+            "values",
+            "values-ja",
+            "values-ru",
+            "values-vi",
+            "values-zh"
+        ).joinToString("\n") { directory ->
+            projectFile("app/src/main/res/$directory/strings.xml").readText()
+        }
+
+        assertFalse(plusFeaturesSource.contains("bitwarden_sync"))
+        assertFalse(stringResources.contains("plus_feature_bitwarden_sync"))
+    }
+
+    @Test
     fun steamPageDoesNotUseLegacyTotpImportWritePath() {
         val steamSources = listOf(
             "app/src/main/java/takagi/ru/monica/steam/token/ui/SteamScreen.kt",

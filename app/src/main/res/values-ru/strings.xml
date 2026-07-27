@@ -3216,8 +3216,6 @@
     <string name="plus_feature_validator_vibration_desc">Вибрация перед обновлением кода, чтобы не пропустить.</string>
     <string name="plus_feature_copy_next_code_title">Умное копирование</string>
     <string name="plus_feature_copy_next_code_desc">Если осталось менее 5 секунд, скопируется следующий код TOTP.</string>
-    <string name="plus_feature_bitwarden_sync_title">Синхронизация Bitwarden</string>
-    <string name="plus_feature_bitwarden_sync_desc">Подключение Bitwarden для синхронизации паролей, карт и других данных.</string>
     <string name="plus_feature_keepass_webdav_title">KeePass WebDAV</string>
     <string name="plus_feature_keepass_webdav_desc">Синхронизация KeePass (.kdbx) через WebDAV.</string>
     <string name="page_adjust_custom_title">Настройка страницы</string>

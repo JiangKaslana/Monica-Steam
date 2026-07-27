@@ -3509,8 +3509,6 @@
     <string name="plus_feature_validator_vibration_desc">验证码即将刷新时震动提醒，避免错过窗口。</string>
     <string name="plus_feature_copy_next_code_title">智能复制下一个验证码</string>
     <string name="plus_feature_copy_next_code_desc">倒计时剩余不足 5 秒时复制，自动复制下一个验证码。</string>
-    <string name="plus_feature_bitwarden_sync_title">Bitwarden 同步</string>
-    <string name="plus_feature_bitwarden_sync_desc">连接 Bitwarden，跨设备同步密码、卡片等数据。</string>
     <string name="plus_feature_keepass_webdav_title">KeePass WebDAV</string>
     <string name="plus_feature_keepass_webdav_desc">通过 WebDAV 与 KeePass（.kdbx）同步数据。</string>
     <string name="monica_plus_title">Monica Plus</string>
