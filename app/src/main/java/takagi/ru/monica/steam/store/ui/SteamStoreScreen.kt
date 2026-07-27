@@ -102,6 +102,7 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFailure
 import takagi.ru.monica.steam.store.purchase.ui.SteamStorePurchaseContextSection
 import takagi.ru.monica.steam.store.requirements.ui.SteamStoreSystemRequirementsSection
+import takagi.ru.monica.steam.store.related.ui.SteamStoreRelatedContentSection
 import takagi.ru.monica.steam.store.ui.gallery.SteamStoreScreenshotViewer
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
@@ -271,7 +272,7 @@ fun SteamStoreScreen(
                             viewModel.loadRegionalPrices(detail.appId, force = true)
                         },
                         onOpenRelatedApp = { appId ->
-                            viewModel.openStoreWeb("https://store.steampowered.com/app/$appId/")
+                            viewModel.openDetail(appId)
                         },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -967,7 +968,6 @@ private fun SteamStoreDetailContent(
                 contextFailure = purchaseContextFailure,
                 selectedPackageId = selectedPackageId,
                 onSelectPackage = { selectedPackageId = it },
-                onOpenRelatedApp = onOpenRelatedApp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             )
         }
@@ -1013,6 +1013,17 @@ private fun SteamStoreDetailContent(
                         )
                     }
                 }
+            }
+        }
+        if (detail.fullGame != null || detail.demos.isNotEmpty() || detail.relatedDlc.isNotEmpty()) {
+            item(key = "store_related_${detail.appId}") {
+                SteamStoreRelatedContentSection(
+                    fullGame = detail.fullGame,
+                    demos = detail.demos,
+                    relatedDlc = detail.relatedDlc,
+                    onOpenApp = onOpenRelatedApp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             }
         }
         if (aboutText.isNotBlank()) {

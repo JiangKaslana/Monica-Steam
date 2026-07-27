@@ -52,15 +52,23 @@ data class SteamReviewPage(
 )
 
 internal fun SteamStoreDetail.preserveCachedReviews(cached: SteamStoreDetail?): SteamStoreDetail {
-    val cachedReviews = cached?.reviews ?: return this
-    val freshReviews = reviews ?: return copy(reviews = cachedReviews)
+    if (cached == null) return this
+    var result = if (
+        relatedDlc.isEmpty() && dlcAppIds.isNotEmpty() && cached.relatedDlc.isNotEmpty()
+    ) {
+        copy(relatedDlc = cached.relatedDlc.filter { it.appId in dlcAppIds })
+    } else {
+        this
+    }
+    val cachedReviews = cached.reviews ?: return result
+    val freshReviews = result.reviews ?: return result.copy(reviews = cachedReviews)
     val mergedReviews = freshReviews.copy(
         overall = freshReviews.overall ?: cachedReviews.overall,
         recent = freshReviews.recent ?: cachedReviews.recent,
         items = freshReviews.items.ifEmpty { cachedReviews.items },
         nextCursor = freshReviews.nextCursor ?: cachedReviews.nextCursor
     )
-    return if (mergedReviews == freshReviews) this else copy(reviews = mergedReviews)
+    return if (mergedReviews == freshReviews) result else result.copy(reviews = mergedReviews)
 }
 
 internal fun SteamStoreReviews.mergePage(page: SteamReviewPage): SteamStoreReviews = copy(

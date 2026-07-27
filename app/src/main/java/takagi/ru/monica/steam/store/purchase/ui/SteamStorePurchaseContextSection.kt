@@ -3,24 +3,17 @@ package takagi.ru.monica.steam.store.purchase.ui
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FamilyRestroom
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -52,7 +45,6 @@ fun SteamStorePurchaseContextSection(
     contextFailure: SteamStorePurchaseContextFailure?,
     selectedPackageId: Int?,
     onSelectPackage: (Int) -> Unit,
-    onOpenRelatedApp: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -70,12 +62,6 @@ fun SteamStorePurchaseContextSection(
                 currency = detail.currency,
                 selectedPackageId = selectedPackageId,
                 onSelectPackage = onSelectPackage
-            )
-        }
-        if (detail.fullGame != null || detail.demos.isNotEmpty() || detail.dlcAppIds.isNotEmpty()) {
-            RelatedAppsCard(
-                detail = detail,
-                onOpenRelatedApp = onOpenRelatedApp
             )
         }
     }
@@ -226,93 +212,6 @@ private fun PackageOptionsCard(
     }
 }
 
-@Composable
-private fun RelatedAppsCard(
-    detail: SteamStoreDetail,
-    onOpenRelatedApp: (Int) -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                stringResource(R.string.steam_store_related_content),
-                modifier = Modifier.padding(horizontal = 16.dp),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                detail.fullGame?.let { game ->
-                    item("base-${game.appId}") {
-                        RelatedAppButton(
-                            label = game.name.ifBlank {
-                                stringResource(R.string.steam_store_base_game)
-                            },
-                            icon = Icons.Default.Inventory2,
-                            onClick = { onOpenRelatedApp(game.appId) }
-                        )
-                    }
-                }
-                detail.demos.forEach { demo ->
-                    item("demo-${demo.appId}") {
-                        RelatedAppButton(
-                            label = demo.description.ifBlank {
-                                stringResource(R.string.steam_store_demo_number, demo.appId)
-                            },
-                            icon = Icons.Default.SportsEsports,
-                            onClick = { onOpenRelatedApp(demo.appId) }
-                        )
-                    }
-                }
-                detail.dlcAppIds.take(MAX_VISIBLE_DLC).forEach { appId ->
-                    item("dlc-$appId") {
-                        RelatedAppButton(
-                            label = stringResource(R.string.steam_store_dlc_number, appId),
-                            icon = Icons.Default.Inventory2,
-                            onClick = { onOpenRelatedApp(appId) }
-                        )
-                    }
-                }
-                val hiddenDlc = detail.dlcAppIds.size - MAX_VISIBLE_DLC
-                if (hiddenDlc > 0) {
-                    item("dlc-more") {
-                        Surface(
-                            modifier = Modifier.heightIn(min = 48.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest
-                        ) {
-                            Text(
-                                stringResource(R.string.steam_store_more_dlc, hiddenDlc),
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RelatedAppButton(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    FilledTonalButton(onClick = onClick, modifier = Modifier.heightIn(min = 48.dp)) {
-        Icon(icon, contentDescription = null)
-        Spacer(Modifier.width(8.dp))
-        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
 
 @Composable
 private fun ownershipVisuals(status: SteamStoreOwnershipStatus): OwnershipVisuals = when (status) {
@@ -363,5 +262,3 @@ private data class OwnershipVisuals(
     val container: Color,
     val content: Color
 )
-
-private const val MAX_VISIBLE_DLC = 12

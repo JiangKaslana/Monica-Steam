@@ -23,6 +23,7 @@ import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import java.io.IOException
 import takagi.ru.monica.steam.store.catalog.data.SteamStoreCatalogService
+import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentService
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -52,6 +53,7 @@ class SteamStoreService(
 ) {
     private val countryBySession = ConcurrentHashMap<String, String>()
     private val catalogService = SteamStoreCatalogService(client)
+    private val relatedContentService = SteamStoreRelatedContentService(api)
 
     fun featured(
         steamLoginSecure: String? = null,
@@ -178,7 +180,16 @@ class SteamStoreService(
         accessToken = accessToken,
         language = language,
         discoveryCountryCode = discoveryCountryCode
-    ).let { detail -> attachReviews(detail, appId, language) }
+    ).let { detail ->
+        detail.copy(
+            relatedDlc = relatedContentService.fetch(
+                appIds = detail.dlcAppIds,
+                countryCode = detail.priceCountryCode.orEmpty(),
+                language = language,
+                accessToken = effectiveSteamStoreAccessToken(accessToken, steamLoginSecure)
+            )
+        )
+    }.let { detail -> attachReviews(detail, appId, language) }
 
     fun compactDetail(
         appId: Int,
