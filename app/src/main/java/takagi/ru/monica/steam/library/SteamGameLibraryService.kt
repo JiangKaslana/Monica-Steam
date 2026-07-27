@@ -110,6 +110,9 @@ class SteamGameLibraryService(
         if (!account.hasRealSteamId) {
             return SteamLibraryResult.Failure(SteamLibraryFailureReason.SESSION_REQUIRED)
         }
+        if (game.achievementTotalCount == 0) {
+            return SteamLibraryResult.Success(emptyAchievements(account.id, game))
+        }
         return runCatching {
             val definitions = api.callProtobuf(
                 iface = "IPlayerService",
@@ -121,6 +124,9 @@ class SteamGameLibraryService(
                 accessToken = token,
                 useGet = true
             )
+            if (!hasAchievementDefinitions(definitions)) {
+                return@runCatching emptyAchievements(account.id, game)
+            }
             val userAchievements = api.callProtobuf(
                 iface = "IPlayerService",
                 method = "GetUserAchievements",
@@ -292,6 +298,24 @@ class SteamGameLibraryService(
         private const val STORE_ASSET_BASE =
             "https://shared.akamai.steamstatic.com/store_item_assets/"
         private val json = Json { ignoreUnknownKeys = true }
+
+        private fun emptyAchievements(
+            accountId: Long,
+            game: SteamGame
+        ): SteamGameAchievements = SteamGameAchievements(
+            accountId = accountId,
+            appId = game.appId,
+            gameName = game.name,
+            achievements = emptyList(),
+            fetchedAt = System.currentTimeMillis()
+        )
+
+        private fun hasAchievementDefinitions(response: ByteArray): Boolean {
+            if (response.isEmpty()) return false
+            return SteamProtoReader(response).parseAll().any { field ->
+                field.number == 1 && field.bytes != null
+            }
+        }
 
         internal fun currencyForCountry(countryCode: String): String {
             return when (countryCode.uppercase()) {

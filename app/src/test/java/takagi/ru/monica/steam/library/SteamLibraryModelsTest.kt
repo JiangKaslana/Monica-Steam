@@ -690,6 +690,65 @@ class SteamLibraryModelsTest {
     }
 
     @Test
+    fun knownGameWithoutAchievementsSkipsAchievementRequests() {
+        var requestCount = 0
+        val httpClient = OkHttpClient.Builder()
+            .addInterceptor {
+                requestCount++
+                error("Achievement endpoint must not be called for a known zero-achievement game")
+            }
+            .build()
+
+        val result = SteamGameLibraryService(SteamApiClient(httpClient)).fetchAchievements(
+            account = account(accessToken = "access-token"),
+            game = SteamGame(
+                appId = 10,
+                name = "Game without achievements",
+                playtimeForeverMinutes = 1,
+                playtimeRecentMinutes = 0,
+                achievementTotalCount = 0
+            ),
+            language = "schinese"
+        )
+
+        assertTrue(result is SteamLibraryResult.Success)
+        assertTrue((result as SteamLibraryResult.Success).value.achievements.isEmpty())
+        assertEquals(0, requestCount)
+    }
+
+    @Test
+    fun emptyAchievementDefinitionsSkipUserAchievementRequest() {
+        val requests = mutableListOf<String>()
+        val httpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                requests += request.url.encodedPath
+                val responseCode = if (
+                    request.url.encodedPath.contains("GetGameAchievements")
+                ) 200 else 500
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(responseCode)
+                    .message(if (responseCode == 200) "OK" else "Unexpected request")
+                    .body(ByteArray(0).toResponseBody("application/octet-stream".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val result = SteamGameLibraryService(SteamApiClient(httpClient)).fetchAchievements(
+            account = account(accessToken = "access-token"),
+            game = SteamGame(10, "Game without achievements", 1, 0),
+            language = "schinese"
+        )
+
+        assertTrue(result is SteamLibraryResult.Success)
+        assertTrue((result as SteamLibraryResult.Success).value.achievements.isEmpty())
+        assertEquals(1, requests.size)
+        assertTrue(requests.single().contains("GetGameAchievements"))
+    }
+
+    @Test
     fun unauthorizedOwnedGamesResponseRequiresFreshSteamSession() {
         val httpClient = OkHttpClient.Builder()
             .addInterceptor { chain ->

@@ -51,9 +51,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SplitButtonDefaults
 import androidx.compose.material3.SplitButtonLayout
 import androidx.compose.material3.Surface
@@ -1527,22 +1524,10 @@ private fun SteamGameDetail(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        SteamAchievementFilter.entries.forEachIndexed { index, option ->
-                            SegmentedButton(
-                                selected = filter == option,
-                                onClick = { filterName = option.name },
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = SteamAchievementFilter.entries.size
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .heightIn(min = 48.dp),
-                                label = { Text(steamAchievementFilterLabel(option)) }
-                            )
-                        }
-                    }
+                    SteamAchievementFilterSplitButton(
+                        selectedFilter = filter,
+                        onSelectFilter = { filterName = it.name }
+                    )
                 }
             }
             if (achievements.achievements.isEmpty()) {
@@ -1744,17 +1729,6 @@ private fun SteamGameDetailMetric(
             )
         }
     }
-}
-
-@Composable
-private fun steamAchievementFilterLabel(filter: SteamAchievementFilter): String {
-    return stringResource(
-        when (filter) {
-            SteamAchievementFilter.ALL -> R.string.steam_library_achievement_all
-            SteamAchievementFilter.COMPLETED -> R.string.steam_library_completed
-            SteamAchievementFilter.INCOMPLETE -> R.string.steam_library_incomplete
-        }
-    )
 }
 
 @Composable
@@ -2039,7 +2013,7 @@ private fun regionalCountryName(countryCode: String): String {
         .ifBlank { countryCode }
 }
 
-private enum class SteamAchievementFilter {
+internal enum class SteamAchievementFilter {
     ALL,
     COMPLETED,
     INCOMPLETE
