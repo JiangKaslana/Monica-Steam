@@ -78,6 +78,7 @@ import takagi.ru.monica.steam.alerts.data.SteamAlertScheduler
 import takagi.ru.monica.steam.alerts.domain.SteamAlertSettings
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.reorderDockOrder
+import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSettingsScreen
 import takagi.ru.monica.steam.diagnostics.SteamSupportLogExporter
 import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
@@ -99,7 +100,8 @@ private enum class SteamSettingsChild {
     PLUS,
     PAYMENT,
     DEVELOPER,
-    EXTENSIONS
+    EXTENSIONS,
+    NOTIFICATIONS
 }
 
 @Composable
@@ -160,6 +162,7 @@ fun MonicaSteamSettingsScreen(
                 onOpenPlus = { child = SteamSettingsChild.PLUS },
                 onOpenDeveloper = { child = SteamSettingsChild.DEVELOPER },
                 onOpenExtensions = { child = SteamSettingsChild.EXTENSIONS },
+                onOpenNotifications = { child = SteamSettingsChild.NOTIFICATIONS },
                 showNavigationBack = showNavigationBack,
                 modifier = Modifier.fillMaxSize(),
                 context = context
@@ -257,6 +260,10 @@ fun MonicaSteamSettingsScreen(
                         showTotp = false
                     ),
                     additionalContent = { SteamWidgetExtensionContent(context) },
+                    modifier = Modifier.fillMaxSize()
+                )
+                SteamSettingsChild.NOTIFICATIONS -> SteamNotificationSettingsScreen(
+                    onNavigateBack = { child = null },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -590,9 +597,9 @@ private fun MonicaSteamLegacySettingsScreen(
                         icon = Icons.Default.PriceChange,
                         title = stringResource(R.string.steam_alerts_prices),
                         subtitle = stringResource(R.string.steam_alerts_prices_description),
-                        checked = alertSettings.pricesEnabled,
+                        checked = alertSettings.wishlistDiscountsEnabled,
                         onCheckedChange = { enabled ->
-                            coroutineScope.launch { alertPreferences.setPricesEnabled(enabled) }
+                            coroutineScope.launch { alertPreferences.setWishlistDiscountsEnabled(enabled) }
                         }
                     )
                     SteamSettingsItem(

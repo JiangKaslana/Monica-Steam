@@ -9,12 +9,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
-import takagi.ru.monica.steam.data.SteamDatabase
 import takagi.ru.monica.steam.network.SteamAuthorizedDeviceService
 import takagi.ru.monica.steam.network.SteamConfirmationService
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.alerts.domain.*
 import takagi.ru.monica.steam.notifications.data.SteamNotificationService
+import takagi.ru.monica.steam.store.data.SteamStoreCache
+import takagi.ru.monica.steam.store.data.SteamStoreService
+import takagi.ru.monica.steam.store.domain.SteamWishlistSnapshot
 
 class SteamAlertReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
@@ -46,13 +48,11 @@ class SteamAlertReceiver : BroadcastReceiver() {
         val settings = preferences.settings.first()
         if (!settings.enabled) return
 
-        val database = SteamDatabase.getDatabase(context)
         val sourceRepository = SteamAccountSourceRepository.get(context)
         val sessionSnapshot = SteamAlertAccountSessionProvider(
             loadHandles = { sourceRepository.loadAllSessionHandles() },
             resolve = { handle -> sourceRepository.sessionManager.resolve(handle) }
         ).load(refreshSessions = settings.sessionEnabled)
-        val accounts = sessionSnapshot.allAccounts
         val usableAccounts = sessionSnapshot.usableAccounts
         val sessionIssues = sessionSnapshot.sessionIssues
         val confirmationService = SteamConfirmationService()
@@ -97,15 +97,27 @@ class SteamAlertReceiver : BroadcastReceiver() {
                 }
         }
 
-        var stalePriceCaches = 0
-        if (settings.pricesEnabled) {
-            val now = System.currentTimeMillis()
-            accounts.forEach { account ->
-                val cache = database.steamLibraryCacheDao().getLibrary(account.id)
-                if (cache != null && now - cache.fetchedAt >= SteamAlertPolicy.PRICE_STALE_MS) {
-                    stalePriceCaches++
+        val wishlistDiscountNames = mutableListOf<String>()
+        if (settings.wishlistDiscountsEnabled) {
+            val store = SteamStoreService()
+            val cache = SteamStoreCache(context)
+            usableAccounts.filter { it.hasRealSteamId && !it.accessToken.isNullOrBlank() }
+                .forEach { account ->
+                    runCatching {
+                        val previous = cache.readWishlist(account.id)
+                        val current = store.wishlist(
+                            steamId = account.steamId,
+                            steamLoginSecure = account.steamLoginSecure,
+                            accessToken = account.accessToken
+                        )
+                        val discounts = SteamWishlistDiscountPolicy.newlyDiscounted(
+                            previous = previous?.items,
+                            current = current
+                        )
+                        cache.writeWishlist(account.id, SteamWishlistSnapshot(current))
+                        discounts.mapTo(wishlistDiscountNames) { it.name }
+                    }
                 }
-            }
         }
 
         val decision = SteamAlertPolicy.evaluate(
@@ -117,13 +129,13 @@ class SteamAlertReceiver : BroadcastReceiver() {
                 authorizedDeviceCount = deviceCount.takeIf {
                     settings.devicesEnabled && deviceChecksSucceeded
                 },
-                stalePriceCaches = stalePriceCaches
+                wishlistDiscountNames = wishlistDiscountNames.distinct()
             )
         )
         val now = System.currentTimeMillis()
         val shouldNotify = SteamAlertPolicy.shouldNotify(settings, decision, now)
         if (shouldNotify) {
-            SteamAlertNotifier.show(context, decision.kinds)
+            SteamAlertNotifier.show(context, decision)
         }
         preferences.recordDecision(decision, now.takeIf { shouldNotify })
     }

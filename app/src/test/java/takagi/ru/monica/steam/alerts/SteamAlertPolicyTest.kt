@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.alerts
 
 import takagi.ru.monica.steam.alerts.domain.*
+import takagi.ru.monica.steam.store.domain.SteamWishlistItem
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,7 +17,7 @@ class SteamAlertPolicyTest {
             confirmationsEnabled = true,
             sessionEnabled = false,
             devicesEnabled = true,
-            pricesEnabled = true,
+            wishlistDiscountsEnabled = true,
             lastDeviceCount = 2
         )
         val decision = SteamAlertPolicy.evaluate(
@@ -26,7 +27,7 @@ class SteamAlertPolicyTest {
                 pendingConfirmations = 1,
                 sessionIssues = 3,
                 authorizedDeviceCount = 3,
-                stalePriceCaches = 1
+                wishlistDiscountNames = listOf("Game")
             )
         )
 
@@ -35,7 +36,7 @@ class SteamAlertPolicyTest {
                 SteamAlertKind.NOTIFICATIONS,
                 SteamAlertKind.CONFIRMATIONS,
                 SteamAlertKind.DEVICES,
-                SteamAlertKind.PRICES
+                SteamAlertKind.WISHLIST_DISCOUNTS
             ),
             decision.kinds
         )
@@ -78,4 +79,24 @@ class SteamAlertPolicyTest {
         assertEquals(6, SteamAlertSettings(intervalHours = 6).normalizedIntervalHours)
         assertEquals(setOf(6, 12, 24), SteamAlertSettings.allowedIntervals)
     }
+
+    @Test
+    fun wishlistDiscountsRequireABaselineAndADeeperDiscount() {
+        val current = listOf(wishlistItem(10, 20), wishlistItem(20, 50))
+
+        assertTrue(SteamWishlistDiscountPolicy.newlyDiscounted(null, current).isEmpty())
+        assertEquals(
+            listOf(20),
+            SteamWishlistDiscountPolicy.newlyDiscounted(
+                previous = listOf(wishlistItem(10, 20), wishlistItem(20, 0)),
+                current = current
+            ).map { it.appId }
+        )
+    }
+
+    private fun wishlistItem(appId: Int, discount: Int) = SteamWishlistItem(
+        appId = appId,
+        name = "Game $appId",
+        discountPercent = discount
+    )
 }

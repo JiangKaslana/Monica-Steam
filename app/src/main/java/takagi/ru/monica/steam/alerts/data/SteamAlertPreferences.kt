@@ -20,10 +20,11 @@ class SteamAlertPreferences(context: Context) {
         SteamAlertSettings(
             enabled = values[KEY_ENABLED] ?: false,
             notificationsEnabled = values[KEY_NOTIFICATIONS] ?: true,
+            loginRequestsEnabled = values[KEY_LOGIN_REQUESTS] ?: true,
             confirmationsEnabled = values[KEY_CONFIRMATIONS] ?: true,
             sessionEnabled = values[KEY_SESSION] ?: true,
             devicesEnabled = values[KEY_DEVICES] ?: true,
-            pricesEnabled = values[KEY_PRICES] ?: true,
+            wishlistDiscountsEnabled = values[KEY_PRICES] ?: true,
             intervalHours = values[KEY_INTERVAL_HOURS] ?: 12,
             lastDeviceCount = values[KEY_LAST_DEVICE_COUNT],
             lastAlertSignature = values[KEY_LAST_ALERT_SIGNATURE].orEmpty(),
@@ -33,10 +34,11 @@ class SteamAlertPreferences(context: Context) {
 
     suspend fun setEnabled(enabled: Boolean) = update { this[KEY_ENABLED] = enabled }
     suspend fun setNotificationsEnabled(enabled: Boolean) = update { this[KEY_NOTIFICATIONS] = enabled }
+    suspend fun setLoginRequestsEnabled(enabled: Boolean) = update { this[KEY_LOGIN_REQUESTS] = enabled }
     suspend fun setConfirmationsEnabled(enabled: Boolean) = update { this[KEY_CONFIRMATIONS] = enabled }
     suspend fun setSessionEnabled(enabled: Boolean) = update { this[KEY_SESSION] = enabled }
     suspend fun setDevicesEnabled(enabled: Boolean) = update { this[KEY_DEVICES] = enabled }
-    suspend fun setPricesEnabled(enabled: Boolean) = update { this[KEY_PRICES] = enabled }
+    suspend fun setWishlistDiscountsEnabled(enabled: Boolean) = update { this[KEY_PRICES] = enabled }
 
     suspend fun setIntervalHours(hours: Int) {
         update { this[KEY_INTERVAL_HOURS] = hours.takeIf { it in SteamAlertSettings.allowedIntervals } ?: 12 }
@@ -61,6 +63,7 @@ class SteamAlertPreferences(context: Context) {
     private companion object {
         val KEY_ENABLED = booleanPreferencesKey("enabled")
         val KEY_NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
+        val KEY_LOGIN_REQUESTS = booleanPreferencesKey("login_requests_enabled")
         val KEY_CONFIRMATIONS = booleanPreferencesKey("confirmations_enabled")
         val KEY_SESSION = booleanPreferencesKey("session_enabled")
         val KEY_DEVICES = booleanPreferencesKey("devices_enabled")

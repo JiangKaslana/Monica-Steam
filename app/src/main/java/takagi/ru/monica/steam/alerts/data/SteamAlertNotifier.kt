@@ -18,8 +18,8 @@ object SteamAlertNotifier {
     private const val CHANNEL_ID = "steam_private_alerts"
     private const val NOTIFICATION_ID = 8073
 
-    fun show(context: Context, kinds: Set<SteamAlertKind>) {
-        if (kinds.isEmpty()) return
+    fun show(context: Context, decision: SteamAlertDecision) {
+        if (decision.kinds.isEmpty()) return
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -33,10 +33,20 @@ object SteamAlertNotifier {
             .setContentTitle(context.getString(R.string.app_name))
             .setContentText(context.getString(R.string.steam_alert_notification_public))
             .build()
+        val wishlistOnly = decision.kinds == setOf(SteamAlertKind.WISHLIST_DISCOUNTS)
+        val title = if (wishlistOnly) {
+            context.getString(R.string.steam_wishlist_discount_notification_title)
+        } else context.getString(R.string.steam_alert_notification_title)
+        val text = if (wishlistOnly) {
+            decision.wishlistDiscountNames.take(3).joinToString("、").ifBlank {
+                context.getString(R.string.steam_wishlist_discount_notification_fallback)
+            }
+        } else context.getString(R.string.steam_alert_notification_text)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_shield)
-            .setContentTitle(context.getString(R.string.steam_alert_notification_title))
-            .setContentText(context.getString(R.string.steam_alert_notification_text))
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(SteamQuickAccessContract.pendingIntent(context, NOTIFICATION_ID))
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)

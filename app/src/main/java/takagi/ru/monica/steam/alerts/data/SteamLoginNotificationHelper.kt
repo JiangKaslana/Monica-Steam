@@ -11,6 +11,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.first
 import takagi.ru.monica.MonicaSteamActivity
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.network.SteamPendingLogin
@@ -19,8 +20,10 @@ object SteamLoginNotificationHelper {
     private const val CHANNEL_ID = "steam_login_requests"
     private const val NOTIFICATION_ID_BASE = 770_000
 
-    fun show(context: Context, login: SteamPendingLogin) {
+    suspend fun show(context: Context, login: SteamPendingLogin) {
         val appContext = context.applicationContext
+        val settings = SteamAlertPreferences(appContext).settings.first()
+        if (!settings.loginRequestsEnabled) return
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) !=

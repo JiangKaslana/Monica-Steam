@@ -22,7 +22,7 @@ import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
 import takagi.ru.monica.steam.foundation.ui.SteamUiScaleOption
 import takagi.ru.monica.steam.foundation.ui.SteamUiScalePreferences
-import takagi.ru.monica.steam.friends.chat.background.ui.SteamChatBackgroundSettingsContent
+import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSettingsEntry
 import takagi.ru.monica.utils.SettingsManager
 import takagi.ru.monica.viewmodel.SettingsViewModel
 
@@ -46,6 +46,7 @@ internal fun MonicaSteamSharedSettingsHost(
     onOpenPlus: () -> Unit,
     onOpenDeveloper: () -> Unit,
     onOpenExtensions: () -> Unit,
+    onOpenNotifications: () -> Unit,
     showNavigationBack: Boolean,
     modifier: Modifier,
     context: Context
@@ -101,7 +102,7 @@ internal fun MonicaSteamSharedSettingsHost(
             showDeveloperSettings = true
         ),
         additionalSettingsContent = {
-            SteamChatBackgroundSettingsContent()
+            SteamNotificationSettingsEntry(onClick = onOpenNotifications)
         },
         additionalAppearanceContent = {
             SteamUiScaleSettingsItem(

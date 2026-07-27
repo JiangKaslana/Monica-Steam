@@ -51,7 +51,7 @@ class SteamAlertIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/alerts/data/SteamAlertPreferences.kt"
         ).readText()
         val settings = projectFile(
-            "app/src/main/java/takagi/ru/monica/ui/screens/MonicaSteamSettingsScreen.kt"
+            "app/src/main/java/takagi/ru/monica/steam/notifications/settings/ui/SteamNotificationSettingsScreen.kt"
         ).readText()
 
         assertTrue(preferences.contains("preferencesDataStore"))
@@ -60,7 +60,9 @@ class SteamAlertIntegrationGuardTest {
         assertTrue(settings.contains("setConfirmationsEnabled"))
         assertTrue(settings.contains("setSessionEnabled"))
         assertTrue(settings.contains("setDevicesEnabled"))
-        assertTrue(settings.contains("setPricesEnabled"))
+        assertTrue(settings.contains("setWishlistDiscountsEnabled"))
+        assertTrue(settings.contains("setLoginRequestsEnabled"))
+        assertTrue(settings.contains("SteamChatBackgroundServiceController"))
         assertTrue(settings.contains("SteamAlertScheduler.sync(context)"))
     }
 

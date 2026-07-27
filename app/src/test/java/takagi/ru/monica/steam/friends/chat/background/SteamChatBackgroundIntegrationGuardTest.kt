@@ -43,7 +43,7 @@ class SteamChatBackgroundIntegrationGuardTest {
     @Test
     fun settingsAreOptInAndReuseTheSharedMonicaSettingsSurface() {
         val settings = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/friends/chat/background/ui/SteamChatBackgroundSettingsContent.kt"
+            "app/src/main/java/takagi/ru/monica/steam/notifications/settings/ui/SteamNotificationSettingsScreen.kt"
         ).readText()
         val host = projectFile(
             "app/src/main/java/takagi/ru/monica/ui/screens/MonicaSteamSharedSettingsHost.kt"
@@ -57,7 +57,7 @@ class SteamChatBackgroundIntegrationGuardTest {
         assertTrue(settings.contains("POST_NOTIFICATIONS"))
         assertTrue(settings.contains("SteamChatBackgroundServiceController.start"))
         assertTrue(host.contains("additionalSettingsContent"))
-        assertTrue(host.contains("SteamChatBackgroundSettingsContent"))
+        assertTrue(host.contains("SteamNotificationSettingsEntry"))
         assertTrue(preferences.contains("enabled = values[KEY_ENABLED] ?: false"))
         assertTrue(preferences.contains("preferencesDataStore"))
     }

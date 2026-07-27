@@ -3,10 +3,11 @@ package takagi.ru.monica.steam.alerts.domain
 data class SteamAlertSettings(
     val enabled: Boolean = false,
     val notificationsEnabled: Boolean = true,
+    val loginRequestsEnabled: Boolean = true,
     val confirmationsEnabled: Boolean = true,
     val sessionEnabled: Boolean = true,
     val devicesEnabled: Boolean = true,
-    val pricesEnabled: Boolean = true,
+    val wishlistDiscountsEnabled: Boolean = true,
     val intervalHours: Int = 12,
     val lastDeviceCount: Int? = null,
     val lastAlertSignature: String = "",
@@ -25,7 +26,7 @@ enum class SteamAlertKind {
     CONFIRMATIONS,
     SESSION,
     DEVICES,
-    PRICES
+    WISHLIST_DISCOUNTS
 }
 
 data class SteamAlertObservation(
@@ -33,21 +34,22 @@ data class SteamAlertObservation(
     val pendingConfirmations: Int = 0,
     val sessionIssues: Int = 0,
     val authorizedDeviceCount: Int? = null,
-    val stalePriceCaches: Int = 0
+    val wishlistDiscountNames: List<String> = emptyList()
 )
 
 data class SteamAlertDecision(
     val kinds: Set<SteamAlertKind>,
-    val deviceBaseline: Int?
+    val deviceBaseline: Int?,
+    val wishlistDiscountNames: List<String> = emptyList()
 ) {
     val signature: String
-        get() = kinds.map(Enum<*>::name).sorted().joinToString(";")
+        get() = (kinds.map(Enum<*>::name) + wishlistDiscountNames)
+            .sorted()
+            .joinToString(";")
 }
 
 object SteamAlertPolicy {
     const val REPEAT_SUPPRESSION_MS = 24L * 60L * 60L * 1000L
-    const val PRICE_STALE_MS = 24L * 60L * 60L * 1000L
-
     fun evaluate(
         settings: SteamAlertSettings,
         observation: SteamAlertObservation
@@ -71,11 +73,15 @@ object SteamAlertPolicy {
             ) {
                 add(SteamAlertKind.DEVICES)
             }
-            if (settings.pricesEnabled && observation.stalePriceCaches > 0) {
-                add(SteamAlertKind.PRICES)
+            if (settings.wishlistDiscountsEnabled && observation.wishlistDiscountNames.isNotEmpty()) {
+                add(SteamAlertKind.WISHLIST_DISCOUNTS)
             }
         }
-        return SteamAlertDecision(kinds, observation.authorizedDeviceCount ?: settings.lastDeviceCount)
+        return SteamAlertDecision(
+            kinds = kinds,
+            deviceBaseline = observation.authorizedDeviceCount ?: settings.lastDeviceCount,
+            wishlistDiscountNames = observation.wishlistDiscountNames
+        )
     }
 
     fun shouldNotify(
