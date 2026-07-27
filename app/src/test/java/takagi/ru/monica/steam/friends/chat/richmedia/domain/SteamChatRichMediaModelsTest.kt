@@ -62,6 +62,17 @@ class SteamChatRichMediaModelsTest {
     }
 
     @Test
+    fun normalizesMultipleOfficialEmoticonTagsWithoutLeakingBbcode() {
+        val content = SteamChatRichContentParser.parse(
+            "[emoticon]steammocking[/emoticon]" +
+                "[emoticon]steammocking[/emoticon]" +
+                "[emoticon type=steamthumbsup][/emoticon]"
+        ) as SteamChatRichContent.Text
+
+        assertEquals(":steammocking: :steammocking: :steamthumbsup:", content.body)
+    }
+
+    @Test
     fun parsesOfficialSelfClosingStickerAndRoomEffectTags() {
         val sticker = SteamChatRichContentParser.parse(
             "[sticker type=Mesmer%20spin]"

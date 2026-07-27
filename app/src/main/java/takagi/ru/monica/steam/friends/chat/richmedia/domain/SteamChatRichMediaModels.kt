@@ -117,6 +117,10 @@ object SteamChatRichContentParser {
         """^\[(sticker|roomeffect|emoticon)(?:\s+([^\]]+))?]\s*$""",
         RegexOption.IGNORE_CASE
     )
+    private val officialEmoticonTagPattern = Regex(
+        """\[emoticon(?:\s+([^\]]+))?](.*?)\[/emoticon\s*]""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
     private val joinLobbyPattern = Regex(
         "steam://joinlobby/(\\d+)(?:/([^/\\s\\]]+))?(?:/(7656119\\d{10}))?",
         RegexOption.IGNORE_CASE
@@ -158,6 +162,8 @@ object SteamChatRichContentParser {
             ?.trim()
             ?.takeIf(String::isNotBlank)
             ?.let { return SteamChatRichContent.Sticker(decodeMediaName(it)) }
+
+        parseOfficialEmoticonSequence(body)?.let { return it }
 
         officialMediaTagPattern.matchEntire(body.trim())?.let { match ->
             parseOfficialMedia(
@@ -269,6 +275,27 @@ object SteamChatRichContentParser {
             return it
         }
         return SteamChatRichContent.Text(body)
+    }
+
+    private fun parseOfficialEmoticonSequence(body: String): SteamChatRichContent.Text? {
+        val trimmed = body.trim()
+        val matches = officialEmoticonTagPattern.findAll(trimmed).toList()
+        if (matches.isEmpty()) return null
+        var cursor = 0
+        val codes = mutableListOf<String>()
+        matches.forEach { match ->
+            if (trimmed.substring(cursor, match.range.first).isNotBlank()) return null
+            val attributes = parseAttributes(match.groupValues.getOrNull(1).orEmpty())
+            val name = decodeMediaName(
+                attributes["type"] ?: attributes["name"]
+                ?: match.groupValues.getOrNull(2).orEmpty().trim()
+            ).trim()
+            if (name.isBlank()) return null
+            codes += ":$name:"
+            cursor = match.range.last + 1
+        }
+        if (trimmed.substring(cursor).isNotBlank()) return null
+        return SteamChatRichContent.Text(codes.joinToString(" "))
     }
 
     private fun parseAttachment(body: String, spoiler: Boolean): SteamChatRichContent.Attachment? {
