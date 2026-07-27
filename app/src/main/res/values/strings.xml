@@ -4546,6 +4546,7 @@
     <string name="steam_store_minimum_requirements">Minimum</string>
     <string name="steam_store_recommended_requirements">Recommended</string>
     <string name="steam_store_screenshots">Screenshots</string>
+    <string name="steam_store_header_image_description">Open game cover</string>
     <string name="steam_store_screenshot_description">Game screenshot %1$d</string>
     <string name="steam_store_screenshot_close">Close screenshot viewer</string>
     <string name="steam_store_screenshot_previous">Previous screenshot</string>

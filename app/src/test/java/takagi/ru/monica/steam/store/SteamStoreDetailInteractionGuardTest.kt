@@ -51,6 +51,23 @@ class SteamStoreDetailInteractionGuardTest {
     }
 
     @Test
+    fun heroClearsTheStatusBarAndOpensTheNativeViewer() {
+        val detailUi = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
+        ).readText()
+        val hero = detailUi.substring(
+            detailUi.indexOf("val heroBackgroundUrl"),
+            detailUi.indexOf("if (cached) item")
+        )
+
+        assertTrue(hero.contains("var showHeroViewer"))
+        assertTrue(hero.contains(".statusBarsPadding()"))
+        assertTrue(hero.contains(".clickable(enabled = heroViewerUrl.isNotBlank())"))
+        assertTrue(hero.contains("showHeroViewer = true"))
+        assertTrue(detailUi.contains("screenshots = listOf(heroViewerUrl)"))
+    }
+
+    @Test
     fun fullDetailsAndInformationValuesAreSelectable() {
         val detailUi = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"

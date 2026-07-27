@@ -790,7 +790,9 @@ private fun SteamStoreDetailContent(
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
     val heroBackgroundUrl = detail.backgroundImageUrl.ifBlank { detail.headerImageUrl }
+    val heroViewerUrl = detail.headerImageUrl.ifBlank { heroBackgroundUrl }
     val aboutText = detail.about.ifBlank { detail.shortDescription }
+    var showHeroViewer by rememberSaveable(detail.appId) { mutableStateOf(false) }
     var selectedScreenshotIndex by rememberSaveable(detail.appId) {
         mutableStateOf<Int?>(null)
     }
@@ -826,8 +828,15 @@ private fun SteamStoreDetailContent(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
+                        .statusBarsPadding()
+                        .clickable(enabled = heroViewerUrl.isNotBlank()) {
+                            showHeroViewer = true
+                        }
                         .aspectRatio(460f / 215f),
-                    contentScale = ContentScale.Fit
+                    contentScale = ContentScale.Fit,
+                    contentDescription = stringResource(
+                        R.string.steam_store_header_image_description
+                    )
                 )
                 Box(
                     Modifier.matchParentSize().background(
@@ -1139,6 +1148,14 @@ private fun SteamStoreDetailContent(
                 }
             }
         }
+    }
+    if (showHeroViewer && heroViewerUrl.isNotBlank()) {
+        SteamStoreScreenshotViewer(
+            gameName = detail.name,
+            screenshots = listOf(heroViewerUrl),
+            initialIndex = 0,
+            onDismiss = { showHeroViewer = false }
+        )
     }
     selectedScreenshotIndex?.let { initialIndex ->
         SteamStoreScreenshotViewer(

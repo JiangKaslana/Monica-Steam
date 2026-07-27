@@ -4376,6 +4376,7 @@
     <string name="steam_store_minimum_requirements">最低配置</string>
     <string name="steam_store_recommended_requirements">推荐配置</string>
     <string name="steam_store_screenshots">游戏截图</string>
+    <string name="steam_store_header_image_description">查看游戏头图</string>
     <string name="steam_store_screenshot_description">游戏截图 %1$d</string>
     <string name="steam_store_screenshot_close">关闭截图查看器</string>
     <string name="steam_store_screenshot_previous">上一张截图</string>
