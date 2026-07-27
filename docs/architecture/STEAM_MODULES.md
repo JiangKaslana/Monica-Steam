@@ -19,6 +19,7 @@ Each user-facing Steam capability owns one feature root:
 | `token` | Steam Guard codes, login approvals, account detail and authenticator management |
 | `library` | Owned games, playtime, achievements, account library summary and game details |
 | `store` | Store discovery, search, product details, wishlist, cart and official checkout |
+| `community` | Read-only Steam profile, activity and Community entry points |
 | `inventory` | Inventory loading, grouping, selection and item details |
 | `market` | Market listings, quotes, pricing, selling and batch actions |
 | `trade` | Incoming and outgoing trade offers and protected actions |
@@ -49,6 +50,8 @@ feature/
 
 Small features may keep files at the feature root when adding layers would only create shallow pass-through modules. Large features must use the internal layout to preserve Locality.
 
+Large features may also contain named independent slices at their root. The Store feature currently owns `catalog`, `points` and `purchase`; each slice keeps its own domain, data or UI implementation separate from the Store shell.
+
 ## Shared Modules
 
 The following roots provide shared Steam infrastructure and may be imported by feature modules:
@@ -64,12 +67,14 @@ The following roots provide shared Steam infrastructure and may be imported by f
 | `foundation` | Cross-feature visual primitives, image loading and UI scale preferences |
 | `analytics` | Inventory and market valuation/analysis rules shared by related features |
 | `importer` | maFile parsing and transfer codecs shared by token and backup flows |
+| `session` | Account-source-aware session resolution, refresh and identity handles |
+| `outbox` | Durable ordered outgoing operations and delivery reconciliation |
 
 Shared modules cannot contain user-facing feature screens.
 
 ## Dependency Rules
 
-1. Application hosts depend only on a feature's public UI entry.
+1. Application hosts depend only on a feature's public UI entry or an explicit public host facade at the feature or subfeature root.
 2. UI depends on presentation and domain code from the same feature.
 3. Presentation depends on domain interfaces and receives data adapters through a factory.
 4. Data adapters implement domain interfaces and may use shared data and network modules.

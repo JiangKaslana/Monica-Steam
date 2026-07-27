@@ -73,6 +73,9 @@ class SteamChatBackgroundIntegrationGuardTest {
         val activity = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
         ).readText()
+        val facade = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/background/SteamChatBackground.kt"
+        ).readText()
 
         assertTrue(publisher.contains("VISIBILITY_PRIVATE"))
         assertTrue(publisher.contains("setPublicVersion(publicVersion)"))
@@ -82,7 +85,11 @@ class SteamChatBackgroundIntegrationGuardTest {
         assertTrue(contract.contains("handle.origin.entryId"))
         assertTrue(contract.contains("EXTRA_PARTNER_STEAM_ID"))
         assertTrue(activity.contains("override fun onNewIntent"))
-        assertTrue(activity.contains("activateChatNotificationTarget"))
+        assertTrue(activity.contains("SteamChatBackground.consumeNotification"))
+        assertTrue(activity.contains("SteamChatBackground.activateNotificationTarget"))
+        assertFalse(activity.contains("friends.chat.background.data."))
+        assertFalse(activity.contains("friends.chat.background.domain."))
+        assertTrue(facade.contains("activateChatNotificationTarget"))
         assertTrue(activity.contains("currentPage = MonicaSteamPage.CHAT"))
     }
 
@@ -91,11 +98,16 @@ class SteamChatBackgroundIntegrationGuardTest {
         val application = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamApplication.kt"
         ).readText()
+        val facade = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/background/SteamChatBackground.kt"
+        ).readText()
         val controller = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/background/data/SteamChatBackgroundServiceController.kt"
         ).readText()
 
-        assertTrue(application.contains("SteamChatBackgroundServiceController.sync"))
+        assertTrue(application.contains("SteamChatBackground.syncService"))
+        assertFalse(application.contains("friends.chat.background.data."))
+        assertTrue(facade.contains("SteamChatBackgroundServiceController.sync"))
         assertTrue(controller.contains("settings.first().enabled"))
         assertTrue(controller.contains("ContextCompat.startForegroundService"))
         assertTrue(controller.contains("stopService"))

@@ -8,7 +8,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import takagi.ru.monica.steam.diagnostics.SteamCrashDiagnostics
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
-import takagi.ru.monica.steam.friends.chat.background.data.SteamChatBackgroundServiceController
+import takagi.ru.monica.steam.friends.chat.background.SteamChatBackground
 
 class MonicaSteamApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -19,7 +19,7 @@ class MonicaSteamApplication : Application() {
         super.onCreate()
         applicationScope.launch {
             try {
-                SteamChatBackgroundServiceController.sync(this@MonicaSteamApplication)
+                SteamChatBackground.syncService(this@MonicaSteamApplication)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Throwable) {

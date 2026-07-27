@@ -32,7 +32,8 @@ class SteamUiScaleSettingsTest {
         assertTrue(provider.contains("ComponentActivity.setSteamUiScaledContent"))
         assertTrue(provider.contains("ProvideSteamUiScale(content)"))
         assertTrue(provider.contains("SteamUiScalePreferences"))
-        assertTrue(provider.contains("CompositionLocalProvider(LocalDensity provides appDensity)"))
+        assertTrue(provider.contains("CompositionLocalProvider("))
+        assertTrue(provider.contains("LocalDensity provides appDensity"))
         assertTrue(provider.contains("calculateSteamUiDensity("))
         assertTrue(provider.contains("fontScale = baseDensity.fontScale"))
     }

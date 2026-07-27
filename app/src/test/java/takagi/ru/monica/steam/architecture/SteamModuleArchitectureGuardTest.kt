@@ -22,6 +22,7 @@ class SteamModuleArchitectureGuardTest {
             "alerts",
             "analytics",
             "backup",
+            "community",
             "confirmations",
             "core",
             "data",
@@ -39,10 +40,12 @@ class SteamModuleArchitectureGuardTest {
             "network",
             "notifications",
             "organization",
+            "outbox",
             "profile",
             "quickaccess",
             "scanner",
             "security",
+            "session",
             "store",
             "token",
             "trade"
@@ -75,11 +78,21 @@ class SteamModuleArchitectureGuardTest {
         val activity = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
         ).readText()
+        val application = projectFile(
+            "app/src/main/java/takagi/ru/monica/MonicaSteamApplication.kt"
+        ).readText()
 
         assertFalse(activity.contains(".friends.data."))
         assertFalse(activity.contains(".friends.domain."))
         assertFalse(activity.contains(".friends.presentation."))
-        assertTrue(activity.contains(".friends.ui.SteamFriendsScreen"))
+        assertFalse(activity.contains(".friends.chat.background.data."))
+        assertFalse(activity.contains(".friends.chat.background.domain."))
+        assertFalse(activity.contains(".alerts.data."))
+        assertFalse(application.contains(".friends.chat.background.data."))
+        assertTrue(activity.contains(".friends.chat.background.SteamChatBackground"))
+        assertTrue(application.contains(".friends.chat.background.SteamChatBackground"))
+        assertTrue(activity.contains(".alerts.SteamAlerts"))
+        assertTrue(activity.contains(".friends.chat.ui.SteamChatScreen"))
         assertTrue(activity.contains(".scanner.ui.SteamQrScannerScreen"))
         assertTrue(activity.contains(".token.ui.SteamScreen"))
         assertFalse(activity.contains(".token.presentation."))
@@ -132,14 +145,17 @@ class SteamModuleArchitectureGuardTest {
     }
 
     @Test
-    fun storeUsesLayeredPackagesWithoutRootImplementations() {
+    fun storeUsesLayeredPackagesAndNamedSlicesWithoutRootImplementations() {
         val store = projectFile("app/src/main/java/takagi/ru/monica/steam/store")
         val layers = store.listFiles().orEmpty()
             .filter(File::isDirectory)
             .map(File::getName)
             .toSet()
 
-        assertEquals(setOf("data", "domain", "presentation", "ui"), layers)
+        assertEquals(
+            setOf("catalog", "data", "domain", "points", "presentation", "purchase", "ui"),
+            layers
+        )
         assertTrue(store.listFiles().orEmpty().none { it.extension == "kt" })
 
         val domainSource = projectFile(
@@ -167,7 +183,15 @@ class SteamModuleArchitectureGuardTest {
 
         expectedLayers.forEach { (feature, layers) ->
             val root = projectFile("app/src/main/java/takagi/ru/monica/steam/$feature")
-            assertTrue(root.listFiles().orEmpty().none { it.extension == "kt" })
+            val rootFiles = root.listFiles().orEmpty()
+                .filter { it.extension == "kt" }
+                .map(File::getName)
+                .toSet()
+            if (feature == "alerts") {
+                assertEquals(setOf("SteamAlerts.kt"), rootFiles)
+            } else {
+                assertEquals(emptySet<String>(), rootFiles)
+            }
             assertEquals(
                 layers,
                 root.listFiles().orEmpty()

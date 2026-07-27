@@ -77,11 +77,9 @@ import takagi.ru.monica.steam.token.ui.SteamScreen
 import takagi.ru.monica.steam.foundation.ui.ProvideSteamContentDensity
 import takagi.ru.monica.steam.foundation.ui.setSteamUiScaledContent
 import takagi.ru.monica.steam.store.ui.SteamStoreScreen
-import takagi.ru.monica.steam.alerts.data.SteamAlertScheduler
-import takagi.ru.monica.steam.data.SteamAccountSourceRepository
-import takagi.ru.monica.steam.friends.chat.background.data.SteamChatNotificationContract
-import takagi.ru.monica.steam.friends.chat.background.data.activateChatNotificationTarget
-import takagi.ru.monica.steam.friends.chat.background.domain.SteamChatNotificationRequest
+import takagi.ru.monica.steam.alerts.SteamAlerts
+import takagi.ru.monica.steam.friends.chat.background.SteamChatBackground
+import takagi.ru.monica.steam.friends.chat.background.SteamChatNotificationTarget
 import takagi.ru.monica.ui.base.BaseMonicaActivity
 import takagi.ru.monica.ui.screens.MonicaSteamSettingsScreen
 import takagi.ru.monica.ui.screens.WebDavBackupScreen
@@ -125,7 +123,7 @@ private const val STEAM_AUTO_BACKUP_INTERVAL_HOURS = 12L
 
 class MonicaSteamActivity : BaseMonicaActivity() {
     private val pendingChatNotificationRequest =
-        MutableStateFlow<SteamChatNotificationRequest?>(null)
+        MutableStateFlow<SteamChatNotificationTarget?>(null)
 
     override fun shouldEnforceSharedSessionLock(): Boolean = false
 
@@ -134,7 +132,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
         consumeChatNotificationIntent(intent)
 
         lifecycleScope.launch {
-            SteamAlertScheduler.sync(this@MonicaSteamActivity)
+            SteamAlerts.sync(this@MonicaSteamActivity)
         }
         initializeWebDavAutoBackupDeferred()
 
@@ -165,11 +163,6 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 }
                 val securityManager = remember {
                     SecurityManager(this@MonicaSteamActivity.applicationContext)
-                }
-                val accountSourceRepository = remember {
-                    SteamAccountSourceRepository.get(
-                        this@MonicaSteamActivity.applicationContext
-                    )
                 }
                 val chatNotificationRequest by pendingChatNotificationRequest.collectAsState()
                 val mdbxRepository: MdbxRepository = remember(passwordDatabase, securityManager) {
@@ -251,7 +244,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
 
                 LaunchedEffect(chatNotificationRequest) {
                     val request = chatNotificationRequest ?: return@LaunchedEffect
-                    val activated = accountSourceRepository.activateChatNotificationTarget(request)
+                    val activated = SteamChatBackground.activateNotificationTarget(
+                        this@MonicaSteamActivity,
+                        request
+                    )
                     pendingChatNotificationRequest.value = null
                     if (activated) {
                         appliedInitialDockPage = true
@@ -599,7 +595,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
     }
 
     private fun consumeChatNotificationIntent(intent: Intent?) {
-        SteamChatNotificationContract.consume(intent)?.let { request ->
+        SteamChatBackground.consumeNotification(intent)?.let { request ->
             pendingChatNotificationRequest.value = request
         }
     }
