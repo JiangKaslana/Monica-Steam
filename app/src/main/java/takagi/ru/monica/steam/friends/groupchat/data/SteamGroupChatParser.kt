@@ -142,7 +142,8 @@ internal object SteamGroupChatParser {
             lastMessage = fields[7]?.asString.orEmpty(),
             lastSenderSteamId = fields[8]?.asLong?.takeIf { it > 0 }?.let(::steamId64FromAccountId).orEmpty(),
             lastAcknowledgedTimestamp = ack,
-            unread = lastTimestamp > ack
+            unread = lastTimestamp > ack,
+            voiceAllowed = fields[3]?.asBool == true
         )
     }
 

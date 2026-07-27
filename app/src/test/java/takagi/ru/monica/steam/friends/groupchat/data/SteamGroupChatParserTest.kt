@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoomType
 
 class SteamGroupChatParserTest {
     @Test
@@ -51,6 +52,38 @@ class SteamGroupChatParserTest {
         )
         assertTrue(group.rooms.single().unread)
         assertEquals("76561198000000002", group.rooms.single().lastSenderSteamId)
+        assertEquals(SteamGroupChatRoomType.TEXT, group.rooms.single().type)
+    }
+
+    @Test
+    fun parsesOfficialVoiceAllowedRoomAndUsesDefaultForMultiChannelEntry() {
+        val voiceRoom = SteamProtoWriter().apply {
+            writeUint64(1, "9002")
+            writeString(2, "Voice")
+            writeBool(3, true)
+            writeVarint(6, 2L)
+        }
+        val textRoom = SteamProtoWriter().apply {
+            writeUint64(1, "9001")
+            writeString(2, "General")
+            writeVarint(6, 1L)
+        }
+        val summary = SteamProtoWriter().apply {
+            writeUint64(1, "8001")
+            writeString(2, "Channels")
+            writeUint64(5, "9002")
+            writeMessage(6, voiceRoom)
+            writeMessage(6, textRoom)
+        }
+        val response = SteamProtoWriter().apply {
+            writeMessage(1, SteamProtoWriter().apply { writeMessage(2, summary) })
+        }.toByteArray()
+
+        val group = SteamGroupChatParser.parseGroups(response).single()
+
+        assertEquals("9002", group.preferredChatId)
+        assertEquals(SteamGroupChatRoomType.VOICE, group.rooms.last().type)
+        assertEquals(listOf("General", "Voice"), group.rooms.map { it.name })
     }
 
     @Test

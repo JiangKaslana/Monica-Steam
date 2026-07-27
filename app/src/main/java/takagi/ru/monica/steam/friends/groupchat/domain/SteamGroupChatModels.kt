@@ -15,7 +15,20 @@ data class SteamGroupChatSummary(
     val avatarUrl: String = "",
     val unreadCount: Int = 0,
     val topMemberSteamIds: List<String> = emptyList()
-)
+) {
+    /** Steam's default room is the entry point for a group with multiple channels. */
+    val preferredChatId: String
+        get() = when {
+            rooms.size == 1 -> rooms.single().chatId
+            defaultChatId.isNotBlank() -> defaultChatId
+            else -> rooms.firstOrNull()?.chatId.orEmpty()
+        }
+}
+
+enum class SteamGroupChatRoomType {
+    TEXT,
+    VOICE
+}
 
 @Serializable
 data class SteamGroupChatRoom(
@@ -26,8 +39,13 @@ data class SteamGroupChatRoom(
     val lastMessage: String = "",
     val lastSenderSteamId: String = "",
     val lastAcknowledgedTimestamp: Long = 0L,
-    val unread: Boolean = false
-)
+    val unread: Boolean = false,
+    /** Official CChatRoomState.voice_allowed field. */
+    val voiceAllowed: Boolean = false
+) {
+    val type: SteamGroupChatRoomType
+        get() = if (voiceAllowed) SteamGroupChatRoomType.VOICE else SteamGroupChatRoomType.TEXT
+}
 
 @Serializable
 data class SteamGroupChatMessage(
