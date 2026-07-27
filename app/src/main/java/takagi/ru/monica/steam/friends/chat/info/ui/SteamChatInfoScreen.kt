@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationPreferences
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatVoiceSession
+import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChannelManagement
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
 
 @Composable
@@ -68,6 +70,14 @@ internal fun SteamChatInfoScreen(
     onPreferencesChange: (SteamChatConversationPreferences) -> Unit,
     onUpdateGroup: (String, String) -> Unit,
     onUpdateGroupAvatar: (String) -> Unit,
+    channelActionLoading: Boolean = false,
+    voiceSession: SteamGroupChatVoiceSession? = null,
+    onCreateChannel: (String, Boolean) -> Unit = { _, _ -> },
+    onRenameChannel: (String, String) -> Unit = { _, _ -> },
+    onDeleteChannel: (String) -> Unit = {},
+    onReorderChannel: (String, String?) -> Unit = { _, _ -> },
+    onJoinVoiceChat: (String) -> Unit = {},
+    onLeaveVoiceChat: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -161,6 +171,22 @@ internal fun SteamChatInfoScreen(
                             onPreferencesChange(preferences.copy(pinned = it))
                         }
                     }
+                }
+            }
+            if (group != null) {
+                item("channels") {
+                    SteamGroupChannelManagement(
+                        group = group,
+                        canEdit = canEditGroup,
+                        actionLoading = channelActionLoading,
+                        voiceSession = voiceSession,
+                        onCreate = onCreateChannel,
+                        onRename = onRenameChannel,
+                        onDelete = onDeleteChannel,
+                        onReorder = onReorderChannel,
+                        onJoinVoice = onJoinVoiceChat,
+                        onLeaveVoice = onLeaveVoiceChat
+                    )
                 }
             }
         }

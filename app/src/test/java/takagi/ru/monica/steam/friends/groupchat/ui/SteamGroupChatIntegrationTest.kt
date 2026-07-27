@@ -87,6 +87,28 @@ class SteamGroupChatIntegrationTest {
     }
 
     @Test
+    fun groupInfoExposesOfficialChannelManagementActions() {
+        val management = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChannelManagement.kt"
+        ).readText()
+        val service = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/data/SteamGroupChatService.kt"
+        ).readText()
+        val infoScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/info/ui/SteamChatInfoScreen.kt"
+        ).readText()
+
+        assertTrue(management.contains("onCreate:"))
+        assertTrue(management.contains("onDelete:"))
+        assertTrue(management.contains("onReorder:"))
+        assertTrue(management.contains("onJoinVoice:"))
+        assertTrue(infoScreen.contains("onCreateChannel"))
+        assertTrue(service.contains("CreateChatRoom"))
+        assertTrue(service.contains("DeleteChatRoom"))
+        assertTrue(service.contains("JoinVoiceChat"))
+    }
+
+    @Test
     fun inviteDialogPinsActionsInsideSafeScreenBounds() {
         val dialogs = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatDialogs.kt"

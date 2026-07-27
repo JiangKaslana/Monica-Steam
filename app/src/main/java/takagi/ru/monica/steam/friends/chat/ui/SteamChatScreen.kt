@@ -414,6 +414,14 @@ fun SteamChatScreen(
                 },
                 onUpdateGroup = groupChatViewModel::updateGroup,
                 onUpdateGroupAvatar = groupChatViewModel::updateGroupAvatar,
+                channelActionLoading = groupChatState.channelActionLoading,
+                voiceSession = groupChatState.voiceSession,
+                onCreateChannel = groupChatViewModel::createChannel,
+                onRenameChannel = groupChatViewModel::renameChannel,
+                onDeleteChannel = groupChatViewModel::deleteChannel,
+                onReorderChannel = groupChatViewModel::reorderChannel,
+                onJoinVoiceChat = groupChatViewModel::joinVoiceChat,
+                onLeaveVoiceChat = groupChatViewModel::leaveVoiceChat,
                 modifier = Modifier.fillMaxSize()
             )
         } else if (currentSubpage == SteamChatSubpage.SEARCH) {

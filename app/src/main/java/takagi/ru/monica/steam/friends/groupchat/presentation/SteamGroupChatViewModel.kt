@@ -25,12 +25,14 @@ import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatService
 import takagi.ru.monica.steam.friends.groupchat.avatar.data.SteamGroupAvatarUploader
 import takagi.ru.monica.steam.friends.groupchat.avatar.domain.SteamGroupAvatarUploadGateway
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatCreateRequest
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatChannelCreateRequest
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGateway
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGroupsSnapshot
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatHistoryBoundary
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatVoiceSession
 import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatThreadSnapshot
 import takagi.ru.monica.steam.friends.groupchat.domain.mergeSteamGroupMessages
@@ -54,6 +56,8 @@ data class SteamGroupChatUiState(
     val creatingGroup: Boolean = false,
     val updatingGroup: Boolean = false,
     val updatingGroupAvatar: Boolean = false,
+    val channelActionLoading: Boolean = false,
+    val voiceSession: SteamGroupChatVoiceSession? = null,
     val createdGroupId: String? = null,
     val realtimeConnected: Boolean = false,
     val failure: String? = null
@@ -387,6 +391,182 @@ class SteamGroupChatViewModel(
                 }
             )
         }
+    }
+
+    fun createChannel(name: String, allowVoice: Boolean) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.channelActionLoading) return
+        _state.value = _state.value.copy(channelActionLoading = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.createChannel(
+                        prepared,
+                        groupId,
+                        SteamGroupChatChannelCreateRequest(name, allowVoice)
+                    )
+                }
+            } }
+            result.fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(channelActionLoading = false)
+                    refreshGroups()
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        channelActionLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
+    }
+
+    fun renameChannel(chatId: String, name: String) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.channelActionLoading) return
+        _state.value = _state.value.copy(channelActionLoading = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.renameChannel(prepared, groupId, chatId, name)
+                }
+            } }
+            result.fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(channelActionLoading = false)
+                    refreshGroups()
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        channelActionLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
+    }
+
+    fun deleteChannel(chatId: String) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.channelActionLoading) return
+        _state.value = _state.value.copy(channelActionLoading = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.deleteChannel(prepared, groupId, chatId)
+                }
+            } }
+            result.fold(
+                onSuccess = {
+                    if (_state.value.selectedChatId == chatId) {
+                        val fallback = _state.value.groups
+                            .firstOrNull { it.groupId == groupId }
+                            ?.rooms
+                            ?.firstOrNull { it.chatId != chatId }
+                            ?.chatId
+                        if (fallback != null) openRoom(groupId, fallback) else closeRoom()
+                    }
+                    _state.value = _state.value.copy(channelActionLoading = false)
+                    refreshGroups()
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        channelActionLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
+    }
+
+    fun reorderChannel(chatId: String, moveAfterChatId: String?) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.channelActionLoading) return
+        _state.value = _state.value.copy(channelActionLoading = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.reorderChannel(prepared, groupId, chatId, moveAfterChatId)
+                }
+            } }
+            result.fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(channelActionLoading = false)
+                    refreshGroups()
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        channelActionLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
+    }
+
+    fun joinVoiceChat(chatId: String) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.channelActionLoading) return
+        _state.value = _state.value.copy(channelActionLoading = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.joinVoiceChat(prepared, groupId, chatId)
+                }
+            } }
+            result.fold(
+                onSuccess = { session ->
+                    _state.value = _state.value.copy(
+                        channelActionLoading = false,
+                        voiceSession = session
+                    )
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        channelActionLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
+    }
+
+    fun leaveVoiceChat() {
+        val current = account ?: return
+        val session = _state.value.voiceSession ?: return
+        if (_state.value.channelActionLoading) return
+        _state.value = _state.value.copy(channelActionLoading = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.leaveVoiceChat(prepared, session.groupId, session.chatId)
+                }
+            } }
+            result.fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(
+                        channelActionLoading = false,
+                        voiceSession = null
+                    )
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        channelActionLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
+    }
+
+    fun clearVoiceSession() {
+        _state.value = _state.value.copy(voiceSession = null)
     }
 
     fun clearCreatedGroup() { _state.value = _state.value.copy(createdGroupId = null) }
