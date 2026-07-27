@@ -6,6 +6,7 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessagePage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
+import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupEventText
 import takagi.ru.monica.steam.network.SteamProtoField
 import takagi.ru.monica.steam.network.SteamProtoReader
 
@@ -24,8 +25,8 @@ internal object SteamGroupChatParser {
             val serverMessage = values[5]?.bytes?.let { SteamProtoReader(it).parse() }
             val eventType = serverMessage?.get(1)?.asInt ?: 0
             val eventText = serverMessage?.get(2)?.asString.orEmpty()
-            val body = values[3]?.asString.orEmpty().ifBlank { eventText }.ifBlank {
-                if (eventType > 0) "Steam group event $eventType" else ""
+            val body = values[3]?.asString.orEmpty().ifBlank {
+                if (eventType > 0) steamGroupEventText(eventType, eventText) else ""
             }
             if (body.isBlank()) return@mapNotNull null
             SteamGroupChatMessage(

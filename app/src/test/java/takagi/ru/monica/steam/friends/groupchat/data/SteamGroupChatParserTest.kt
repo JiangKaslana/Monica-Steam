@@ -120,4 +120,29 @@ class SteamGroupChatParserTest {
             SteamGroupChatParser.parseGroups(response).single().avatarUrl
         )
     }
+
+    @Test
+    fun rendersKnownSteamGroupEventsInsteadOfNumericFallbacks() {
+        val invited = SteamProtoWriter().apply { writeVarint(1, 5L) }
+        val avatarChanged = SteamProtoWriter().apply { writeVarint(1, 10L) }
+        val response = SteamProtoWriter().apply {
+            writeMessage(1, SteamProtoWriter().apply {
+                writeVarint(1, 39_734_274L)
+                writeVarint(2, 300L)
+                writeVarint(4, 1L)
+                writeMessage(5, invited)
+            })
+            writeMessage(1, SteamProtoWriter().apply {
+                writeVarint(1, 39_734_274L)
+                writeVarint(2, 301L)
+                writeVarint(4, 2L)
+                writeMessage(5, avatarChanged)
+            })
+        }.toByteArray()
+
+        assertEquals(
+            listOf("邀请了一位成员加入群聊", "修改了群头像"),
+            SteamGroupChatParser.parseHistory(response, "8001", "9001").messages.map { it.body }
+        )
+    }
 }

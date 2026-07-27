@@ -142,6 +142,26 @@ class SteamGroupChatRealtimeParserTest {
         assertNull(malformed)
     }
 
+    @Test
+    fun rendersKnownRealtimeGroupEvent() {
+        val serverMessage = SteamProtoWriter().apply { writeVarint(1, 10L) }
+        val event = SteamGroupChatRealtimeParser.parse(
+            envelope(
+                method = "ChatRoomClient.NotifyIncomingChatMessage#1",
+                body = SteamProtoWriter().apply {
+                    writeUint64(1, GROUP_ID)
+                    writeUint64(2, CHAT_ID)
+                    writeFixed64(3, SENDER_STEAM_ID.toLong())
+                    writeVarint(5, 1_722_222_222L)
+                    writeVarint(7, 12L)
+                    writeMessage(8, serverMessage)
+                }.toByteArray()
+            )
+        ) as SteamGroupChatRealtimeEvent.Message
+
+        assertEquals("修改了群头像", event.message.body)
+    }
+
     private fun envelope(method: String, body: ByteArray) = SteamCmEnvelope(
         eMsg = SteamCmProtocol.EMSG_SERVICE_METHOD_SEND_TO_CLIENT,
         header = SteamCmHeader(targetJobName = method),

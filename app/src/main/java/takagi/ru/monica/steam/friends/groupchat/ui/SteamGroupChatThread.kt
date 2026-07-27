@@ -216,9 +216,12 @@ private fun GroupThreadHeader(
 @Composable
 private fun GroupMessageBubble(message: SteamGroupChatMessage, outgoing: Boolean, senderName: String) {
     if (message.serverEventType > 0) {
+        val eventText = if (message.senderSteamId.isNotBlank() && senderName.isNotBlank()) {
+            "$senderName ${message.body}"
+        } else message.body
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-                Text(message.body, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium)
+                Text(eventText, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium)
             }
         }
         return

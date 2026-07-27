@@ -4,6 +4,7 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessageModification
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRealtimeEvent
+import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupEventText
 import takagi.ru.monica.steam.network.SteamProtoField
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.cm.SteamCmEnvelope
@@ -45,8 +46,7 @@ internal object SteamGroupChatRealtimeParser {
         val eventText = serverMessage?.get(2)?.asString.orEmpty()
         val body = fields.firstValue(4)?.asString.orEmpty()
             .ifBlank { fields.firstValue(9)?.asString.orEmpty() }
-            .ifBlank { eventText }
-            .ifBlank { if (eventType > 0) "Steam group event $eventType" else "" }
+            .ifBlank { if (eventType > 0) steamGroupEventText(eventType, eventText) else "" }
         if (body.isBlank()) return null
         return SteamGroupChatRealtimeEvent.Message(
             SteamGroupChatMessage(
