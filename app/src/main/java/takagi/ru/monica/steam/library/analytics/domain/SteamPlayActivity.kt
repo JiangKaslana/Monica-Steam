@@ -30,7 +30,9 @@ data class SteamPlayActivityDay(
 data class SteamPlayActivityGame(
     val appId: Int,
     val gameName: String,
-    val minutes: Int
+    val minutes: Int,
+    val iconHash: String = "",
+    val headerImageUrl: String = ""
 )
 
 /**
@@ -52,7 +54,15 @@ fun updateSteamPlayActivity(
         snapshot.games.mapNotNull { game ->
             game.playtimeRecentMinutes
                 .takeIf { it > 0 }
-                ?.let { minutes -> SteamPlayActivityGame(game.appId, game.name, minutes) }
+                ?.let { minutes ->
+                    SteamPlayActivityGame(
+                        appId = game.appId,
+                        gameName = game.name,
+                        minutes = minutes,
+                        iconHash = game.iconHash,
+                        headerImageUrl = game.headerImageUrl
+                    )
+                }
         }
     } else if (previousBaseline.isEmpty()) {
         emptyList()
@@ -60,7 +70,13 @@ fun updateSteamPlayActivity(
         snapshot.games.mapNotNull { game ->
             val old = previousBaseline[game.appId] ?: return@mapNotNull null
             val delta = game.playtimeForeverMinutes - old.cumulativeMinutes
-            if (delta <= 0) null else SteamPlayActivityGame(game.appId, game.name, delta)
+            if (delta <= 0) null else SteamPlayActivityGame(
+                appId = game.appId,
+                gameName = game.name,
+                minutes = delta,
+                iconHash = game.iconHash,
+                headerImageUrl = game.headerImageUrl
+            )
         }
     }
 
@@ -83,12 +99,27 @@ fun updateSteamPlayActivity(
         if (existingIndex >= 0) updatedDays[existingIndex] = day else updatedDays += day
     }
 
+    val currentGames = snapshot.games.associateBy { it.appId }
+    val enrichedDays = updatedDays.map { day ->
+        day.copy(
+            games = day.games.map { activity ->
+                currentGames[activity.appId]?.let { game ->
+                    activity.copy(
+                        gameName = game.name,
+                        iconHash = game.iconHash,
+                        headerImageUrl = game.headerImageUrl
+                    )
+                } ?: activity
+            }
+        )
+    }
+
     return SteamPlayActivityHistory(
         accountId = snapshot.accountId,
         baseline = snapshot.games.map { game ->
             SteamPlaytimeBaseline(game.appId, game.name, game.playtimeForeverMinutes)
         },
-        days = updatedDays.sortedByDescending(SteamPlayActivityDay::date).take(retentionDays),
+        days = enrichedDays.sortedByDescending(SteamPlayActivityDay::date).take(retentionDays),
         updatedAt = recordedAt
     )
 }

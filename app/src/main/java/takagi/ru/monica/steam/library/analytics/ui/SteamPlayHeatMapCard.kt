@@ -6,6 +6,7 @@
 package takagi.ru.monica.steam.library.analytics.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -31,19 +34,24 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -61,7 +69,9 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityDay
+import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityGame
 import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityHistory
+import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteImage
 import takagi.ru.monica.ui.theme.GoogleSansFlexFontFamily
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -244,6 +254,7 @@ private fun SteamPlayDaySheet(
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             day.games.forEach { game ->
                 ListItem(
+                    leadingContent = { SteamPlayActivityGameIcon(game) },
                     headlineContent = {
                         Text(game.gameName, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     },
@@ -258,6 +269,49 @@ private fun SteamPlayDaySheet(
                         )
                     },
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SteamPlayActivityGameIcon(game: SteamPlayActivityGame) {
+    val context = LocalContext.current
+    val imageUrls = remember(game.appId, game.iconHash, game.headerImageUrl) {
+        buildList {
+            game.iconHash.takeIf(String::isNotBlank)?.let { iconHash ->
+                add(
+                    "https://media.steampowered.com/steamcommunity/public/images/apps/" +
+                        "${game.appId}/$iconHash.jpg"
+                )
+            }
+            game.headerImageUrl.takeIf(String::isNotBlank)?.let(::add)
+            add("https://cdn.cloudflare.steamstatic.com/steam/apps/${game.appId}/capsule_184x69.jpg")
+        }.distinct()
+    }
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, imageUrls) {
+        imageUrls.firstNotNullOfOrNull { url -> loadSteamRemoteImage(context, url) }
+            ?.let { value = it }
+    }
+    Surface(
+        modifier = Modifier.size(44.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.primaryContainer
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = requireNotNull(bitmap),
+                contentDescription = game.gameName,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Rounded.SportsEsports,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }

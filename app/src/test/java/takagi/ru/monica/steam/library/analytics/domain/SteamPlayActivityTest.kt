@@ -83,6 +83,36 @@ class SteamPlayActivityTest {
         assertEquals(2, history.baseline.size)
     }
 
+    @Test
+    fun currentLibraryMetadataEnrichesIconsInExistingHeatmapDays() {
+        val previous = SteamPlayActivityHistory(
+            accountId = 1L,
+            baseline = listOf(SteamPlaytimeBaseline(10, "Old name", 600)),
+            days = listOf(
+                SteamPlayActivityDay(
+                    date = "2026-07-24",
+                    games = listOf(SteamPlayActivityGame(10, "Old name", 45))
+                )
+            )
+        )
+        val currentGame = game(10, "Portal", 600).copy(
+            iconHash = "icon-hash",
+            headerImageUrl = "https://cdn.example/header.jpg"
+        )
+
+        val history = updateSteamPlayActivity(
+            previous = previous,
+            snapshot = snapshot(currentGame),
+            localDate = "2026-07-25",
+            recordedAt = 2L
+        )
+
+        val activity = history.days.single().games.single()
+        assertEquals("Portal", activity.gameName)
+        assertEquals("icon-hash", activity.iconHash)
+        assertEquals("https://cdn.example/header.jpg", activity.headerImageUrl)
+    }
+
     private fun game(
         appId: Int,
         name: String,
