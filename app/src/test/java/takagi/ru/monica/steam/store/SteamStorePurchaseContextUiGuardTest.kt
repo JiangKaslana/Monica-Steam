@@ -41,10 +41,11 @@ class SteamStorePurchaseContextUiGuardTest {
         assertTrue(componentSource.contains("PackageOptionsCard("))
         assertFalse(componentSource.contains("RelatedAppsCard("))
         assertTrue(componentSource.contains("SteamStoreOwnershipStatus.FAMILY_SHARED"))
-        assertTrue(packageOptionsSource.contains("verticalAlignment = Alignment.Top"))
+        assertTrue(packageOptionsSource.contains("verticalAlignment = Alignment.CenterVertically"))
         assertTrue(packageOptionsSource.contains("formatSteamPrice(option.priceCents, currency)"))
-        assertFalse(packageOptionsSource.contains("maxLines ="))
-        assertFalse(packageOptionsSource.contains("TextOverflow.Ellipsis"))
+        assertTrue(packageOptionsSource.contains("option.imageUrl.isNotBlank()"))
+        assertTrue(packageOptionsSource.contains("maxLines = 2"))
+        assertTrue(packageOptionsSource.contains("TextOverflow.Ellipsis"))
     }
 
     @Test

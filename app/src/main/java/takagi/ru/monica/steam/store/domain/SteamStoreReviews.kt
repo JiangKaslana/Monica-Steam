@@ -60,6 +60,22 @@ internal fun SteamStoreDetail.preserveCachedReviews(cached: SteamStoreDetail?): 
     } else {
         this
     }
+    if (result.bundles.isEmpty() && cached.bundles.isNotEmpty()) {
+        result = result.copy(bundles = cached.bundles)
+    }
+    if (result.packageOptions.isNotEmpty() && cached.packageOptions.isNotEmpty()) {
+        val cachedPackages = cached.packageOptions.associateBy { it.packageId }
+        result = result.copy(
+            packageOptions = result.packageOptions.map { option ->
+                val cachedOption = cachedPackages[option.packageId]
+                if (option.imageUrl.isBlank() && cachedOption?.imageUrl?.isNotBlank() == true) {
+                    option.copy(imageUrl = cachedOption.imageUrl)
+                } else {
+                    option
+                }
+            }
+        )
+    }
     val cachedReviews = cached.reviews ?: return result
     val freshReviews = result.reviews ?: return result.copy(reviews = cachedReviews)
     val mergedReviews = freshReviews.copy(

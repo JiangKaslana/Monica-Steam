@@ -4722,6 +4722,12 @@
     <string name="steam_store_package_options">购买选项</string>
     <string name="steam_store_package_number">套餐 #%1$d</string>
     <string name="steam_store_free_license">免费</string>
+    <string name="steam_store_bundles">捆绑包</string>
+    <string name="steam_store_bundle_items">%1$d 项内容</string>
+    <string name="steam_store_bundle_contents">包含内容 · 共 %1$d 项</string>
+    <string name="steam_store_bundle_discount">-%1$d%%</string>
+    <string name="steam_store_bundle_open_item">打开商店详情</string>
+    <string name="steam_store_bundle_buy">前往 Steam 购买</string>
     <string name="steam_store_related_content">相关内容</string>
     <string name="steam_store_base_game">本体游戏</string>
     <string name="steam_store_demo_number">试玩版 #%1$d</string>

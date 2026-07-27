@@ -102,11 +102,14 @@ object SteamStoreParser {
                 val item = element as? JsonObject ?: return@mapNotNull null
                 val packageId = item.int("packageid")?.takeIf { it > 0 }
                     ?: return@mapNotNull null
+                val optionText = stripHtml(item.string("option_text").orEmpty())
+                if (isCommercialLicense(optionText)) return@mapNotNull null
                 SteamStorePackageOption(
                     packageId = packageId,
-                    title = stripHtml(item.string("option_text").orEmpty()),
+                    title = stripPackagePrice(optionText),
                     description = stripHtml(item.string("option_description").orEmpty()),
-                    priceCents = item.int("price_in_cents"),
+                    priceCents = item.int("price_in_cents_with_discount")
+                        ?: item.int("price_in_cents"),
                     discountPercent = item.string("percent_savings_text")
                         ?.filter(Char::isDigit)
                         ?.toIntOrNull()
@@ -222,6 +225,14 @@ object SteamStoreParser {
         .filter(String::isNotBlank)
         .joinToString("\n")
 
+    private fun isCommercialLicense(title: String): Boolean =
+        COMMERCIAL_LICENSE.containsMatchIn(title)
+
+    private fun stripPackagePrice(title: String): String = title
+        .replace(PACKAGE_PRICE_SUFFIX, "")
+        .replace(PACKAGE_FREE_SUFFIX, "")
+        .trim()
+
     private fun eventImage(container: org.jsoup.nodes.Element): String {
         val candidates = listOf(
             container.selectFirst("img[data-image-url]")?.attr("abs:data-image-url"),
@@ -235,6 +246,12 @@ object SteamStoreParser {
         .replace(Regex("(?<=[a-z])(?=[A-Z])"), " ")
 
     private val STYLE_IMAGE = Regex("url\\(['\"]?([^'\")]+)", RegexOption.IGNORE_CASE)
+    private val COMMERCIAL_LICENSE = Regex("\\bcommercial\\s+licen[cs]e\\b", RegexOption.IGNORE_CASE)
+    private val PACKAGE_PRICE_SUFFIX = Regex(
+        "\\s+-\\s+(?:[A-Z]{2,4}\\s*)?(?:\\p{Sc}\\s*)?\\d[\\d.,\\s]*$",
+        RegexOption.IGNORE_CASE
+    )
+    private val PACKAGE_FREE_SUFFIX = Regex("\\s+-\\s+(?:free|免费|免費)$", RegexOption.IGNORE_CASE)
     private const val MAX_EVENTS = 12
     private const val STEAM_STORE_BASE = "https://store.steampowered.com"
     private const val STEAM_SALE_BASE = "https://store.steampowered.com/sale/"

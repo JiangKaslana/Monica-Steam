@@ -64,4 +64,16 @@ class SteamStoreParserTest {
         )
         assertTrue(!legacy.systemRequirements.hasContent)
     }
+
+    @Test
+    fun excludesCommercialLicenseAndUsesDiscountedPackagePrice() {
+        val detail = SteamStoreParser.parseDetail(
+            appId = 500,
+            payload = """{"500":{"success":true,"data":{"type":"game","name":"Left 4 Dead","steam_appid":500,"package_groups":[{"subs":[{"packageid":204526,"option_text":"Left 4 Dead - Commercial License - ₹ 349","price_in_cents_with_discount":34900},{"packageid":1053,"option_text":"Left 4 Dead - ₹ 480","price_in_cents_with_discount":48000}]}]}}}"""
+        )
+
+        assertEquals(listOf(1053), detail?.packageOptions?.map { it.packageId })
+        assertEquals("Left 4 Dead", detail?.packageOptions?.single()?.title)
+        assertEquals(48_000, detail?.packageOptions?.single()?.priceCents)
+    }
 }

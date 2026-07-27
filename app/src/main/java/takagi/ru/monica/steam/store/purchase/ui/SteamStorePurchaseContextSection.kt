@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
@@ -16,7 +18,6 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStoreOwnershipStatus
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFailure
+import takagi.ru.monica.steam.store.ui.SteamStoreImage
 
 @Composable
 fun SteamStorePurchaseContextSection(
@@ -130,70 +132,91 @@ private fun PackageOptionsCard(
     selectedPackageId: Int?,
     onSelectPackage: (Int) -> Unit
 ) {
-    Surface(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                stringResource(R.string.steam_store_package_options),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            options.forEach { option ->
-                val selected = option.packageId == selectedPackageId
-                Surface(
-                    onClick = { onSelectPackage(option.packageId) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            width = if (selected) 2.dp else 1.dp,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            },
-                            shape = RoundedCornerShape(16.dp)
-                        ),
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainerHigh
-                    }
+        Text(
+            stringResource(R.string.steam_store_package_options),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+        options.forEach { option ->
+            val selected = option.packageId == selectedPackageId
+            Surface(
+                onClick = { onSelectPackage(option.packageId) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = if (selected) 2.dp else 1.dp,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                shape = RoundedCornerShape(12.dp),
+                color = if (selected) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                }
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        RadioButton(
-                            selected = selected,
-                            onClick = { onSelectPackage(option.packageId) }
+                    if (option.imageUrl.isNotBlank()) {
+                        SteamStoreImage(
+                            url = option.imageUrl,
+                            modifier = Modifier.width(112.dp).height(64.dp),
+                            contentDescription = option.title
                         )
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                option.title.ifBlank {
-                                    stringResource(
-                                        R.string.steam_store_package_number,
-                                        option.packageId
-                                    )
-                                },
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            option.description.takeIf(String::isNotBlank)?.let {
-                                Text(
-                                    it,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            option.title.ifBlank {
+                                stringResource(
+                                    R.string.steam_store_package_number,
+                                    option.packageId
                                 )
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        option.description.takeIf(String::isNotBlank)?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (option.discountPercent > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(7.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                ) {
+                                    Text(
+                                        text = "-${option.discountPercent}%",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                             Text(
                                 text = if (option.isFreeLicense || option.canGetFreeLicense) {
@@ -202,9 +225,18 @@ private fun PackageOptionsCard(
                                     formatSteamPrice(option.priceCents, currency)
                                 },
                                 style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
+                    }
+                    if (selected) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

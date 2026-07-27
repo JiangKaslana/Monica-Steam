@@ -9,6 +9,7 @@ import takagi.ru.monica.steam.store.domain.SteamStoreDetail
 import takagi.ru.monica.steam.store.domain.preserveCachedReviews
 import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentParser
 import takagi.ru.monica.steam.store.related.domain.SteamStoreRelatedApp
+import takagi.ru.monica.steam.store.bundle.domain.SteamStoreBundle
 
 class SteamStoreRelatedContentTest {
     @Test
@@ -62,5 +63,19 @@ class SteamStoreRelatedContentTest {
             .preserveCachedReviews(cached)
 
         assertEquals(listOf(cachedItem), refreshed.relatedDlc)
+    }
+
+    @Test
+    fun cachedBundleMetadataSurvivesAPartialDetailRefresh() {
+        val bundle = SteamStoreBundle(bundleId = 233, title = "Left 4 Dead Bundle")
+        val cached = SteamStoreDetail(
+            appId = 500,
+            name = "Left 4 Dead",
+            bundles = listOf(bundle)
+        )
+
+        val refreshed = cached.copy(bundles = emptyList()).preserveCachedReviews(cached)
+
+        assertEquals(listOf(bundle), refreshed.bundles)
     }
 }

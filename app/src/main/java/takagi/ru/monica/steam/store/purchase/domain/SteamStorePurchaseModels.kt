@@ -7,6 +7,7 @@ data class SteamStorePackageOption(
     val packageId: Int,
     val title: String = "",
     val description: String = "",
+    val imageUrl: String = "",
     val priceCents: Int? = null,
     val discountPercent: Int = 0,
     val isFreeLicense: Boolean = false,

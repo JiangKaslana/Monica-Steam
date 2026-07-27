@@ -7,6 +7,7 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStoreDemo
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 import takagi.ru.monica.steam.store.requirements.domain.SteamStoreSystemRequirements
 import takagi.ru.monica.steam.store.related.domain.SteamStoreRelatedApp
+import takagi.ru.monica.steam.store.bundle.domain.SteamStoreBundle
 
 @Serializable
 data class SteamStoreItem(
@@ -128,6 +129,7 @@ data class SteamStoreDetail(
     val demos: List<SteamStoreDemo> = emptyList(),
     val dlcAppIds: List<Int> = emptyList(),
     val relatedDlc: List<SteamStoreRelatedApp> = emptyList(),
+    val bundles: List<SteamStoreBundle> = emptyList(),
     val fullGame: SteamStoreBaseGame? = null,
     val categories: List<String> = emptyList(),
     val supportedLanguages: String = "",

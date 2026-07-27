@@ -4894,6 +4894,12 @@
     <string name="steam_store_package_options">Purchase options</string>
     <string name="steam_store_package_number">Package #%1$d</string>
     <string name="steam_store_free_license">Free</string>
+    <string name="steam_store_bundles">Bundles</string>
+    <string name="steam_store_bundle_items">%1$d items</string>
+    <string name="steam_store_bundle_contents">Included content · %1$d items</string>
+    <string name="steam_store_bundle_discount">-%1$d%%</string>
+    <string name="steam_store_bundle_open_item">Open store detail</string>
+    <string name="steam_store_bundle_buy">Buy on Steam</string>
     <string name="steam_store_related_content">Related content</string>
     <string name="steam_store_base_game">Base game</string>
     <string name="steam_store_demo_number">Demo #%1$d</string>

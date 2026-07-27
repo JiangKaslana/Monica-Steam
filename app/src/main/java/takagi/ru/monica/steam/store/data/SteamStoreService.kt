@@ -24,6 +24,8 @@ import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import java.io.IOException
 import takagi.ru.monica.steam.store.catalog.data.SteamStoreCatalogService
 import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentService
+import takagi.ru.monica.steam.store.purchase.data.SteamStorePackageMetadataService
+import takagi.ru.monica.steam.store.purchase.data.SteamStorePurchasePageService
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -54,6 +56,8 @@ class SteamStoreService(
     private val countryBySession = ConcurrentHashMap<String, String>()
     private val catalogService = SteamStoreCatalogService(client)
     private val relatedContentService = SteamStoreRelatedContentService(api)
+    private val packageMetadataService = SteamStorePackageMetadataService(client)
+    private val purchasePageService = SteamStorePurchasePageService(client, relatedContentService)
 
     fun featured(
         steamLoginSecure: String? = null,
@@ -181,13 +185,35 @@ class SteamStoreService(
         language = language,
         discoveryCountryCode = discoveryCountryCode
     ).let { detail ->
+        val effectiveAccessToken = effectiveSteamStoreAccessToken(accessToken, steamLoginSecure)
+        val purchasePage = purchasePageService.fetch(
+            appId = detail.appId,
+            countryCode = detail.priceCountryCode,
+            language = language,
+            steamLoginSecure = steamLoginSecure.takeIf {
+                detail.availableInAccountRegion != false
+            },
+            accessToken = effectiveAccessToken
+        )
+        val visiblePackageOptions = if (purchasePage.visiblePackageIds.isEmpty()) {
+            detail.packageOptions
+        } else {
+            detail.packageOptions.filter { it.packageId in purchasePage.visiblePackageIds }
+        }
         detail.copy(
+            packageId = visiblePackageOptions.firstOrNull()?.packageId,
+            packageOptions = packageMetadataService.enrich(
+                options = visiblePackageOptions,
+                countryCode = detail.priceCountryCode,
+                language = language
+            ),
             relatedDlc = relatedContentService.fetch(
                 appIds = detail.dlcAppIds,
                 countryCode = detail.priceCountryCode.orEmpty(),
                 language = language,
-                accessToken = effectiveSteamStoreAccessToken(accessToken, steamLoginSecure)
-            )
+                accessToken = effectiveAccessToken
+            ),
+            bundles = purchasePage.bundles
         )
     }.let { detail -> attachReviews(detail, appId, language) }
 

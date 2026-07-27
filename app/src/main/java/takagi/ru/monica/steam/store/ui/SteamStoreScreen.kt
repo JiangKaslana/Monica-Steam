@@ -103,6 +103,7 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFai
 import takagi.ru.monica.steam.store.purchase.ui.SteamStorePurchaseContextSection
 import takagi.ru.monica.steam.store.requirements.ui.SteamStoreSystemRequirementsSection
 import takagi.ru.monica.steam.store.related.ui.SteamStoreRelatedContentSection
+import takagi.ru.monica.steam.store.bundle.ui.SteamStoreBundleSection
 import takagi.ru.monica.steam.store.ui.gallery.SteamStoreScreenshotViewer
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
@@ -274,6 +275,7 @@ fun SteamStoreScreen(
                         onOpenRelatedApp = { appId ->
                             viewModel.openDetail(appId)
                         },
+                        onOpenBundle = viewModel::openStoreWeb,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -789,6 +791,7 @@ private fun SteamStoreDetailContent(
     onCloseRegionalPrices: () -> Unit,
     onRetryRegionalPrices: () -> Unit,
     onOpenRelatedApp: (Int) -> Unit,
+    onOpenBundle: (String) -> Unit,
     modifier: Modifier
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
@@ -1023,6 +1026,17 @@ private fun SteamStoreDetailContent(
                     relatedDlc = detail.relatedDlc,
                     onOpenApp = onOpenRelatedApp,
                     modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+        }
+        if (detail.bundles.isNotEmpty()) {
+            item(key = "store_bundles_${detail.appId}") {
+                SteamStoreBundleSection(
+                    bundles = detail.bundles,
+                    currency = detail.currency,
+                    onOpenApp = onOpenRelatedApp,
+                    onOpenBundle = onOpenBundle,
+                    modifier = Modifier.padding(start = 16.dp)
                 )
             }
         }
