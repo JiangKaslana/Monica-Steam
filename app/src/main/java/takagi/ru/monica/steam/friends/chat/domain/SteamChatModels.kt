@@ -21,6 +21,21 @@ enum class SteamChatDeliveryState {
 }
 
 @Serializable
+enum class SteamChatReactionType {
+    EMOTICON,
+    STICKER
+}
+
+@Serializable
+data class SteamChatReaction(
+    val type: SteamChatReactionType,
+    val name: String,
+    val reactorSteamIds: List<String> = emptyList()
+) {
+    val count: Int get() = reactorSteamIds.size
+}
+
+@Serializable
 data class SteamChatMessage(
     val partnerSteamId: String,
     val senderSteamId: String,
@@ -31,7 +46,8 @@ data class SteamChatMessage(
     val clientMessageId: String = "",
     val localCreatedAtMillis: Long = 0L,
     val contentSignature: String = steamChatContentSignature(body),
-    val replyToStableId: String? = null
+    val replyToStableId: String? = null,
+    val reactions: List<SteamChatReaction> = emptyList()
 ) {
     val stableId: String
         get() = if (clientMessageId.isNotBlank()) {

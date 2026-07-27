@@ -68,6 +68,9 @@ class SteamChatIntegrationGuardTest {
         assertTrue(thread.contains("Column(modifier = modifier.fillMaxSize().imePadding())"))
         assertTrue(bubble.contains("SteamChatDeliveryState.FAILED"))
         assertTrue(bubble.contains("RoundedCornerShape"))
+        assertTrue(bubble.contains("MessageReactionStrip("))
+        assertTrue(bubble.contains("SteamChatRemoteImage("))
+        assertTrue(bubble.contains("reaction.count.toString()"))
         assertFalse(composer.contains("imePadding()"))
         assertTrue(composer.contains("heightIn(min = 52.dp"))
     }

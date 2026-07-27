@@ -2,6 +2,7 @@ package takagi.ru.monica.steam.friends.chat.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -16,12 +17,16 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -55,6 +60,12 @@ import java.util.Date
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatReaction
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatReactionType
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEmoticon
+import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatSticker
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImage
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImageMode
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMessageContent
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.isSingleSteamEmoticonMessage
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContent
@@ -83,71 +94,147 @@ internal fun SteamChatMessageBubble(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = if (outgoing) Alignment.CenterEnd else Alignment.CenterStart
     ) {
-        Surface(
-            modifier = Modifier
-                .widthIn(max = 324.dp)
-                .pointerInput(retryable, message.stableId) {
-                    detectTapGestures(
-                        onTap = {
-                            if (retryable) {
-                                haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                onRetry()
-                            }
-                        },
-                        onLongPress = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onLongClick()
-                        }
-                    )
-                },
-            shape = bubbleShape,
-            color = if (transparentMedia) Color.Transparent else if (outgoing) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
-            },
-            contentColor = if (outgoing) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            }
+        Column(
+            horizontalAlignment = if (outgoing) Alignment.End else Alignment.Start
         ) {
-            if (transparentMedia) {
-                Box {
-                    Column {
-                        replyToMessage?.let { ReplyPreview(it) }
-                        SteamChatRichMessageContent(body = message.body)
-                    }
-                    Surface(
-                        modifier = Modifier.align(Alignment.BottomEnd),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        DeliveryMetadata(
-                            message = message,
-                            outgoing = outgoing,
-                            retryLabel = retryLabel,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+            Surface(
+                modifier = Modifier
+                    .widthIn(max = 324.dp)
+                    .pointerInput(retryable, message.stableId) {
+                        detectTapGestures(
+                            onTap = {
+                                if (retryable) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                    onRetry()
+                                }
+                            },
+                            onLongPress = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onLongClick()
+                            }
                         )
+                    },
+                shape = bubbleShape,
+                color = if (transparentMedia) Color.Transparent else if (outgoing) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                },
+                contentColor = if (outgoing) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            ) {
+                if (transparentMedia) {
+                    Box {
+                        Column {
+                            replyToMessage?.let { ReplyPreview(it) }
+                            SteamChatRichMessageContent(body = message.body)
+                        }
+                        Surface(
+                            modifier = Modifier.align(Alignment.BottomEnd),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            DeliveryMetadata(
+                                message = message,
+                                outgoing = outgoing,
+                                retryLabel = retryLabel,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                } else Column {
+                    replyToMessage?.let { ReplyPreview(it) }
+                    Row(
+                        modifier = Modifier.padding(
+                            start = 13.dp,
+                            top = if (groupedWithPrevious) 7.dp else 10.dp,
+                            end = if (outgoing) 7.dp else 11.dp,
+                            bottom = if (groupedWithNext) 7.dp else 9.dp
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        SteamChatRichMessageContent(
+                            body = message.body,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        DeliveryMetadata(message, outgoing, retryLabel)
                     }
                 }
-            } else Column {
-                replyToMessage?.let { ReplyPreview(it) }
-                Row(
-                modifier = Modifier.padding(
-                    start = 13.dp,
-                    top = if (groupedWithPrevious) 7.dp else 10.dp,
-                    end = if (outgoing) 7.dp else 11.dp,
-                    bottom = if (groupedWithNext) 7.dp else 9.dp
-                ),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.Bottom
-                ) {
-                SteamChatRichMessageContent(
-                    body = message.body,
-                    modifier = Modifier.weight(1f, fill = false)
+            }
+            if (message.reactions.isNotEmpty()) {
+                MessageReactionStrip(
+                    reactions = message.reactions,
+                    accountSteamId = accountSteamId,
+                    modifier = Modifier.padding(top = 3.dp)
                 )
-                    DeliveryMetadata(message, outgoing, retryLabel)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MessageReactionStrip(
+    reactions: List<SteamChatReaction>,
+    accountSteamId: String,
+    modifier: Modifier = Modifier
+) {
+    FlowRow(
+        modifier = modifier
+            .widthIn(max = 324.dp)
+            .animateContentSize(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        reactions.filter { it.count > 0 }.forEach { reaction ->
+            val selected = accountSteamId in reaction.reactorSteamIds
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = if (selected) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                },
+                contentColor = if (selected) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                border = BorderStroke(
+                    1.dp,
+                    if (selected) MaterialTheme.colorScheme.secondary
+                    else MaterialTheme.colorScheme.outlineVariant
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .heightIn(min = 30.dp)
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SteamChatRemoteImage(
+                        url = when (reaction.type) {
+                            SteamChatReactionType.EMOTICON ->
+                                SteamChatEmoticon(reaction.name).imageUrl
+                            SteamChatReactionType.STICKER ->
+                                SteamChatSticker(reaction.name).imageUrl
+                        },
+                        contentDescription = reaction.name,
+                        modifier = Modifier.size(22.dp),
+                        mode = when (reaction.type) {
+                            SteamChatReactionType.EMOTICON -> SteamChatRemoteImageMode.EMOTICON
+                            SteamChatReactionType.STICKER -> SteamChatRemoteImageMode.STICKER
+                        }
+                    )
+                    Text(
+                        text = reaction.count.toString(),
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
         }

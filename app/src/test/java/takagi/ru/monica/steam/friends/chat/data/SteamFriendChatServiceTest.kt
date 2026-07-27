@@ -13,6 +13,7 @@ import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.chat.domain.STEAM_ID64_INDIVIDUAL_BASE
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatHistoryBoundary
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatReactionType
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.SteamProtoWriter
@@ -30,7 +31,16 @@ class SteamFriendChatServiceTest {
             })
         }.toByteArray()
         val messageResponse = SteamProtoWriter().apply {
-            writeMessage(1, chatMessage(partnerAccountId(), 1_700_000_001L, 1, "Hello"))
+            writeMessage(
+                1,
+                chatMessage(
+                    partnerAccountId(),
+                    1_700_000_001L,
+                    1,
+                    "Hello",
+                    reactionName = "steamthumbsup"
+                )
+            )
             writeMessage(1, chatMessage(accountId(), 1_700_000_002L, 2, "Hi"))
             writeBool(4, true)
         }.toByteArray()
@@ -54,6 +64,10 @@ class SteamFriendChatServiceTest {
         assertEquals(3, sessions.single().unreadCount)
         assertEquals(listOf("Hello", "Hi"), page.messages.map { it.body })
         assertEquals(PARTNER_STEAM_ID, page.messages.first().senderSteamId)
+        val reaction = page.messages.first().reactions.single()
+        assertEquals(SteamChatReactionType.EMOTICON, reaction.type)
+        assertEquals("steamthumbsup", reaction.name)
+        assertEquals(listOf(ACCOUNT_STEAM_ID), reaction.reactorSteamIds)
         assertEquals(ACCOUNT_STEAM_ID, page.messages.last().senderSteamId)
         assertTrue(page.moreAvailable)
         assertEquals("Sent text", sent.body)
@@ -175,12 +189,20 @@ class SteamFriendChatServiceTest {
         senderAccountId: Long,
         timestamp: Long,
         ordinal: Int,
-        body: String
+        body: String,
+        reactionName: String? = null
     ): SteamProtoWriter = SteamProtoWriter().apply {
         writeVarint(1, senderAccountId)
         writeVarint(2, timestamp)
         writeString(3, body)
         writeVarint(4, ordinal.toLong())
+        reactionName?.let { name ->
+            writeMessage(5, SteamProtoWriter().apply {
+                writeVarint(1, 1L)
+                writeString(2, name)
+                writeVarint(3, accountId())
+            })
+        }
     }
 
     private fun accountId(): Long = ACCOUNT_STEAM_ID.toLong() - STEAM_ID64_INDIVIDUAL_BASE

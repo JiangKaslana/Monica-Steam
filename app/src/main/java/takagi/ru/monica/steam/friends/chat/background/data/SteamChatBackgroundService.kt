@@ -122,6 +122,7 @@ class SteamChatBackgroundService : Service() {
                         }
                         is SteamChatRealtimeEvent.Message -> processMessage(handle, event)
                         is SteamChatRealtimeEvent.Acknowledged,
+                        is SteamChatRealtimeEvent.ReactionChanged,
                         is SteamChatRealtimeEvent.Typing,
                         is SteamChatRealtimeEvent.ConversationLeft -> Unit
                     }

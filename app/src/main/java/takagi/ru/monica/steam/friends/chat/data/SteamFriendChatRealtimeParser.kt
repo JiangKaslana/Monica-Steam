@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.friends.chat.data
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatRealtimeEvent
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatReactionType
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.cm.SteamCmEnvelope
 import takagi.ru.monica.steam.network.cm.SteamCmProtocol
@@ -16,6 +17,7 @@ internal object SteamFriendChatRealtimeParser {
         return when (envelope.header.targetJobName?.substringBefore('#')) {
             INCOMING_MESSAGE_METHOD -> parseIncoming(envelope, accountSteamId)
             ACK_MESSAGE_METHOD -> parseAcknowledged(envelope)
+            REACTION_METHOD -> parseReaction(envelope)
             else -> null
         }
     }
@@ -62,10 +64,36 @@ internal object SteamFriendChatRealtimeParser {
         return SteamChatRealtimeEvent.Acknowledged(partnerSteamId, timestamp)
     }
 
+    private fun parseReaction(envelope: SteamCmEnvelope): SteamChatRealtimeEvent? {
+        val fields = runCatching { SteamProtoReader(envelope.body).parse() }.getOrNull()
+            ?: return null
+        val partnerSteamId = fields[1]?.asFixed64UnsignedString
+            ?.takeIf(::isSteamId64) ?: return null
+        val reactorSteamId = fields[4]?.asFixed64UnsignedString
+            ?.takeIf(::isSteamId64) ?: return null
+        val reactionType = when (fields[5]?.asInt) {
+            1 -> SteamChatReactionType.EMOTICON
+            2 -> SteamChatReactionType.STICKER
+            else -> return null
+        }
+        val reactionName = fields[6]?.asString.orEmpty().trim().trim(':')
+            .takeIf(String::isNotBlank) ?: return null
+        return SteamChatRealtimeEvent.ReactionChanged(
+            partnerSteamId = partnerSteamId,
+            timestamp = fields[2]?.asLong?.coerceAtLeast(0L) ?: 0L,
+            ordinal = fields[3]?.asInt?.coerceAtLeast(0) ?: 0,
+            reactorSteamId = reactorSteamId,
+            reactionType = reactionType,
+            reactionName = reactionName,
+            isAdd = fields[7]?.asBool == true
+        )
+    }
+
     private fun isSteamId64(value: String): Boolean = value.matches(STEAM_ID_PATTERN)
 
     private const val INCOMING_MESSAGE_METHOD = "FriendMessagesClient.IncomingMessage"
     private const val ACK_MESSAGE_METHOD = "FriendMessagesClient.NotifyAckMessageEcho"
+    private const val REACTION_METHOD = "FriendMessagesClient.MessageReaction"
     private const val CHAT_ENTRY_TYPE_INVALID = 0
     private const val CHAT_ENTRY_TYPE_MESSAGE = 1
     private const val CHAT_ENTRY_TYPE_TYPING = 2

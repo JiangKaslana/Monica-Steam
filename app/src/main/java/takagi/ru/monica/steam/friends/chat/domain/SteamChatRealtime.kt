@@ -13,6 +13,16 @@ sealed interface SteamChatRealtimeEvent {
         val timestamp: Long
     ) : SteamChatRealtimeEvent
 
+    data class ReactionChanged(
+        val partnerSteamId: String,
+        val timestamp: Long,
+        val ordinal: Int,
+        val reactorSteamId: String,
+        val reactionType: SteamChatReactionType,
+        val reactionName: String,
+        val isAdd: Boolean
+    ) : SteamChatRealtimeEvent
+
     data class Typing(
         val partnerSteamId: String,
         val localEcho: Boolean

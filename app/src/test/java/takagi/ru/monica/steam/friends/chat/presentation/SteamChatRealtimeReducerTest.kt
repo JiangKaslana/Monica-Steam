@@ -6,6 +6,7 @@ import org.junit.Test
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatRealtimeEvent
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatReactionType
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatThreadSnapshot
 
@@ -131,6 +132,39 @@ class SteamChatRealtimeReducerTest {
 
         assertTrue(state.realtimeConnected)
         assertEquals(setOf(PARTNER), state.typingPartnerSteamIds)
+    }
+
+    @Test
+    fun realtimeReactionUpdatesTheTargetMessageWithoutAddingARow() {
+        val message = incoming("hello", timestamp = 100L, ordinal = 2)
+        val state = SteamChatUiState(
+            accountSteamId = ACCOUNT,
+            selectedPartnerSteamId = PARTNER,
+            thread = SteamChatThreadSnapshot(
+                accountSteamId = ACCOUNT,
+                partnerSteamId = PARTNER,
+                messages = listOf(message),
+                moreAvailable = false,
+                fetchedAt = 1L
+            )
+        )
+        val change = SteamChatRealtimeEvent.ReactionChanged(
+            partnerSteamId = PARTNER,
+            timestamp = 100L,
+            ordinal = 2,
+            reactorSteamId = ACCOUNT,
+            reactionType = SteamChatReactionType.EMOTICON,
+            reactionName = "steamthumbsup",
+            isAdd = true
+        )
+
+        val effect = SteamChatRealtimeReducer().reduce(state, change, ACCOUNT, 2_000L)
+        val messages = effect.state.thread?.messages.orEmpty()
+
+        assertEquals(1, messages.size)
+        assertEquals("steamthumbsup", messages.single().reactions.single().name)
+        assertEquals(listOf(ACCOUNT), messages.single().reactions.single().reactorSteamIds)
+        assertTrue(effect.reconcileAuthoritativeState)
     }
 
     private fun incoming(

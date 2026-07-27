@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.chat.presentation
 
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatReaction
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatRealtimeEvent
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
@@ -56,6 +57,8 @@ internal class SteamChatRealtimeReducer(
             SteamChatRealtimeEffect(state.copy(sessions = updated))
         }
 
+        is SteamChatRealtimeEvent.ReactionChanged -> reduceReaction(state, event, nowMillis)
+
         is SteamChatRealtimeEvent.Typing -> {
             val typing = state.typingPartnerSteamIds.toMutableSet()
             if (event.localEcho) typing.remove(event.partnerSteamId)
@@ -67,6 +70,32 @@ internal class SteamChatRealtimeReducer(
             state = state.copy(
                 typingPartnerSteamIds = state.typingPartnerSteamIds - event.partnerSteamId
             ),
+            reconcileAuthoritativeState = true
+        )
+    }
+
+    private fun reduceReaction(
+        state: SteamChatUiState,
+        event: SteamChatRealtimeEvent.ReactionChanged,
+        nowMillis: Long
+    ): SteamChatRealtimeEffect {
+        val thread = state.thread?.takeIf { it.partnerSteamId == event.partnerSteamId }
+            ?: return SteamChatRealtimeEffect(state, reconcileAuthoritativeState = true)
+        var changed = false
+        val messages = thread.messages.map { message ->
+            if (message.timestamp != event.timestamp || message.ordinal != event.ordinal) {
+                message
+            } else {
+                changed = true
+                message.copy(reactions = message.reactions.withReactionChange(event))
+            }
+        }
+        return SteamChatRealtimeEffect(
+            state = if (changed) {
+                state.copy(thread = thread.copy(messages = messages, fetchedAt = nowMillis))
+            } else {
+                state
+            },
             reconcileAuthoritativeState = true
         )
     }
@@ -160,6 +189,34 @@ internal class SteamChatRealtimeReducer(
             seenServerMessages.remove(seenServerMessages.first())
         }
         return false
+    }
+}
+
+private fun List<SteamChatReaction>.withReactionChange(
+    event: SteamChatRealtimeEvent.ReactionChanged
+): List<SteamChatReaction> {
+    val matching = firstOrNull {
+        it.type == event.reactionType && it.name.equals(event.reactionName, ignoreCase = true)
+    }
+    if (matching == null) {
+        return if (event.isAdd) {
+            this + SteamChatReaction(
+                type = event.reactionType,
+                name = event.reactionName,
+                reactorSteamIds = listOf(event.reactorSteamId)
+            )
+        } else {
+            this
+        }
+    }
+    val updatedReactors = if (event.isAdd) {
+        (matching.reactorSteamIds + event.reactorSteamId).distinct()
+    } else {
+        matching.reactorSteamIds - event.reactorSteamId
+    }
+    return mapNotNull { reaction ->
+        if (reaction !== matching) reaction
+        else reaction.copy(reactorSteamIds = updatedReactors).takeIf { updatedReactors.isNotEmpty() }
     }
 }
 

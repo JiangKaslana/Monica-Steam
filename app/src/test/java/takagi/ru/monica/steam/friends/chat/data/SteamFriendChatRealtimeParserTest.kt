@@ -5,6 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatRealtimeEvent
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatReactionType
 import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.network.cm.SteamCmEnvelope
 import takagi.ru.monica.steam.network.cm.SteamCmHeader
@@ -78,6 +79,34 @@ class SteamFriendChatRealtimeParserTest {
             SteamChatRealtimeEvent.Acknowledged(PARTNER_STEAM_ID, 1_722_222_222L),
             ack
         )
+    }
+
+    @Test
+    fun parsesRealtimeReactionChanges() {
+        val event = SteamFriendChatRealtimeParser.parse(
+            SteamCmEnvelope(
+                eMsg = SteamCmProtocol.EMSG_SERVICE_METHOD,
+                header = SteamCmHeader(
+                    targetJobName = "FriendMessagesClient.MessageReaction#2"
+                ),
+                body = SteamProtoWriter().apply {
+                    writeFixed64(1, PARTNER_STEAM_ID.toLong())
+                    writeVarint(2, 1_722_222_222L)
+                    writeVarint(3, 9L)
+                    writeFixed64(4, ACCOUNT_STEAM_ID.toLong())
+                    writeVarint(5, 1L)
+                    writeString(6, "steamthumbsup")
+                    writeBool(7, true)
+                }.toByteArray()
+            ),
+            ACCOUNT_STEAM_ID
+        ) as SteamChatRealtimeEvent.ReactionChanged
+
+        assertEquals(PARTNER_STEAM_ID, event.partnerSteamId)
+        assertEquals(ACCOUNT_STEAM_ID, event.reactorSteamId)
+        assertEquals(SteamChatReactionType.EMOTICON, event.reactionType)
+        assertEquals("steamthumbsup", event.reactionName)
+        assertTrue(event.isAdd)
     }
 
     @Test
