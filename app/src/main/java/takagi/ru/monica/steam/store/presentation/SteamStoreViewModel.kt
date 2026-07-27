@@ -1103,7 +1103,7 @@ class SteamStoreViewModel(
         internal val REGIONAL_PRICE_COUNTRY_CODES =
             listOf(
                 "CN", "US", "JP", "KR", "HK", "TW", "DE", "GB", "BR", "RU",
-                "UA", "IN", "ID"
+                "UA", "IN", "ID", "PK"
             )
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
 

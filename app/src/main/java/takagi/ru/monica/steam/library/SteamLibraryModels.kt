@@ -66,6 +66,9 @@ data class SteamRegionalPrice(
     val exchangeRateFetchedAt: Long? = null
 )
 
+internal fun isSteamSouthAsiaPriceCountry(countryCode: String): Boolean =
+    countryCode.trim().uppercase() in setOf("PK", "BD", "BT", "NP", "LK")
+
 @Serializable
 data class SteamLibrarySnapshot(
     val accountId: Long,

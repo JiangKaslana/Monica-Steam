@@ -93,6 +93,7 @@ import takagi.ru.monica.steam.library.SteamAchievement
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamGameAchievements
 import takagi.ru.monica.steam.library.SteamGamePrice
+import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
 import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamLibrarySnapshot
 import takagi.ru.monica.steam.library.SteamLibraryViewModel
@@ -2008,9 +2009,14 @@ private fun SteamRegionalPriceColumn(
     }
 }
 
+@Composable
 private fun regionalCountryName(countryCode: String): String {
-    return Locale("", countryCode).getDisplayCountry(Locale.getDefault())
-        .ifBlank { countryCode }
+    return if (isSteamSouthAsiaPriceCountry(countryCode)) {
+        stringResource(R.string.steam_region_south_asia)
+    } else {
+        Locale("", countryCode).getDisplayCountry(Locale.getDefault())
+            .ifBlank { countryCode }
+    }
 }
 
 internal enum class SteamAchievementFilter {

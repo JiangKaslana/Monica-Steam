@@ -714,7 +714,7 @@ class SteamLibraryViewModel(
 
     companion object {
         internal val REGIONAL_PRICE_COUNTRY_CODES =
-            listOf("CN", "US", "JP", "KR", "HK", "TW", "UA", "IN", "ID")
+            listOf("CN", "US", "JP", "KR", "HK", "TW", "UA", "IN", "ID", "PK")
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
         private const val DEFAULT_STORE_COUNTRY_CODE = "CN"
 

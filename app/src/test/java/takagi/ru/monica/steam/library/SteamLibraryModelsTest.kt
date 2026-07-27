@@ -17,6 +17,14 @@ import takagi.ru.monica.steam.network.SteamProtoWriter
 
 class SteamLibraryModelsTest {
     @Test
+    fun southAsiaPricingCountriesShareOneDisplayRegion() {
+        listOf("PK", "BD", "BT", "NP", "LK").forEach { countryCode ->
+            assertTrue(isSteamSouthAsiaPriceCountry(countryCode))
+        }
+        assertTrue(SteamLibraryViewModel.REGIONAL_PRICE_COUNTRY_CODES.contains("PK"))
+    }
+
+    @Test
     fun summaryCountsPlaytimeAndOnlyPricedGamesInEstimate() {
         val snapshot = SteamLibrarySnapshot(
             accountId = 7L,

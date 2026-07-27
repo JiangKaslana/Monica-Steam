@@ -4317,6 +4317,7 @@
     <string name="steam_library_no_completed_achievements">No achievements completed yet.</string>
     <string name="steam_library_no_incomplete_achievements">All achievements are completed.</string>
     <string name="steam_library_regional_prices">Regional prices</string>
+    <string name="steam_region_south_asia">South Asia</string>
     <string name="steam_library_regional_prices_empty">No regional prices are available for this game.</string>
     <string name="steam_library_regional_discount">%1$d%% off</string>
     <string name="steam_library_regional_price_note">Steam store prices in each region’s local currency. Availability and checkout eligibility depend on the Steam account region.</string>

@@ -92,6 +92,7 @@ import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.foundation.ui.SteamPageOverflowMenu
 import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamRegionalPrice
+import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.presentation.SteamStoreViewModel
 import takagi.ru.monica.steam.store.points.ui.SteamPointsShopScreen
@@ -1524,9 +1525,14 @@ private fun storeRegionalPriceFailureLabel(failure: SteamLibraryFailureReason): 
     )
 }
 
+@Composable
 private fun regionalCountryName(countryCode: String): String {
-    return Locale("", countryCode).getDisplayCountry(Locale.getDefault())
-        .ifBlank { countryCode }
+    return if (isSteamSouthAsiaPriceCountry(countryCode)) {
+        stringResource(R.string.steam_region_south_asia)
+    } else {
+        Locale("", countryCode).getDisplayCountry(Locale.getDefault())
+            .ifBlank { countryCode }
+    }
 }
 
 private fun formatStoreRegionalPrice(currency: String, minor: Long): String {

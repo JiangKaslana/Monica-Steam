@@ -4147,6 +4147,7 @@
     <string name="steam_library_no_completed_achievements">暂未完成任何成就。</string>
     <string name="steam_library_no_incomplete_achievements">所有成就均已完成。</string>
     <string name="steam_library_regional_prices">多区价格</string>
+    <string name="steam_region_south_asia">南亚</string>
     <string name="steam_library_regional_prices_empty">该游戏暂无可用的多区价格。</string>
     <string name="steam_library_regional_discount">优惠 %1$d%%</string>
     <string name="steam_library_regional_price_note">显示 Steam 各地区商店当地币种价格；实际可购买地区与结算资格取决于 Steam 账号区域。</string>
