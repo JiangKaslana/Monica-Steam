@@ -227,7 +227,7 @@ import takagi.ru.monica.ui.gestures.SwipeActions
 import takagi.ru.monica.ui.haptic.rememberHapticFeedback
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
-import takagi.ru.monica.ui.password.PasswordTopActionsDropdownMenu
+import takagi.ru.monica.ui.password.MonicaTopActionsDropdownMenu
 import takagi.ru.monica.ui.rememberTotpTickerMillis
 import takagi.ru.monica.util.TotpDataResolver
 import takagi.ru.monica.util.TotpGenerator
@@ -371,6 +371,8 @@ fun SteamScreen(
     onOpenChat: (String?) -> Unit = {},
     onOpenBackup: () -> Unit = {},
     onOpenCommunity: (String?) -> Unit = {},
+    openNotificationsOnEntry: Boolean = false,
+    onNotificationsEntryConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
     pendingSteamQrResult: String? = null,
     pendingSteamQrAccountId: Long? = null,
@@ -425,6 +427,16 @@ fun SteamScreen(
     var showTopActionsMenu by remember { mutableStateOf(false) }
     var showStorageSourceMenu by remember { mutableStateOf(false) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(openNotificationsOnEntry) {
+        if (openNotificationsOnEntry) {
+            selectedSection = SteamSection.NOTIFICATIONS
+            steamSearchQuery = ""
+            isSteamSearchExpanded = false
+            selectedFriendId = null
+            viewModel.refreshSteamNotifications()
+            onNotificationsEntryConsumed()
+        }
+    }
     var sellItemStack by remember { mutableStateOf<SteamInventoryItemStack?>(null) }
     var selectedInventoryStackKeys by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     var selectedMarketListingIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
@@ -480,7 +492,7 @@ fun SteamScreen(
     }
     val pendingNotificationCount = notificationSnapshot?.unreadCount ?: 0
     val chatUnreadCount = chatUiState.unreadCount
-    val pendingTopActionCount = pendingConfirmationCount + pendingNotificationCount + chatUnreadCount
+    val pendingTopActionCount = pendingConfirmationCount + pendingNotificationCount
     val organizationFilter = SteamAccountOrganizationFilter(
         groupName = organizationGroupFilter,
         tag = organizationTagFilter,
@@ -1767,7 +1779,6 @@ fun SteamScreen(
                                 selectedSection = selectedSection,
                                 pendingConfirmationCount = pendingConfirmationCount,
                                 pendingNotificationCount = pendingNotificationCount,
-                                pendingChatCount = chatUnreadCount,
                                 onSelectSection = { section ->
                                     showTopActionsMenu = false
                                     clearSteamSearch()
@@ -2271,7 +2282,6 @@ private fun SteamTopActionsMenu(
     selectedSection: SteamSection,
     pendingConfirmationCount: Int,
     pendingNotificationCount: Int,
-    pendingChatCount: Int,
     onSelectSection: (SteamSection) -> Unit,
     onRefreshCurrent: () -> Unit,
     onAddAccount: () -> Unit,
@@ -2280,11 +2290,13 @@ private fun SteamTopActionsMenu(
     showStandaloneSettingsEntry: Boolean,
     onOpenStandaloneSettings: () -> Unit
 ) {
-    PasswordTopActionsDropdownMenu(
+    MonicaTopActionsDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest
     ) {
-        SteamSection.entries.forEach { section ->
+        SteamSection.entries
+            .filterNot { it == SteamSection.FRIENDS || it == SteamSection.CHAT }
+            .forEach { section ->
             DropdownMenuItem(
                 text = {
                     Row(
@@ -2304,11 +2316,6 @@ private fun SteamTopActionsMenu(
                         if (section == SteamSection.NOTIFICATIONS && pendingNotificationCount > 0) {
                             Badge {
                                 Text(badgeCountText(pendingNotificationCount))
-                            }
-                        }
-                        if (section == SteamSection.CHAT && pendingChatCount > 0) {
-                            Badge {
-                                Text(badgeCountText(pendingChatCount))
                             }
                         }
                     }

@@ -40,7 +40,7 @@ private fun passwordTopActionsMenuLayoutModifier(modifier: Modifier): Modifier {
 }
 
 @Composable
-internal fun PasswordTopActionsDropdownMenu(
+internal fun MonicaTopActionsDropdownMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -76,6 +76,19 @@ internal fun PasswordTopActionsDropdownMenu(
         }
     }
 }
+
+@Composable
+internal fun PasswordTopActionsDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) = MonicaTopActionsDropdownMenu(
+    expanded = expanded,
+    onDismissRequest = onDismissRequest,
+    modifier = modifier,
+    content = content
+)
 
 @Composable
 internal fun CommonPasswordTopActionsMenuItems(

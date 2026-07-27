@@ -10,9 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import takagi.ru.monica.R
+import takagi.ru.monica.ui.password.MonicaTopActionsDropdownMenu
 
 private const val PULL_REFRESH_HIDDEN_EPSILON = 0.001f
 private const val PULL_REFRESH_OVERSHOOT_RESISTANCE = 0.18f
@@ -45,6 +46,7 @@ private const val PULL_REFRESH_MAX_VISUAL_FRACTION = 1.15f
 fun SteamPageOverflowMenu(
     refreshing: Boolean,
     onRefresh: () -> Unit,
+    onOpenNotifications: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -52,7 +54,18 @@ fun SteamPageOverflowMenu(
         IconButton(onClick = { expanded = true }) {
             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options))
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        MonicaTopActionsDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.steam_notifications_title)) },
+                leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    onOpenNotifications()
+                }
+            )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.refresh)) },
                 leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },

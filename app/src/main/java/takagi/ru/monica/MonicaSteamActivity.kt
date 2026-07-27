@@ -222,6 +222,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 var pendingStoreAppId by rememberSaveable { mutableStateOf<Int?>(null) }
                 var pendingCommunitySteamId by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingChatPartnerSteamId by rememberSaveable { mutableStateOf<String?>(null) }
+                var pendingSteamNotifications by rememberSaveable { mutableStateOf(false) }
                 var isSteamChatThreadOpen by rememberSaveable { mutableStateOf(false) }
                 var backPressedOnce by remember { mutableStateOf(false) }
                 val composeScope = rememberCoroutineScope()
@@ -433,6 +434,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onNavigateBack = { navigateBack() },
                                 showNavigationBack = false,
                                 onOpenSettings = { navigateTo(MonicaSteamPage.SETTINGS) },
+                                onOpenNotifications = {
+                                    pendingSteamNotifications = true
+                                    navigateTo(MonicaSteamPage.STEAM)
+                                },
                                 onOpenStoreApp = { appId ->
                                     pendingStoreAppId = appId
                                     navigateTo(MonicaSteamPage.STORE)
@@ -445,6 +450,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             SteamStoreScreen(
                                 showNavigationBack = false,
                                 onOpenSettings = { navigateTo(MonicaSteamPage.SETTINGS) },
+                                onOpenNotifications = {
+                                    pendingSteamNotifications = true
+                                    navigateTo(MonicaSteamPage.STEAM)
+                                },
                                 initialAppId = pendingStoreAppId,
                                 onInitialAppIdConsumed = { pendingStoreAppId = null },
                                 modifier = Modifier.fillMaxSize()
@@ -540,6 +549,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onOpenCommunity = { steamId ->
                                     pendingCommunitySteamId = steamId
                                     navigateTo(MonicaSteamPage.COMMUNITY)
+                                },
+                                openNotificationsOnEntry = pendingSteamNotifications,
+                                onNotificationsEntryConsumed = {
+                                    pendingSteamNotifications = false
                                 },
                                 onOpenStoreApp = { appId ->
                                     pendingStoreAppId = appId

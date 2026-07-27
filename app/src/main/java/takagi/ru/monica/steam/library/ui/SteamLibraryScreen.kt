@@ -131,6 +131,7 @@ fun SteamLibraryScreen(
     onNavigateBack: () -> Unit,
     showNavigationBack: Boolean = true,
     onOpenSettings: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
     modifier: Modifier = Modifier,
     onOpenStoreApp: (Int) -> Unit = {}
 ) {
@@ -207,6 +208,7 @@ fun SteamLibraryScreen(
                             SteamPageOverflowMenu(
                                 refreshing = state.loadingLibrary,
                                 onRefresh = viewModel::refreshLibrary,
+                                onOpenNotifications = onOpenNotifications,
                                 onOpenSettings = onOpenSettings
                             )
                         }

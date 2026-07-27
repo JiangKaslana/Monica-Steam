@@ -126,6 +126,7 @@ fun SteamStoreScreen(
     showNavigationBack: Boolean = true,
     onNavigateBack: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
     initialAppId: Int? = null,
     onInitialAppIdConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -326,6 +327,7 @@ fun SteamStoreScreen(
                             SteamPageOverflowMenu(
                                 refreshing = storeRefreshing,
                                 onRefresh = refreshStore,
+                                onOpenNotifications = onOpenNotifications,
                                 onOpenSettings = onOpenSettings
                             )
                         }

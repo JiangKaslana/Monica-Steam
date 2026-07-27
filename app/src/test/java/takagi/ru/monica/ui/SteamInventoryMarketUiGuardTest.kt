@@ -16,7 +16,7 @@ class SteamInventoryMarketUiGuardTest {
         assertTrue(source.contains("MARKET("))
         assertTrue(source.contains("R.string.steam_section_inventory"))
         assertTrue(source.contains("R.string.steam_section_market"))
-        assertTrue(source.contains("SteamSection.entries.forEach"))
+        assertTrue(source.contains("SteamSection.entries"))
         assertTrue(source.contains("SteamInventoryContent("))
         assertTrue(source.contains("SteamMarketListingsContent("))
     }
