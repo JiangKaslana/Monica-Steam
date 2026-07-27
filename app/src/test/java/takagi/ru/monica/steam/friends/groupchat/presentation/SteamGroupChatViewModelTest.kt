@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.groupchat.presentation
 
 import java.net.SocketTimeoutException
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -82,6 +83,21 @@ class SteamGroupChatViewModelTest {
         assertEquals("New group", viewModel.state.value.groups.single().name)
         assertEquals(listOf(PARTNER_ID), gateway.lastCreate?.inviteeSteamIds)
     }
+
+    @Test
+    fun groupBootstrapFailureDoesNotBecomeAGlobalActionFailure() =
+        runTest(dispatcher.scheduler) {
+            val gateway = FakeGateway().apply {
+                groupsError = IOException("Steam CM is unavailable")
+            }
+            val viewModel = viewModel(gateway)
+
+            viewModel.selectAccount(account())
+            runCurrent()
+
+            assertTrue(viewModel.state.value.groupsFailure)
+            assertEquals(null, viewModel.state.value.failure)
+        }
 
     @Test
     fun avatarTimeoutReconcilesAChangeThatReachedSteam() = runTest(dispatcher.scheduler) {
@@ -329,6 +345,7 @@ class SteamGroupChatViewModelTest {
         var groups: List<SteamGroupChatSummary> = listOf(
             SteamGroupChatSummary("8", "Group", defaultChatId = "9", rooms = listOf(SteamGroupChatRoom("9", "General")))
         )
+        var groupsError: Throwable? = null
         var history: (String, String) -> SteamGroupChatMessagePage = { _, _ -> SteamGroupChatMessagePage(emptyList(), false) }
         var send: (String, String, String) -> SteamGroupChatMessage = { groupId, chatId, body ->
             SteamGroupChatMessage(groupId, chatId, ACCOUNT_ID, 101L, 1, body)
@@ -343,6 +360,7 @@ class SteamGroupChatViewModelTest {
             private set
         override fun getMyGroups(account: SteamAccount): List<SteamGroupChatSummary> {
             groupCalls++
+            groupsError?.let { throw it }
             return groups
         }
         override fun getHistory(account: SteamAccount, groupId: String, chatId: String, before: SteamGroupChatHistoryBoundary?): SteamGroupChatMessagePage {

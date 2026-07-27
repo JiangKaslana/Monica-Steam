@@ -49,6 +49,8 @@ data class SteamGroupChatUiState(
     val groupsRefreshing: Boolean = false,
     val threadLoading: Boolean = false,
     val loadingOlder: Boolean = false,
+    /** Failure of the background group-list read, kept separate from room/action errors. */
+    val groupsFailure: Boolean = false,
     val creatingGroup: Boolean = false,
     val updatingGroup: Boolean = false,
     val updatingGroupAvatar: Boolean = false,
@@ -110,7 +112,11 @@ class SteamGroupChatViewModel(
 
     fun refreshGroups() {
         val current = account ?: return
-        _state.value = _state.value.copy(groupsRefreshing = _state.value.groups.isNotEmpty(), groupsLoading = _state.value.groups.isEmpty())
+        _state.value = _state.value.copy(
+            groupsRefreshing = _state.value.groups.isNotEmpty(),
+            groupsLoading = _state.value.groups.isEmpty(),
+            groupsFailure = false
+        )
         fetchGroups(current, accountGeneration)
     }
 
@@ -537,7 +543,13 @@ class SteamGroupChatViewModel(
                     withContext(ioDispatcher) { cache.saveGroups(snapshot) }
                     _state.value = _state.value.copy(groups = groups, groupsLoading = false, groupsRefreshing = false, failure = null)
                 },
-                onFailure = { _state.value = _state.value.copy(groupsLoading = false, groupsRefreshing = false, failure = it.groupChatMessage()) }
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        groupsLoading = false,
+                        groupsRefreshing = false,
+                        groupsFailure = true
+                    )
+                }
             )
         }
     }

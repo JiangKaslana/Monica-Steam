@@ -36,6 +36,7 @@ import java.text.DateFormat
 import java.util.Date
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
+import takagi.ru.monica.steam.friends.chat.presentation.SteamChatFailureReason
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImage
 import takagi.ru.monica.steam.friends.domain.SteamFriend
@@ -173,6 +174,11 @@ internal fun SteamConversationList(
         ) {
             chatState.sessionsFailure?.let { failure ->
                 item("conversation-error") { ChatFailureBanner(failure, onRefresh) }
+            }
+            if (groupState.groupsFailure) {
+                item("group-conversation-error") {
+                    ChatFailureBanner(SteamChatFailureReason.UNAVAILABLE, onRefresh)
+                }
             }
             if ((chatState.sessionsLoading || groupState.groupsLoading) && entries.isEmpty()) {
                 item("conversation-loading") {
