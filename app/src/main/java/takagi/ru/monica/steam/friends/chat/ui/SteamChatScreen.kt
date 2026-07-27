@@ -395,6 +395,7 @@ fun SteamChatScreen(
                     owner > 0L && accountIdFromSteamId(groupChatState.accountSteamId) == owner
                 } == true,
                 updatingGroup = groupChatState.updatingGroup,
+                updatingGroupAvatar = groupChatState.updatingGroupAvatar,
                 onBack = { subpage = null },
                 onAddMember = {
                     if (partnerSteamId != null) {
@@ -408,6 +409,7 @@ fun SteamChatScreen(
                     currentConversationId?.let { infoPreferencesStore.save(it, updated) }
                 },
                 onUpdateGroup = groupChatViewModel::updateGroup,
+                onUpdateGroupAvatar = groupChatViewModel::updateGroupAvatar,
                 modifier = Modifier.fillMaxSize()
             )
         } else if (currentSubpage == SteamChatSubpage.SEARCH) {

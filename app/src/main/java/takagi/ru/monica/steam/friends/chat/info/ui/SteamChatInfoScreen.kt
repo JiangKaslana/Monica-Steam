@@ -1,5 +1,7 @@
 package takagi.ru.monica.steam.friends.chat.info.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,14 +65,19 @@ internal fun SteamChatInfoScreen(
     preferences: SteamChatConversationPreferences,
     canEditGroup: Boolean,
     updatingGroup: Boolean,
+    updatingGroupAvatar: Boolean,
     onBack: () -> Unit,
     onAddMember: () -> Unit,
     onSearchHistory: () -> Unit,
     onPreferencesChange: (SteamChatConversationPreferences) -> Unit,
     onUpdateGroup: (String, String) -> Unit,
+    onUpdateGroupAvatar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var editing by remember { mutableStateOf(false) }
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.toString()?.let(onUpdateGroupAvatar)
+    }
     Column(modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
@@ -97,18 +105,63 @@ internal fun SteamChatInfoScreen(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (group.avatarUrl.isNotBlank()) {
-                            SteamChatRemoteImage(
-                                group.avatarUrl,
-                                group.name,
-                                Modifier.size(72.dp).clip(CircleShape)
-                            )
-                        } else {
-                            Surface(
-                                modifier = Modifier.size(72.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Groups, null, Modifier.size(34.dp)) } }
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    if (canEditGroup && !updatingGroupAvatar) {
+                                        Modifier.clickable { avatarPicker.launch("image/*") }
+                                    } else Modifier
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (group.avatarUrl.isNotBlank()) {
+                                SteamChatRemoteImage(
+                                    group.avatarUrl,
+                                    group.name,
+                                    Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Surface(
+                                    modifier = Modifier.fillMaxSize(),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Groups, null, Modifier.size(34.dp))
+                                    }
+                                }
+                            }
+                            if (updatingGroupAvatar) {
+                                Surface(
+                                    modifier = Modifier.fillMaxSize(),
+                                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(28.dp),
+                                            color = MaterialTheme.colorScheme.inverseOnSurface,
+                                            strokeWidth = 3.dp
+                                        )
+                                    }
+                                }
+                            } else if (canEditGroup) {
+                                Surface(
+                                    modifier = Modifier.align(Alignment.BottomEnd).size(26.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "Change group avatar",
+                                            modifier = Modifier.size(15.dp),
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                }
+                            }
                         }
                         Column(Modifier.padding(start = 16.dp).weight(1f)) {
                             Text(group.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)

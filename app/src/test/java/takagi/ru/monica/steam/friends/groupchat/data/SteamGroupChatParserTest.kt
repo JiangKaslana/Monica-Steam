@@ -100,4 +100,24 @@ class SteamGroupChatParserTest {
             SteamGroupChatParser.parseSentMessage(sent, "8", "9", "76561198000000001", "message").ordinal
         )
     }
+
+    @Test
+    fun parsesOfficialGroupAvatarSha() {
+        val sha = ByteArray(20) { it.toByte() }
+        val room = SteamProtoWriter().apply { writeUint64(1, "9001") }
+        val summary = SteamProtoWriter().apply {
+            writeUint64(1, "8001")
+            writeString(2, "Avatar group")
+            writeUint64(5, "9001")
+            writeMessage(6, room)
+            writeBytes(11, sha)
+        }
+        val pair = SteamProtoWriter().apply { writeMessage(2, summary) }
+        val response = SteamProtoWriter().apply { writeMessage(1, pair) }.toByteArray()
+
+        assertEquals(
+            "https://avatars.steamstatic.com/000102030405060708090a0b0c0d0e0f10111213_full.jpg",
+            SteamGroupChatParser.parseGroups(response).single().avatarUrl
+        )
+    }
 }

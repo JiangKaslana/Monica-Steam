@@ -16,5 +16,8 @@ interface SteamGroupChatGateway {
     fun updateGroup(account: SteamAccount, groupId: String, name: String, tagline: String) {
         throw UnsupportedOperationException("Updating Steam group metadata is not supported")
     }
+    fun updateGroupAvatar(account: SteamAccount, groupId: String, avatarSha: ByteArray) {
+        throw UnsupportedOperationException("Updating Steam group avatar is not supported")
+    }
     fun acknowledge(account: SteamAccount, groupId: String, chatId: String, timestamp: Long)
 }

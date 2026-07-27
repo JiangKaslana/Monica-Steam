@@ -5,6 +5,7 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessagePage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
 import takagi.ru.monica.steam.network.SteamProtoField
 import takagi.ru.monica.steam.network.SteamProtoReader
 
@@ -85,7 +86,9 @@ internal object SteamGroupChatParser {
             defaultChatId = defaultChatId,
             rooms = rooms,
             rank = summaryByField[12]?.asInt ?: 0,
-            avatarUrl = summaryByField[21]?.asString.orEmpty(),
+            avatarUrl = summaryByField[21]?.asString.orEmpty().ifBlank {
+                summaryByField[11]?.bytes?.let(::steamGroupAvatarUrl).orEmpty()
+            },
             unreadCount = rooms.count(SteamGroupChatRoom::unread),
             topMemberSteamIds = parseTopMembers(summary)
         )

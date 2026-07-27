@@ -22,6 +22,8 @@ import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatCache
 import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatPreferencesCache
 import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatService
+import takagi.ru.monica.steam.friends.groupchat.avatar.data.SteamGroupAvatarUploader
+import takagi.ru.monica.steam.friends.groupchat.avatar.domain.SteamGroupAvatarUploadGateway
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatCreateRequest
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGateway
@@ -29,6 +31,7 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGroupsSnaps
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatHistoryBoundary
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatThreadSnapshot
 import takagi.ru.monica.steam.friends.groupchat.domain.mergeSteamGroupMessages
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRealtimeEvent
@@ -48,6 +51,7 @@ data class SteamGroupChatUiState(
     val loadingOlder: Boolean = false,
     val creatingGroup: Boolean = false,
     val updatingGroup: Boolean = false,
+    val updatingGroupAvatar: Boolean = false,
     val createdGroupId: String? = null,
     val realtimeConnected: Boolean = false,
     val failure: String? = null
@@ -60,7 +64,8 @@ class SteamGroupChatViewModel(
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val newClientId: () -> String = { UUID.randomUUID().toString() },
     private val realtime: SteamGroupChatRealtimeGateway? = null,
-    private val sessionResolver: SteamAccountSessionResolver? = null
+    private val sessionResolver: SteamAccountSessionResolver? = null,
+    private val avatarUploader: SteamGroupAvatarUploadGateway? = null
 ) : ViewModel() {
     private val _state = MutableStateFlow(SteamGroupChatUiState())
     val state: StateFlow<SteamGroupChatUiState> = _state.asStateFlow()
@@ -318,6 +323,44 @@ class SteamGroupChatViewModel(
                 },
                 onFailure = {
                     _state.value = _state.value.copy(updatingGroup = false, failure = it.groupChatMessage())
+                }
+            )
+        }
+    }
+
+    fun updateGroupAvatar(rawUri: String) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        val uploader = avatarUploader ?: return
+        if (_state.value.updatingGroupAvatar || rawUri.isBlank()) return
+        _state.value = _state.value.copy(updatingGroupAvatar = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    val sha = uploader.upload(prepared, rawUri)
+                    gateway.updateGroupAvatar(prepared, groupId, sha)
+                    sha
+                }
+            } }
+            result.fold(
+                onSuccess = { sha ->
+                    val avatarUrl = steamGroupAvatarUrl(sha)
+                    val groups = _state.value.groups.map { group ->
+                        if (group.groupId == groupId) group.copy(avatarUrl = avatarUrl) else group
+                    }
+                    _state.value = _state.value.copy(
+                        groups = groups,
+                        updatingGroupAvatar = false
+                    )
+                    withContext(ioDispatcher) {
+                        cache.saveGroups(SteamGroupChatGroupsSnapshot(current.steamId, groups, nowMillis()))
+                    }
+                },
+                onFailure = { error ->
+                    _state.value = _state.value.copy(
+                        updatingGroupAvatar = false,
+                        failure = error.groupChatMessage()
+                    )
                 }
             )
         }
@@ -582,7 +625,7 @@ class SteamGroupChatViewModel(
 
     private suspend fun <T> withPreparedSession(
         current: SteamAccount,
-        block: (SteamAccount) -> T
+        block: suspend (SteamAccount) -> T
     ): T {
         val prepared = sessionResolver.resolveOrKeep(current)
         if (account?.id == current.id && account?.steamId == current.steamId) {
@@ -643,7 +686,8 @@ class SteamGroupChatViewModel(
                         cache = SteamGroupChatPreferencesCache(appContext),
                         realtime = takagi.ru.monica.steam.friends.groupchat.data
                             .SteamGroupChatRealtimeService(cm, resolver),
-                        sessionResolver = resolver
+                        sessionResolver = resolver,
+                        avatarUploader = SteamGroupAvatarUploader(appContext)
                     ) as T
             }
         }

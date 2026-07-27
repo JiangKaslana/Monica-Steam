@@ -18,6 +18,8 @@ class SteamChatInfoIntegrationGuardTest {
         assertTrue(info.contains("navigationBarsPadding()"))
         assertTrue(info.contains("Modifier.size(48.dp)"))
         assertTrue(info.contains("Switch("))
+        assertTrue(info.contains("rememberLauncherForActivityResult"))
+        assertTrue(info.contains("avatarPicker.launch(\"image/*\")"))
         assertTrue(search.contains("statusBarsPadding()"))
         assertTrue(search.contains("onOpenMessage"))
     }
@@ -39,6 +41,7 @@ class SteamChatInfoIntegrationGuardTest {
         assertTrue(host.contains("SteamChatInfoScreen("))
         assertTrue(host.contains("SteamChatHistorySearchScreen("))
         assertTrue(host.contains("initialGroupInvitees = setOf(partnerSteamId)"))
+        assertTrue(host.contains("onUpdateGroupAvatar = groupChatViewModel::updateGroupAvatar"))
     }
 
     private fun projectFile(path: String): File {

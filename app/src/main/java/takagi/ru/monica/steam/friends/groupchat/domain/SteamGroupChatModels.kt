@@ -80,6 +80,12 @@ data class SteamGroupChatCreateRequest(
 
 data class SteamGroupChatHistoryBoundary(val timestamp: Long, val ordinal: Int)
 
+fun steamGroupAvatarUrl(sha: ByteArray): String = sha
+    .takeIf { it.size == 20 }
+    ?.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    ?.let { "https://avatars.steamstatic.com/${it}_full.jpg" }
+    .orEmpty()
+
 internal fun mergeSteamGroupMessages(
     current: List<SteamGroupChatMessage>,
     incoming: List<SteamGroupChatMessage>

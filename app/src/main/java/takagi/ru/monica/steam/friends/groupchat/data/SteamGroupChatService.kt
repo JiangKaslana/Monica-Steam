@@ -90,6 +90,14 @@ class SteamGroupChatService(
         })
     }
 
+    override fun updateGroupAvatar(account: SteamAccount, groupId: String, avatarSha: ByteArray) {
+        require(avatarSha.size == 20) { "Steam group avatar SHA must contain 20 bytes" }
+        call(account, "SetChatRoomGroupAvatar", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeBytes(2, avatarSha)
+        })
+    }
+
     override fun acknowledge(account: SteamAccount, groupId: String, chatId: String, timestamp: Long) {
         if (timestamp <= 0L) return
         call(account, "AckChatMessage", SteamProtoWriter().apply {
