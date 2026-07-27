@@ -9,6 +9,7 @@ import org.junit.Test
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreOwnershipStatus
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
 import takagi.ru.monica.steam.store.purchase.ui.steamStoreOwnershipStatusForDisplay
+import takagi.ru.monica.steam.store.domain.SteamStoreDetail
 
 class SteamStorePurchaseContextUiGuardTest {
     @Test
@@ -38,9 +39,11 @@ class SteamStorePurchaseContextUiGuardTest {
         assertTrue(screen.contains("viewModel.addDetailToCart(detail, packageOption)"))
         assertTrue(viewModel.contains("purchaseContextCache?.load(account.steamId, appId)"))
         assertTrue(viewModel.contains("steamStorePurchaseContextRequestIsCurrent"))
+        assertTrue(viewModel.contains("if (!refreshedDetail.isDlc)"))
         assertTrue(componentSource.contains("PackageOptionsCard("))
         assertFalse(componentSource.contains("RelatedAppsCard("))
         assertTrue(componentSource.contains("SteamStoreOwnershipStatus.FAMILY_SHARED"))
+        assertTrue(componentSource.contains("detail.isDlc"))
         assertTrue(packageOptionsSource.contains("verticalAlignment = Alignment.CenterVertically"))
         assertTrue(packageOptionsSource.contains("formatSteamPrice(option.priceCents, currency)"))
         assertTrue(packageOptionsSource.contains("option.imageUrl.isNotBlank()"))
@@ -50,22 +53,33 @@ class SteamStorePurchaseContextUiGuardTest {
 
     @Test
     fun unknownOrMissingOwnershipIsNotPresentedAsARealAccountStatus() {
-        assertNull(steamStoreOwnershipStatusForDisplay(null))
+        val game = SteamStoreDetail(appId = 620, name = "Game")
+        val dlc = SteamStoreDetail(appId = 621, name = "DLC", type = "dlc")
+        assertNull(steamStoreOwnershipStatusForDisplay(game, null))
         assertNull(
             steamStoreOwnershipStatusForDisplay(
+                game,
                 purchaseContext(SteamStoreOwnershipStatus.UNKNOWN)
             )
         )
         assertEquals(
             SteamStoreOwnershipStatus.OWNED,
             steamStoreOwnershipStatusForDisplay(
+                game,
                 purchaseContext(SteamStoreOwnershipStatus.OWNED)
             )
         )
         assertEquals(
             SteamStoreOwnershipStatus.FAMILY_SHARED,
             steamStoreOwnershipStatusForDisplay(
+                game,
                 purchaseContext(SteamStoreOwnershipStatus.FAMILY_SHARED)
+            )
+        )
+        assertNull(
+            steamStoreOwnershipStatusForDisplay(
+                dlc,
+                purchaseContext(SteamStoreOwnershipStatus.OWNED)
             )
         )
     }

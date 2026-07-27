@@ -50,7 +50,7 @@ fun SteamStorePurchaseContextSection(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        steamStoreOwnershipStatusForDisplay(context)?.let {
+        steamStoreOwnershipStatusForDisplay(detail, context)?.let {
             OwnershipStatusCard(
                 context = context,
                 fromCache = contextFromCache,
@@ -70,8 +70,10 @@ fun SteamStorePurchaseContextSection(
 }
 
 internal fun steamStoreOwnershipStatusForDisplay(
+    detail: SteamStoreDetail,
     context: SteamStorePurchaseContext?
 ): SteamStoreOwnershipStatus? = context?.ownership?.takeUnless {
+    detail.isDlc ||
     it == SteamStoreOwnershipStatus.UNKNOWN
 }
 

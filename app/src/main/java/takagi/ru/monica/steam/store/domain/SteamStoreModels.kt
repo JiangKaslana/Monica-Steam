@@ -143,6 +143,7 @@ data class SteamStoreDetail(
     val priceCountryCode: String? = null,
     val reviews: SteamStoreReviews? = null
 ) {
+    val isDlc: Boolean get() = type.equals("dlc", ignoreCase = true)
     val formattedFinalPrice: String
         get() = if (isFree) "免费" else formatSteamPrice(finalPriceCents, currency)
     val formattedInitialPrice: String get() = formatSteamPrice(initialPriceCents, currency)

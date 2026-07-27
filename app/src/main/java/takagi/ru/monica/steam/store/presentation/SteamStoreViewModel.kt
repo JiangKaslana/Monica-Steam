@@ -278,12 +278,8 @@ class SteamStoreViewModel(
             loadingDetail = true,
             purchaseContext = null,
             purchaseContextFromCache = false,
-            loadingPurchaseContext = account?.hasRealSteamId == true,
-            purchaseContextFailure = if (account?.hasRealSteamId == true) {
-                null
-            } else {
-                SteamStorePurchaseContextFailure.SESSION_REQUIRED
-            },
+            loadingPurchaseContext = false,
+            purchaseContextFailure = null,
             loadingMoreReviews = false,
             reviewLoadError = null,
             regionalPrices = emptyList(),
@@ -294,7 +290,6 @@ class SteamStoreViewModel(
             regionalPriceSheetOpen = false,
             error = null
         )
-        loadPurchaseContext(account, appId, generation)
         viewModelScope.launch {
             val cached = runCatching {
                 withContext(Dispatchers.IO) { cache.readDetail(accountId, appId) }
@@ -347,6 +342,17 @@ class SteamStoreViewModel(
                         loadingDetail = false,
                         reviewLoadError = null
                     )
+                    if (!refreshedDetail.isDlc) {
+                        _uiState.value = _uiState.value.copy(
+                            loadingPurchaseContext = account?.hasRealSteamId == true,
+                            purchaseContextFailure = if (account?.hasRealSteamId == true) {
+                                null
+                            } else {
+                                SteamStorePurchaseContextFailure.SESSION_REQUIRED
+                            }
+                        )
+                        loadPurchaseContext(account, appId, generation)
+                    }
                 }
                 .onFailure { error ->
                     if (!steamStoreDetailRequestIsCurrent(
