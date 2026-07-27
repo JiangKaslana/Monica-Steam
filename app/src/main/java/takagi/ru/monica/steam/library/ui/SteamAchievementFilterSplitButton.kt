@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -88,12 +89,12 @@ internal fun SteamAchievementFilterSplitButton(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.width(220.dp),
-            offset = DpOffset(0.dp, 10.dp),
-            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.width(180.dp),
+            offset = DpOffset(0.dp, 6.dp),
+            shape = RoundedCornerShape(16.dp),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 SteamAchievementFilter.entries.forEach { filter ->
                     Surface(
                         onClick = {
@@ -101,9 +102,10 @@ internal fun SteamAchievementFilterSplitButton(
                             onSelectFilter(filter)
                         },
                         modifier = Modifier
-                            .padding(horizontal = 8.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp)
                             .heightIn(min = 48.dp),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = if (filter == selectedFilter) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
@@ -112,7 +114,7 @@ internal fun SteamAchievementFilterSplitButton(
                     ) {
                         Text(
                             text = achievementFilterLabel(filter),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                             style = MaterialTheme.typography.labelLarge
                         )
                     }

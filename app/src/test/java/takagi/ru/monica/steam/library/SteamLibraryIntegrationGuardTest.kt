@@ -148,6 +148,9 @@ class SteamLibraryIntegrationGuardTest {
         assertTrue(achievementFilter.contains("SplitButtonLayout("))
         assertTrue(achievementFilter.contains("SplitButtonDefaults.TonalLeadingButton"))
         assertTrue(achievementFilter.contains("SplitButtonDefaults.TonalTrailingButton"))
+        assertTrue(achievementFilter.contains("modifier = Modifier.width(180.dp)"))
+        assertTrue(achievementFilter.contains(".fillMaxWidth()\n                            .padding(horizontal = 4.dp)"))
+        assertTrue(achievementFilter.contains(".heightIn(min = 48.dp)"))
         assertFalse(detail.contains("steam_library_achievement_progress"))
         val detailHero = screen
             .substringAfter("private fun SteamGameDetailHero(")
