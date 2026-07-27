@@ -28,7 +28,7 @@ class SteamStoreRelatedContentUiGuardTest {
         assertFalse(source.contains("DLC #"))
         assertTrue(screen.contains("SteamStoreRelatedContentSection("))
         assertTrue(screen.contains("relatedDlc = detail.relatedDlc"))
-        assertTrue(screen.contains("viewModel.openDetail(appId)"))
+        assertTrue(screen.contains("onOpenRelatedApp = viewModel::openRelatedDetail"))
         assertFalse(purchase.contains("RelatedAppsCard("))
     }
 

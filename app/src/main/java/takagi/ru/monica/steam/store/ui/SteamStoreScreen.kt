@@ -230,7 +230,7 @@ fun SteamStoreScreen(
                         loading = state.loadingDetail,
                         error = state.error,
                         onBack = viewModel::closeDetail,
-                        onRetry = { viewModel.openDetail(destination.appId) },
+                        onRetry = viewModel::retryDetail,
                         onOpenOfficial = {
                             viewModel.openStoreWeb(
                                 "https://store.steampowered.com/app/${destination.appId}/"
@@ -272,9 +272,7 @@ fun SteamStoreScreen(
                         onRetryRegionalPrices = {
                             viewModel.loadRegionalPrices(detail.appId, force = true)
                         },
-                        onOpenRelatedApp = { appId ->
-                            viewModel.openDetail(appId)
-                        },
+                        onOpenRelatedApp = viewModel::openRelatedDetail,
                         onOpenBundle = viewModel::openStoreWeb,
                         modifier = Modifier.fillMaxSize()
                     )

@@ -40,6 +40,8 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFailure
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextGateway
+import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailHistory
+import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailRoute
 
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -110,6 +112,7 @@ class SteamStoreViewModel(
     private var catalogRequestJob: Job? = null
     private var catalogRequestGeneration: Long = 0L
     private var detailRequestGeneration: Long = 0L
+    private val detailHistory = SteamStoreDetailHistory()
     private var regionalPriceRequestGeneration: Long = 0L
     private val _uiState = MutableStateFlow(SteamStoreUiState())
     val uiState: StateFlow<SteamStoreUiState> = _uiState.asStateFlow()
@@ -242,6 +245,7 @@ class SteamStoreViewModel(
     }
 
     fun openDetail(item: SteamStoreItem) {
+        detailHistory.clear()
         openDetailInternal(
             appId = item.appId,
             discoveryCountryCode = item.priceCountryCode
@@ -251,11 +255,30 @@ class SteamStoreViewModel(
 
     fun openDetail(appId: Int) {
         val state = _uiState.value
+        detailHistory.clear()
         openDetailInternal(
             appId = appId,
             discoveryCountryCode = state.detailDiscoveryCountryCode
                 .takeIf { state.detailAppId == appId }
         )
+    }
+
+    fun openRelatedDetail(appId: Int) {
+        val state = _uiState.value
+        val currentAppId = state.detailAppId
+        if (appId <= 0 || appId == currentAppId) return
+        if (currentAppId != null) {
+            detailHistory.push(
+                SteamStoreDetailRoute(currentAppId, state.detailDiscoveryCountryCode)
+            )
+        }
+        openDetailInternal(appId, discoveryCountryCode = null)
+    }
+
+    fun retryDetail() {
+        val state = _uiState.value
+        val appId = state.detailAppId ?: return
+        openDetailInternal(appId, state.detailDiscoveryCountryCode)
     }
 
     private fun openDetailInternal(appId: Int, discoveryCountryCode: String?) {
@@ -372,6 +395,10 @@ class SteamStoreViewModel(
     }
 
     fun closeDetail() {
+        detailHistory.pop()?.let { previous ->
+            openDetailInternal(previous.appId, previous.discoveryCountryCode)
+            return
+        }
         detailRequestGeneration++
         regionalPriceRequestGeneration++
         _uiState.value = _uiState.value.copy(
@@ -574,6 +601,7 @@ class SteamStoreViewModel(
     fun removeFromCart(appId: Int) = updateCart(_uiState.value.cart.filterNot { it.appId == appId })
     fun clearCart() = updateCart(emptyList())
     fun openCart() {
+        detailHistory.clear()
         detailRequestGeneration++
         regionalPriceRequestGeneration++
         _uiState.value = _uiState.value.copy(
@@ -845,6 +873,7 @@ class SteamStoreViewModel(
     }
 
     private fun resetStoreForAccount(accountId: Long?) {
+        detailHistory.clear()
         searchDebounceJob?.cancel()
         searchRequestJob?.cancel()
         catalogRequestJob?.cancel()
