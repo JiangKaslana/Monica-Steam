@@ -20,6 +20,7 @@ import org.junit.Before
 import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatCache
+import takagi.ru.monica.steam.friends.groupchat.avatar.domain.SteamGroupAvatarUploadGateway
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatCreateRequest
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGateway
@@ -32,6 +33,7 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRealtimeGat
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatThreadSnapshot
+import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SteamGroupChatViewModelTest {
@@ -79,6 +81,34 @@ class SteamGroupChatViewModelTest {
         assertEquals("88", viewModel.state.value.createdGroupId)
         assertEquals("New group", viewModel.state.value.groups.single().name)
         assertEquals(listOf(PARTNER_ID), gateway.lastCreate?.inviteeSteamIds)
+    }
+
+    @Test
+    fun avatarTimeoutReconcilesAChangeThatReachedSteam() = runTest(dispatcher.scheduler) {
+        val sha = ByteArray(20) { it.toByte() }
+        val avatarUrl = steamGroupAvatarUrl(sha)
+        val gateway = FakeGateway().apply {
+            updateAvatar = { _, _ ->
+                groups = listOf(group("8", "Group").copy(avatarUrl = avatarUrl))
+                throw SocketTimeoutException("response lost")
+            }
+        }
+        val uploader = object : SteamGroupAvatarUploadGateway {
+            override suspend fun upload(account: SteamAccount, rawUri: String) = sha
+        }
+        val viewModel = viewModel(gateway, avatarUploader = uploader)
+        viewModel.selectAccount(account())
+        runCurrent()
+        viewModel.openRoom("8", "9")
+        runCurrent()
+
+        viewModel.updateGroupAvatar("content://avatar")
+        runCurrent()
+
+        assertEquals(avatarUrl, viewModel.state.value.groups.single().avatarUrl)
+        assertFalse(viewModel.state.value.updatingGroupAvatar)
+        assertEquals(null, viewModel.state.value.failure)
+        assertEquals(1, gateway.avatarUpdateCalls)
     }
 
     @Test
@@ -257,14 +287,16 @@ class SteamGroupChatViewModelTest {
 
     private fun viewModel(
         gateway: FakeGateway,
-        realtime: SteamGroupChatRealtimeGateway? = null
+        realtime: SteamGroupChatRealtimeGateway? = null,
+        avatarUploader: SteamGroupAvatarUploadGateway? = null
     ) = SteamGroupChatViewModel(
         gateway = gateway,
         cache = MemoryCache(),
         ioDispatcher = dispatcher,
         nowMillis = { 100_000L },
         newClientId = { "client-1" },
-        realtime = realtime
+        realtime = realtime,
+        avatarUploader = avatarUploader
     )
 
     private fun message(
@@ -303,6 +335,8 @@ class SteamGroupChatViewModelTest {
         }
         var createdGroupId = "8"
         var lastCreate: SteamGroupChatCreateRequest? = null
+        var updateAvatar: (String, ByteArray) -> Unit = { _, _ -> Unit }
+        var avatarUpdateCalls = 0
         var groupCalls = 0
             private set
         var historyCalls = 0
@@ -321,6 +355,10 @@ class SteamGroupChatViewModelTest {
             return createdGroupId
         }
         override fun inviteFriend(account: SteamAccount, groupId: String, chatId: String, steamId: String) = Unit
+        override fun updateGroupAvatar(account: SteamAccount, groupId: String, avatarSha: ByteArray) {
+            avatarUpdateCalls++
+            updateAvatar(groupId, avatarSha)
+        }
         override fun acknowledge(account: SteamAccount, groupId: String, chatId: String, timestamp: Long) = Unit
     }
 

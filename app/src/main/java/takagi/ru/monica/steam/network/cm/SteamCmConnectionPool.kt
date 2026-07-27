@@ -37,6 +37,11 @@ internal class SteamCmConnectionPool(
                 return connection.execute(operation)
             } catch (error: SteamApiException) {
                 throw error
+            } catch (error: SteamCmResponseTimeoutException) {
+                remove(accountKey, connection)
+                invalidateBootstrap(accountKey)
+                // The request was sent; retrying could duplicate a successful mutation.
+                throw error
             } catch (error: Exception) {
                 lastFailure = error
                 remove(accountKey, connection)

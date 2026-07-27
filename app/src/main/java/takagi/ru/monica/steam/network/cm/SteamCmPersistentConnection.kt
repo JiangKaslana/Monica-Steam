@@ -25,6 +25,8 @@ internal data class SteamCmOperation(
     val targetJobName: String? = null
 )
 
+internal class SteamCmResponseTimeoutException(message: String) : SocketTimeoutException(message)
+
 /**
  * One logged-on CM WebSocket. Requests stay on the socket until their response
  * job arrives; unmatched envelopes are delivered as realtime events instead of
@@ -137,7 +139,7 @@ internal class SteamCmPersistentConnection(
             request.future.get(timeoutMillis, TimeUnit.MILLISECONDS)
         } catch (error: TimeoutException) {
             pending.remove(request)
-            throw SocketTimeoutException("Steam CM operation timed out").also {
+            throw SteamCmResponseTimeoutException("Steam CM operation timed out").also {
                 it.initCause(error)
             }
         } catch (error: InterruptedException) {

@@ -338,14 +338,25 @@ class SteamGroupChatViewModel(
             val result = runCatchingCancellable { withContext(ioDispatcher) {
                 withPreparedSession(current) { prepared ->
                     val sha = uploader.upload(prepared, rawUri)
-                    gateway.updateGroupAvatar(prepared, groupId, sha)
-                    sha
+                    val expectedAvatarUrl = steamGroupAvatarUrl(sha)
+                    val verifiedGroups = try {
+                        gateway.updateGroupAvatar(prepared, groupId, sha)
+                        null
+                    } catch (error: IOException) {
+                        val refreshed = runCatching { gateway.getMyGroups(prepared) }.getOrNull()
+                        val changedOnSteam = refreshed?.any { group ->
+                            group.groupId == groupId && group.avatarUrl == expectedAvatarUrl
+                        } == true
+                        if (!changedOnSteam) throw error
+                        refreshed
+                    }
+                    SteamGroupAvatarUpdateResult(sha, verifiedGroups)
                 }
             } }
             result.fold(
-                onSuccess = { sha ->
-                    val avatarUrl = steamGroupAvatarUrl(sha)
-                    val groups = _state.value.groups.map { group ->
+                onSuccess = { update ->
+                    val avatarUrl = steamGroupAvatarUrl(update.sha)
+                    val groups = update.verifiedGroups ?: _state.value.groups.map { group ->
                         if (group.groupId == groupId) group.copy(avatarUrl = avatarUrl) else group
                     }
                     _state.value = _state.value.copy(
@@ -693,6 +704,11 @@ class SteamGroupChatViewModel(
         }
     }
 }
+
+private data class SteamGroupAvatarUpdateResult(
+    val sha: ByteArray,
+    val verifiedGroups: List<SteamGroupChatSummary>?
+)
 
 private fun Throwable.groupChatMessage(): String = message?.takeIf(String::isNotBlank)?.take(220)
     ?: "Steam group chat is temporarily unavailable"

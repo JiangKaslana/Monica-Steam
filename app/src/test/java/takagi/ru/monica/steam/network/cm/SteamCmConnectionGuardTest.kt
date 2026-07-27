@@ -23,6 +23,8 @@ class SteamCmConnectionGuardTest {
         assertTrue(pool.contains("steamCmAccountKey(account)"))
         assertTrue(client.contains("accountKeyResolver"))
         assertTrue(pool.contains("webLogonToken"))
+        assertTrue(pool.contains("catch (error: SteamCmResponseTimeoutException)"))
+        assertTrue(pool.contains("throw error"))
         assertTrue(connection.contains("eventSink"))
         assertTrue(connection.contains("nextJobId"))
         assertFalse(client.contains("SteamCmWebSocketExchange"))
