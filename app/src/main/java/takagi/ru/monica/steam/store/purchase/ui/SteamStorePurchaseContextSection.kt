@@ -174,7 +174,7 @@ private fun PackageOptionsCard(
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Top
                     ) {
                         RadioButton(
                             selected = selected,
@@ -192,29 +192,25 @@ private fun PackageOptionsCard(
                                     )
                                 },
                                 style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                fontWeight = FontWeight.SemiBold
                             )
                             option.description.takeIf(String::isNotBlank)?.let {
                                 Text(
                                     it,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            Text(
+                                text = if (option.isFreeLicense || option.canGetFreeLicense) {
+                                    stringResource(R.string.steam_store_free_license)
+                                } else {
+                                    formatSteamPrice(option.priceCents, currency)
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
-                        Text(
-                            text = if (option.isFreeLicense || option.canGetFreeLicense) {
-                                stringResource(R.string.steam_store_free_license)
-                            } else {
-                                formatSteamPrice(option.priceCents, currency)
-                            },
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
                     }
                 }
             }

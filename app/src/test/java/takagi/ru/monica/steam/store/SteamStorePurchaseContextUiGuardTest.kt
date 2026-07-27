@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.store
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,6 +19,9 @@ class SteamStorePurchaseContextUiGuardTest {
         ).readText()
         val component = root.resolve("ui/SteamStorePurchaseContextSection.kt")
         val componentSource = component.readText()
+        val packageOptionsSource = componentSource
+            .substringAfter("private fun PackageOptionsCard(")
+            .substringBefore("private fun RelatedAppsCard(")
 
         assertTrue(root.resolve("domain").isDirectory)
         assertTrue(root.resolve("data").isDirectory)
@@ -32,6 +36,10 @@ class SteamStorePurchaseContextUiGuardTest {
         assertTrue(componentSource.contains("PackageOptionsCard("))
         assertTrue(componentSource.contains("RelatedAppsCard("))
         assertTrue(componentSource.contains("SteamStoreOwnershipStatus.FAMILY_SHARED"))
+        assertTrue(packageOptionsSource.contains("verticalAlignment = Alignment.Top"))
+        assertTrue(packageOptionsSource.contains("formatSteamPrice(option.priceCents, currency)"))
+        assertFalse(packageOptionsSource.contains("maxLines ="))
+        assertFalse(packageOptionsSource.contains("TextOverflow.Ellipsis"))
     }
 
     private fun projectFile(path: String): File {
