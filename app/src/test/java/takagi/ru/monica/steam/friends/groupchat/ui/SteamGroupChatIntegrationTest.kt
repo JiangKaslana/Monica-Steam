@@ -109,6 +109,47 @@ class SteamGroupChatIntegrationTest {
     }
 
     @Test
+    fun groupAdminScreenExposesInvitesRolesBansAndMemberActions() {
+        val adminScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupAdminScreen.kt"
+        ).readText()
+        val service = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/data/SteamGroupChatService.kt"
+        ).readText()
+        val chatScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
+        ).readText()
+
+        assertTrue(adminScreen.contains("分享链接"))
+        assertTrue(adminScreen.contains("已邀请账户"))
+        assertTrue(adminScreen.contains("角色与权限"))
+        assertTrue(adminScreen.contains("封禁账户"))
+        assertTrue(adminScreen.contains("MemberRolesDialog"))
+        assertTrue(service.contains("GetInviteLinksForGroup"))
+        assertTrue(service.contains("SetUserBanState"))
+        assertTrue(service.contains("ReplaceRoleActions"))
+        assertTrue(chatScreen.contains("SteamGroupAdminScreen("))
+    }
+
+    @Test
+    fun groupMessagesExposeSteamReactionReportCopyAndDeleteActions() {
+        val thread = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatThread.kt"
+        ).readText()
+        val service = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/data/SteamGroupChatService.kt"
+        ).readText()
+
+        assertTrue(thread.contains("SteamChatMessageActionMenu("))
+        assertTrue(thread.contains("SteamChatReactionPicker("))
+        assertTrue(thread.contains("SteamChatReportDialog("))
+        assertTrue(thread.contains("onDeleteMessage"))
+        assertTrue(service.contains("UpdateMessageReaction"))
+        assertTrue(service.contains("ReportMessage"))
+        assertTrue(service.contains("DeleteChatMessages"))
+    }
+
+    @Test
     fun inviteDialogPinsActionsInsideSafeScreenBounds() {
         val dialogs = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatDialogs.kt"

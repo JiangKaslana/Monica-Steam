@@ -42,6 +42,7 @@ import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatViewModel
 import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatDialogsHost
 import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatThreadHost
+import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupAdminScreen
 import takagi.ru.monica.steam.friends.chat.info.data.SteamChatInfoPreferencesStore
 import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationId
 import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationPreferences
@@ -53,7 +54,7 @@ import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 
-private enum class SteamChatSubpage { INFO, SEARCH }
+private enum class SteamChatSubpage { INFO, SEARCH, ADMIN }
 
 @Composable
 fun SteamChatScreen(
@@ -216,6 +217,11 @@ fun SteamChatScreen(
             groupChatViewModel.clearFailure()
         }
     }
+    LaunchedEffect(subpage, groupChatState.selectedGroupId) {
+        if (subpage == SteamChatSubpage.ADMIN && groupChatState.selectedGroupId != null) {
+            groupChatViewModel.refreshAdminSnapshot()
+        }
+    }
 
     DisposableEffect(lifecycleOwner, chatViewModel) {
         val observer = LifecycleEventObserver { _, event ->
@@ -245,7 +251,9 @@ fun SteamChatScreen(
     }
 
     BackHandler(enabled = subpage != null) {
-        subpage = if (subpage == SteamChatSubpage.SEARCH) SteamChatSubpage.INFO else null
+        subpage = if (subpage == SteamChatSubpage.SEARCH || subpage == SteamChatSubpage.ADMIN) {
+            SteamChatSubpage.INFO
+        } else null
     }
     BackHandler(enabled = subpage == null && chatState.selectedPartnerSteamId != null) {
         chatViewModel.closeThread()
@@ -408,6 +416,7 @@ fun SteamChatScreen(
                     } else showInviteFriend = true
                 },
                 onSearchHistory = { subpage = SteamChatSubpage.SEARCH },
+                onOpenGroupAdmin = { subpage = SteamChatSubpage.ADMIN },
                 onPreferencesChange = { updated ->
                     conversationPreferences = updated
                     currentConversationId?.let { infoPreferencesStore.save(it, updated) }
@@ -424,6 +433,37 @@ fun SteamChatScreen(
                 onLeaveVoiceChat = groupChatViewModel::leaveVoiceChat,
                 modifier = Modifier.fillMaxSize()
             )
+        } else if (currentSubpage == SteamChatSubpage.ADMIN) {
+            val group = groupChatState.groups.firstOrNull { it.groupId == groupChatState.selectedGroupId }
+            if (group != null) {
+                SteamGroupAdminScreen(
+                    group = group,
+                    snapshot = groupChatState.adminSnapshot,
+                    friends = friendsState.snapshot?.friends.orEmpty(),
+                    loading = groupChatState.adminLoading,
+                    actionLoading = groupChatState.adminActionLoading,
+                    canEdit = group.ownerAccountId.let { owner ->
+                        owner > 0L && accountIdFromSteamId(groupChatState.accountSteamId) == owner
+                    },
+                    createdInviteLink = groupChatState.createdInviteLink,
+                    onBack = { subpage = SteamChatSubpage.INFO },
+                    onRefresh = groupChatViewModel::refreshAdminSnapshot,
+                    onCreateInviteLink = groupChatViewModel::createInviteLink,
+                    onDeleteInviteLink = groupChatViewModel::deleteInviteLink,
+                    onRevokeInvite = groupChatViewModel::revokeInvite,
+                    onSetBanState = groupChatViewModel::setUserBanState,
+                    onKick = groupChatViewModel::kickUser,
+                    onMute = groupChatViewModel::muteUser,
+                    onCreateRole = groupChatViewModel::createRole,
+                    onRenameRole = groupChatViewModel::renameRole,
+                    onDeleteRole = groupChatViewModel::deleteRole,
+                    onReplaceRoleActions = groupChatViewModel::replaceRoleActions,
+                    onAddRoleToUser = groupChatViewModel::addRoleToUser,
+                    onRemoveRoleFromUser = groupChatViewModel::removeRoleFromUser,
+                    onClearCreatedInviteLink = groupChatViewModel::clearCreatedInviteLink,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         } else if (currentSubpage == SteamChatSubpage.SEARCH) {
             val friendsById = friendsState.snapshot?.friends.orEmpty().associateBy { it.steamId }
             val items = if (partnerSteamId != null) {
@@ -500,6 +540,9 @@ fun SteamChatScreen(
                 onClearAttachment = richMediaViewModel::clearAttachment,
                 onClearAttachmentFailure = richMediaViewModel::clearAttachmentFailure,
                 onRefreshCatalogs = richMediaViewModel::refreshCatalogs,
+                onUpdateReaction = groupChatViewModel::updateMessageReaction,
+                onReportMessage = groupChatViewModel::reportMessage,
+                onDeleteMessage = groupChatViewModel::deleteMessage,
                 modifier = Modifier.fillMaxSize()
             )
         }

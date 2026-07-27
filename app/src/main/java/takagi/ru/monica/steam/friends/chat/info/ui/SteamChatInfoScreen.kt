@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -67,6 +68,7 @@ internal fun SteamChatInfoScreen(
     onBack: () -> Unit,
     onAddMember: () -> Unit,
     onSearchHistory: () -> Unit,
+    onOpenGroupAdmin: () -> Unit = {},
     onPreferencesChange: (SteamChatConversationPreferences) -> Unit,
     onUpdateGroup: (String, String) -> Unit,
     onUpdateGroupAvatar: (String) -> Unit,
@@ -163,6 +165,9 @@ internal fun SteamChatInfoScreen(
                     color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
                     Column {
+                        if (group != null) {
+                            InfoRow("群组管理", Icons.Default.Security, onOpenGroupAdmin)
+                        }
                         InfoRow("查找聊天记录", Icons.Default.Search, onSearchHistory)
                         ToggleRow("消息免打扰", preferences.muted) {
                             onPreferencesChange(preferences.copy(muted = it))

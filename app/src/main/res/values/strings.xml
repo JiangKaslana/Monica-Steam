@@ -4825,6 +4825,7 @@
     <string name="steam_chat_image_load_failed">Could not load this chat image.</string>
     <string name="steam_chat_close">Close</string>
     <string name="steam_chat_action_copy">Copy</string>
+    <string name="steam_chat_action_delete">Delete</string>
     <string name="steam_chat_action_react">React</string>
     <string name="steam_chat_reaction_picker_title">Steam reactions</string>
     <string name="steam_chat_reaction_picker_empty">No Steam emoticons found for this account</string>

@@ -59,7 +59,8 @@ data class SteamGroupChatMessage(
     val serverEventType: Int = 0,
     val clientMessageId: String = "",
     val localCreatedAtMillis: Long = 0L,
-    val deliveryState: SteamGroupChatDeliveryState = SteamGroupChatDeliveryState.SENT
+    val deliveryState: SteamGroupChatDeliveryState = SteamGroupChatDeliveryState.SENT,
+    val reactions: List<SteamGroupChatReaction> = emptyList()
 ) {
     val stableId: String get() = if (clientMessageId.isNotBlank()) {
         "client:$clientMessageId"
@@ -68,6 +69,17 @@ data class SteamGroupChatMessage(
 
 @Serializable
 enum class SteamGroupChatDeliveryState { QUEUED, SENDING, VERIFYING, SENT, FAILED }
+
+@Serializable
+enum class SteamGroupChatReactionType { EMOTICON, STICKER }
+
+@Serializable
+data class SteamGroupChatReaction(
+    val type: SteamGroupChatReactionType,
+    val name: String,
+    val count: Int,
+    val hasUserReacted: Boolean
+)
 
 @Serializable
 data class SteamGroupChatGroupsSnapshot(

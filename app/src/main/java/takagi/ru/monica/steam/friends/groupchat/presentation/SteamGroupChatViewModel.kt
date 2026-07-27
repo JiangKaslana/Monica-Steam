@@ -26,6 +26,7 @@ import takagi.ru.monica.steam.friends.groupchat.avatar.data.SteamGroupAvatarUplo
 import takagi.ru.monica.steam.friends.groupchat.avatar.domain.SteamGroupAvatarUploadGateway
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatCreateRequest
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatChannelCreateRequest
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatAdminSnapshot
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGateway
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGroupsSnapshot
@@ -33,6 +34,10 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatHistoryBoun
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatVoiceSession
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatInviteLink
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoleActions
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReactionType
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReportReason
 import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatThreadSnapshot
 import takagi.ru.monica.steam.friends.groupchat.domain.mergeSteamGroupMessages
@@ -58,6 +63,10 @@ data class SteamGroupChatUiState(
     val updatingGroupAvatar: Boolean = false,
     val channelActionLoading: Boolean = false,
     val voiceSession: SteamGroupChatVoiceSession? = null,
+    val adminSnapshot: SteamGroupChatAdminSnapshot? = null,
+    val adminLoading: Boolean = false,
+    val adminActionLoading: Boolean = false,
+    val createdInviteLink: SteamGroupChatInviteLink? = null,
     val createdGroupId: String? = null,
     val realtimeConnected: Boolean = false,
     val failure: String? = null
@@ -129,6 +138,7 @@ class SteamGroupChatViewModel(
     fun openRoom(groupId: String, chatId: String) {
         val current = account ?: return
         if (groupId.isBlank() || chatId.isBlank()) return
+        val sameGroup = _state.value.selectedGroupId == groupId
         val currentAccountGeneration = accountGeneration
         val currentRoomGeneration = ++roomGeneration
         _state.value = _state.value.copy(
@@ -136,6 +146,8 @@ class SteamGroupChatViewModel(
             selectedChatId = chatId,
             thread = null,
             threadLoading = true,
+            adminSnapshot = _state.value.adminSnapshot.takeIf { sameGroup },
+            createdInviteLink = null,
             failure = null
         )
         viewModelScope.launch {
@@ -569,6 +581,175 @@ class SteamGroupChatViewModel(
         _state.value = _state.value.copy(voiceSession = null)
     }
 
+    fun refreshAdminSnapshot() {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.adminLoading) return
+        _state.value = _state.value.copy(adminLoading = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.getAdminSnapshot(prepared, groupId)
+                }
+            } }
+            result.fold(
+                onSuccess = { snapshot ->
+                    if (_state.value.selectedGroupId == groupId) {
+                        _state.value = _state.value.copy(
+                            adminSnapshot = snapshot,
+                            adminLoading = false
+                        )
+                    }
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        adminLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
+    }
+
+    fun createInviteLink(secondsValid: Long, chatId: String?) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.adminActionLoading) return
+        _state.value = _state.value.copy(
+            adminActionLoading = true,
+            createdInviteLink = null,
+            failure = null
+        )
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.createInviteLink(prepared, groupId, secondsValid, chatId)
+                }
+            } }
+            result.fold(
+                onSuccess = { link ->
+                    val snapshot = _state.value.adminSnapshot
+                    _state.value = _state.value.copy(
+                        adminActionLoading = false,
+                        createdInviteLink = link,
+                        adminSnapshot = snapshot?.copy(
+                            inviteLinks = (snapshot.inviteLinks + link)
+                                .distinctBy { it.inviteCode }
+                        )
+                    )
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        adminActionLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
+    }
+
+    fun deleteInviteLink(inviteCode: String) = runAdminAction { prepared, groupId ->
+        gateway.deleteInviteLink(prepared, groupId, inviteCode)
+    }
+
+    fun revokeInvite(steamId: String) = runAdminAction { prepared, groupId ->
+        gateway.revokeInvite(prepared, groupId, steamId)
+    }
+
+    fun setUserBanState(steamId: String, banned: Boolean) = runAdminAction { prepared, groupId ->
+        gateway.setUserBanState(prepared, groupId, steamId, banned)
+    }
+
+    fun kickUser(steamId: String, expirationSeconds: Int) = runAdminAction { prepared, groupId ->
+        gateway.kickUser(prepared, groupId, steamId, expirationSeconds)
+    }
+
+    fun muteUser(steamId: String, expirationSeconds: Int) = runAdminAction { prepared, groupId ->
+        gateway.muteUser(prepared, groupId, steamId, expirationSeconds)
+    }
+
+    fun createRole(name: String) = runAdminAction { prepared, groupId ->
+        gateway.createRole(prepared, groupId, name)
+    }
+
+    fun renameRole(roleId: String, name: String) = runAdminAction { prepared, groupId ->
+        gateway.renameRole(prepared, groupId, roleId, name)
+    }
+
+    fun deleteRole(roleId: String) = runAdminAction { prepared, groupId ->
+        gateway.deleteRole(prepared, groupId, roleId)
+    }
+
+    fun replaceRoleActions(actions: SteamGroupChatRoleActions) = runAdminAction { prepared, groupId ->
+        gateway.replaceRoleActions(prepared, groupId, actions)
+    }
+
+    fun addRoleToUser(roleId: String, steamId: String) = runAdminAction { prepared, groupId ->
+        gateway.addRoleToUser(prepared, groupId, roleId, steamId)
+    }
+
+    fun removeRoleFromUser(roleId: String, steamId: String) = runAdminAction { prepared, groupId ->
+        gateway.removeRoleFromUser(prepared, groupId, roleId, steamId)
+    }
+
+    fun clearCreatedInviteLink() {
+        _state.value = _state.value.copy(createdInviteLink = null)
+    }
+
+    fun updateMessageReaction(
+        message: SteamGroupChatMessage,
+        type: SteamGroupChatReactionType,
+        reaction: String,
+        add: Boolean = true
+    ) {
+        val current = account ?: return
+        viewModelScope.launch {
+            runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.updateMessageReaction(prepared, message, type, reaction, add)
+                }
+            } }.fold(
+                onSuccess = { refreshThread() },
+                onFailure = { _state.value = _state.value.copy(failure = it.groupChatMessage()) }
+            )
+        }
+    }
+
+    fun reportMessage(message: SteamGroupChatMessage, reason: SteamGroupChatReportReason) {
+        val current = account ?: return
+        viewModelScope.launch {
+            runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.reportMessage(prepared, message, reason)
+                }
+            } }.onFailure {
+                _state.value = _state.value.copy(failure = it.groupChatMessage())
+            }
+        }
+    }
+
+    fun deleteMessage(message: SteamGroupChatMessage) {
+        val current = account ?: return
+        viewModelScope.launch {
+            runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared -> gateway.deleteMessage(prepared, message) }
+            } }.fold(
+                onSuccess = {
+                    val thread = _state.value.thread ?: return@fold
+                    updateThread(thread.copy(
+                        messages = thread.messages.map { currentMessage ->
+                            if (currentMessage.stableId == message.stableId) {
+                                currentMessage.copy(deleted = true)
+                            } else currentMessage
+                        },
+                        fetchedAt = nowMillis()
+                    ))
+                },
+                onFailure = { _state.value = _state.value.copy(failure = it.groupChatMessage()) }
+            )
+        }
+    }
+
     fun clearCreatedGroup() { _state.value = _state.value.copy(createdGroupId = null) }
     fun clearFailure() { _state.value = _state.value.copy(failure = null) }
 
@@ -856,6 +1037,32 @@ class SteamGroupChatViewModel(
     private fun updateMessage(message: SteamGroupChatMessage) {
         val thread = _state.value.thread ?: return
         updateThread(thread.copy(messages = mergeSteamGroupMessages(thread.messages, listOf(message)), fetchedAt = nowMillis()))
+    }
+
+    private fun runAdminAction(
+        block: suspend (SteamAccount, String) -> Unit
+    ) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.adminActionLoading) return
+        _state.value = _state.value.copy(adminActionLoading = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared -> block(prepared, groupId) }
+            } }
+            result.fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(adminActionLoading = false)
+                    refreshAdminSnapshot()
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        adminActionLoading = false,
+                        failure = it.groupChatMessage()
+                    )
+                }
+            )
+        }
     }
 
     private fun updateThread(snapshot: SteamGroupChatThreadSnapshot) {

@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Search
@@ -61,10 +62,12 @@ import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImageMode
 @Composable
 fun SteamChatMessageActionMenu(
     canReport: Boolean,
+    canReact: Boolean = true,
     onDismiss: () -> Unit,
     onOpenReactions: () -> Unit,
     onCopy: () -> Unit,
-    onReport: () -> Unit
+    onReport: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     MessageAnchoredPopup(onDismiss) {
         Surface(
@@ -75,8 +78,11 @@ fun SteamChatMessageActionMenu(
             shadowElevation = 8.dp
         ) {
             Column(Modifier.padding(vertical = 8.dp)) {
-                ActionRow(Icons.Default.EmojiEmotions, R.string.steam_chat_action_react, onOpenReactions)
+                if (canReact) {
+                    ActionRow(Icons.Default.EmojiEmotions, R.string.steam_chat_action_react, onOpenReactions)
+                }
                 ActionRow(Icons.Default.ContentCopy, R.string.steam_chat_action_copy, onCopy)
+                onDelete?.let { ActionRow(Icons.Default.DeleteOutline, R.string.steam_chat_action_delete, it) }
                 if (canReport) {
                     ActionRow(Icons.Default.Flag, R.string.steam_chat_action_report, onReport)
                 }

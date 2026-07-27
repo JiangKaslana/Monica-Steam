@@ -4,6 +4,8 @@ import takagi.ru.monica.steam.friends.chat.domain.steamId64FromAccountId
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessagePage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReaction
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReactionType
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
 import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupEventText
@@ -20,7 +22,8 @@ internal object SteamGroupChatParser {
     fun parseHistory(payload: ByteArray, groupId: String, chatId: String): SteamGroupChatMessagePage {
         val fields = SteamProtoReader(payload).parseAll()
         val messages = fields.filter { it.number == 1 && it.bytes != null }.mapNotNull { field ->
-            val values = SteamProtoReader(field.bytes ?: return@mapNotNull null).parse()
+            val allValues = SteamProtoReader(field.bytes ?: return@mapNotNull null).parseAll()
+            val values = allValues.associateBy { it.number }
             val sender = values[1]?.asLong?.takeIf { it > 0 } ?: 0L
             val serverMessage = values[5]?.bytes?.let { SteamProtoReader(it).parse() }
             val eventType = serverMessage?.get(1)?.asInt ?: 0
@@ -37,7 +40,9 @@ internal object SteamGroupChatParser {
                 ordinal = values[4]?.asInt ?: 0,
                 body = body,
                 deleted = values[6]?.asBool == true,
-                serverEventType = eventType
+                serverEventType = eventType,
+                reactions = allValues.filter { it.number == 7 && it.bytes != null }
+                    .mapNotNull { parseReaction(it.bytes!!) }
             )
         }.distinctBy(SteamGroupChatMessage::stableId)
             .sortedWith(compareBy<SteamGroupChatMessage> { it.timestamp }.thenBy { it.ordinal })
@@ -153,6 +158,21 @@ internal object SteamGroupChatParser {
             lastAcknowledgedTimestamp = ack,
             unread = lastTimestamp > ack,
             voiceAllowed = fields[3]?.asBool == true
+        )
+    }
+
+    private fun parseReaction(payload: ByteArray): SteamGroupChatReaction? {
+        val fields = SteamProtoReader(payload).parse()
+        val name = fields[2]?.asString.orEmpty().takeIf(String::isNotBlank) ?: return null
+        return SteamGroupChatReaction(
+            type = if (fields[1]?.asInt == 2) {
+                SteamGroupChatReactionType.STICKER
+            } else {
+                SteamGroupChatReactionType.EMOTICON
+            },
+            name = name,
+            count = fields[3]?.asInt?.coerceAtLeast(0) ?: 0,
+            hasUserReacted = fields[4]?.asBool == true
         )
     }
 

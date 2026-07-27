@@ -106,10 +106,10 @@ internal fun SteamGroupChannelManagement(
                             onRename = { renameRoom = room },
                             onDelete = { deleteRoom = room },
                             onMoveUp = {
-                                val previous = group.rooms
+                                val moveAfter = group.rooms
                                     .sortedWith(compareBy<SteamGroupChatRoom> { it.sortOrder }.thenBy { it.chatId })
-                                    .getOrNull(index - 1)
-                                onReorder(room.chatId, previous?.chatId)
+                                    .getOrNull(index - 2)
+                                onReorder(room.chatId, moveAfter?.chatId)
                             },
                             onMoveDown = {
                                 val next = group.rooms

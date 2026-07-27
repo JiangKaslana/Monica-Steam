@@ -1,6 +1,8 @@
 package takagi.ru.monica.steam.friends.groupchat.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,27 +27,38 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaUiState
+import takagi.ru.monica.steam.friends.chat.actions.domain.SteamChatReportReason
+import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatMessageActionMenu
+import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatReactionPicker
+import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatReportDialog
 import takagi.ru.monica.steam.friends.chat.position.domain.SteamChatReadingConversationKey
 import takagi.ru.monica.steam.friends.chat.position.ui.SteamChatAutoScrollToLatestEffect
 import takagi.ru.monica.steam.friends.chat.position.ui.SteamChatJumpToLatestButton
@@ -56,6 +69,8 @@ import takagi.ru.monica.steam.friends.chat.ui.SteamChatComposer
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReactionType
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReportReason
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
 
@@ -78,6 +93,9 @@ internal fun SteamGroupChatThread(
     onClearAttachment: () -> Unit,
     onClearAttachmentFailure: () -> Unit,
     onRefreshCatalogs: () -> Unit,
+    onUpdateReaction: (SteamGroupChatMessage, SteamGroupChatReactionType, String, Boolean) -> Unit,
+    onReportMessage: (SteamGroupChatMessage, SteamGroupChatReportReason) -> Unit,
+    onDeleteMessage: (SteamGroupChatMessage) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
@@ -144,7 +162,11 @@ internal fun SteamGroupChatThread(
                             message = message,
                             outgoing = message.senderSteamId == state.accountSteamId,
                             senderName = friendsById[message.senderSteamId]?.displayName
-                                ?: message.senderSteamId.takeLast(8)
+                                ?: message.senderSteamId.takeLast(8),
+                            richMediaState = richMediaState,
+                            onUpdateReaction = onUpdateReaction,
+                            onReportMessage = onReportMessage,
+                            onDeleteMessage = onDeleteMessage
                         )
                     }
                 }
@@ -192,6 +214,9 @@ internal fun SteamGroupChatThreadHost(
     onClearAttachment: () -> Unit,
     onClearAttachmentFailure: () -> Unit,
     onRefreshCatalogs: () -> Unit,
+    onUpdateReaction: (SteamGroupChatMessage, SteamGroupChatReactionType, String, Boolean) -> Unit,
+    onReportMessage: (SteamGroupChatMessage, SteamGroupChatReportReason) -> Unit,
+    onDeleteMessage: (SteamGroupChatMessage) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val group = state.groups.firstOrNull { it.groupId == state.selectedGroupId } ?: return
@@ -213,6 +238,9 @@ internal fun SteamGroupChatThreadHost(
         onClearAttachment = onClearAttachment,
         onClearAttachmentFailure = onClearAttachmentFailure,
         onRefreshCatalogs = onRefreshCatalogs,
+        onUpdateReaction = onUpdateReaction,
+        onReportMessage = onReportMessage,
+        onDeleteMessage = onDeleteMessage,
         modifier = modifier
     )
 }
@@ -241,8 +269,24 @@ private fun GroupThreadHeader(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun GroupMessageBubble(message: SteamGroupChatMessage, outgoing: Boolean, senderName: String) {
+private fun GroupMessageBubble(
+    message: SteamGroupChatMessage,
+    outgoing: Boolean,
+    senderName: String,
+    richMediaState: SteamChatRichMediaUiState,
+    onUpdateReaction: (SteamGroupChatMessage, SteamGroupChatReactionType, String, Boolean) -> Unit,
+    onReportMessage: (SteamGroupChatMessage, SteamGroupChatReportReason) -> Unit,
+    onDeleteMessage: (SteamGroupChatMessage) -> Unit
+) {
+    var showMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showReactions by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showReport by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showDelete by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var reportReason by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(SteamChatReportReason.HARASSMENT) }
+    val clipboard = LocalClipboardManager.current
+    val haptics = LocalHapticFeedback.current
     if (message.serverEventType > 0) {
         val eventText = if (message.senderSteamId.isNotBlank() && senderName.isNotBlank()) {
             "$senderName ${message.body}"
@@ -256,6 +300,13 @@ private fun GroupMessageBubble(message: SteamGroupChatMessage, outgoing: Boolean
     }
     Box(Modifier.fillMaxWidth(), contentAlignment = if (outgoing) Alignment.CenterEnd else Alignment.CenterStart) {
         Surface(
+            modifier = Modifier.combinedClickable(
+                onClick = {},
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showMenu = true
+                }
+            ),
             shape = RoundedCornerShape(18.dp),
             color = if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
@@ -264,6 +315,35 @@ private fun GroupMessageBubble(message: SteamGroupChatMessage, outgoing: Boolean
                 if (message.deleted) {
                     Text("Message deleted", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else SteamChatRichMessageContent(message.body)
+                if (message.reactions.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        message.reactions.forEach { reaction ->
+                            Surface(
+                                onClick = {
+                                    onUpdateReaction(
+                                        message,
+                                        reaction.type,
+                                        reaction.name,
+                                        !reaction.hasUserReacted
+                                    )
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (reaction.hasUserReacted) {
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                } else MaterialTheme.colorScheme.surfaceContainerHighest
+                            ) {
+                                Text(
+                                    "${reaction.name} ${reaction.count}",
+                                    Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    }
+                }
                 Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(message.timestamp * 1_000L)),
@@ -284,4 +364,63 @@ private fun GroupMessageBubble(message: SteamGroupChatMessage, outgoing: Boolean
             }
         }
     }
+    if (showMenu) {
+        SteamChatMessageActionMenu(
+            canReport = !outgoing && !message.deleted && message.ordinal != Int.MAX_VALUE,
+            canReact = !message.deleted && message.ordinal != Int.MAX_VALUE,
+            onDismiss = { showMenu = false },
+            onOpenReactions = { showMenu = false; showReactions = true },
+            onCopy = {
+                clipboard.setText(AnnotatedString(message.body))
+                showMenu = false
+            },
+            onReport = { showMenu = false; showReport = true },
+            onDelete = if (outgoing && !message.deleted && message.ordinal != Int.MAX_VALUE) {
+                { showMenu = false; showDelete = true }
+            } else null
+        )
+    }
+    if (showReactions) {
+        SteamChatReactionPicker(
+            emoticons = richMediaState.emoticons,
+            stickers = richMediaState.stickers,
+            onDismiss = { showReactions = false },
+            onReact = { emoticon ->
+                onUpdateReaction(message, SteamGroupChatReactionType.EMOTICON, emoticon.name, true)
+                showReactions = false
+            },
+            onStickerReply = { sticker ->
+                onUpdateReaction(message, SteamGroupChatReactionType.STICKER, sticker.name, true)
+                showReactions = false
+            }
+        )
+    }
+    if (showReport) {
+        SteamChatReportDialog(
+            selectedReason = reportReason,
+            onReasonSelected = { reportReason = it },
+            onConfirm = {
+                onReportMessage(message, reportReason.toGroupReason())
+                showReport = false
+            },
+            onDismiss = { showReport = false }
+        )
+    }
+    if (showDelete) {
+        AlertDialog(
+            onDismissRequest = { showDelete = false },
+            title = { Text("删除这条群组消息？") },
+            confirmButton = {
+                TextButton(onClick = { onDeleteMessage(message); showDelete = false }) { Text("删除") }
+            },
+            dismissButton = { TextButton(onClick = { showDelete = false }) { Text("取消") } }
+        )
+    }
+}
+
+private fun SteamChatReportReason.toGroupReason(): SteamGroupChatReportReason = when (this) {
+    SteamChatReportReason.HARASSMENT -> SteamGroupChatReportReason.HARASSMENT
+    SteamChatReportReason.SCAM -> SteamGroupChatReportReason.SCAM
+    SteamChatReportReason.SPAM -> SteamGroupChatReportReason.SPAM
+    SteamChatReportReason.OTHER -> SteamGroupChatReportReason.OTHER
 }

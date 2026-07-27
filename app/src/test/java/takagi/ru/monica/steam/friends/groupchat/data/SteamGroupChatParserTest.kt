@@ -88,11 +88,18 @@ class SteamGroupChatParserTest {
 
     @Test
     fun parsesMessagesDeletedStateAndServerEvents() {
+        val reaction = SteamProtoWriter().apply {
+            writeVarint(1, 1L)
+            writeString(2, ":heart:")
+            writeVarint(3, 2L)
+            writeBool(4, true)
+        }
         val normal = SteamProtoWriter().apply {
             writeVarint(1, 39_734_274L)
             writeVarint(2, 300L)
             writeString(3, "Hello")
             writeVarint(4, 2L)
+            writeMessage(7, reaction)
         }
         val event = SteamProtoWriter().apply {
             writeVarint(1, 2L)
@@ -116,6 +123,8 @@ class SteamGroupChatParserTest {
         assertEquals(2, page.messages.last().serverEventType)
         assertFalse(page.messages.last().deleted)
         assertTrue(page.moreAvailable)
+        assertEquals(2, page.messages.first().reactions.single().count)
+        assertTrue(page.messages.first().reactions.single().hasUserReacted)
     }
 
     @Test
