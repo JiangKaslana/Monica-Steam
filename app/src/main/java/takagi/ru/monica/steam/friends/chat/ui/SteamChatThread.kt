@@ -35,9 +35,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.Alignment
@@ -48,8 +48,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
+import takagi.ru.monica.steam.friends.chat.position.domain.SteamChatReadingConversationKey
+import takagi.ru.monica.steam.friends.chat.position.ui.SteamChatAutoScrollToLatestEffect
+import takagi.ru.monica.steam.friends.chat.position.ui.SteamChatJumpToLatestButton
+import takagi.ru.monica.steam.friends.chat.position.ui.animateToLatestSteamChatMessage
+import takagi.ru.monica.steam.friends.chat.position.ui.rememberSteamChatReadingPosition
 import takagi.ru.monica.steam.friends.chat.actions.domain.SteamChatReportReason
 import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatMessageActionMenu
 import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatReactionPicker
@@ -90,6 +96,20 @@ internal fun SteamChatThread(
     var reportMessage by remember { mutableStateOf<takagi.ru.monica.steam.friends.chat.domain.SteamChatMessage?>(null) }
     var reportReason by remember { mutableStateOf(SteamChatReportReason.HARASSMENT) }
     val listState = rememberLazyListState()
+    val scrollScope = rememberCoroutineScope()
+    val partnerSteamId = state.selectedPartnerSteamId.orEmpty()
+    val conversationKey = remember(state.accountSteamId, partnerSteamId) {
+        SteamChatReadingConversationKey.direct(state.accountSteamId, partnerSteamId)
+    }
+    val messageIds = remember(messages) { messages.map { it.stableId } }
+    val leadingItemCount = if (state.loadingOlder) 1 else 0
+    val readingUi by rememberSteamChatReadingPosition(
+        conversationKey = conversationKey,
+        messageIds = messageIds,
+        requestedMessageId = targetMessageId,
+        leadingItemCount = leadingItemCount,
+        listState = listState
+    )
     val shouldLoadOlder by remember(listState, state.thread?.moreAvailable, state.loadingOlder) {
         derivedStateOf {
             state.thread?.moreAvailable == true &&
@@ -102,29 +122,16 @@ internal fun SteamChatThread(
         if (shouldLoadOlder) onLoadOlder()
     }
 
-    LaunchedEffect(messages.lastOrNull()?.stableId) {
-        val latest = messages.lastOrNull() ?: return@LaunchedEffect
-        val wasNearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            ?.let { it >= messages.lastIndex - 2 } != false
-        if (latest.isOutgoing(state.accountSteamId) || wasNearBottom) {
-            withFrameNanos { }
-            val lastLaidOutIndex = listState.layoutInfo.totalItemsCount - 1
-            if (lastLaidOutIndex >= 0) {
-                try {
-                    listState.animateScrollToItem(minOf(messages.lastIndex, lastLaidOutIndex))
-                } catch (_: IndexOutOfBoundsException) {
-                    // A concurrent history refresh changed the lazy-list snapshot.
-                } catch (_: IllegalArgumentException) {
-                    // Ignore a stale target; the next message snapshot will retry.
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(targetMessageId, messages) {
-        val index = messages.indexOfFirst { it.stableId == targetMessageId }
-        if (index >= 0) listState.scrollToItem(index + if (state.loadingOlder) 1 else 0)
-    }
+    SteamChatAutoScrollToLatestEffect(
+        conversationKey = conversationKey,
+        latestMessageId = messages.lastOrNull()?.stableId,
+        latestMessageIsOutgoing = messages.lastOrNull()?.isOutgoing(state.accountSteamId) == true,
+        messageCount = messages.size,
+        leadingItemCount = leadingItemCount,
+        messagesBelow = readingUi.messagesBelow,
+        restored = readingUi.restored,
+        listState = listState
+    )
 
     // The activity is edge-to-edge, so the private thread must own the IME
     // inset. Keeping it on the root shrinks the message viewport and moves
@@ -245,6 +252,16 @@ internal fun SteamChatThread(
                     }
                 }
             }
+            SteamChatJumpToLatestButton(
+                visible = readingUi.restored && readingUi.messagesBelow > 0,
+                messagesBelow = readingUi.messagesBelow,
+                onClick = {
+                    scrollScope.launch {
+                        listState.animateToLatestSteamChatMessage(messages.size, leadingItemCount)
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)
+            )
         }
         SteamChatComposer(
             richMediaState = richMediaState,

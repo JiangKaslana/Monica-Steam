@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -44,8 +45,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaUiState
+import takagi.ru.monica.steam.friends.chat.position.domain.SteamChatReadingConversationKey
+import takagi.ru.monica.steam.friends.chat.position.ui.SteamChatAutoScrollToLatestEffect
+import takagi.ru.monica.steam.friends.chat.position.ui.SteamChatJumpToLatestButton
+import takagi.ru.monica.steam.friends.chat.position.ui.animateToLatestSteamChatMessage
+import takagi.ru.monica.steam.friends.chat.position.ui.rememberSteamChatReadingPosition
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMessageContent
 import takagi.ru.monica.steam.friends.chat.ui.SteamChatComposer
 import takagi.ru.monica.steam.friends.domain.SteamFriend
@@ -78,6 +85,23 @@ internal fun SteamGroupChatThread(
     val messages = state.thread?.messages.orEmpty()
     val friendsById = remember(friends) { friends.associateBy(SteamFriend::steamId) }
     val listState = rememberLazyListState()
+    val scrollScope = rememberCoroutineScope()
+    val conversationKey = remember(state.accountSteamId, group.groupId, state.selectedChatId) {
+        SteamChatReadingConversationKey.group(
+            state.accountSteamId,
+            group.groupId,
+            state.selectedChatId.orEmpty()
+        )
+    }
+    val messageIds = remember(messages) { messages.map(SteamGroupChatMessage::stableId) }
+    val leadingItemCount = if (state.loadingOlder) 1 else 0
+    val readingUi by rememberSteamChatReadingPosition(
+        conversationKey = conversationKey,
+        messageIds = messageIds,
+        requestedMessageId = targetMessageId,
+        leadingItemCount = leadingItemCount,
+        listState = listState
+    )
     val shouldLoadOlder by remember(listState, state.loadingOlder, state.thread?.moreAvailable) {
         derivedStateOf {
             state.thread?.moreAvailable == true && !state.loadingOlder &&
@@ -85,13 +109,16 @@ internal fun SteamGroupChatThread(
         }
     }
     LaunchedEffect(shouldLoadOlder) { if (shouldLoadOlder) onLoadOlder() }
-    LaunchedEffect(messages.lastOrNull()?.stableId) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
-    }
-    LaunchedEffect(targetMessageId, messages) {
-        val index = messages.indexOfFirst { it.stableId == targetMessageId }
-        if (index >= 0) listState.scrollToItem(index + if (state.loadingOlder) 1 else 0)
-    }
+    SteamChatAutoScrollToLatestEffect(
+        conversationKey = conversationKey,
+        latestMessageId = messages.lastOrNull()?.stableId,
+        latestMessageIsOutgoing = messages.lastOrNull()?.senderSteamId == state.accountSteamId,
+        messageCount = messages.size,
+        leadingItemCount = leadingItemCount,
+        messagesBelow = readingUi.messagesBelow,
+        restored = readingUi.restored,
+        listState = listState
+    )
 
     Column(modifier.fillMaxSize().imePadding()) {
         GroupThreadHeader(group, onBack, onOpenInfo, onInvite)
@@ -131,6 +158,16 @@ internal fun SteamGroupChatThread(
                     }
                 }
             }
+            SteamChatJumpToLatestButton(
+                visible = readingUi.restored && readingUi.messagesBelow > 0,
+                messagesBelow = readingUi.messagesBelow,
+                onClick = {
+                    scrollScope.launch {
+                        listState.animateToLatestSteamChatMessage(messages.size, leadingItemCount)
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)
+            )
         }
         SteamChatComposer(
             richMediaState = richMediaState,

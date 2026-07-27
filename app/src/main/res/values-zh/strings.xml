@@ -4523,6 +4523,7 @@
     <string name="steam_notification_wishlist_discounts_description">愿望单游戏开始打折或折扣加深时通知。</string>
     <string name="steam_wishlist_discount_notification_title">愿望单游戏正在打折</string>
     <string name="steam_wishlist_discount_notification_fallback">愿望单中有游戏出现了新的折扣。</string>
+    <string name="steam_chat_jump_to_latest">跳转到最新消息</string>
     <string name="steam_friends_title">好友</string>
     <string name="steam_friends_description">显示所选 Steam 账号的好友、在线状态、正在游玩的游戏和好友邀请。</string>
     <string name="steam_friends_search_hint">搜索好友或游戏</string>

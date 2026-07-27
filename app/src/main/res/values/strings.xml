@@ -4693,6 +4693,7 @@
     <string name="steam_notification_wishlist_discounts_description">Notify when a wishlisted game goes on sale or receives a deeper discount.</string>
     <string name="steam_wishlist_discount_notification_title">Wishlist games are on sale</string>
     <string name="steam_wishlist_discount_notification_fallback">One or more wishlisted games have a new discount.</string>
+    <string name="steam_chat_jump_to_latest">Jump to latest message</string>
     <string name="steam_friends_title">Friends</string>
     <string name="steam_friends_description">Friends, presence, games, and invitations for the selected Steam account.</string>
     <string name="steam_friends_search_hint">Search friends or games</string>
