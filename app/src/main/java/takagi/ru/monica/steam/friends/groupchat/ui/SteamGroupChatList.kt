@@ -41,12 +41,16 @@ import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiSta
 internal fun SteamGroupChatList(
     state: SteamGroupChatUiState,
     query: String,
+    pinnedGroupIds: Set<String> = emptySet(),
     onOpenRoom: (String, String) -> Unit,
     onRefresh: () -> Unit,
     onCreateGroup: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val groups = state.groups.filter {
+    val groups = state.groups.sortedWith(
+        compareByDescending<SteamGroupChatSummary> { it.groupId in pinnedGroupIds }
+            .thenByDescending { group -> group.rooms.maxOfOrNull { it.lastMessageTimestamp } ?: 0L }
+    ).filter {
         query.isBlank() || it.name.contains(query, true) || it.tagline.contains(query, true)
     }
     SteamExpressivePullToRefresh(

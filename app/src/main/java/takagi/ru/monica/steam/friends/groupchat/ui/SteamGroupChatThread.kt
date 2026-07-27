@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -59,7 +60,9 @@ internal fun SteamGroupChatThread(
     richMediaState: SteamChatRichMediaUiState,
     group: SteamGroupChatSummary,
     friends: List<SteamFriend>,
+    targetMessageId: String? = null,
     onBack: () -> Unit,
+    onOpenInfo: () -> Unit,
     onOpenRoom: (String, String) -> Unit,
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
@@ -85,9 +88,13 @@ internal fun SteamGroupChatThread(
     LaunchedEffect(messages.lastOrNull()?.stableId) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
+    LaunchedEffect(targetMessageId, messages) {
+        val index = messages.indexOfFirst { it.stableId == targetMessageId }
+        if (index >= 0) listState.scrollToItem(index + if (state.loadingOlder) 1 else 0)
+    }
 
     Column(modifier.fillMaxSize().imePadding()) {
-        GroupThreadHeader(group, onBack, onInvite)
+        GroupThreadHeader(group, onBack, onOpenInfo, onInvite)
         if (group.rooms.size > 1) LazyRow(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -144,7 +151,9 @@ internal fun SteamGroupChatThreadHost(
     state: SteamGroupChatUiState,
     richMediaState: SteamChatRichMediaUiState,
     friends: List<SteamFriend>,
+    targetMessageId: String? = null,
     onBack: () -> Unit,
+    onOpenInfo: () -> Unit,
     onOpenRoom: (String, String) -> Unit,
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
@@ -163,7 +172,9 @@ internal fun SteamGroupChatThreadHost(
         richMediaState = richMediaState,
         group = group,
         friends = friends,
+        targetMessageId = targetMessageId,
         onBack = onBack,
+        onOpenInfo = onOpenInfo,
         onOpenRoom = onOpenRoom,
         onLoadOlder = onLoadOlder,
         onSend = onSend,
@@ -179,13 +190,18 @@ internal fun SteamGroupChatThreadHost(
 }
 
 @Composable
-private fun GroupThreadHeader(group: SteamGroupChatSummary, onBack: () -> Unit, onInvite: () -> Unit) {
+private fun GroupThreadHeader(
+    group: SteamGroupChatSummary,
+    onBack: () -> Unit,
+    onOpenInfo: () -> Unit,
+    onInvite: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).clickable(onClick = onOpenInfo).padding(vertical = 4.dp)) {
             Text(group.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 stringResource(R.string.steam_group_chat_members, group.activeMemberCount),

@@ -72,6 +72,24 @@ class SteamGroupChatService(
         })
     }
 
+    override fun updateGroup(
+        account: SteamAccount,
+        groupId: String,
+        name: String,
+        tagline: String
+    ) {
+        val normalizedName = name.trim()
+        require(normalizedName.length in 1..64) { "Steam group name must contain 1-64 characters" }
+        call(account, "RenameChatRoomGroup", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeString(2, normalizedName)
+        })
+        call(account, "SetChatRoomGroupTagline", SteamProtoWriter().apply {
+            writeUint64(1, groupId.requireUnsignedId("group"))
+            writeString(2, tagline.trim().take(128))
+        })
+    }
+
     override fun acknowledge(account: SteamAccount, groupId: String, chatId: String, timestamp: Long) {
         if (timestamp <= 0L) return
         call(account, "AckChatMessage", SteamProtoWriter().apply {

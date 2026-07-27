@@ -44,9 +44,18 @@ import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatViewM
 import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatDialogsHost
 import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatList
 import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatThreadHost
+import takagi.ru.monica.steam.friends.chat.info.data.SteamChatInfoPreferencesStore
+import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationId
+import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationPreferences
+import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationType
+import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatHistoryItem
+import takagi.ru.monica.steam.friends.chat.info.ui.SteamChatHistorySearchScreen
+import takagi.ru.monica.steam.friends.chat.info.ui.SteamChatInfoScreen
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
+
+private enum class SteamChatSubpage { INFO, SEARCH }
 
 @Composable
 fun SteamChatScreen(
@@ -90,6 +99,7 @@ fun SteamChatScreen(
     val selectedFriend = friendsState.snapshot?.friends?.firstOrNull {
         it.steamId == chatState.selectedPartnerSteamId
     }
+    val infoPreferencesStore = remember(context) { SteamChatInfoPreferencesStore(context) }
     var standaloneSearchQuery by rememberSaveable { mutableStateOf("") }
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var showAccounts by rememberSaveable { mutableStateOf(false) }
@@ -97,6 +107,49 @@ fun SteamChatScreen(
     var showGroups by rememberSaveable { mutableStateOf(false) }
     var showCreateGroup by rememberSaveable { mutableStateOf(false) }
     var showInviteFriend by rememberSaveable { mutableStateOf(false) }
+    var initialGroupInvitees by remember { mutableStateOf(emptySet<String>()) }
+    var subpage by remember { mutableStateOf<SteamChatSubpage?>(null) }
+    var targetMessageId by remember { mutableStateOf<String?>(null) }
+    var conversationPreferences by remember { mutableStateOf(SteamChatConversationPreferences()) }
+    val currentConversationId = when {
+        chatState.selectedPartnerSteamId != null -> SteamChatConversationId(
+            accountSteamId = chatState.accountSteamId,
+            type = SteamChatConversationType.DIRECT,
+            peerOrGroupId = chatState.selectedPartnerSteamId.orEmpty()
+        )
+        groupChatState.selectedGroupId != null -> SteamChatConversationId(
+            accountSteamId = groupChatState.accountSteamId,
+            type = SteamChatConversationType.GROUP,
+            peerOrGroupId = groupChatState.selectedGroupId.orEmpty()
+        )
+        else -> null
+    }
+    LaunchedEffect(currentConversationId) {
+        conversationPreferences = currentConversationId?.let(infoPreferencesStore::load)
+            ?: SteamChatConversationPreferences()
+        subpage = null
+        targetMessageId = null
+    }
+    val pinnedDirectIds = remember(chatState.sessions, conversationPreferences, chatState.accountSteamId) {
+        chatState.sessions?.sessions.orEmpty().mapNotNull { session ->
+            val id = SteamChatConversationId(
+                chatState.accountSteamId,
+                SteamChatConversationType.DIRECT,
+                session.partnerSteamId
+            )
+            session.partnerSteamId.takeIf { infoPreferencesStore.load(id).pinned }
+        }.toSet()
+    }
+    val pinnedGroupIds = remember(groupChatState.groups, conversationPreferences, groupChatState.accountSteamId) {
+        groupChatState.groups.mapNotNull { group ->
+            val id = SteamChatConversationId(
+                groupChatState.accountSteamId,
+                SteamChatConversationType.GROUP,
+                group.groupId
+            )
+            group.groupId.takeIf { infoPreferencesStore.load(id).pinned }
+        }.toSet()
+    }
     val effectiveSearchQuery = if (standalone) standaloneSearchQuery else searchQuery
     LaunchedEffect(
         selectedAccount?.id,
@@ -185,10 +238,13 @@ fun SteamChatScreen(
         }
     }
 
-    BackHandler(enabled = chatState.selectedPartnerSteamId != null) {
+    BackHandler(enabled = subpage != null) {
+        subpage = if (subpage == SteamChatSubpage.SEARCH) SteamChatSubpage.INFO else null
+    }
+    BackHandler(enabled = subpage == null && chatState.selectedPartnerSteamId != null) {
         chatViewModel.closeThread()
     }
-    BackHandler(enabled = groupChatState.selectedChatId != null) {
+    BackHandler(enabled = subpage == null && groupChatState.selectedChatId != null) {
         groupChatViewModel.closeRoom()
     }
     BackHandler(
@@ -198,11 +254,11 @@ fun SteamChatScreen(
     }
 
     AnimatedContent(
-        targetState = chatState.selectedPartnerSteamId to groupChatState.selectedChatId,
+        targetState = Triple(chatState.selectedPartnerSteamId, groupChatState.selectedChatId, subpage),
         modifier = modifier.fillMaxSize(),
         transitionSpec = { easyNotesScreenEnter().togetherWith(easyNotesScreenExit()) },
         label = "SteamChatNavigation"
-    ) { (partnerSteamId, groupRoomId) ->
+    ) { (partnerSteamId, groupRoomId, currentSubpage) ->
         if (partnerSteamId == null && groupRoomId == null) {
             if (standalone) {
                 Scaffold(
@@ -275,6 +331,7 @@ fun SteamChatScreen(
                             SteamGroupChatList(
                                 state = groupChatState,
                                 query = effectiveSearchQuery,
+                                pinnedGroupIds = pinnedGroupIds,
                                 onOpenRoom = groupChatViewModel::openRoom,
                                 onRefresh = groupChatViewModel::refreshGroups,
                                 onCreateGroup = { showCreateGroup = true },
@@ -297,6 +354,7 @@ fun SteamChatScreen(
                                 state = chatState,
                                 friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
                                 query = effectiveSearchQuery,
+                                pinnedPartnerSteamIds = pinnedDirectIds,
                                 onOpenThread = chatViewModel::openThread,
                                 onRetry = chatViewModel::refreshSessions,
                                 modifier = Modifier.fillMaxSize()
@@ -309,17 +367,78 @@ fun SteamChatScreen(
                     state = chatState,
                     friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
                     query = effectiveSearchQuery,
+                    pinnedPartnerSteamIds = pinnedDirectIds,
                     onOpenThread = chatViewModel::openThread,
                     onRetry = chatViewModel::refreshSessions,
                     modifier = Modifier.fillMaxSize()
                 )
             }
+        } else if (currentSubpage == SteamChatSubpage.INFO) {
+            val group = groupChatState.groups.firstOrNull { it.groupId == groupChatState.selectedGroupId }
+            val friendMap = friendsState.snapshot?.friends.orEmpty().associateBy { it.steamId }
+            val groupMembers = group?.topMemberSteamIds.orEmpty().mapNotNull(friendMap::get)
+            SteamChatInfoScreen(
+                title = if (partnerSteamId != null) "聊天信息" else "群聊信息",
+                directFriend = if (partnerSteamId != null) selectedFriend else null,
+                group = group,
+                members = groupMembers,
+                preferences = conversationPreferences,
+                canEditGroup = group?.ownerAccountId?.let { owner ->
+                    owner > 0L && accountIdFromSteamId(groupChatState.accountSteamId) == owner
+                } == true,
+                updatingGroup = groupChatState.updatingGroup,
+                onBack = { subpage = null },
+                onAddMember = {
+                    if (partnerSteamId != null) {
+                        initialGroupInvitees = setOf(partnerSteamId)
+                        showCreateGroup = true
+                    } else showInviteFriend = true
+                },
+                onSearchHistory = { subpage = SteamChatSubpage.SEARCH },
+                onPreferencesChange = { updated ->
+                    conversationPreferences = updated
+                    currentConversationId?.let { infoPreferencesStore.save(it, updated) }
+                },
+                onUpdateGroup = groupChatViewModel::updateGroup,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (currentSubpage == SteamChatSubpage.SEARCH) {
+            val friendsById = friendsState.snapshot?.friends.orEmpty().associateBy { it.steamId }
+            val items = if (partnerSteamId != null) {
+                chatState.thread?.messages.orEmpty().map { message ->
+                    SteamChatHistoryItem(
+                        id = message.stableId,
+                        senderName = if (message.senderSteamId == chatState.accountSteamId) "我"
+                            else selectedFriend?.displayName ?: message.senderSteamId,
+                        body = message.body,
+                        timestamp = message.timestamp
+                    )
+                }
+            } else {
+                groupChatState.thread?.messages.orEmpty().map { message ->
+                    SteamChatHistoryItem(
+                        id = message.stableId,
+                        senderName = if (message.senderSteamId == groupChatState.accountSteamId) "我"
+                            else friendsById[message.senderSteamId]?.displayName ?: message.senderSteamId,
+                        body = message.body,
+                        timestamp = message.timestamp
+                    )
+                }
+            }
+            SteamChatHistorySearchScreen(
+                items = items,
+                onBack = { subpage = SteamChatSubpage.INFO },
+                onOpenMessage = { messageId -> targetMessageId = messageId; subpage = null },
+                modifier = Modifier.fillMaxSize()
+            )
         } else if (partnerSteamId != null) {
             SteamChatThread(
                 state = chatState,
                 richMediaState = richMediaState,
                 friend = selectedFriend,
+                targetMessageId = targetMessageId,
                 onNavigateBack = chatViewModel::closeThread,
+                onOpenInfo = { subpage = SteamChatSubpage.INFO },
                 onRefresh = chatViewModel::refreshThread,
                 onLoadOlder = chatViewModel::loadOlder,
                 onSend = chatViewModel::sendMessage,
@@ -346,7 +465,9 @@ fun SteamChatScreen(
                 state = groupChatState,
                 richMediaState = richMediaState,
                 friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
+                targetMessageId = targetMessageId,
                 onBack = groupChatViewModel::closeRoom,
+                onOpenInfo = { subpage = SteamChatSubpage.INFO },
                 onOpenRoom = groupChatViewModel::openRoom,
                 onLoadOlder = groupChatViewModel::loadOlder,
                 onSend = groupChatViewModel::sendMessage,
@@ -384,9 +505,19 @@ fun SteamChatScreen(
         friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
         showCreateGroup = showCreateGroup,
         showInviteFriend = showInviteFriend,
+        initialInviteeSteamIds = initialGroupInvitees,
         onCreate = groupChatViewModel::createGroup,
         onInvite = { groupChatViewModel.inviteFriend(it); showInviteFriend = false },
-        onDismissCreate = { if (!groupChatState.creatingGroup) showCreateGroup = false },
+        onDismissCreate = {
+            if (!groupChatState.creatingGroup) {
+                showCreateGroup = false
+                initialGroupInvitees = emptySet()
+            }
+        },
         onDismissInvite = { showInviteFriend = false }
     )
 }
+
+private fun accountIdFromSteamId(steamId: String): Long? = runCatching {
+    steamId.toBigInteger().subtract("76561197960265728".toBigInteger()).longValueExact()
+}.getOrNull()

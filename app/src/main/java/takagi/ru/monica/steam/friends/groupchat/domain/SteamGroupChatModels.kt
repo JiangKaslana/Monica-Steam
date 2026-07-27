@@ -13,7 +13,8 @@ data class SteamGroupChatSummary(
     val rooms: List<SteamGroupChatRoom> = emptyList(),
     val rank: Int = 0,
     val avatarUrl: String = "",
-    val unreadCount: Int = 0
+    val unreadCount: Int = 0,
+    val topMemberSteamIds: List<String> = emptyList()
 )
 
 @Serializable

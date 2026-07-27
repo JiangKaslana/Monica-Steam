@@ -50,6 +50,7 @@ internal fun SteamGroupChatDialogsHost(
     friends: List<SteamFriend>,
     showCreateGroup: Boolean,
     showInviteFriend: Boolean,
+    initialInviteeSteamIds: Set<String> = emptySet(),
     onCreate: (String, List<String>) -> Unit,
     onInvite: (String) -> Unit,
     onDismissCreate: () -> Unit,
@@ -59,6 +60,7 @@ internal fun SteamGroupChatDialogsHost(
         SteamCreateGroupDialog(
             friends = friends,
             creating = state.creatingGroup,
+            initialInviteeSteamIds = initialInviteeSteamIds,
             onCreate = onCreate,
             onDismiss = onDismissCreate
         )
@@ -76,12 +78,13 @@ internal fun SteamGroupChatDialogsHost(
 internal fun SteamCreateGroupDialog(
     friends: List<SteamFriend>,
     creating: Boolean,
+    initialInviteeSteamIds: Set<String> = emptySet(),
     onCreate: (String, List<String>) -> Unit,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
-    var selected by remember { mutableStateOf(emptySet<String>()) }
+    var selected by remember(initialInviteeSteamIds) { mutableStateOf(initialInviteeSteamIds) }
     GroupDialogFrame(
         title = stringResource(R.string.steam_group_chat_create),
         onDismiss = onDismiss,

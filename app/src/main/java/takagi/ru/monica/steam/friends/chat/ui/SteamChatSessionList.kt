@@ -54,6 +54,7 @@ internal fun SteamChatSessionList(
     state: SteamChatUiState,
     friends: List<SteamFriend>,
     query: String,
+    pinnedPartnerSteamIds: Set<String> = emptySet(),
     onOpenThread: (String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
@@ -64,7 +65,10 @@ internal fun SteamChatSessionList(
     val sessions = state.sessions?.sessions.orEmpty()
     val sessionByPartner = sessions.associateBy(SteamChatSession::partnerSteamId)
     val visiblePartnerIds = buildList {
-        sessions.filter { session ->
+        sessions.sortedWith(
+            compareByDescending<SteamChatSession> { it.partnerSteamId in pinnedPartnerSteamIds }
+                .thenByDescending(SteamChatSession::lastMessageTimestamp)
+        ).filter { session ->
             val friend = friendById[session.partnerSteamId]
             normalizedQuery.isBlank() || friend?.matchesChatQuery(normalizedQuery) == true ||
                 session.partnerSteamId.contains(normalizedQuery, ignoreCase = true)

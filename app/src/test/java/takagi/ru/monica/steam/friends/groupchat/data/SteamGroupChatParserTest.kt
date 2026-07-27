@@ -29,6 +29,8 @@ class SteamGroupChatParserTest {
             writeUint64(5, "9001")
             writeMessage(6, room)
             writeString(8, "Play together")
+            writeVarint(10, 39_734_274L)
+            writeVarint(10, 39_734_275L)
             writeVarint(12, 50L)
         }
         val pair = SteamProtoWriter().apply {
@@ -43,6 +45,10 @@ class SteamGroupChatParserTest {
         assertEquals("Monica testers", group.name)
         assertEquals(12, group.activeMemberCount)
         assertEquals(1, group.unreadCount)
+        assertEquals(
+            listOf("76561198000000002", "76561198000000003"),
+            group.topMemberSteamIds
+        )
         assertTrue(group.rooms.single().unread)
         assertEquals("76561198000000002", group.rooms.single().lastSenderSteamId)
     }

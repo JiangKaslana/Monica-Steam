@@ -86,8 +86,35 @@ internal object SteamGroupChatParser {
             rooms = rooms,
             rank = summaryByField[12]?.asInt ?: 0,
             avatarUrl = summaryByField[21]?.asString.orEmpty(),
-            unreadCount = rooms.count(SteamGroupChatRoom::unread)
+            unreadCount = rooms.count(SteamGroupChatRoom::unread),
+            topMemberSteamIds = parseTopMembers(summary)
         )
+    }
+
+    private fun parseTopMembers(summary: List<SteamProtoField>): List<String> =
+        summary.filter { it.number == 10 }.flatMap { field ->
+            when (field.wireType) {
+                0 -> listOf(field.asLong)
+                2 -> decodePackedVarints(field.bytes ?: byteArrayOf())
+                else -> emptyList()
+            }
+        }.filter { it > 0L }.distinct().map(::steamId64FromAccountId)
+
+    private fun decodePackedVarints(bytes: ByteArray): List<Long> {
+        val values = mutableListOf<Long>()
+        var index = 0
+        while (index < bytes.size) {
+            var value = 0L
+            var shift = 0
+            while (index < bytes.size && shift < 64) {
+                val byte = bytes[index++].toInt() and 0xff
+                value = value or ((byte and 0x7f).toLong() shl shift)
+                if (byte and 0x80 == 0) break
+                shift += 7
+            }
+            values += value
+        }
+        return values
     }
 
     private fun parseAcknowledgements(userState: List<SteamProtoField>): Map<String, Long> =

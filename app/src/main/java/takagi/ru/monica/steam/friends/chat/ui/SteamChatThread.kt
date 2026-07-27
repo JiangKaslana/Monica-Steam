@@ -1,5 +1,6 @@
 package takagi.ru.monica.steam.friends.chat.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,7 +64,9 @@ internal fun SteamChatThread(
     state: SteamChatUiState,
     richMediaState: SteamChatRichMediaUiState,
     friend: SteamFriend?,
+    targetMessageId: String? = null,
     onNavigateBack: () -> Unit,
+    onOpenInfo: () -> Unit,
     onRefresh: () -> Unit,
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
@@ -118,6 +121,11 @@ internal fun SteamChatThread(
         }
     }
 
+    LaunchedEffect(targetMessageId, messages) {
+        val index = messages.indexOfFirst { it.stableId == targetMessageId }
+        if (index >= 0) listState.scrollToItem(index + if (state.loadingOlder) 1 else 0)
+    }
+
     // The activity is edge-to-edge, so the private thread must own the IME
     // inset. Keeping it on the root shrinks the message viewport and moves
     // the composer as one unit, without adding a second gap inside the
@@ -129,6 +137,7 @@ internal fun SteamChatThread(
             typing = state.typingPartnerSteamIds.contains(state.selectedPartnerSteamId),
             refreshing = state.threadRefreshing,
             onNavigateBack = onNavigateBack,
+            onOpenInfo = onOpenInfo,
             onRefresh = onRefresh
         )
         if (state.threadRefreshing) {
@@ -268,6 +277,7 @@ private fun ChatThreadHeader(
     typing: Boolean,
     refreshing: Boolean,
     onNavigateBack: () -> Unit,
+    onOpenInfo: () -> Unit,
     onRefresh: () -> Unit
 ) {
     Row(
@@ -282,7 +292,9 @@ private fun ChatThreadHeader(
             )
         }
         if (friend != null) {
-            FriendAvatar(friend = friend, size = 42)
+            Box(Modifier.size(48.dp).clickable(onClick = onOpenInfo), contentAlignment = Alignment.Center) {
+                FriendAvatar(friend = friend, size = 42)
+            }
         } else {
             Surface(
                 modifier = Modifier.size(42.dp),
@@ -295,7 +307,7 @@ private fun ChatThreadHeader(
             }
         }
         Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).clickable(onClick = onOpenInfo).padding(vertical = 4.dp)) {
             Text(
                 text = friend?.displayName ?: partnerSteamId,
                 style = MaterialTheme.typography.titleMedium,

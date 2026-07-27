@@ -47,6 +47,7 @@ data class SteamGroupChatUiState(
     val threadLoading: Boolean = false,
     val loadingOlder: Boolean = false,
     val creatingGroup: Boolean = false,
+    val updatingGroup: Boolean = false,
     val createdGroupId: String? = null,
     val realtimeConnected: Boolean = false,
     val failure: String? = null
@@ -291,6 +292,34 @@ class SteamGroupChatViewModel(
                 }
             } }
                 .onFailure { _state.value = _state.value.copy(failure = it.groupChatMessage()) }
+        }
+    }
+
+    fun updateGroup(name: String, tagline: String) {
+        val current = account ?: return
+        val groupId = _state.value.selectedGroupId ?: return
+        if (_state.value.updatingGroup || name.isBlank()) return
+        _state.value = _state.value.copy(updatingGroup = true, failure = null)
+        viewModelScope.launch {
+            val result = runCatchingCancellable { withContext(ioDispatcher) {
+                withPreparedSession(current) { prepared ->
+                    gateway.updateGroup(prepared, groupId, name, tagline)
+                }
+            } }
+            result.fold(
+                onSuccess = {
+                    val groups = _state.value.groups.map { group ->
+                        if (group.groupId == groupId) group.copy(name = name.trim(), tagline = tagline.trim()) else group
+                    }
+                    _state.value = _state.value.copy(groups = groups, updatingGroup = false)
+                    withContext(ioDispatcher) {
+                        cache.saveGroups(SteamGroupChatGroupsSnapshot(current.steamId, groups, nowMillis()))
+                    }
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(updatingGroup = false, failure = it.groupChatMessage())
+                }
+            )
         }
     }
 
