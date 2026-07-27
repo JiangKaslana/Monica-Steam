@@ -210,6 +210,7 @@ import takagi.ru.monica.steam.trade.SteamTradeOfferAction
 import takagi.ru.monica.steam.trade.ui.SteamTradeOffersContent
 import takagi.ru.monica.steam.token.domain.*
 import takagi.ru.monica.steam.token.presentation.*
+import takagi.ru.monica.steam.token.loginchallenge.ui.SteamLoginCaptchaContent
 import takagi.ru.monica.ui.common.selection.SelectionActionBar
 import takagi.ru.monica.ui.common.state.rememberSaveableLazyListState
 import takagi.ru.monica.ui.common.pull.PullToSearchStateHandle
@@ -5146,7 +5147,11 @@ private fun SteamQrLoginImportDialog(
     val canUseMonicaCode = pendingChallenge?.canUseMonicaCode == true &&
         (availableCodeAccounts.any { it.sharedSecret.isNotBlank() } || hasLegacySteamCode)
 
-    LaunchedEffect(pendingChallenge?.pendingSessionId, pendingChallenge?.confirmationType) {
+    LaunchedEffect(
+        pendingChallenge?.pendingSessionId,
+        pendingChallenge?.confirmationType,
+        pendingChallenge?.captchaImageUrl
+    ) {
         challengeCode = ""
     }
 
@@ -5192,11 +5197,26 @@ private fun SteamQrLoginImportDialog(
                         text = pendingChallenge.message,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (pendingChallenge.isCaptcha) {
+                        SteamLoginCaptchaContent(
+                            imageUrl = pendingChallenge.captchaImageUrl.orEmpty()
+                        )
+                    }
                     if (requiresCode) {
                         OutlinedTextField(
                             value = challengeCode,
                             onValueChange = { challengeCode = it },
-                            label = { Text(stringResource(R.string.steam_code_label)) },
+                            label = {
+                                Text(
+                                    stringResource(
+                                        if (pendingChallenge.isCaptcha) {
+                                            R.string.steam_login_captcha_code_label
+                                        } else {
+                                            R.string.steam_code_label
+                                        }
+                                    )
+                                )
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -5714,7 +5734,11 @@ private fun SteamLoginImportDialog(
     val canUseMonicaCode = pendingChallenge?.canUseMonicaCode == true &&
         (availableCodeAccounts.any { it.sharedSecret.isNotBlank() } || hasLegacySteamCode)
 
-    LaunchedEffect(pendingChallenge?.pendingSessionId, pendingChallenge?.confirmationType) {
+    LaunchedEffect(
+        pendingChallenge?.pendingSessionId,
+        pendingChallenge?.confirmationType,
+        pendingChallenge?.captchaImageUrl
+    ) {
         challengeCode = ""
     }
 
@@ -5800,11 +5824,26 @@ private fun SteamLoginImportDialog(
                         text = pendingChallenge.message,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (pendingChallenge.isCaptcha) {
+                        SteamLoginCaptchaContent(
+                            imageUrl = pendingChallenge.captchaImageUrl.orEmpty()
+                        )
+                    }
                     if (requiresCode) {
                         OutlinedTextField(
                             value = challengeCode,
                             onValueChange = { challengeCode = it },
-                            label = { Text(stringResource(R.string.steam_code_label)) },
+                            label = {
+                                Text(
+                                    stringResource(
+                                        if (pendingChallenge.isCaptcha) {
+                                            R.string.steam_login_captcha_code_label
+                                        } else {
+                                            R.string.steam_code_label
+                                        }
+                                    )
+                                )
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )

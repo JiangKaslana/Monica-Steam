@@ -201,7 +201,9 @@ data class SteamLoginChallengeUi(
     val message: String,
     val requiresCode: Boolean,
     val canPoll: Boolean,
-    val canUseMonicaCode: Boolean
+    val canUseMonicaCode: Boolean,
+    val isCaptcha: Boolean,
+    val captchaImageUrl: String?
 )
 
 data class SteamQrLoginChallengeUi(
@@ -2320,6 +2322,7 @@ class SteamViewModel(
         val requiresCode = codeChallenge != null ||
             pollingManualCodeType != null ||
             SteamLoginImportService.isCodeChallengeType(confirmationType)
+        val isCaptcha = SteamLoginImportService.isCaptchaChallengeType(confirmationType)
         val canPoll = pollingChallenge != null ||
             SteamLoginImportService.isPollingChallengeType(selectedType)
         val serverMessage = message
@@ -2330,6 +2333,7 @@ class SteamViewModel(
             serverMessage
             ?: appContext.getString(
                 when {
+                    isCaptcha -> R.string.steam_login_captcha_message
                     SteamLoginImportService.isAddAuthenticatorEmailActivationType(confirmationType) ->
                         R.string.steam_activation_email_message
                     SteamLoginImportService.isAddAuthenticatorActivationType(confirmationType) ->
@@ -2347,7 +2351,9 @@ class SteamViewModel(
             message = challengeMessage,
             requiresCode = requiresCode,
             canPoll = canPoll,
-            canUseMonicaCode = SteamLoginImportService.isSteamGuardCodeChallengeType(confirmationType)
+            canUseMonicaCode = SteamLoginImportService.isSteamGuardCodeChallengeType(confirmationType),
+            isCaptcha = isCaptcha,
+            captchaImageUrl = selectedChallenge?.imageUrl?.takeIf { isCaptcha && it.isNotBlank() }
         )
     }
 

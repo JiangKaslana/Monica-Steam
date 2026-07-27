@@ -1050,6 +1050,12 @@
     <string name="steam_activation_email_message">Steam sent an activation code by email. Enter it to finish binding Steam Guard.</string>
     <string name="steam_activation_sms_message">Steam sent an SMS activation code. Enter it to finish binding Steam Guard.</string>
     <string name="steam_code_label">Code</string>
+    <string name="steam_login_captcha_title">Image verification</string>
+    <string name="steam_login_captcha_message">Enter the characters shown in the Steam image.</string>
+    <string name="steam_login_captcha_code_label">Image verification code</string>
+    <string name="steam_login_captcha_code_hint">Enter the characters shown above</string>
+    <string name="steam_login_captcha_image_description">Steam image verification code</string>
+    <string name="steam_login_captcha_load_failed">Could not load the Steam verification image</string>
     <string name="steam_use_monica_code">Use Monica code</string>
     <string name="steam_authenticator_code_picker_title">Select Steam authenticator</string>
     <string name="steam_authenticator_code_picker_empty">No Steam authenticators in Monica</string>

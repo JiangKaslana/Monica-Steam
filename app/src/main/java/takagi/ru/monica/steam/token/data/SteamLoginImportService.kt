@@ -25,6 +25,10 @@ import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.SteamProtoWriter
+import takagi.ru.monica.steam.token.loginchallenge.data.SteamLoginCaptchaUrl
+import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaChallenge
+import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaPolicy
+import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaResolution
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.spec.RSAPublicKeySpec
@@ -91,6 +95,7 @@ class SteamLoginImportService(
                 confirmationType == AUTH_CODE_TYPE_DEVICE ||
                 confirmationType == LEGACY_CODE_TYPE_TWO_FACTOR ||
                 confirmationType == LEGACY_CODE_TYPE_EMAIL ||
+                confirmationType == SteamLoginCaptchaPolicy.CONFIRMATION_TYPE ||
                 confirmationType == REPLACE_CODE_TYPE_GENERIC ||
                 isAddAuthenticatorActivationType(confirmationType)
         }
@@ -99,6 +104,10 @@ class SteamLoginImportService(
             return confirmationType == AUTH_CODE_TYPE_DEVICE ||
                 confirmationType == LEGACY_CODE_TYPE_TWO_FACTOR ||
                 confirmationType == REPLACE_CODE_TYPE_GENERIC
+        }
+
+        fun isCaptchaChallengeType(confirmationType: Int): Boolean {
+            return confirmationType == SteamLoginCaptchaPolicy.CONFIRMATION_TYPE
         }
 
         fun isPollingChallengeType(confirmationType: Int): Boolean {
@@ -171,6 +180,7 @@ class SteamLoginImportService(
         val legacyRsaTimestamp: String? = null,
         val legacyEmailSteamId: String? = null,
         val legacyChallengeType: Int? = null,
+        val legacyCaptchaGid: String? = null,
         val qrChallengeUrl: String? = null,
         val addAccessToken: String? = null,
         val addImportAccessToken: String? = null,
@@ -236,7 +246,8 @@ class SteamLoginImportService(
 
     data class SteamGuardChallenge(
         val confirmationType: Int,
-        val associatedMessage: String = ""
+        val associatedMessage: String = "",
+        val imageUrl: String? = null
     )
 
     data class SteamGuardPayload(
@@ -522,10 +533,8 @@ class SteamLoginImportService(
         runCatching {
             if (session.flow == AuthFlow.LEGACY_WEB) {
                 logDiag("submit guard code flow=legacy")
-                val legacyResult = continueLegacyLogin(session, code)
-                if (legacyResult is LoginResult.ReadyForImport || legacyResult is LoginResult.Failure) {
-                    pendingSessions.remove(pendingSessionId)
-                }
+                val legacyResult = continueLegacyLogin(session, code.trim())
+                pendingSessions.remove(pendingSessionId)
                 return@runCatching legacyResult
             }
             if (session.flow == AuthFlow.ADD_AUTHENTICATOR_FINALIZE) {
@@ -1972,6 +1981,7 @@ class SteamLoginImportService(
             code = null,
             challengeType = null,
             emailSteamId = null,
+            captchaGid = null,
             purpose = purpose
         )
     }
@@ -1994,6 +2004,7 @@ class SteamLoginImportService(
             code = code,
             challengeType = challengeType,
             emailSteamId = session.legacyEmailSteamId,
+            captchaGid = session.legacyCaptchaGid,
             purpose = session.purpose
         )
     }
@@ -2005,6 +2016,7 @@ class SteamLoginImportService(
         code: String?,
         challengeType: Int?,
         emailSteamId: String?,
+        captchaGid: String?,
         purpose: LoginPurpose
     ): LoginResult {
         val doLoginResponse = postForm(
@@ -2015,8 +2027,12 @@ class SteamLoginImportService(
                 "twofactorcode" to if (challengeType == LEGACY_CODE_TYPE_TWO_FACTOR) code.orEmpty() else "",
                 "emailauth" to if (challengeType == LEGACY_CODE_TYPE_EMAIL) code.orEmpty() else "",
                 "loginfriendlyname" to DEVICE_FRIENDLY_NAME,
-                "captchagid" to "-1",
-                "captcha_text" to "",
+                "captchagid" to if (isCaptchaChallengeType(challengeType ?: 0)) {
+                    captchaGid.orEmpty().ifBlank { "-1" }
+                } else {
+                    "-1"
+                },
+                "captcha_text" to if (isCaptchaChallengeType(challengeType ?: 0)) code.orEmpty() else "",
                 "emailsteamid" to emailSteamId.orEmpty(),
                 "rsatimestamp" to rsaTimestamp,
                 "remember_login" to "true",
@@ -2031,6 +2047,11 @@ class SteamLoginImportService(
         val requiresEmail = doLoginResponse.boolAny("emailauth_needed", "requires_emailauth") == true
         val requiresCaptcha = doLoginResponse.boolAny("captcha_needed") == true
         val responseMessage = doLoginResponse.messageString()
+        val captchaResolution = SteamLoginCaptchaPolicy.resolve(
+            required = requiresCaptcha,
+            captchaGid = doLoginResponse.stringAny("captcha_gid"),
+            legacyCaptchaGid = doLoginResponse.stringAny("captchagid")
+        )
 
         if (success) {
             val oauth = parseLegacyOauthToken(doLoginResponse)
@@ -2047,71 +2068,62 @@ class SteamLoginImportService(
             )
         }
 
-        if (requiresCaptcha) {
-            return LoginResult.Failure(
-                responseMessage ?: "Steam 需要图形验证码，当前版本暂不支持，请先在 Steam 客户端完成一次登录后重试",
-                retryable = false
-            )
+        when (captchaResolution) {
+            SteamLoginCaptchaResolution.NotRequired -> Unit
+            SteamLoginCaptchaResolution.MissingGid -> {
+                return LoginResult.Failure("Steam 要求图形验证码，但响应缺少验证码标识，请重新登录")
+            }
+            is SteamLoginCaptchaResolution.Required -> {
+                val imageUrl = SteamLoginCaptchaUrl.build(captchaResolution.gid)
+                    ?: return LoginResult.Failure("Steam 图形验证码地址无效，请重新登录")
+                return createLegacyChallenge(
+                    purpose = purpose,
+                    userName = userName,
+                    encryptedPassword = encryptedPassword,
+                    rsaTimestamp = rsaTimestamp,
+                    steamId = doLoginResponse.stringAny("steamid", "steam_id") ?: userName,
+                    confirmationType = SteamLoginCaptchaPolicy.CONFIRMATION_TYPE,
+                    associatedMessage = responseMessage?.ifBlank { "请输入图片中的验证码" }
+                        ?: "请输入图片中的验证码",
+                    emailSteamId = doLoginResponse.stringAny("emailsteamid", "email_steamid")
+                        ?: emailSteamId,
+                    captcha = SteamLoginCaptchaChallenge(
+                        gid = captchaResolution.gid,
+                        imageUrl = imageUrl
+                    )
+                )
+            }
         }
 
         if (requiresTwoFactor) {
-            val pendingSessionId = UUID.randomUUID().toString()
             val steamId = doLoginResponse.stringAny("steamid", "steam_id") ?: userName
-            pendingSessions[pendingSessionId] = PendingAuthSession(
-                flow = AuthFlow.LEGACY_WEB,
+            return createLegacyChallenge(
                 purpose = purpose,
                 userName = userName,
-                clientId = "",
-                requestId = "",
+                encryptedPassword = encryptedPassword,
+                rsaTimestamp = rsaTimestamp,
                 steamId = steamId,
-                allowedConfirmations = listOf(
-                    SteamGuardChallenge(
-                        confirmationType = LEGACY_CODE_TYPE_TWO_FACTOR,
-                        associatedMessage = responseMessage?.ifBlank { "请输入 Steam 令牌验证码" }
-                            ?: "请输入 Steam 令牌验证码"
-                    )
-                ),
-                legacyEncryptedPassword = encryptedPassword,
-                legacyRsaTimestamp = rsaTimestamp,
-                legacyEmailSteamId = null,
-                legacyChallengeType = LEGACY_CODE_TYPE_TWO_FACTOR
-            )
-            return LoginResult.ChallengeRequired(
-                pendingSessionId = pendingSessionId,
-                steamId = steamId,
-                challenges = pendingSessions[pendingSessionId]?.allowedConfirmations.orEmpty(),
-                message = responseMessage
+                confirmationType = LEGACY_CODE_TYPE_TWO_FACTOR,
+                associatedMessage = responseMessage?.ifBlank { "请输入 Steam 令牌验证码" }
+                    ?: "请输入 Steam 令牌验证码",
+                emailSteamId = emailSteamId
             )
         }
 
         if (requiresEmail) {
-            val pendingSessionId = UUID.randomUUID().toString()
             val steamId = doLoginResponse.stringAny("steamid", "steam_id") ?: userName
             val emailId = doLoginResponse.stringAny("emailsteamid", "email_steamid")
-            pendingSessions[pendingSessionId] = PendingAuthSession(
-                flow = AuthFlow.LEGACY_WEB,
+                ?: emailSteamId
+            return createLegacyChallenge(
                 purpose = purpose,
                 userName = userName,
-                clientId = "",
-                requestId = "",
+                encryptedPassword = encryptedPassword,
+                rsaTimestamp = rsaTimestamp,
                 steamId = steamId,
-                allowedConfirmations = listOf(
-                    SteamGuardChallenge(
-                        confirmationType = LEGACY_CODE_TYPE_EMAIL,
-                        associatedMessage = responseMessage?.ifBlank { "请输入邮箱验证码" }
-                            ?: "请输入邮箱验证码"
-                    )
-                ),
-                legacyEncryptedPassword = encryptedPassword,
-                legacyRsaTimestamp = rsaTimestamp,
-                legacyEmailSteamId = emailId,
-                legacyChallengeType = LEGACY_CODE_TYPE_EMAIL
-            )
-            return LoginResult.ChallengeRequired(
-                pendingSessionId = pendingSessionId,
-                steamId = steamId,
-                challenges = pendingSessions[pendingSessionId]?.allowedConfirmations.orEmpty(),
-                message = responseMessage
+                confirmationType = LEGACY_CODE_TYPE_EMAIL,
+                associatedMessage = responseMessage?.ifBlank { "请输入邮箱验证码" }
+                    ?: "请输入邮箱验证码",
+                emailSteamId = emailId
             )
         }
 
@@ -2119,6 +2131,45 @@ class SteamLoginImportService(
             responseMessage
                 ?: doLoginResponse.stringAny("message", "extended_error_message")
                 ?: "Steam 登录失败（旧版流程）"
+        )
+    }
+
+    private fun createLegacyChallenge(
+        purpose: LoginPurpose,
+        userName: String,
+        encryptedPassword: String,
+        rsaTimestamp: String,
+        steamId: String,
+        confirmationType: Int,
+        associatedMessage: String,
+        emailSteamId: String? = null,
+        captcha: SteamLoginCaptchaChallenge? = null
+    ): LoginResult.ChallengeRequired {
+        val resolvedSessionId = UUID.randomUUID().toString()
+        val challenge = SteamGuardChallenge(
+            confirmationType = confirmationType,
+            associatedMessage = associatedMessage,
+            imageUrl = captcha?.imageUrl
+        )
+        pendingSessions[resolvedSessionId] = PendingAuthSession(
+            flow = AuthFlow.LEGACY_WEB,
+            purpose = purpose,
+            userName = userName,
+            clientId = "",
+            requestId = "",
+            steamId = steamId,
+            allowedConfirmations = listOf(challenge),
+            legacyEncryptedPassword = encryptedPassword,
+            legacyRsaTimestamp = rsaTimestamp,
+            legacyEmailSteamId = emailSteamId,
+            legacyChallengeType = confirmationType,
+            legacyCaptchaGid = captcha?.gid
+        )
+        return LoginResult.ChallengeRequired(
+            pendingSessionId = resolvedSessionId,
+            steamId = steamId,
+            challenges = listOf(challenge),
+            message = associatedMessage
         )
     }
 

@@ -31,6 +31,8 @@ import takagi.ru.monica.util.FileOperationHelper
 import takagi.ru.monica.utils.KeePassOperationException
 import takagi.ru.monica.viewmodel.DataExportImportViewModel
 import takagi.ru.monica.ui.components.OutlinedTextField
+import takagi.ru.monica.steam.token.data.SteamLoginImportService
+import takagi.ru.monica.steam.token.loginchallenge.ui.SteamLoginCaptchaContent
 
 /**
  * 数据导入界面 - M3 Expressive 设计
@@ -107,6 +109,7 @@ fun ImportDataScreen(
     var steamLoginPendingSessionId by remember { mutableStateOf<String?>(null) }
     var steamLoginChallengeType by remember { mutableStateOf(0) }
     var steamLoginChallengeHint by remember { mutableStateOf("") }
+    var steamLoginChallengeImageUrl by remember { mutableStateOf<String?>(null) }
     var showSteamPasswordPicker by remember { mutableStateOf(false) }
 
     val pickerSecurityManager = remember { takagi.ru.monica.security.SecurityManager(context) }
@@ -222,9 +225,13 @@ fun ImportDataScreen(
 
                                         when (loginState) {
                                             is DataExportImportViewModel.SteamLoginImportState.ChallengeRequired -> {
+                                                val selectedChallenge = loginState.challenges.firstOrNull {
+                                                    SteamLoginImportService.isCodeChallengeType(it.confirmationType)
+                                                } ?: loginState.challenges.firstOrNull()
                                                 steamLoginPendingSessionId = loginState.pendingSessionId
-                                                steamLoginChallengeType = loginState.challenges.firstOrNull()?.confirmationType ?: 0
-                                                steamLoginChallengeHint = loginState.challenges.firstOrNull()?.associatedMessage.orEmpty()
+                                                steamLoginChallengeType = selectedChallenge?.confirmationType ?: 0
+                                                steamLoginChallengeHint = selectedChallenge?.associatedMessage.orEmpty()
+                                                steamLoginChallengeImageUrl = selectedChallenge?.imageUrl
                                                 // 每次进入挑战阶段都清空输入框，避免二次提交用到旧验证码
                                                 steamLoginChallengeCodeInput = ""
                                                 snackbarHostState.showSnackbar(
@@ -238,6 +245,7 @@ fun ImportDataScreen(
                                                 steamLoginChallengeType = 0
                                                 steamLoginChallengeCodeInput = ""
                                                 steamLoginChallengeHint = ""
+                                                steamLoginChallengeImageUrl = null
                                                 handleImportResult(
                                                     Result.success(loginState.count),
                                                     context,
@@ -478,6 +486,7 @@ fun ImportDataScreen(
                             steamLoginChallengeType = 0
                             steamLoginChallengeCodeInput = ""
                             steamLoginChallengeHint = ""
+                            steamLoginChallengeImageUrl = null
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -549,6 +558,7 @@ fun ImportDataScreen(
                                     steamLoginChallengeType = 0
                                     steamLoginChallengeCodeInput = ""
                                     steamLoginChallengeHint = ""
+                                    steamLoginChallengeImageUrl = null
                                 },
                                 label = { Text(stringResource(R.string.import_type_steam_mode_mafile)) }
                             )
@@ -562,6 +572,7 @@ fun ImportDataScreen(
                                     steamGuardJsonInput = ""
                                     steamLoginChallengeCodeInput = ""
                                     steamLoginChallengeHint = ""
+                                    steamLoginChallengeImageUrl = null
                                 },
                                 label = { Text(stringResource(R.string.import_type_steam_mode_login)) }
                             )
@@ -620,6 +631,9 @@ fun ImportDataScreen(
                                 enabled = steamLoginPendingSessionId.isNullOrBlank()
                             )
                             if (!steamLoginPendingSessionId.isNullOrBlank()) {
+                                val isCaptcha = SteamLoginImportService.isCaptchaChallengeType(
+                                    steamLoginChallengeType
+                                )
                                 if (steamLoginChallengeHint.isNotBlank()) {
                                     Text(
                                         steamLoginChallengeHint,
@@ -627,11 +641,36 @@ fun ImportDataScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
+                                if (isCaptcha) {
+                                    SteamLoginCaptchaContent(
+                                        imageUrl = steamLoginChallengeImageUrl.orEmpty()
+                                    )
+                                }
                                 OutlinedTextField(
                                     value = steamLoginChallengeCodeInput,
                                     onValueChange = { steamLoginChallengeCodeInput = it },
-                                    label = { Text(stringResource(R.string.import_type_steam_login_code_label)) },
-                                    placeholder = { Text(stringResource(R.string.import_type_steam_login_code_hint)) },
+                                    label = {
+                                        Text(
+                                            stringResource(
+                                                if (isCaptcha) {
+                                                    R.string.steam_login_captcha_code_label
+                                                } else {
+                                                    R.string.import_type_steam_login_code_label
+                                                }
+                                            )
+                                        )
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            stringResource(
+                                                if (isCaptcha) {
+                                                    R.string.steam_login_captcha_code_hint
+                                                } else {
+                                                    R.string.import_type_steam_login_code_hint
+                                                }
+                                            )
+                                        )
+                                    },
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )

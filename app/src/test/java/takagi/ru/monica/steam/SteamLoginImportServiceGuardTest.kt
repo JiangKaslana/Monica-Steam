@@ -15,8 +15,11 @@ class SteamLoginImportServiceGuardTest {
     fun authApiChallengeTypesSeparateCodesFromMobileApproval() {
         assertTrue(SteamLoginImportService.isCodeChallengeType(2))
         assertTrue(SteamLoginImportService.isCodeChallengeType(3))
+        assertTrue(SteamLoginImportService.isCodeChallengeType(1003))
         assertFalse(SteamLoginImportService.isCodeChallengeType(4))
         assertFalse(SteamLoginImportService.isCodeChallengeType(5))
+        assertTrue(SteamLoginImportService.isCaptchaChallengeType(1003))
+        assertFalse(SteamLoginImportService.isSteamGuardCodeChallengeType(1003))
 
         assertFalse(SteamLoginImportService.isPollingChallengeType(2))
         assertFalse(SteamLoginImportService.isPollingChallengeType(3))
@@ -94,7 +97,8 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(loginDialogSource.contains("pickerSecurityManager.decryptData(entry.username)"))
         assertTrue(loginDialogSource.contains("pickerSecurityManager.decryptData(entry.password)"))
         assertTrue(loginDialogSource.contains("if (showSteamPasswordPicker && pendingChallenge == null)"))
-        assertTrue(loginDialogSource.contains("LaunchedEffect(pendingChallenge?.pendingSessionId, pendingChallenge?.confirmationType)"))
+        assertTrue(loginDialogSource.contains("pendingChallenge?.captchaImageUrl"))
+        assertTrue(loginDialogSource.contains("SteamLoginCaptchaContent("))
         assertTrue(loginDialogSource.contains("challengeCode = \"\""))
         assertTrue(loginDialogSource.contains("loginDisplayName"))
         assertTrue(loginDialogSource.contains("showRemarkField"))
@@ -113,6 +117,44 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(repositorySource.contains("suspend fun replaceAccount(account: SteamAccount): Long"))
         assertTrue(repositorySource.contains("findExistingBySteamId(account.steamId)"))
         assertTrue(repositorySource.contains("require(duplicate == null)"))
+    }
+
+    @Test
+    fun steamLoginImportSupportsLegacyImageCaptchaChallenges() {
+        val serviceSource = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/token/data/SteamLoginImportService.kt"
+        ).readText()
+        val viewModelSource = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/token/presentation/SteamViewModel.kt"
+        ).readText()
+        val screenSource = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/token/ui/SteamScreen.kt"
+        ).readText()
+        val importScreenSource = projectFile(
+            "app/src/main/java/takagi/ru/monica/ui/screens/ImportDataScreen.kt"
+        ).readText()
+        val captchaUiSource = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/token/loginchallenge/ui/SteamLoginCaptchaContent.kt"
+        ).readText()
+
+        assertTrue(serviceSource.contains("SteamLoginCaptchaPolicy.resolve("))
+        assertTrue(serviceSource.contains("doLoginResponse.stringAny(\"captcha_gid\")"))
+        assertTrue(serviceSource.contains("doLoginResponse.stringAny(\"captchagid\")"))
+        assertTrue(serviceSource.contains("legacyCaptchaGid = captcha?.gid"))
+        assertTrue(serviceSource.contains("val resolvedSessionId = UUID.randomUUID().toString()"))
+        assertTrue(serviceSource.contains("pendingSessions.remove(pendingSessionId)"))
+        assertTrue(serviceSource.contains("\"captcha_text\" to if (isCaptchaChallengeType"))
+        assertFalse(serviceSource.contains("Steam 需要图形验证码，当前版本暂不支持"))
+
+        assertTrue(viewModelSource.contains("val isCaptcha: Boolean"))
+        assertTrue(viewModelSource.contains("val captchaImageUrl: String?"))
+        assertTrue(viewModelSource.contains("SteamLoginImportService.isCaptchaChallengeType"))
+        assertTrue(screenSource.contains("pendingChallenge?.captchaImageUrl"))
+        assertTrue(screenSource.contains("SteamLoginCaptchaContent("))
+        assertTrue(importScreenSource.contains("steamLoginChallengeImageUrl"))
+        assertTrue(importScreenSource.contains("SteamLoginCaptchaContent("))
+        assertTrue(captchaUiSource.contains("contentScale = ContentScale.Fit"))
+        assertTrue(captchaUiSource.contains("loadSteamRemoteImage(context, imageUrl)"))
     }
 
     @Test
