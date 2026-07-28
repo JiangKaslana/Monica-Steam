@@ -23,6 +23,7 @@ import takagi.ru.monica.steam.friends.chat.data.SteamFriendChatRealtimeService
 import takagi.ru.monica.steam.friends.chat.background.domain.SteamChatNotificationDecision
 import takagi.ru.monica.steam.friends.chat.background.domain.SteamChatNotificationPolicy
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatRealtimeEvent
+import takagi.ru.monica.steam.friends.voice.presentation.SteamVoiceCallRuntime
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionHandle
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
@@ -97,6 +98,7 @@ class SteamChatBackgroundService : Service() {
     }
 
     private suspend fun monitor(handle: SteamAccountSessionHandle) {
+        SteamVoiceCallRuntime.get(this).observeAccount(handle.account)
         notificationPublisher.updateForeground(
             handle,
             SteamChatBackgroundConnectionState.CONNECTING
