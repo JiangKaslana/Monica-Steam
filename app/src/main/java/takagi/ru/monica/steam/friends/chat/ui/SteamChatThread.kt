@@ -48,8 +48,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import java.text.DateFormat
-import java.util.Date
 import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
@@ -392,55 +390,4 @@ private fun ChatThreadHeader(
             Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
         }
     }
-}
-
-@Composable
-private fun ChatDateSeparator(timestampSeconds: Long) {
-    Box(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        ) {
-            Text(
-                text = DateFormat.getDateInstance(DateFormat.MEDIUM)
-                    .format(Date(timestampSeconds * 1_000L)),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                style = MaterialTheme.typography.labelMedium
-            )
-        }
-    }
-}
-
-@Composable
-private fun ChatThreadEmptyState(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Surface(
-            modifier = Modifier.size(64.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.ChatBubbleOutline, contentDescription = null, modifier = Modifier.size(30.dp))
-            }
-        }
-        Text(
-            text = stringResource(R.string.steam_chat_thread_empty),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-private fun sameChatDay(firstSeconds: Long, secondSeconds: Long): Boolean {
-    val formatter = DateFormat.getDateInstance(DateFormat.SHORT)
-    return formatter.format(Date(firstSeconds * 1_000L)) ==
-        formatter.format(Date(secondSeconds * 1_000L))
 }

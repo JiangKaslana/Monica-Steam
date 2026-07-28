@@ -33,6 +33,15 @@ class SteamGroupChatIntegrationTest {
         val chatScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
         ).readText()
+        val chatRoot = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatRootContent.kt"
+        ).readText()
+        val selectedContent = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatSelectedContent.kt"
+        ).readText()
+        val chatDialogs = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreenDialogs.kt"
+        ).readText()
         val threadLifecycle = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatThreadLifecycle.kt"
         ).readText()
@@ -47,10 +56,10 @@ class SteamGroupChatIntegrationTest {
         ).readText()
 
         assertTrue(chatScreen.contains("SteamGroupChatViewModel"))
-        assertTrue(chatScreen.contains("SteamConversationList("))
-        assertFalse(chatScreen.contains("SteamGroupChatList("))
-        assertTrue(chatScreen.contains("SteamGroupChatThreadHost("))
-        assertTrue(chatScreen.contains("SteamGroupChatDialogsHost("))
+        assertTrue(chatRoot.contains("SteamConversationList("))
+        assertFalse(chatRoot.contains("SteamGroupChatList("))
+        assertTrue(selectedContent.contains("SteamGroupChatThreadHost("))
+        assertTrue(chatDialogs.contains("SteamGroupChatDialogsHost("))
         assertTrue(chatScreen.contains("groupChatState.selectedChatId != null"))
         assertTrue(chatScreen.contains("SteamChatThreadLifecycle("))
         assertTrue(threadLifecycle.contains("richMediaViewModel.selectGroupRoom"))
@@ -119,8 +128,8 @@ class SteamGroupChatIntegrationTest {
         val service = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/data/SteamGroupChatService.kt"
         ).readText()
-        val chatScreen = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
+        val selectedContent = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatSelectedContent.kt"
         ).readText()
 
         assertTrue(adminScreen.contains("分享链接"))
@@ -131,7 +140,7 @@ class SteamGroupChatIntegrationTest {
         assertTrue(service.contains("GetInviteLinksForGroup"))
         assertTrue(service.contains("SetUserBanState"))
         assertTrue(service.contains("ReplaceRoleActions"))
-        assertTrue(chatScreen.contains("SteamGroupAdminScreen("))
+        assertTrue(selectedContent.contains("SteamGroupAdminScreen("))
     }
 
     @Test

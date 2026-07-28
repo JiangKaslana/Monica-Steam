@@ -26,26 +26,32 @@ class SteamChatIntegrationGuardTest {
         val chatScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
         ).readText()
+        val chatRoot = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatRootContent.kt"
+        ).readText()
+        val backHandlers = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatBackHandlers.kt"
+        ).readText()
         assertTrue(activity.contains("MonicaSteamPage.CHAT"))
         assertTrue(activity.contains("standalone = true"))
         assertTrue(dock.contains("CHAT"))
         assertTrue(tokenScreen.contains("onOpenChat"))
         assertTrue(friendsScreen.contains("onStartChat"))
         assertTrue(friendDetail.contains("steam_chat_send_message"))
-        assertTrue(chatScreen.contains("ExpressiveTopBar("))
-        assertTrue(chatScreen.contains("Scaffold("))
-        assertTrue(chatScreen.contains("SteamChatFriendPicker("))
-        assertTrue(chatScreen.contains("BackHandler"))
+        assertTrue(chatRoot.contains("ExpressiveTopBar("))
+        assertTrue(chatRoot.contains("Scaffold("))
+        assertTrue(chatRoot.contains("SteamChatFriendPicker("))
+        assertTrue(backHandlers.contains("BackHandler"))
         assertTrue(chatScreen.contains("easyNotesScreenEnter()"))
     }
 
     @Test
     fun friendPickerUsesFriendsTitleInsteadOfChatTitle() {
-        val chatScreen = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
+        val chatRoot = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatRootContent.kt"
         ).readText()
 
-        val topBarTitle = chatScreen.substringAfter("ExpressiveTopBar(")
+        val topBarTitle = chatRoot.substringAfter("ExpressiveTopBar(")
             .substringBefore("searchQuery =")
         assertTrue(topBarTitle.contains("if (showFriends) R.string.steam_friends_title"))
         assertTrue(topBarTitle.contains("else R.string.steam_chat_title"))
@@ -74,7 +80,7 @@ class SteamChatIntegrationGuardTest {
         val thread = root.resolve("ui/SteamChatThread.kt").readText()
         val bubble = root.resolve("ui/SteamChatMessageBubble.kt").readText()
         val composer = root.resolve("ui/SteamChatComposer.kt").readText()
-        assertTrue(thread.contains("animateScrollToItem"))
+        assertTrue(thread.contains("animateToLatestSteamChatMessage"))
         assertTrue(thread.contains("animateItem()"))
         assertTrue(thread.contains("statusBarsPadding()"))
         assertTrue(thread.contains("Column(modifier = modifier.fillMaxSize().imePadding())"))
@@ -204,7 +210,8 @@ class SteamChatIntegrationGuardTest {
         val chatRoot = projectFile("app/src/main/java/takagi/ru/monica/steam/friends/chat")
 
         assertTrue(factory.contains("sessionResolver"))
-        assertTrue(realtime.contains("sessionResolver.resolveOrKeep"))
+        assertTrue(realtime.contains("supervisedSteamCmEvents("))
+        assertTrue(realtime.contains("sessionResolver = sessionResolver"))
         assertTrue(actions.contains("sessionResolver.resolveOrKeep"))
         assertTrue(richMedia.contains("sessionResolver.resolveOrKeep"))
         assertFalse(factory.contains("SteamChatSessionStore"))

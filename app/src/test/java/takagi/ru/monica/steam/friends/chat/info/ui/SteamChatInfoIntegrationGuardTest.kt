@@ -33,14 +33,14 @@ class SteamChatInfoIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatThread.kt"
         ).readText()
         val host = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatSelectedContent.kt"
         ).readText()
 
         assertTrue(direct.contains("onOpenInfo"))
         assertTrue(group.contains("onOpenInfo"))
         assertTrue(host.contains("SteamChatInfoScreen("))
         assertTrue(host.contains("SteamChatHistorySearchScreen("))
-        assertTrue(host.contains("initialGroupInvitees = setOf(partnerSteamId)"))
+        assertTrue(host.contains("onCreateGroupFromFriend(partnerSteamId)"))
         assertTrue(host.contains("onUpdateGroupAvatar = groupChatViewModel::updateGroupAvatar"))
     }
 

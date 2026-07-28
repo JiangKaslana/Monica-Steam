@@ -100,6 +100,12 @@ class SteamVoiceMediaIntegrationGuardTest {
         val chatScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
         ).readText()
+        val selectedContent = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatSelectedContent.kt"
+        ).readText()
+        val chatDialogs = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreenDialogs.kt"
+        ).readText()
         val directThread = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatThread.kt"
         ).readText()
@@ -113,9 +119,9 @@ class SteamVoiceMediaIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/domain/SteamGroupChatGateway.kt"
         ).readText()
 
-        assertTrue(chatScreen.contains("voiceRuntime.startDirect"))
-        assertTrue(chatScreen.contains("voiceRuntime.startGroup"))
-        assertTrue(chatScreen.contains("voiceRuntime.acceptIncoming"))
+        assertTrue(selectedContent.contains("voiceRuntime.startDirect"))
+        assertTrue(selectedContent.contains("voiceRuntime.startGroup"))
+        assertTrue(chatDialogs.contains("voiceRuntime.acceptIncoming"))
         assertTrue(directThread.contains("SteamVoiceStatusBanner"))
         assertTrue(conversationList.contains("active-voice-call"))
         assertTrue(groupThread.contains("SteamVoiceChannelPanel"))
