@@ -98,6 +98,8 @@ class SteamFloatingDockGuardTest {
         assertFalse(blur.contains("Brush.verticalGradient"))
         assertFalse(blur.contains("drawRect("))
         assertTrue(blur.contains("Build.VERSION_CODES.TIRAMISU"))
+        assertFalse(blur.contains("isPowerSaveMode"))
+        assertFalse(blur.contains("PowerManager"))
         assertTrue(dock.contains("zIndex(1f)"))
         assertFalse(dock.contains("steamDockProgressiveBlur"))
     }

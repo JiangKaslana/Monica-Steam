@@ -1,16 +1,12 @@
 package takagi.ru.monica.steam.navigation.ui
 
-import android.content.Context
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
-import android.os.PowerManager
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 
 private const val STEAM_DOCK_BLUR_SHADER = """
     uniform shader content;
@@ -59,12 +55,11 @@ internal fun Modifier.steamDockProgressiveBlur(
 ): Modifier = composed {
     if (!enabled || height <= 0f) return@composed this
 
-    val context = LocalContext.current
-    val canUseRuntimeBlur = remember(context) {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            !isPowerSaveMode(context) &&
-            !isRuntimeBlurProblematicDevice()
-    }
+    // Keep the visual effect enabled in power-save mode. The previous guard
+    // made the Dock abruptly lose its glass background on devices that only
+    // exposed a yellow battery/power-save state, with no visual fallback.
+    val canUseRuntimeBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        !isRuntimeBlurProblematicDevice()
 
     val blurModifier = if (canUseRuntimeBlur && blurRadius > 0f) {
         Modifier.graphicsLayer {
@@ -80,11 +75,6 @@ internal fun Modifier.steamDockProgressiveBlur(
     }
 
     this.then(blurModifier)
-}
-
-private fun isPowerSaveMode(context: Context): Boolean {
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-    return powerManager?.isPowerSaveMode == true
 }
 
 private fun isRuntimeBlurProblematicDevice(): Boolean {
