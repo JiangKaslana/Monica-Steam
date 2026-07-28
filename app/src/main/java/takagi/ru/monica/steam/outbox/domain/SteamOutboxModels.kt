@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class SteamOutboxOperation {
     FRIEND_MESSAGE,
+    GROUP_MESSAGE,
     GENERIC
 }
 
@@ -139,9 +140,24 @@ object SteamOutboxStateMachine {
 object SteamOutboxKeys {
     fun friendMessage(accountKey: String, partnerSteamId: String, clientMessageId: String): String {
         val material = "friend-message|${accountKey.trim()}|${partnerSteamId.trim()}|${clientMessageId.trim()}"
+        return hashed("friend-message", material)
+    }
+
+    fun groupMessage(
+        accountKey: String,
+        groupId: String,
+        chatId: String,
+        clientMessageId: String
+    ): String {
+        val material = "group-message|${accountKey.trim()}|${groupId.trim()}|" +
+            "${chatId.trim()}|${clientMessageId.trim()}"
+        return hashed("group-message", material)
+    }
+
+    private fun hashed(prefix: String, material: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(material.toByteArray(StandardCharsets.UTF_8))
             .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
-        return "friend-message:$digest"
+        return "$prefix:$digest"
     }
 }

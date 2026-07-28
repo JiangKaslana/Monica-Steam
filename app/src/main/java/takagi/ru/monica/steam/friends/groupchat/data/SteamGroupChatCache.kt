@@ -36,9 +36,17 @@ class SteamGroupChatPreferencesCache(context: Context) : SteamGroupChatCache {
         }?.takeIf { it.accountSteamId == accountSteamId && it.groupId == groupId && it.chatId == chatId }
             ?.let { snapshot ->
                 snapshot.copy(messages = snapshot.messages.map { message ->
-                    if (message.deliveryState != SteamGroupChatDeliveryState.SENT) {
-                        message.copy(deliveryState = SteamGroupChatDeliveryState.FAILED)
-                    } else message
+                    when (message.deliveryState) {
+                        SteamGroupChatDeliveryState.SENT,
+                        SteamGroupChatDeliveryState.FAILED_RETRYABLE,
+                        SteamGroupChatDeliveryState.FAILED_PERMANENT -> message
+                        SteamGroupChatDeliveryState.QUEUED,
+                        SteamGroupChatDeliveryState.SENDING,
+                        SteamGroupChatDeliveryState.VERIFYING,
+                        SteamGroupChatDeliveryState.FAILED -> message.copy(
+                            deliveryState = SteamGroupChatDeliveryState.FAILED_RETRYABLE
+                        )
+                    }
                 })
             }
 

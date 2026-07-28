@@ -90,6 +90,7 @@ internal fun SteamGroupChatThread(
     onOpenRoom: (String, String) -> Unit,
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
+    onRetryMessage: (String) -> Unit,
     onInvite: () -> Unit,
     onAttachmentSelected: (String) -> Unit,
     onAttachmentSpoilerChanged: (Boolean) -> Unit,
@@ -205,6 +206,7 @@ internal fun SteamGroupChatThread(
                             senderName = friendsById[message.senderSteamId]?.displayName
                                 ?: message.senderSteamId.takeLast(8),
                             richMediaState = richMediaState,
+                            onRetryMessage = onRetryMessage,
                             onUpdateReaction = onUpdateReaction,
                             onReportMessage = onReportMessage,
                             onDeleteMessage = onDeleteMessage
@@ -250,6 +252,7 @@ internal fun SteamGroupChatThreadHost(
     onOpenRoom: (String, String) -> Unit,
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
+    onRetryMessage: (String) -> Unit,
     onInvite: () -> Unit,
     onAttachmentSelected: (String) -> Unit,
     onAttachmentSpoilerChanged: (Boolean) -> Unit,
@@ -279,6 +282,7 @@ internal fun SteamGroupChatThreadHost(
         onOpenRoom = onOpenRoom,
         onLoadOlder = onLoadOlder,
         onSend = onSend,
+        onRetryMessage = onRetryMessage,
         onInvite = onInvite,
         onAttachmentSelected = onAttachmentSelected,
         onAttachmentSpoilerChanged = onAttachmentSpoilerChanged,
@@ -329,6 +333,7 @@ private fun GroupMessageBubble(
     outgoing: Boolean,
     senderName: String,
     richMediaState: SteamChatRichMediaUiState,
+    onRetryMessage: (String) -> Unit,
     onUpdateReaction: (SteamGroupChatMessage, SteamGroupChatReactionType, String, Boolean) -> Unit,
     onReportMessage: (SteamGroupChatMessage, SteamGroupChatReportReason) -> Unit,
     onDeleteMessage: (SteamGroupChatMessage) -> Unit
@@ -410,7 +415,24 @@ private fun GroupMessageBubble(
                             SteamGroupChatDeliveryState.SENDING,
                             SteamGroupChatDeliveryState.VERIFYING -> CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp)
                             SteamGroupChatDeliveryState.SENT -> Icon(Icons.Default.Done, null, Modifier.size(15.dp))
-                            SteamGroupChatDeliveryState.FAILED -> Icon(Icons.Default.ErrorOutline, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                            SteamGroupChatDeliveryState.FAILED,
+                            SteamGroupChatDeliveryState.FAILED_RETRYABLE -> IconButton(
+                                onClick = { onRetryMessage(message.clientMessageId) },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.ErrorOutline,
+                                    stringResource(R.string.steam_chat_retry_send),
+                                    Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                            SteamGroupChatDeliveryState.FAILED_PERMANENT -> Icon(
+                                Icons.Default.ErrorOutline,
+                                null,
+                                Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }

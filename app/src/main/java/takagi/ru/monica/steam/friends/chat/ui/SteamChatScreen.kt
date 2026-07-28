@@ -623,6 +623,7 @@ fun SteamChatScreen(
                 onOpenRoom = groupChatViewModel::openRoom,
                 onLoadOlder = groupChatViewModel::loadOlder,
                 onSend = groupChatViewModel::sendMessage,
+                onRetryMessage = groupChatViewModel::retryMessage,
                 onInvite = { showInviteFriend = true },
                 onAttachmentSelected = richMediaViewModel::selectAttachment,
                 onAttachmentSpoilerChanged = richMediaViewModel::setAttachmentSpoiler,

@@ -21,6 +21,8 @@ import org.junit.Before
 import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatCache
+import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatOutbox
+import takagi.ru.monica.steam.friends.groupchat.data.SteamGroupChatRecoveredOutbox
 import takagi.ru.monica.steam.friends.groupchat.avatar.domain.SteamGroupAvatarUploadGateway
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatCreateRequest
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
@@ -35,6 +37,9 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatThreadSnapshot
 import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
+import takagi.ru.monica.steam.outbox.domain.SteamOutboxOperation
+import takagi.ru.monica.steam.outbox.domain.SteamOutboxRecord
+import takagi.ru.monica.steam.outbox.domain.SteamOutboxStatus
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SteamGroupChatViewModelTest {
@@ -64,6 +69,39 @@ class SteamGroupChatViewModelTest {
         assertEquals(1, messages.size)
         assertEquals(SteamGroupChatDeliveryState.SENT, messages.single().deliveryState)
         assertEquals("client-1", messages.single().clientMessageId)
+    }
+
+    @Test
+    fun openingRoomRecoversQueuedMessageWithoutCachedThread() = runTest(dispatcher.scheduler) {
+        val pending = SteamGroupChatMessage(
+            groupId = "8",
+            chatId = "9",
+            senderSteamId = ACCOUNT_ID,
+            timestamp = 100L,
+            ordinal = Int.MAX_VALUE,
+            body = "restored",
+            clientMessageId = "restored-1",
+            localCreatedAtMillis = 100_000L,
+            deliveryState = SteamGroupChatDeliveryState.QUEUED
+        )
+        val outbox = RecoveringGroupOutbox(pending)
+        val gateway = FakeGateway().apply {
+            send = { groupId, chatId, body ->
+                SteamGroupChatMessage(groupId, chatId, ACCOUNT_ID, 101L, 2, body)
+            }
+        }
+        val viewModel = viewModel(gateway, outbox = outbox)
+
+        viewModel.selectAccount(account())
+        runCurrent()
+        viewModel.openRoom("8", "9")
+        runCurrent()
+
+        val messages = viewModel.state.value.thread?.messages.orEmpty()
+        assertEquals(1, messages.size)
+        assertEquals("restored-1", messages.single().clientMessageId)
+        assertEquals(SteamGroupChatDeliveryState.SENT, messages.single().deliveryState)
+        assertEquals(listOf("recover", "enqueue", "claim", "complete"), outbox.events)
     }
 
     @Test
@@ -380,7 +418,8 @@ class SteamGroupChatViewModelTest {
         gateway: FakeGateway,
         realtime: SteamGroupChatRealtimeGateway? = null,
         avatarUploader: SteamGroupAvatarUploadGateway? = null,
-        cache: MemoryCache = MemoryCache()
+        cache: MemoryCache = MemoryCache(),
+        outbox: SteamGroupChatOutbox? = null
     ) = SteamGroupChatViewModel(
         gateway = gateway,
         cache = cache,
@@ -388,7 +427,8 @@ class SteamGroupChatViewModelTest {
         nowMillis = { 100_000L },
         newClientId = { "client-1" },
         realtime = realtime,
-        avatarUploader = avatarUploader
+        avatarUploader = avatarUploader,
+        outbox = outbox
     )
 
     private fun message(
@@ -485,6 +525,79 @@ class SteamGroupChatViewModelTest {
         override fun saveGroups(snapshot: SteamGroupChatGroupsSnapshot) { groups = snapshot }
         override fun loadThread(accountSteamId: String, groupId: String, chatId: String) = thread
         override fun saveThread(snapshot: SteamGroupChatThreadSnapshot) { thread = snapshot }
+    }
+
+    private class RecoveringGroupOutbox(
+        private val pending: SteamGroupChatMessage
+    ) : SteamGroupChatOutbox {
+        val events = mutableListOf<String>()
+        private var status = SteamOutboxStatus.QUEUED
+
+        override suspend fun recover(
+            account: SteamAccount,
+            groupId: String,
+            chatId: String,
+            accountKey: String
+        ): List<SteamGroupChatRecoveredOutbox> {
+            events += "recover"
+            return listOf(SteamGroupChatRecoveredOutbox(pending, verifyBeforeSend = false))
+        }
+
+        override suspend fun enqueue(
+            account: SteamAccount,
+            pending: SteamGroupChatMessage,
+            accountKey: String
+        ): SteamOutboxRecord {
+            events += "enqueue"
+            return record(status)
+        }
+
+        override suspend fun claim(clientMessageId: String, force: Boolean): SteamOutboxRecord {
+            events += if (force) "claim-force" else "claim"
+            status = SteamOutboxStatus.IN_FLIGHT
+            return record(status)
+        }
+
+        override suspend fun awaitingConfirmation(clientMessageId: String): SteamOutboxRecord {
+            events += "await"
+            status = SteamOutboxStatus.AWAITING_CONFIRMATION
+            return record(status)
+        }
+
+        override suspend fun complete(clientMessageId: String): SteamOutboxRecord {
+            events += "complete"
+            status = SteamOutboxStatus.COMPLETED
+            return record(status)
+        }
+
+        override suspend fun retry(clientMessageId: String, error: String?): SteamOutboxRecord {
+            events += "retry"
+            status = SteamOutboxStatus.RETRYABLE
+            return record(status)
+        }
+
+        override suspend fun permanentFailure(
+            clientMessageId: String,
+            error: String?
+        ): SteamOutboxRecord {
+            events += "permanent"
+            status = SteamOutboxStatus.PERMANENT_FAILURE
+            return record(status)
+        }
+
+        private fun record(current: SteamOutboxStatus) = SteamOutboxRecord(
+            id = pending.clientMessageId,
+            accountId = 1L,
+            accountSteamId = pending.senderSteamId,
+            operation = SteamOutboxOperation.GROUP_MESSAGE,
+            dedupeKey = "dedupe",
+            payload = "{}",
+            status = current,
+            attemptCount = 1,
+            nextAttemptAtMillis = 0L,
+            createdAtMillis = pending.localCreatedAtMillis,
+            updatedAtMillis = pending.localCreatedAtMillis
+        )
     }
 
     private companion object {

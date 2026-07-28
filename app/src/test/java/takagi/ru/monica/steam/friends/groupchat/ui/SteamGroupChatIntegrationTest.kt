@@ -94,6 +94,9 @@ class SteamGroupChatIntegrationTest {
         val service = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/data/SteamGroupChatService.kt"
         ).readText()
+        val voiceService = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/voice/data/SteamVoiceService.kt"
+        ).readText()
         val infoScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/info/ui/SteamChatInfoScreen.kt"
         ).readText()
@@ -105,7 +108,7 @@ class SteamGroupChatIntegrationTest {
         assertTrue(infoScreen.contains("onCreateChannel"))
         assertTrue(service.contains("CreateChatRoom"))
         assertTrue(service.contains("DeleteChatRoom"))
-        assertTrue(service.contains("JoinVoiceChat"))
+        assertTrue(voiceService.contains("JoinVoiceChat"))
     }
 
     @Test

@@ -78,7 +78,16 @@ data class SteamGroupChatMessage(
 }
 
 @Serializable
-enum class SteamGroupChatDeliveryState { QUEUED, SENDING, VERIFYING, SENT, FAILED }
+enum class SteamGroupChatDeliveryState {
+    QUEUED,
+    SENDING,
+    VERIFYING,
+    SENT,
+    FAILED_RETRYABLE,
+    FAILED_PERMANENT,
+    /** Compatibility value for thread snapshots written by earlier test builds. */
+    FAILED
+}
 
 @Serializable
 enum class SteamGroupChatReactionType { EMOTICON, STICKER }
