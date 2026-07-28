@@ -33,6 +33,26 @@ class SteamVoiceMediaIntegrationGuardTest {
     }
 
     @Test
+    fun audioSessionExposesSelectableCommunicationRoutes() {
+        val audioSession = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/voice/media/SteamVoiceAudioSession.kt"
+        ).readText()
+        val models = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/voice/domain/SteamVoiceModels.kt"
+        ).readText()
+        val voiceUi = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/voice/ui/SteamVoiceCallUi.kt"
+        ).readText()
+
+        assertTrue(models.contains("SteamVoiceAudioRoute"))
+        assertTrue(audioSession.contains("registerAudioDeviceCallback"))
+        assertTrue(audioSession.contains("setCommunicationDevice"))
+        assertTrue(audioSession.contains("clearCommunicationDevice"))
+        assertTrue(voiceUi.contains("VoiceOutputMenu"))
+        assertTrue(voiceUi.contains("DropdownMenu"))
+    }
+
+    @Test
     fun manifestDeclaresMicrophonePlaybackServiceAndNotificationReceiver() {
         val manifest = projectFile("app/src/main/AndroidManifest.xml").readText()
 

@@ -46,6 +46,7 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
@@ -192,6 +193,7 @@ internal fun SteamConversationList(
     onLeaveVoice: () -> Unit = {},
     onToggleVoiceMicrophone: () -> Unit = {},
     onToggleVoiceOutput: () -> Unit = {},
+    onSelectVoiceAudioRoute: (SteamVoiceAudioRoute) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val dockClearance = LocalSteamDockContentClearance.current
@@ -226,7 +228,8 @@ internal fun SteamConversationList(
                         fallbackTitle = "Steam 语音通话",
                         onLeave = onLeaveVoice,
                         onToggleMicrophone = onToggleVoiceMicrophone,
-                        onToggleOutput = onToggleVoiceOutput
+                        onToggleOutput = onToggleVoiceOutput,
+                        onSelectAudioRoute = onSelectVoiceAudioRoute
                     )
                 }
             }

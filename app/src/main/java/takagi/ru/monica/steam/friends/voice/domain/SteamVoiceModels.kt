@@ -37,6 +37,15 @@ enum class SteamVoiceConnectionState {
 }
 
 @Serializable
+enum class SteamVoiceAudioRoute {
+    AUTO,
+    EARPIECE,
+    SPEAKER,
+    WIRED,
+    BLUETOOTH
+}
+
+@Serializable
 data class SteamVoiceParticipant(
     val steamId: String,
     val joined: Boolean = true,
@@ -59,6 +68,12 @@ data class SteamVoiceCallState(
     val state: SteamVoiceConnectionState = SteamVoiceConnectionState.IDLE,
     val microphoneMuted: Boolean = false,
     val outputMuted: Boolean = false,
+    val audioRoute: SteamVoiceAudioRoute = SteamVoiceAudioRoute.AUTO,
+    val requestedAudioRoute: SteamVoiceAudioRoute = SteamVoiceAudioRoute.AUTO,
+    val availableAudioRoutes: List<SteamVoiceAudioRoute> = listOf(
+        SteamVoiceAudioRoute.AUTO,
+        SteamVoiceAudioRoute.SPEAKER
+    ),
     val participants: List<SteamVoiceParticipant> = emptyList(),
     val incomingRequest: SteamVoiceIncomingRequest? = null,
     val failure: String? = null

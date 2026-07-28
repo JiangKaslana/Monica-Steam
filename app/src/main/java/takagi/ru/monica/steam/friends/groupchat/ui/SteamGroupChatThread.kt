@@ -74,6 +74,7 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReportReaso
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceChannelPanel
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
@@ -106,6 +107,7 @@ internal fun SteamGroupChatThread(
     onLeaveVoice: () -> Unit = {},
     onToggleVoiceMicrophone: () -> Unit = {},
     onToggleVoiceOutput: () -> Unit = {},
+    onSelectVoiceAudioRoute: (SteamVoiceAudioRoute) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
@@ -171,7 +173,9 @@ internal fun SteamGroupChatThread(
                     ?.let { { onJoinVoice(it.chatId) } },
                 onLeave = voiceState.isActive.takeIf { it }?.let { { onLeaveVoice() } },
                 onToggleMicrophone = voiceState.isActive.takeIf { it }?.let { { onToggleVoiceMicrophone() } },
-                onToggleOutput = voiceState.isActive.takeIf { it }?.let { { onToggleVoiceOutput() } }
+                onToggleOutput = voiceState.isActive.takeIf { it }?.let { { onToggleVoiceOutput() } },
+                onSelectAudioRoute = voiceState.isActive.takeIf { it }
+                    ?.let { { route -> onSelectVoiceAudioRoute(route) } }
             )
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -185,6 +189,7 @@ internal fun SteamGroupChatThread(
                     onLeave = onLeaveVoice,
                     onToggleMicrophone = onToggleVoiceMicrophone,
                     onToggleOutput = onToggleVoiceOutput,
+                    onSelectAudioRoute = onSelectVoiceAudioRoute,
                     modifier = Modifier.fillMaxSize()
                 )
                 state.threadLoading && state.thread == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -268,6 +273,7 @@ internal fun SteamGroupChatThreadHost(
     onLeaveVoice: () -> Unit = {},
     onToggleVoiceMicrophone: () -> Unit = {},
     onToggleVoiceOutput: () -> Unit = {},
+    onSelectVoiceAudioRoute: (SteamVoiceAudioRoute) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val group = state.groups.firstOrNull { it.groupId == state.selectedGroupId } ?: return
@@ -298,6 +304,7 @@ internal fun SteamGroupChatThreadHost(
         onLeaveVoice = onLeaveVoice,
         onToggleVoiceMicrophone = onToggleVoiceMicrophone,
         onToggleVoiceOutput = onToggleVoiceOutput,
+        onSelectVoiceAudioRoute = onSelectVoiceAudioRoute,
         modifier = modifier
     )
 }

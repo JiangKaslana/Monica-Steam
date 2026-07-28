@@ -25,6 +25,7 @@ import takagi.ru.monica.steam.friends.voice.background.SteamVoiceNotificationPub
 import takagi.ru.monica.steam.friends.voice.data.SteamVoiceRealtimeService
 import takagi.ru.monica.steam.friends.voice.data.SteamVoiceService
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceConnectionState
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceIncomingRequest
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceParticipant
@@ -225,6 +226,28 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
         publishVoiceStatus()
     }
 
+    fun selectAudioRoute(route: SteamVoiceAudioRoute) {
+        if (route !in _state.value.availableAudioRoutes) return
+        _state.value = _state.value.copy(requestedAudioRoute = route)
+    }
+
+    internal fun updateAudioRoutes(
+        availableRoutes: List<SteamVoiceAudioRoute>,
+        activeRoute: SteamVoiceAudioRoute,
+        requestedRoute: SteamVoiceAudioRoute
+    ) {
+        val normalized = (listOf(SteamVoiceAudioRoute.AUTO) + availableRoutes)
+            .distinct()
+        val requested = requestedRoute.takeIf { it in normalized }
+            ?: SteamVoiceAudioRoute.AUTO
+        _state.value = _state.value.copy(
+            availableAudioRoutes = normalized,
+            audioRoute = activeRoute.takeIf { it in normalized }
+                ?: SteamVoiceAudioRoute.AUTO,
+            requestedAudioRoute = requested
+        )
+    }
+
     fun stop() = stopInternal(notifySteam = true)
 
     fun clearFailure() {
@@ -255,11 +278,15 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
         iceConnected = false
         mediaHealthMonitor.reset()
         recoveryBudget.reset()
+        val previousVoiceState = _state.value
         _state.value = SteamVoiceCallState(
             accountSteamId = account.steamId,
             target = target,
             voiceChatId = initialVoiceChatId,
             state = SteamVoiceConnectionState.REQUESTING_MICROPHONE,
+            audioRoute = previousVoiceState.audioRoute,
+            requestedAudioRoute = previousVoiceState.requestedAudioRoute,
+            availableAudioRoutes = previousVoiceState.availableAudioRoutes,
             incomingRequest = null
         )
         startRealtime(account)

@@ -67,6 +67,7 @@ import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
 import takagi.ru.monica.steam.friends.ui.label
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
 
@@ -96,6 +97,7 @@ internal fun SteamChatThread(
     onStopVoice: () -> Unit = {},
     onToggleVoiceMicrophone: () -> Unit = {},
     onToggleVoiceOutput: () -> Unit = {},
+    onSelectVoiceAudioRoute: (SteamVoiceAudioRoute) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
@@ -170,7 +172,8 @@ internal fun SteamChatThread(
                 fallbackTitle = friend?.displayName ?: partnerSteamId,
                 onLeave = onStopVoice,
                 onToggleMicrophone = onToggleVoiceMicrophone,
-                onToggleOutput = onToggleVoiceOutput
+                onToggleOutput = onToggleVoiceOutput,
+                onSelectAudioRoute = onSelectVoiceAudioRoute
             )
         }
         if (state.threadRefreshing) {

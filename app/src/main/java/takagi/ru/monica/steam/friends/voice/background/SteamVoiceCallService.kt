@@ -25,17 +25,22 @@ class SteamVoiceCallService : Service() {
     override fun onCreate() {
         super.onCreate()
         publisher = SteamVoiceNotificationPublisher(this)
-        audioSession = SteamVoiceAudioSession(this)
+        val runtime = SteamVoiceCallRuntime.get(this)
+        audioSession = SteamVoiceAudioSession(
+            this,
+            runtime::updateAudioRoutes
+        )
         runCatching(audioSession::start).onFailure { error ->
             SteamDiagLogger.append(
                 "voice_audio_session failed type=${error::class.java.simpleName}"
             )
         }
-        val initialState = SteamVoiceCallRuntime.get(this).state.value
+        val initialState = runtime.state.value
         startForegroundCompat(publisher.notification(initialState))
         stateJob = scope.launch {
-            SteamVoiceCallRuntime.get(this@SteamVoiceCallService).state.collectLatest { state ->
+            runtime.state.collectLatest { state ->
                 if (state.isActive) {
+                    audioSession.applyRoute(state.requestedAudioRoute)
                     publisher.post(state)
                 } else {
                     publisher.cancel()

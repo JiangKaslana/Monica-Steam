@@ -425,6 +425,7 @@ fun SteamChatScreen(
                                 onLeaveVoice = voiceRuntime::stop,
                                 onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
                                 onToggleVoiceOutput = voiceRuntime::toggleOutput,
+                                onSelectVoiceAudioRoute = voiceRuntime::selectAudioRoute,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -455,6 +456,7 @@ fun SteamChatScreen(
                     onLeaveVoice = voiceRuntime::stop,
                     onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
                     onToggleVoiceOutput = voiceRuntime::toggleOutput,
+                    onSelectVoiceAudioRoute = voiceRuntime::selectAudioRoute,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -610,6 +612,7 @@ fun SteamChatScreen(
                 onStopVoice = voiceRuntime::stop,
                 onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
                 onToggleVoiceOutput = voiceRuntime::toggleOutput,
+                onSelectVoiceAudioRoute = voiceRuntime::selectAudioRoute,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -653,6 +656,7 @@ fun SteamChatScreen(
                 onLeaveVoice = voiceRuntime::stop,
                 onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
                 onToggleVoiceOutput = voiceRuntime::toggleOutput,
+                onSelectVoiceAudioRoute = voiceRuntime::selectAudioRoute,
                 modifier = Modifier.fillMaxSize()
             )
         }

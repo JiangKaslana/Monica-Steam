@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -29,7 +31,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +44,7 @@ import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceConnectionState
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceParticipant
 
@@ -51,6 +57,7 @@ internal fun SteamVoiceStatusBanner(
     onLeave: (() -> Unit)? = null,
     onToggleMicrophone: (() -> Unit)? = null,
     onToggleOutput: (() -> Unit)? = null,
+    onSelectAudioRoute: ((SteamVoiceAudioRoute) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val localCall = state.isActive
@@ -107,12 +114,7 @@ internal fun SteamVoiceStatusBanner(
                 }
             }
             if (localCall && onToggleOutput != null) {
-                FilledTonalIconButton(onClick = onToggleOutput, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        if (state.outputMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                        contentDescription = if (state.outputMuted) "打开声音" else "静音声音"
-                    )
-                }
+                VoiceOutputMenu(state, onToggleOutput, onSelectAudioRoute)
             }
             when {
                 localCall && onLeave != null -> FilledTonalIconButton(
@@ -137,6 +139,7 @@ internal fun SteamVoiceChannelPanel(
     onLeave: () -> Unit,
     onToggleMicrophone: () -> Unit,
     onToggleOutput: () -> Unit,
+    onSelectAudioRoute: (SteamVoiceAudioRoute) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val localRoom = state.target?.chatId == room.chatId && state.isActive
@@ -204,12 +207,7 @@ internal fun SteamVoiceChannelPanel(
                         contentDescription = if (state.microphoneMuted) "打开麦克风" else "静音"
                     )
                 }
-                FilledTonalIconButton(onClick = onToggleOutput) {
-                    Icon(
-                        if (state.outputMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                        contentDescription = if (state.outputMuted) "打开声音" else "静音声音"
-                    )
-                }
+                VoiceOutputMenu(state, onToggleOutput, onSelectAudioRoute)
                 Button(onClick = onLeave) {
                     Icon(Icons.Default.CallEnd, contentDescription = null)
                     Text("离开", Modifier.padding(start = 7.dp))
@@ -256,6 +254,81 @@ internal fun SteamVoiceChannelPanel(
             }
         }
     }
+}
+
+@Composable
+private fun VoiceOutputMenu(
+    state: SteamVoiceCallState,
+    onToggleOutput: () -> Unit,
+    onSelectAudioRoute: ((SteamVoiceAudioRoute) -> Unit)?
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        FilledTonalIconButton(
+            onClick = { expanded = true },
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                if (state.outputMuted) Icons.Default.VolumeOff else routeIcon(state.audioRoute),
+                contentDescription = "声音与播放设备"
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(if (state.outputMuted) "打开声音" else "静音声音") },
+                leadingIcon = {
+                    Icon(
+                        if (state.outputMuted) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                        contentDescription = null
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onToggleOutput()
+                }
+            )
+            if (onSelectAudioRoute != null) {
+                state.availableAudioRoutes.forEach { route ->
+                    DropdownMenuItem(
+                        text = {
+                            val suffix = when {
+                                route == state.audioRoute -> " · 当前"
+                                route == state.requestedAudioRoute -> " · 正在切换"
+                                else -> ""
+                            }
+                            Text(routeLabel(route) + suffix)
+                        },
+                        leadingIcon = {
+                            Icon(routeIcon(route), contentDescription = null)
+                        },
+                        onClick = {
+                            expanded = false
+                            onSelectAudioRoute(route)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun routeLabel(route: SteamVoiceAudioRoute): String = when (route) {
+    SteamVoiceAudioRoute.AUTO -> "自动选择"
+    SteamVoiceAudioRoute.EARPIECE -> "听筒"
+    SteamVoiceAudioRoute.SPEAKER -> "扬声器"
+    SteamVoiceAudioRoute.WIRED -> "有线耳机"
+    SteamVoiceAudioRoute.BLUETOOTH -> "蓝牙耳机"
+}
+
+private fun routeIcon(route: SteamVoiceAudioRoute) = when (route) {
+    SteamVoiceAudioRoute.EARPIECE -> Icons.Default.Call
+    SteamVoiceAudioRoute.SPEAKER -> Icons.Default.VolumeUp
+    SteamVoiceAudioRoute.AUTO,
+    SteamVoiceAudioRoute.WIRED,
+    SteamVoiceAudioRoute.BLUETOOTH -> Icons.Default.Headset
 }
 
 @Composable
