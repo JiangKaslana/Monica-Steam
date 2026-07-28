@@ -9,6 +9,8 @@ data class SteamGroupChatSummary(
     val tagline: String = "",
     val ownerAccountId: Long = 0L,
     val activeMemberCount: Int = 0,
+    /** Official CChatRoom_GetChatRoomGroupSummary_Response.active_voice_member_count. */
+    val activeVoiceMemberCount: Int = 0,
     val defaultChatId: String,
     val rooms: List<SteamGroupChatRoom> = emptyList(),
     val rank: Int = 0,
@@ -23,6 +25,9 @@ data class SteamGroupChatSummary(
             defaultChatId.isNotBlank() -> defaultChatId
             else -> rooms.firstOrNull()?.chatId.orEmpty()
         }
+
+    val isVoiceActive: Boolean
+        get() = activeVoiceMemberCount > 0 || rooms.any(SteamGroupChatRoom::isVoiceActive)
 }
 
 enum class SteamGroupChatRoomType {
@@ -41,10 +46,15 @@ data class SteamGroupChatRoom(
     val lastAcknowledgedTimestamp: Long = 0L,
     val unread: Boolean = false,
     /** Official CChatRoomState.voice_allowed field. */
-    val voiceAllowed: Boolean = false
+    val voiceAllowed: Boolean = false,
+    /** Account IDs reported by the official CChatRoomState.members_in_voice field. */
+    val voiceMemberSteamIds: List<String> = emptyList()
 ) {
     val type: SteamGroupChatRoomType
         get() = if (voiceAllowed) SteamGroupChatRoomType.VOICE else SteamGroupChatRoomType.TEXT
+
+    val isVoiceActive: Boolean
+        get() = voiceMemberSteamIds.isNotEmpty()
 }
 
 @Serializable
@@ -110,11 +120,55 @@ data class SteamGroupChatCreateRequest(
 
 data class SteamGroupChatHistoryBoundary(val timestamp: Long, val ordinal: Int)
 
-fun steamGroupAvatarUrl(sha: ByteArray): String = sha
-    .takeIf { it.size == 20 }
-    ?.joinToString("") { "%02x".format(it.toInt() and 0xff) }
-    ?.let { "https://avatars.steamstatic.com/${it}_full.jpg" }
-    .orEmpty()
+/**
+ * Converts the avatar values used by Steam ChatRoom into a loadable URL.
+ * Steam has returned both raw 20-byte SHA values and their 40-character hex
+ * representation over time; accepting both keeps cached group summaries
+ * forward compatible with the current client protocol.
+ */
+fun steamGroupAvatarUrl(value: ByteArray): String {
+    if (value.isEmpty()) return ""
+    val text = value.toString(Charsets.UTF_8).trim()
+    return when {
+        text.looksLikeSteamAvatarUrl() -> normalizeSteamGroupAvatarUrl(text)
+        text.matches(HEX_SHA_PATTERN) -> steamGroupAvatarUrlFromHex(text)
+        value.size == AVATAR_SHA_BYTES -> steamGroupAvatarUrlFromHex(
+            value.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        )
+        else -> ""
+    }
+}
+
+fun steamGroupAvatarUrl(value: String): String {
+    val text = value.trim()
+    return when {
+        text.isEmpty() -> ""
+        text.looksLikeSteamAvatarUrl() -> normalizeSteamGroupAvatarUrl(text)
+        text.matches(HEX_SHA_PATTERN) -> steamGroupAvatarUrlFromHex(text)
+        else -> ""
+    }
+}
+
+private fun steamGroupAvatarUrlFromHex(hex: String): String =
+    "https://avatars.steamstatic.com/${hex.lowercase()}_full.jpg"
+
+private fun String.looksLikeSteamAvatarUrl(): Boolean =
+    startsWith("https://", ignoreCase = true) ||
+        startsWith("http://", ignoreCase = true) ||
+        startsWith("//") ||
+        startsWith("/ugc/", ignoreCase = true) ||
+        startsWith("/avatar", ignoreCase = true)
+
+private fun normalizeSteamGroupAvatarUrl(raw: String): String = when {
+    raw.startsWith("//") -> "https:${raw}"
+    raw.startsWith("/") -> "https://steamcommunity.com$raw"
+    raw.startsWith("http://", ignoreCase = true) ->
+        "https://${raw.substringAfter("://", raw)}"
+    else -> raw
+}
+
+private const val AVATAR_SHA_BYTES = 20
+private val HEX_SHA_PATTERN = Regex("[0-9a-fA-F]{40}")
 
 internal fun mergeSteamGroupMessages(
     current: List<SteamGroupChatMessage>,

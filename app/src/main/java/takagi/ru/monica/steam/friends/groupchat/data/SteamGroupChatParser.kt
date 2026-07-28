@@ -98,12 +98,14 @@ internal object SteamGroupChatParser {
             tagline = summaryByField[8]?.asString.orEmpty(),
             ownerAccountId = summaryByField[9]?.asLong ?: 0L,
             activeMemberCount = summaryByField[3]?.asInt ?: 0,
+            activeVoiceMemberCount = maxOf(
+                summaryByField[4]?.asInt?.coerceAtLeast(0) ?: 0,
+                rooms.sumOf { it.voiceMemberSteamIds.size }
+            ),
             defaultChatId = defaultChatId,
             rooms = rooms,
             rank = summaryByField[12]?.asInt ?: 0,
-            avatarUrl = summaryByField[21]?.asString.orEmpty().ifBlank {
-                summaryByField[11]?.bytes?.let(::steamGroupAvatarUrl).orEmpty()
-            },
+            avatarUrl = parseAvatarUrl(summaryByField),
             unreadCount = rooms.count(SteamGroupChatRoom::unread),
             topMemberSteamIds = parseTopMembers(summary)
         )
@@ -144,7 +146,8 @@ internal object SteamGroupChatParser {
         }.toMap()
 
     private fun parseRoom(payload: ByteArray, acknowledgements: Map<String, Long>): SteamGroupChatRoom? {
-        val fields = SteamProtoReader(payload).parse()
+        val allFields = SteamProtoReader(payload).parseAll()
+        val fields = allFields.associateBy { it.number }
         val chatId = fields[1]?.asUnsignedVarintString().orEmpty().takeIf(String::isNotBlank) ?: return null
         val lastTimestamp = fields[5]?.asLong?.coerceAtLeast(0L) ?: 0L
         val ack = acknowledgements[chatId] ?: 0L
@@ -157,8 +160,36 @@ internal object SteamGroupChatParser {
             lastSenderSteamId = fields[8]?.asLong?.takeIf { it > 0 }?.let(::steamId64FromAccountId).orEmpty(),
             lastAcknowledgedTimestamp = ack,
             unread = lastTimestamp > ack,
-            voiceAllowed = fields[3]?.asBool == true
+            voiceAllowed = fields[3]?.asBool == true,
+            voiceMemberSteamIds = allFields
+                .filter { it.number == 4 }
+                .flatMap { field ->
+                    when (field.wireType) {
+                        0 -> listOf(field.asLong)
+                        2 -> decodePackedVarints(field.bytes ?: byteArrayOf())
+                        else -> emptyList()
+                    }
+                }
+                .filter { it > 0L }
+                .distinct()
+                .map(::steamId64FromAccountId)
         )
+    }
+
+    /** Parses the avatar fields from a CChatRoomGroupHeaderState payload. */
+    fun parseGroupHeaderAvatarUrl(payload: ByteArray): String {
+        val fields = runCatching { SteamProtoReader(payload).parse() }.getOrNull()
+            ?: return ""
+        return fields[25]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty().ifBlank {
+            fields[16]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
+        }
+    }
+
+    private fun parseAvatarUrl(fields: Map<Int, SteamProtoField>): String {
+        val ugcUrl = fields[21]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
+        return ugcUrl.ifBlank {
+            fields[11]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
+        }
     }
 
     private fun parseReaction(payload: ByteArray): SteamGroupChatReaction? {

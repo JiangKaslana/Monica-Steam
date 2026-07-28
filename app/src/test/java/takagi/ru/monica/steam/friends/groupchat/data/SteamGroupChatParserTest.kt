@@ -164,6 +164,75 @@ class SteamGroupChatParserTest {
     }
 
     @Test
+    fun parsesOfficialGroupAvatarUgcUrlAndVoiceMembers() {
+        val voiceRoom = SteamProtoWriter().apply {
+            writeUint64(1, "9002")
+            writeString(2, "Voice")
+            writeBool(3, true)
+            writeVarint(4, 39_734_274L)
+            writeVarint(4, 39_734_275L)
+        }
+        val summary = SteamProtoWriter().apply {
+            writeUint64(1, "8001")
+            writeString(2, "UGC avatar group")
+            writeVarint(3, 8L)
+            writeVarint(4, 2L)
+            writeUint64(5, "9002")
+            writeMessage(6, voiceRoom)
+            writeString(21, "https://steamusercontent-a.akamaihd.net/ugc/123/avatar.png")
+        }
+        val response = SteamProtoWriter().apply {
+            writeMessage(1, SteamProtoWriter().apply { writeMessage(2, summary) })
+        }.toByteArray()
+
+        val group = SteamGroupChatParser.parseGroups(response).single()
+
+        assertEquals(
+            "https://steamusercontent-a.akamaihd.net/ugc/123/avatar.png",
+            group.avatarUrl
+        )
+        assertEquals(2, group.activeVoiceMemberCount)
+        assertEquals(
+            listOf("76561198000000002", "76561198000000003"),
+            group.rooms.single().voiceMemberSteamIds
+        )
+        assertTrue(group.rooms.single().isVoiceActive)
+    }
+
+    @Test
+    fun parsesHexEncodedAvatarShaReturnedAsString() {
+        val room = SteamProtoWriter().apply { writeUint64(1, "9001") }
+        val summary = SteamProtoWriter().apply {
+            writeUint64(1, "8001")
+            writeString(2, "Hex avatar group")
+            writeUint64(5, "9001")
+            writeMessage(6, room)
+            writeString(11, "000102030405060708090a0b0c0d0e0f10111213")
+        }
+        val response = SteamProtoWriter().apply {
+            writeMessage(1, SteamProtoWriter().apply { writeMessage(2, summary) })
+        }.toByteArray()
+
+        assertEquals(
+            "https://avatars.steamstatic.com/000102030405060708090a0b0c0d0e0f10111213_full.jpg",
+            SteamGroupChatParser.parseGroups(response).single().avatarUrl
+        )
+    }
+
+    @Test
+    fun parsesAvatarFromOfficialHeaderStateFields() {
+        val header = SteamProtoWriter().apply {
+            writeUint64(1, "8001")
+            writeBytes(16, ByteArray(20) { (19 - it).toByte() })
+        }.toByteArray()
+
+        assertEquals(
+            "https://avatars.steamstatic.com/131211100f0e0d0c0b0a09080706050403020100_full.jpg",
+            SteamGroupChatParser.parseGroupHeaderAvatarUrl(header)
+        )
+    }
+
+    @Test
     fun rendersKnownSteamGroupEventsInsteadOfNumericFallbacks() {
         val invited = SteamProtoWriter().apply { writeVarint(1, 5L) }
         val avatarChanged = SteamProtoWriter().apply { writeVarint(1, 10L) }

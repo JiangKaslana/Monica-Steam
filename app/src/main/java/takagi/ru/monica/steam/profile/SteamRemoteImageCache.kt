@@ -148,7 +148,9 @@ class SteamRemoteImageCache private constructor(context: Context) {
                 host == "steampowered.com" || host.endsWith(".steampowered.com") ||
                 host == "steamcommunity.com" || host.endsWith(".steamcommunity.com") ||
                 host == "steamusercontent.com" || host.endsWith(".steamusercontent.com") ||
+                host == "steamusercontent-a.akamaihd.net" ||
                 host == "steamuserimages-a.akamaihd.net" ||
+                host == "steamcommunity-a.akamaihd.net" ||
                 host == "steamcdn-a.akamaihd.net"
         }
     }
