@@ -123,10 +123,20 @@ class SteamChatBackgroundService : Service() {
                             )
                         }
                         is SteamChatRealtimeEvent.Message -> processMessage(handle, event)
-                        is SteamChatRealtimeEvent.Acknowledged,
+                        is SteamChatRealtimeEvent.Acknowledged -> {
+                            notificationPublisher.cancelConversation(
+                                handle.stableKey,
+                                event.partnerSteamId
+                            )
+                        }
                         is SteamChatRealtimeEvent.ReactionChanged,
-                        is SteamChatRealtimeEvent.Typing,
-                        is SteamChatRealtimeEvent.ConversationLeft -> Unit
+                        is SteamChatRealtimeEvent.Typing -> Unit
+                        is SteamChatRealtimeEvent.ConversationLeft -> {
+                            notificationPublisher.cancelConversation(
+                                handle.stableKey,
+                                event.partnerSteamId
+                            )
+                        }
                     }
                 }
             } catch (cancelled: CancellationException) {
@@ -149,6 +159,13 @@ class SteamChatBackgroundService : Service() {
         handle: SteamAccountSessionHandle,
         event: SteamChatRealtimeEvent.Message
     ) {
+        if (event.message.senderSteamId == handle.account.steamId) {
+            notificationPublisher.cancelConversation(
+                handle.stableKey,
+                event.message.partnerSteamId
+            )
+            return
+        }
         val decision = SteamChatNotificationPolicy.evaluate(
             accountKey = handle.stableKey,
             accountSteamId = handle.account.steamId,

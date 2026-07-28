@@ -31,6 +31,17 @@ internal class SteamChatNotificationPublisher(context: Context) {
     private val appContext = context.applicationContext
     private val notificationManager = NotificationManagerCompat.from(appContext)
     private val friendsCache = SteamFriendsPreferencesCache(appContext)
+    private val recentConversationMessages = object : LinkedHashMap<
+        SteamChatNotificationAddress,
+        List<RecentConversationMessage>
+    >(16, 0.75f, true) {
+        override fun removeEldestEntry(
+            eldest: MutableMap.MutableEntry<
+                SteamChatNotificationAddress,
+                List<RecentConversationMessage>
+            >?
+        ): Boolean = size > MAX_TRACKED_CONVERSATIONS
+    }
 
     fun canPostMessageNotifications(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -105,6 +116,16 @@ internal class SteamChatNotificationPublisher(context: Context) {
             .build()
         val timestampMillis = message.timestamp
             .coerceAtMost(Long.MAX_VALUE / 1_000L) * 1_000L
+        val address = steamChatNotificationAddress(
+            accountKey = handle.stableKey,
+            partnerSteamId = message.partnerSteamId
+        )
+        val conversationMessages = rememberConversationMessage(
+            address = address,
+            message = message,
+            text = previewText,
+            timestampMillis = timestampMillis
+        )
         val publicVersion = NotificationCompat.Builder(appContext, MESSAGE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_steam_chat_notification)
             .setContentTitle(appContext.getString(R.string.steam_chat_notification_public_title))
@@ -116,8 +137,15 @@ internal class SteamChatNotificationPublisher(context: Context) {
             .setContentText(previewText)
             .setSubText(accountName)
             .setStyle(
-                NotificationCompat.MessagingStyle(accountPerson)
-                    .addMessage(previewText, timestampMillis, friendPerson)
+                NotificationCompat.MessagingStyle(accountPerson).also { style ->
+                    conversationMessages.forEach { recent ->
+                        style.addMessage(
+                            recent.text,
+                            recent.timestampMillis,
+                            friendPerson
+                        )
+                    }
+                }
             )
             .setContentIntent(
                 SteamChatNotificationContract.openConversationPendingIntent(
@@ -131,18 +159,50 @@ internal class SteamChatNotificationPublisher(context: Context) {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion)
-            .setGroup("steam_chat_${handle.stableKey.hashCode()}")
+            .setGroup(address.groupKey)
             .build()
         return runCatching {
-            notificationManager.notify(
-                messageNotificationId(handle.stableKey, message.partnerSteamId),
-                notification
-            )
+            notificationManager.notify(address.tag, address.id, notification)
         }.isSuccess
+    }
+
+    fun cancelConversation(accountKey: String, partnerSteamId: String) {
+        val address = steamChatNotificationAddress(accountKey, partnerSteamId)
+        synchronized(recentConversationMessages) {
+            recentConversationMessages.remove(address)
+        }
+        notificationManager.cancel(address.tag, address.id)
     }
 
     fun cancelForeground() {
         notificationManager.cancel(SERVICE_NOTIFICATION_ID)
+    }
+
+    private fun rememberConversationMessage(
+        address: SteamChatNotificationAddress,
+        message: SteamChatMessage,
+        text: String,
+        timestampMillis: Long
+    ): List<RecentConversationMessage> = synchronized(recentConversationMessages) {
+        val identity = "${message.timestamp}:${message.ordinal}"
+        val updated = (
+            recentConversationMessages[address]
+                .orEmpty()
+                .filterNot { recent -> recent.identity == identity } +
+                RecentConversationMessage(
+                    identity = identity,
+                    text = text,
+                    timestampMillis = timestampMillis,
+                    ordinal = message.ordinal
+                )
+            )
+            .sortedWith(
+                compareBy<RecentConversationMessage> { recent -> recent.timestampMillis }
+                    .thenBy { recent -> recent.ordinal }
+            )
+            .takeLast(MAX_RECENT_MESSAGES)
+        recentConversationMessages[address] = updated
+        updated
     }
 
     private fun chatListPendingIntent(handle: SteamAccountSessionHandle): PendingIntent =
@@ -209,15 +269,18 @@ internal class SteamChatNotificationPublisher(context: Context) {
         }
     }
 
-    private fun messageNotificationId(accountKey: String, partnerSteamId: String): Int =
-        MESSAGE_NOTIFICATION_ID_BASE +
-            "$accountKey|$partnerSteamId".hashCode().and(MESSAGE_NOTIFICATION_ID_MASK)
-
     companion object {
         const val SERVICE_NOTIFICATION_ID = 887_001
-        private const val MESSAGE_NOTIFICATION_ID_BASE = 888_000
-        private const val MESSAGE_NOTIFICATION_ID_MASK = 0x7fff
         private const val SERVICE_CHANNEL_ID = "steam_chat_background_service"
         private const val MESSAGE_CHANNEL_ID = "steam_chat_messages"
+        private const val MAX_RECENT_MESSAGES = 6
+        private const val MAX_TRACKED_CONVERSATIONS = 48
     }
+
+    private data class RecentConversationMessage(
+        val identity: String,
+        val text: String,
+        val timestampMillis: Long,
+        val ordinal: Int
+    )
 }
