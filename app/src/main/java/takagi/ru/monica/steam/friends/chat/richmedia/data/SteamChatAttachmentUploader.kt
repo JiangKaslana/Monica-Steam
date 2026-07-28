@@ -10,6 +10,12 @@ import java.net.InetAddress
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -89,8 +95,10 @@ class SteamChatAttachmentUploader internal constructor(
         )
         try {
             putToCloud(begin, uri, attachment, onProgress)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Throwable) {
-            runCatching {
+            try {
                 commitUpload(
                     secure = secure,
                     sessionId = sessionId,
@@ -101,6 +109,10 @@ class SteamChatAttachmentUploader internal constructor(
                     targetFields = targetFields,
                     success = false
                 )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                // Steam expires incomplete upload reservations server-side.
             }
             throw error
         }
@@ -123,7 +135,7 @@ class SteamChatAttachmentUploader internal constructor(
         )
     }
 
-    private fun beginUpload(
+    private suspend fun beginUpload(
         secure: String,
         sessionId: String,
         attachment: SteamChatPendingAttachment,
@@ -145,7 +157,7 @@ class SteamChatAttachmentUploader internal constructor(
             .headers(communityHeaders(secure, sessionId))
             .post(body)
             .build()
-        return client.newCall(request).execute().use { response ->
+        return client.newCall(request).awaitSteamChatResponse().use { response ->
             val parsed = responseParser.parseBegin(
                 response.requireBody("begin Steam chat attachment")
             )
@@ -157,7 +169,7 @@ class SteamChatAttachmentUploader internal constructor(
         }
     }
 
-    private fun putToCloud(
+    private suspend fun putToCloud(
         begin: SteamChatBeginUploadResponse,
         uri: Uri,
         attachment: SteamChatPendingAttachment,
@@ -167,14 +179,14 @@ class SteamChatAttachmentUploader internal constructor(
         val request = Request.Builder().url(begin.cloudUrl).apply {
             begin.requestHeaders.forEach { (name, value) -> header(name, value) }
         }.put(body).build()
-        client.newCall(request).execute().use { response ->
+        client.newCall(request).awaitSteamChatResponse().use { response ->
             if (!response.isSuccessful) {
                 throw SteamChatUploadException("Steam cloud upload failed (${response.code})")
             }
         }
     }
 
-    private fun commitUpload(
+    private suspend fun commitUpload(
         secure: String,
         sessionId: String,
         attachment: SteamChatPendingAttachment,
@@ -203,7 +215,7 @@ class SteamChatAttachmentUploader internal constructor(
             .headers(communityHeaders(secure, sessionId))
             .post(requestBody)
             .build()
-        return client.newCall(request).execute().use { response ->
+        return client.newCall(request).awaitSteamChatResponse().use { response ->
             if (!success) return@use null
             val committed = responseParser.parseCommit(
                 response.requireBody("commit Steam chat attachment")
@@ -325,6 +337,21 @@ class SteamChatAttachmentUploader internal constructor(
             .build()
     }
 }
+
+internal suspend fun Call.awaitSteamChatResponse(): Response =
+    suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation { cancel() }
+        enqueue(object : Callback {
+            override fun onFailure(call: Call, error: IOException) {
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (continuation.isActive) continuation.resume(response)
+                else response.close()
+            }
+        })
+    }
 
 class SteamChatUploadException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
