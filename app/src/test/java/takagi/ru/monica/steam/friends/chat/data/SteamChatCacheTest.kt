@@ -97,6 +97,46 @@ class SteamChatCacheTest {
         assertEquals(SteamChatDeliveryState.VERIFYING, restored?.messages?.single()?.deliveryState)
     }
 
+    @Test
+    fun largeThreadCacheKeepsRecentHistoryAndOlderFailedMessages() {
+        val account = "76561198000000001"
+        val partner = "76561198000000003"
+        val failed = SteamChatMessage(
+            partnerSteamId = partner,
+            senderSteamId = account,
+            timestamp = 1L,
+            ordinal = 1,
+            body = "failed",
+            deliveryState = SteamChatDeliveryState.FAILED_RETRYABLE,
+            clientMessageId = "failed-1"
+        )
+        val sent = (2L..601L).map { timestamp ->
+            SteamChatMessage(
+                partnerSteamId = partner,
+                senderSteamId = account,
+                timestamp = timestamp,
+                ordinal = timestamp.toInt(),
+                body = "message-$timestamp"
+            )
+        }
+
+        val bounded = boundSteamChatThreadForCache(
+            SteamChatThreadSnapshot(
+                accountSteamId = account,
+                partnerSteamId = partner,
+                messages = listOf(failed) + sent,
+                moreAvailable = false,
+                fetchedAt = 100L
+            )
+        )
+
+        assertEquals(501, bounded.messages.size)
+        assertEquals("failed", bounded.messages.first().body)
+        assertEquals("message-102", bounded.messages[1].body)
+        assertEquals("message-601", bounded.messages.last().body)
+        assertTrue(bounded.moreAvailable)
+    }
+
     private class FakeStore : SteamChatKeyValueStore {
         val values = linkedMapOf<String, String>()
         override fun get(key: String): String? = values[key]

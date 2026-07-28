@@ -4,6 +4,7 @@ import android.content.Context
 import java.security.MessageDigest
 import kotlinx.serialization.json.Json
 import takagi.ru.monica.security.SecurityManager
+import takagi.ru.monica.steam.friends.cache.boundedSteamMessageCache
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGroupsSnapshot
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatThreadSnapshot
@@ -49,11 +50,15 @@ class SteamGroupChatPreferencesCache(context: Context) : SteamGroupChatCache {
                     }
                 })
             }
+            ?.let(::boundSteamGroupChatThreadForCache)
 
-    override fun saveThread(snapshot: SteamGroupChatThreadSnapshot) = save(
-        key("thread|${snapshot.accountSteamId}|${snapshot.groupId}|${snapshot.chatId}"),
-        json.encodeToString(SteamGroupChatThreadSnapshot.serializer(), snapshot)
-    )
+    override fun saveThread(snapshot: SteamGroupChatThreadSnapshot) {
+        val bounded = boundSteamGroupChatThreadForCache(snapshot)
+        save(
+            key("thread|${snapshot.accountSteamId}|${snapshot.groupId}|${snapshot.chatId}"),
+            json.encodeToString(SteamGroupChatThreadSnapshot.serializer(), bounded)
+        )
+    }
 
     private fun <T> load(key: String, decode: (String) -> T): T? = runCatching {
         preferences.getString(key, null)?.let(security::decryptDataIfMonicaCiphertext)?.let(decode)
@@ -67,4 +72,16 @@ class SteamGroupChatPreferencesCache(context: Context) : SteamGroupChatCache {
 
     private fun key(raw: String): String = MessageDigest.getInstance("SHA-256")
         .digest(raw.toByteArray()).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+}
+
+internal fun boundSteamGroupChatThreadForCache(
+    snapshot: SteamGroupChatThreadSnapshot
+): SteamGroupChatThreadSnapshot {
+    val boundedMessages = boundedSteamMessageCache(snapshot.messages) { message ->
+        message.deliveryState != SteamGroupChatDeliveryState.SENT
+    }
+    return snapshot.copy(
+        messages = boundedMessages,
+        moreAvailable = snapshot.moreAvailable || boundedMessages.size < snapshot.messages.size
+    )
 }

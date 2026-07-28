@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import java.security.MessageDigest
 import kotlinx.serialization.json.Json
 import takagi.ru.monica.security.SecurityManager
+import takagi.ru.monica.steam.friends.cache.boundedSteamMessageCache
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatThreadSnapshot
@@ -60,7 +61,7 @@ class SteamChatPreferencesCache private constructor(
                 }
             }
         )
-    }
+    }?.let(::boundSteamChatThreadForCache)
 
     override fun saveThread(
         accountSteamId: String,
@@ -70,7 +71,10 @@ class SteamChatPreferencesCache private constructor(
         if (snapshot.accountSteamId != accountSteamId || snapshot.partnerSteamId != partnerSteamId) {
             return
         }
-        save(threadKey(accountSteamId, partnerSteamId), SteamChatCacheCodec.encodeThread(snapshot))
+        save(
+            threadKey(accountSteamId, partnerSteamId),
+            SteamChatCacheCodec.encodeThread(boundSteamChatThreadForCache(snapshot))
+        )
     }
 
     private fun <T> load(key: String, decode: (String) -> T?): T? = runCatching {
@@ -101,6 +105,18 @@ class SteamChatPreferencesCache private constructor(
             SteamChatDeliveryState.VERIFYING
         )
     }
+}
+
+internal fun boundSteamChatThreadForCache(
+    snapshot: SteamChatThreadSnapshot
+): SteamChatThreadSnapshot {
+    val boundedMessages = boundedSteamMessageCache(snapshot.messages) { message ->
+        message.deliveryState != SteamChatDeliveryState.SENT
+    }
+    return snapshot.copy(
+        messages = boundedMessages,
+        moreAvailable = snapshot.moreAvailable || boundedMessages.size < snapshot.messages.size
+    )
 }
 
 internal interface SteamChatKeyValueStore {
