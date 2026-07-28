@@ -51,6 +51,29 @@ internal class SteamCmConnectionPool(
         throw IOException("Steam CM is unavailable", lastFailure)
     }
 
+    fun sendNotification(
+        account: SteamAccount,
+        operation: SteamCmOperation,
+        accountKey: String = steamCmAccountKey(account)
+    ) {
+        val session = loadBootstrap(account, accountKey)
+        var lastFailure: Throwable? = null
+        session.endpoints.take(MAX_ENDPOINT_ATTEMPTS).forEach { endpoint ->
+            val connection = connectionFor(accountKey, session, endpoint)
+            try {
+                connection.send(operation)
+                return
+            } catch (error: SteamApiException) {
+                throw error
+            } catch (error: Exception) {
+                lastFailure = error
+                remove(accountKey, connection)
+                invalidateBootstrap(accountKey)
+            }
+        }
+        throw IOException("Steam CM is unavailable", lastFailure)
+    }
+
     /** Ensures the account's realtime socket is logged on even when no request is pending. */
     fun connect(
         account: SteamAccount,

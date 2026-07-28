@@ -104,6 +104,21 @@ class SteamCmClient internal constructor(
             requestBody = request
         )
     )
+
+    override fun sendServiceNotification(
+        account: SteamAccount,
+        method: String,
+        request: ByteArray
+    ) = pool.sendNotification(
+        account = account,
+        accountKey = accountKeyResolver(account),
+        operation = SteamCmOperation(
+            requestEMsg = SteamCmProtocol.EMSG_SERVICE_METHOD_CALL_FROM_CLIENT,
+            responseEMsg = SteamCmProtocol.EMSG_SERVICE_METHOD_RESPONSE,
+            requestBody = request,
+            targetJobName = method
+        )
+    )
 }
 
 /** Process-wide lifecycle boundary; app shutdown can close this pool explicitly. */

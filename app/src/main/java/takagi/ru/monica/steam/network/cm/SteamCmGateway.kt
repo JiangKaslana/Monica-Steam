@@ -16,4 +16,13 @@ interface SteamCmGateway {
         responseEMsg: Int,
         request: ByteArray = ByteArray(0)
     ): ByteArray
+
+    /** Sends an official Steam service notification that has no response job. */
+    fun sendServiceNotification(
+        account: SteamAccount,
+        method: String,
+        request: ByteArray
+    ) {
+        throw UnsupportedOperationException("Steam CM service notifications are not supported")
+    }
 }

@@ -71,6 +71,27 @@ internal class SteamCmPersistentConnection(
         }
     }
 
+    /** Sends a target service notification without registering a response job. */
+    fun send(operation: SteamCmOperation) {
+        ensureConnected()
+        val socket = synchronized(stateLock) {
+            check(!closed) { "Steam CM connection is closed" }
+            check(loggedOn && activeSocket != null) { "Steam CM is not logged on" }
+            activeSocket
+        }
+        val encoded = SteamCmProtocol.encodeMessage(
+            eMsg = operation.requestEMsg,
+            steamId = sessionSteamId,
+            sessionId = sessionId,
+            body = operation.requestBody,
+            jobIdSource = SteamCmProtocol.JOB_ID_NONE,
+            targetJobName = operation.targetJobName
+        )
+        if (socket?.send(ByteString.of(*encoded)) != true) {
+            throw IOException("Steam CM notification send failed")
+        }
+    }
+
     /** Marks the socket unusable while allowing the next request to reconnect. */
     fun invalidate(cause: Throwable = IOException("Steam CM connection invalidated")) {
         val socket = synchronized(stateLock) { activeSocket }
