@@ -6,7 +6,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,6 +26,7 @@ import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.network.cm.SteamCmEnvelope
 import takagi.ru.monica.steam.network.cm.SteamCmHeader
 import takagi.ru.monica.steam.network.cm.SteamCmProtocol
+import takagi.ru.monica.steam.network.cm.SteamCmRealtimeTransport
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -102,6 +106,110 @@ class SteamFriendChatRealtimeServiceTest {
     }
 
     @Test
+    fun retriesSessionResolutionBeforeOpeningTheSocket() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val transport = FakeRealtimeTransport()
+        var resolverCalls = 0
+        val service = SteamFriendChatRealtimeService(
+            transport = transport,
+            ioDispatcher = dispatcher,
+            healthyCheckMillis = 60_000L,
+            initialRetryMillis = 100L,
+            maximumRetryMillis = 100L,
+            sessionResolver = SteamAccountSessionResolver { current, _ ->
+                resolverCalls++
+                if (resolverCalls == 1) throw IOException("session store unavailable")
+                current.copy(accessToken = "fresh-token")
+            }
+        )
+        val connected = async { service.events(account(1L, ACCOUNT_STEAM_ID)).first() }
+
+        runCurrent()
+        assertEquals(0, transport.connectCalls)
+        advanceTimeBy(100L)
+        runCurrent()
+
+        assertEquals(SteamChatRealtimeEvent.ConnectionChanged(true), connected.await())
+        assertEquals(2, resolverCalls)
+        assertEquals(listOf("fresh-token"), transport.connectedAccessTokens)
+        assertEquals(listOf("fresh-token"), transport.collectedAccessTokens)
+    }
+
+    @Test
+    fun rotatesTheCollectorAndSocketWhenSessionCredentialsChange() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val transport = FakeRealtimeTransport()
+        var resolverCalls = 0
+        val service = SteamFriendChatRealtimeService(
+            transport = transport,
+            ioDispatcher = dispatcher,
+            healthyCheckMillis = 100L,
+            initialRetryMillis = 100L,
+            sessionResolver = SteamAccountSessionResolver { current, _ ->
+                resolverCalls++
+                current.copy(accessToken = "fresh-$resolverCalls")
+            }
+        )
+        val source = account(1L, ACCOUNT_STEAM_ID)
+        val changes = async {
+            service.events(source)
+                .filterIsInstance<SteamChatRealtimeEvent.ConnectionChanged>()
+                .take(3)
+                .toList()
+        }
+
+        runCurrent()
+        advanceTimeBy(100L)
+        runCurrent()
+
+        assertEquals(
+            listOf(
+                SteamChatRealtimeEvent.ConnectionChanged(true),
+                SteamChatRealtimeEvent.ConnectionChanged(false),
+                SteamChatRealtimeEvent.ConnectionChanged(true)
+            ),
+            changes.await()
+        )
+        assertEquals(2, resolverCalls)
+        assertEquals(1, transport.resetCalls)
+        assertEquals(listOf("fresh-1", "fresh-2"), transport.connectedAccessTokens)
+        assertEquals(listOf("fresh-1", "fresh-2"), transport.collectedAccessTokens)
+    }
+
+    @Test
+    fun restartsAnEventCollectorThatStopsUnexpectedly() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val transport = FakeRealtimeTransport()
+        val service = SteamFriendChatRealtimeService(
+            transport = transport,
+            ioDispatcher = dispatcher,
+            healthyCheckMillis = 60_000L
+        )
+        val source = account(1L, ACCOUNT_STEAM_ID)
+        val changes = async {
+            service.events(source)
+                .filterIsInstance<SteamChatRealtimeEvent.ConnectionChanged>()
+                .take(3)
+                .toList()
+        }
+
+        runCurrent()
+        transport.failCollector(source)
+        runCurrent()
+
+        assertEquals(
+            listOf(
+                SteamChatRealtimeEvent.ConnectionChanged(true),
+                SteamChatRealtimeEvent.ConnectionChanged(false),
+                SteamChatRealtimeEvent.ConnectionChanged(true)
+            ),
+            changes.await()
+        )
+        assertEquals(1, transport.resetCalls)
+        assertEquals(2, transport.collectedAccounts.size)
+    }
+
+    @Test
     fun propagatesCancellationFromTheConnectionBoundary() = runTest {
         val service = SteamFriendChatRealtimeService(
             transport = FakeRealtimeTransport(
@@ -163,18 +271,25 @@ class SteamFriendChatRealtimeServiceTest {
 private class FakeRealtimeTransport(
     private var failuresBeforeSuccess: Int = 0,
     private val terminalConnectFailure: Throwable? = null
-) : SteamFriendChatRealtimeTransport {
+) : SteamCmRealtimeTransport {
     private val buses = ConcurrentHashMap<String, MutableSharedFlow<SteamCmEnvelope>>()
+    private val collectorFailures = ConcurrentHashMap<String, MutableSharedFlow<Throwable>>()
     private val connected = ConcurrentHashMap.newKeySet<String>()
     val collectedAccounts = mutableListOf<String>()
     val collectedAccessTokens = mutableListOf<String?>()
+    val connectedAccessTokens = mutableListOf<String?>()
     var connectCalls: Int = 0
+        private set
+    var resetCalls: Int = 0
         private set
 
     override fun events(account: SteamAccount): Flow<SteamCmEnvelope> {
         collectedAccounts += account.steamId
         collectedAccessTokens += account.accessToken
-        return bus(account)
+        return merge(
+            bus(account),
+            failureBus(account).map<Throwable, SteamCmEnvelope> { throw it }
+        )
     }
 
     override fun connect(account: SteamAccount) {
@@ -184,15 +299,28 @@ private class FakeRealtimeTransport(
             failuresBeforeSuccess--
             throw IOException("offline")
         }
+        connectedAccessTokens += account.accessToken
         connected += account.steamId
     }
 
     override fun isConnected(account: SteamAccount): Boolean = account.steamId in connected
 
+    override fun reset(account: SteamAccount) {
+        resetCalls++
+        connected -= account.steamId
+    }
+
     suspend fun emit(account: SteamAccount, envelope: SteamCmEnvelope) {
         bus(account).emit(envelope)
     }
 
+    suspend fun failCollector(account: SteamAccount) {
+        failureBus(account).emit(IOException("collector stopped"))
+    }
+
     private fun bus(account: SteamAccount): MutableSharedFlow<SteamCmEnvelope> =
         buses.getOrPut(account.steamId) { MutableSharedFlow(extraBufferCapacity = 8) }
+
+    private fun failureBus(account: SteamAccount): MutableSharedFlow<Throwable> =
+        collectorFailures.getOrPut(account.steamId) { MutableSharedFlow(extraBufferCapacity = 8) }
 }

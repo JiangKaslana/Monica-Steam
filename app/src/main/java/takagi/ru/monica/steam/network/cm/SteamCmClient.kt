@@ -70,6 +70,17 @@ class SteamCmClient internal constructor(
         accountKey = accountKeyResolver(account)
     )
 
+    /**
+     * Drops the authenticated socket and its bootstrap snapshot for an account.
+     * Realtime consumers use this when a collector stops or credentials rotate;
+     * the next health check then performs a clean logon instead of continuing to
+     * report a stale, half-alive connection.
+     */
+    internal fun reset(account: SteamAccount) = pool.closeAccount(
+        account = account,
+        accountKey = accountKeyResolver(account)
+    )
+
     /** Hides the pool's routing key from feature modules. */
     internal fun eventsFor(account: SteamAccount): Flow<SteamCmEnvelope> = events
         .filter { it.accountKey == accountKeyResolver(account) }

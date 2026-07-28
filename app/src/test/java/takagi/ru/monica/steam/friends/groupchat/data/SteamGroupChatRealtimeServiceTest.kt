@@ -26,6 +26,7 @@ import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.network.cm.SteamCmEnvelope
 import takagi.ru.monica.steam.network.cm.SteamCmHeader
 import takagi.ru.monica.steam.network.cm.SteamCmProtocol
+import takagi.ru.monica.steam.network.cm.SteamCmRealtimeTransport
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -98,7 +99,8 @@ class SteamGroupChatRealtimeServiceTest {
 
         assertEquals(2, resolverCalls)
         assertEquals(listOf("fresh-1", "fresh-2"), transport.connectedAccessTokens)
-        assertEquals(listOf(ACCOUNT_STEAM_ID), transport.collectedAccounts)
+        assertEquals(listOf(ACCOUNT_STEAM_ID, ACCOUNT_STEAM_ID), transport.collectedAccounts)
+        assertEquals(1, transport.resetCalls)
         collector.cancelAndJoin()
     }
 
@@ -174,12 +176,14 @@ class SteamGroupChatRealtimeServiceTest {
 private class FakeGroupRealtimeTransport(
     private var failuresBeforeSuccess: Int = 0,
     private val connectCancellation: Boolean = false
-) : SteamGroupChatRealtimeTransport {
+) : SteamCmRealtimeTransport {
     private val buses = ConcurrentHashMap<String, MutableSharedFlow<SteamCmEnvelope>>()
     private val connected = ConcurrentHashMap.newKeySet<String>()
     val collectedAccounts = mutableListOf<String>()
     val connectedAccessTokens = mutableListOf<String?>()
     var connectCalls: Int = 0
+        private set
+    var resetCalls: Int = 0
         private set
 
     override fun events(account: SteamAccount): Flow<SteamCmEnvelope> {
@@ -199,6 +203,11 @@ private class FakeGroupRealtimeTransport(
     }
 
     override fun isConnected(account: SteamAccount): Boolean = account.steamId in connected
+
+    override fun reset(account: SteamAccount) {
+        resetCalls++
+        connected -= account.steamId
+    }
 
     fun disconnect(account: SteamAccount) {
         connected -= account.steamId
