@@ -4,9 +4,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
+import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
+import takagi.ru.monica.steam.friends.chat.presentation.SteamChatFailureReason
+import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceConnectionState
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceParticipant
@@ -27,6 +31,43 @@ class SteamConversationListTest {
 
         assertEquals(listOf(SteamConversationType.GROUP, SteamConversationType.DIRECT), entries.map { it.type })
         assertEquals("9001", entries.first().chatId)
+    }
+
+    @Test
+    fun multiChannelGroupUsesItsMostRecentlyActiveRoom() {
+        val activeGroup = SteamGroupChatSummary(
+            groupId = "8001",
+            name = "Active group",
+            defaultChatId = "9001",
+            rooms = listOf(
+                SteamGroupChatRoom(
+                    chatId = "9001",
+                    name = "General",
+                    lastMessageTimestamp = 100L,
+                    lastMessage = "Old default message"
+                ),
+                SteamGroupChatRoom(
+                    chatId = "9002",
+                    name = "Games",
+                    lastMessageTimestamp = 400L,
+                    lastMessage = "Newest group message"
+                )
+            )
+        )
+
+        val entries = buildSteamConversationEntries(
+            sessions = listOf(SteamChatSession("76561198000000001", lastMessageTimestamp = 300L)),
+            groups = listOf(activeGroup),
+            friends = emptyList(),
+            query = "",
+            pinnedPartnerSteamIds = emptySet(),
+            pinnedGroupIds = emptySet()
+        )
+
+        assertEquals(SteamConversationType.GROUP, entries.first().type)
+        assertEquals("9002", entries.first().chatId)
+        assertEquals(400L, entries.first().timestamp)
+        assertEquals("Newest group message", entries.first().subtitle)
     }
 
     @Test
@@ -68,6 +109,31 @@ class SteamConversationListTest {
 
         assertTrue(entries.single().voiceActive)
         assertEquals(2, entries.single().voiceMemberCount)
+    }
+
+    @Test
+    fun transientFailuresDoNotCoverUsableCachedConversations() {
+        val cachedDirect = SteamChatUiState(
+            sessions = SteamChatSessionsSnapshot(
+                accountSteamId = "76561198000000001",
+                sessions = listOf(SteamChatSession("76561198000000002")),
+                fetchedAt = 1L
+            ),
+            sessionsFailure = SteamChatFailureReason.NETWORK
+        )
+        val cachedGroup = SteamGroupChatUiState(
+            groups = listOf(group(timestamp = 1L)),
+            groupsFailure = true
+        )
+
+        assertTrue(!shouldShowDirectConversationFailure(cachedDirect))
+        assertTrue(!shouldShowGroupConversationFailure(cachedGroup))
+        assertTrue(
+            shouldShowDirectConversationFailure(
+                SteamChatUiState(sessionsFailure = SteamChatFailureReason.NETWORK)
+            )
+        )
+        assertTrue(shouldShowGroupConversationFailure(SteamGroupChatUiState(groupsFailure = true)))
     }
 
     private fun group(timestamp: Long) = SteamGroupChatSummary(

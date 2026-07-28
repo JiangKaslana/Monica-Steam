@@ -41,6 +41,7 @@ import takagi.ru.monica.steam.friends.chat.presentation.SteamChatFailureReason
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImage
 import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
@@ -128,8 +129,16 @@ internal fun buildSteamConversationEntries(
         }
     }
     val groupEntries = groups.map { group ->
-        val room = group.rooms.firstOrNull { it.chatId == group.preferredChatId }
-            ?: group.rooms.maxByOrNull { it.lastMessageTimestamp }
+        // A group's default room is only its navigation fallback. Activity can
+        // happen in any text channel, so using the default room here leaves a
+        // busy multi-channel group at the bottom of the conversation list.
+        val latestRoom = group.rooms.maxWithOrNull(
+            compareBy<SteamGroupChatRoom> { it.lastMessageTimestamp }
+                .thenByDescending { it.sortOrder }
+        )
+        val room = latestRoom?.takeIf { it.lastMessageTimestamp > 0L }
+            ?: group.rooms.firstOrNull { it.chatId == group.preferredChatId }
+            ?: latestRoom
         val localVoiceActive = group.groupId == activeGroupId
         SteamConversationListEntry(
             type = SteamConversationType.GROUP,
@@ -160,6 +169,12 @@ internal fun buildSteamConversationEntries(
                 .thenBy { it.title.lowercase() }
         )
 }
+
+internal fun shouldShowDirectConversationFailure(state: SteamChatUiState): Boolean =
+    state.sessionsFailure != null && state.sessions?.sessions.isNullOrEmpty()
+
+internal fun shouldShowGroupConversationFailure(state: SteamGroupChatUiState): Boolean =
+    state.groupsFailure && state.groups.isEmpty()
 
 @Composable
 internal fun SteamConversationList(
@@ -215,10 +230,12 @@ internal fun SteamConversationList(
                     )
                 }
             }
-            chatState.sessionsFailure?.let { failure ->
-                item("conversation-error") { ChatFailureBanner(failure, onRefresh) }
+            if (shouldShowDirectConversationFailure(chatState)) {
+                item("conversation-error") {
+                    ChatFailureBanner(requireNotNull(chatState.sessionsFailure), onRefresh)
+                }
             }
-            if (groupState.groupsFailure) {
+            if (shouldShowGroupConversationFailure(groupState)) {
                 item("group-conversation-error") {
                     ChatFailureBanner(SteamChatFailureReason.UNAVAILABLE, onRefresh)
                 }
