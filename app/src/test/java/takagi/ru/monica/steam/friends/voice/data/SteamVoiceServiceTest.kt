@@ -46,7 +46,9 @@ class SteamVoiceServiceTest {
 
         service.notifyVoiceStatus(account(), "7001", true, false, false)
         assertEquals("VoiceChat.NotifyUserVoiceStatus#1", cm.notificationMethod)
-        assertTrue(SteamProtoReader(cm.notificationRequest).parse().getValue(3).asBool)
+        val status = SteamProtoReader(cm.notificationRequest).parse()
+        assertTrue(status.getValue(3).asBool)
+        assertEquals(48_000L, status.getValue(6).asLong)
     }
 
     @Test

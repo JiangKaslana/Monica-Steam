@@ -22,6 +22,7 @@ internal interface SteamVoiceWebViewCallbacks {
     fun onLocalOffer(descriptionJson: String)
     fun onLocalAnswer(descriptionJson: String)
     fun onIceStateChanged(state: String)
+    fun onMediaStats(stats: String)
     fun onFailure(message: String)
 }
 
@@ -175,6 +176,9 @@ internal class SteamVoiceWebViewEngine(
         fun onIceStateChanged(state: String) = callbacks.onIceStateChanged(state)
 
         @android.webkit.JavascriptInterface
+        fun onMediaStats(stats: String) = callbacks.onMediaStats(stats)
+
+        @android.webkit.JavascriptInterface
         fun onFailure(message: String) = callbacks.onFailure(message)
     }
 
@@ -187,20 +191,73 @@ internal class SteamVoiceWebViewEngine(
             (() => {
               let pc = null;
               let stream = null;
+              let statsTimer = null;
               const bridge = () => window.MonicaVoiceBridge;
               const fail = (e) => bridge().onFailure(String(e && e.message || e));
               const reportIce = () => {
                 if (pc) bridge().onIceStateChanged(pc.iceConnectionState || "new");
               };
+              // Steam's official client normalises Opus before handing an SDP
+              // to WebRTCClient. Keep the Android WebView offer byte-for-byte
+              // compatible with that policy so the relay enables our sender.
+              const normalizeOpus = (description) => {
+                if (!description || !description.sdp) return description;
+                const lines = description.sdp.split("\r\n");
+                const opus = lines.map(line => line.match(/^a=rtpmap:(\d+)\s+opus(?:\/|\s)/i))
+                  .find(Boolean);
+                if (!opus) return description;
+                const payload = opus[1];
+                const fmtp = `a=fmtp:${'$'}{payload} minptime=10;useinbandfec=1;usedtx=1`;
+                const index = lines.findIndex(line => line.startsWith(`a=fmtp:${'$'}{payload} `));
+                if (index >= 0) lines[index] = fmtp;
+                else {
+                  const rtpIndex = lines.findIndex(line => line.startsWith(`a=rtpmap:${'$'}{payload} `));
+                  lines.splice(rtpIndex + 1, 0, fmtp);
+                }
+                description.sdp = lines.join("\r\n");
+                return description;
+              };
+              const reportMedia = async () => {
+                if (!pc || !stream) return;
+                try {
+                  const track = stream.getAudioTracks()[0];
+                  let bytes = 0, packets = 0, audioLevel = -1;
+                  (await pc.getStats()).forEach(report => {
+                    if (report.type === "outbound-rtp" && report.kind === "audio" && !report.isRemote) {
+                      bytes = Number(report.bytesSent || 0);
+                      packets = Number(report.packetsSent || 0);
+                    }
+                    if (report.type === "media-source" && report.kind === "audio") {
+                      audioLevel = Number(report.audioLevel ?? -1);
+                    }
+                  });
+                  bridge().onMediaStats(JSON.stringify({
+                    bytes, packets, audioLevel,
+                    enabled: !!track && track.enabled,
+                    muted: !!track && track.muted,
+                    readyState: track ? track.readyState : "missing"
+                  }));
+                } catch (e) { /* stats are diagnostic and must never end a call */ }
+              };
               window.monicaVoice = {
                 async start() {
                   try {
                     stream = await navigator.mediaDevices.getUserMedia({
-                      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+                      audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: { ideal: 1 },
+                        sampleRate: { ideal: 48000 }
+                      },
                       video: false
                     });
                     pc = new RTCPeerConnection({ sdpSemantics: "plan-b" });
-                    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+                    stream.getTracks().forEach(t => {
+                      if (t.kind === "audio" && "contentHint" in t) t.contentHint = "speech";
+                      t.enabled = true;
+                      pc.addTrack(t, stream);
+                    });
                     pc.oniceconnectionstatechange = reportIce;
                     pc.onconnectionstatechange = reportIce;
                     pc.ontrack = (event) => {
@@ -214,12 +271,13 @@ internal class SteamVoiceWebViewEngine(
                         document.body.appendChild(remote);
                       } catch (e) { fail(e); }
                     };
-                    const offer = await pc.createOffer({
+                    const offer = normalizeOpus(await pc.createOffer({
                       offerToReceiveAudio: true,
                       voiceActivityDetection: true
-                    });
+                    }));
                     await pc.setLocalDescription(offer);
                     bridge().onLocalOffer(JSON.stringify(pc.localDescription));
+                    statsTimer = window.setInterval(reportMedia, 5000);
                   } catch (e) { fail(e); }
                 },
                 async setRemoteDescription(raw) {
@@ -228,7 +286,7 @@ internal class SteamVoiceWebViewEngine(
                     const description = typeof raw === "string" ? JSON.parse(raw) : raw;
                     await pc.setRemoteDescription(description);
                     if (description.type === "offer") {
-                      const answer = await pc.createAnswer();
+                      const answer = normalizeOpus(await pc.createAnswer());
                       await pc.setLocalDescription(answer);
                       bridge().onLocalAnswer(JSON.stringify(pc.localDescription));
                     }
@@ -241,13 +299,14 @@ internal class SteamVoiceWebViewEngine(
                   document.querySelectorAll("audio[data-monica-remote='1']").forEach(a => a.muted = !!muted);
                 },
                 stop() {
+                  if (statsTimer) window.clearInterval(statsTimer);
                   if (pc) { try { pc.close(); } catch (e) {} }
                   if (stream) stream.getTracks().forEach(t => t.stop());
                   document.querySelectorAll("audio[data-monica-remote='1']").forEach(a => {
                     try { a.pause(); a.srcObject = null; } catch (e) {}
                     a.remove();
                   });
-                  pc = null; stream = null;
+                  pc = null; stream = null; statsTimer = null;
                 }
               };
               window.addEventListener("load", () => window.monicaVoice.start());

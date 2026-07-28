@@ -190,7 +190,9 @@ class SteamVoiceService(
                 writeBool(3, microphoneMuted)
                 writeBool(4, outputMuted)
                 writeBool(5, hasNoMicrophone)
-                writeVarint(6, 0L)
+                // Opus/WebRTC uses a 48 kHz RTP clock. Steam's official client
+                // reports the active WebAudio rate instead of leaving it zero.
+                writeVarint(6, WEBRTC_AUDIO_SAMPLE_RATE.toLong())
                 writeBool(7, false)
             }.toByteArray()
         )
@@ -219,6 +221,7 @@ class SteamVoiceService(
         ?: throw IllegalArgumentException("Valid Steam $label ID required")
 
     private companion object {
+        const val WEBRTC_AUDIO_SAMPLE_RATE = 48_000
         val UNSIGNED_LONG_MAX = java.math.BigInteger.ONE.shiftLeft(64).subtract(java.math.BigInteger.ONE)
         val STEAM_ID_PATTERN = Regex("7656119\\d{10}")
     }

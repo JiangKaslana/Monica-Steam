@@ -251,6 +251,10 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
                     }
                 }
 
+                override fun onMediaStats(stats: String) {
+                    SteamDiagLogger.append("voice_media outbound=${stats.take(240)}")
+                }
+
                 override fun onFailure(message: String) {
                     scope.launch { fail("Steam voice media failed: ${message.take(160)}") }
                 }

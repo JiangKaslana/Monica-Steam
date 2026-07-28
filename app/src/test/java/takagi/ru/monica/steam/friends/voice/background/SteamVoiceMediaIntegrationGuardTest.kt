@@ -7,6 +7,17 @@ import org.junit.Test
 
 class SteamVoiceMediaIntegrationGuardTest {
     @Test
+    fun webViewMediaUsesSteamOpusPolicyAndObservesTheOutboundTrack() {
+        val source = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/voice/media/SteamVoiceWebViewEngine.kt"
+        ).readText()
+
+        assertTrue(source.contains("minptime=10;useinbandfec=1;usedtx=1"))
+        assertTrue(source.contains("report.type === \"outbound-rtp\""))
+        assertTrue(source.contains("onMediaStats"))
+    }
+
+    @Test
     fun manifestDeclaresMicrophonePlaybackServiceAndNotificationReceiver() {
         val manifest = projectFile("app/src/main/AndroidManifest.xml").readText()
 
