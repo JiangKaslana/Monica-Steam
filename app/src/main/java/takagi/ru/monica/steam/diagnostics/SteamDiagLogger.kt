@@ -54,21 +54,17 @@ object SteamDiagLogger {
                 }
                 file.appendText(header)
             }.onFailure {
-                Log.e(TAG, "Failed to initialize Steam diag logger", it)
+                runCatching { Log.e(TAG, "Failed to initialize Steam diag logger", it) }
             }
         }
     }
 
     fun append(rawLine: String) {
-        val file = persistentLogFile
-        if (file == null) {
-            Log.w(TAG, "Persistent Steam diag log file is not initialized yet")
-            return
-        }
-        val line = rawLine.trimEnd()
+        val file = persistentLogFile ?: return
+        val sanitizedLine = sanitizeSteamDiagnosticLine(rawLine)
+        if (sanitizedLine.isBlank()) return
         writeExecutor.execute {
-            val sanitizedLine = sanitize(line)
-            Log.d(TAG, sanitizedLine)
+            runCatching { Log.d(TAG, sanitizedLine) }
             synchronized(fileLock) {
                 runCatching {
                     if (file.exists() && file.length() > MAX_LOG_FILE_BYTES) {
@@ -76,7 +72,7 @@ object SteamDiagLogger {
                     }
                     file.appendText(sanitizedLine + "\n")
                 }.onFailure {
-                    Log.e(TAG, "Failed to append Steam diag log", it)
+                    runCatching { Log.e(TAG, "Failed to append Steam diag log", it) }
                 }
             }
         }
@@ -119,14 +115,41 @@ object SteamDiagLogger {
         file.writeText(output)
     }
 
-    private fun sanitize(text: String): String {
-        return text
-            .replace(Regex("\\bsteamid\\s*=\\s*[^\\s,]+", RegexOption.IGNORE_CASE), "steamid=<redacted>")
-            .replace(Regex("\\b(account|user|username|accountName|account_name)\\s*=\\s*[^\\s,]+", RegexOption.IGNORE_CASE), "$1=<redacted>")
-            .replace(Regex("\\b(password|pwd|passwd|token|access_token|refresh_token|shared_secret|identity_secret|secret_1|code)\\s*=\\s*[^\\s,]+", RegexOption.IGNORE_CASE), "$1=***")
-            .replace(Regex("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"), "***@***.com")
-            .replace(Regex("\\b[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b"), "***TOKEN***")
-            .replace(Regex("\\b[A-Za-z0-9]{28,}\\b"), "***TOKEN***")
-            .replace(Regex("[A-Za-z0-9+/]{40,}={0,2}"), "***TOKEN***")
-    }
 }
+
+internal fun sanitizeSteamDiagnosticLine(rawText: String): String {
+    var text = rawText
+        .replace(Regex("[\\r\\n\\t]+"), " ")
+        .trim()
+    text = BEARER_PATTERN.replace(text) { "Bearer <redacted>" }
+    text = SECRET_ASSIGNMENT_PATTERN.replace(text) { match ->
+        match.groupValues[1] + "<redacted>"
+    }
+    text = URL_SECRET_PATTERN.replace(text) { match ->
+        match.groupValues[1] + "<redacted>"
+    }
+    return text
+        .replace(STEAM_ID64_PATTERN, "<steamid64-redacted>")
+        .replace(EMAIL_PATTERN, "<email-redacted>")
+        .replace(JWT_PATTERN, "<token-redacted>")
+        .replace(LONG_TOKEN_PATTERN, "<token-redacted>")
+        .replace(BASE64_PATTERN, "<token-redacted>")
+        .take(MAX_DIAGNOSTIC_LINE_CHARS)
+}
+
+private val BEARER_PATTERN = Regex(
+    "\\bBearer\\s+[A-Za-z0-9._~+/=-]+",
+    RegexOption.IGNORE_CASE
+)
+private val SECRET_ASSIGNMENT_PATTERN = Regex(
+    """(?i)([\"']?(?:steamid|account|user|username|accountName|account_name|password|pwd|passwd|token|access_token|refresh_token|shared_secret|identity_secret|secret_1|code|sessionid|steamLoginSecure|authorization|cookie|api_key|oauth_token|account_key)[\"']?\s*[:=]\s*[\"']?)[^\"',}\s&]+"""
+)
+private val URL_SECRET_PATTERN = Regex(
+    """(?i)([?&](?:access_token|refresh_token|token|sessionid|auth|key|api_key|oauth_token)=)[^&#\s]+"""
+)
+private val STEAM_ID64_PATTERN = Regex("\\b7656119\\d{10}\\b")
+private val EMAIL_PATTERN = Regex("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b")
+private val JWT_PATTERN = Regex("\\b[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b")
+private val LONG_TOKEN_PATTERN = Regex("\\b[A-Za-z0-9]{28,}\\b")
+private val BASE64_PATTERN = Regex("[A-Za-z0-9+/]{40,}={0,2}")
+private const val MAX_DIAGNOSTIC_LINE_CHARS = 1_200
