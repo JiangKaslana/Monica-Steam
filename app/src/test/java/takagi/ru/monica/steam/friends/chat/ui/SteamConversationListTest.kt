@@ -7,6 +7,7 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSessionsSnapshot
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatFailureReason
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
+import takagi.ru.monica.steam.data.SteamAccountSourceState
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
@@ -134,6 +135,12 @@ class SteamConversationListTest {
             )
         )
         assertTrue(shouldShowGroupConversationFailure(SteamGroupChatUiState(groupsFailure = true)))
+    }
+
+    @Test
+    fun accountConsumersStayOnThePreviousAccountWhileSourceIsLoading() {
+        assertTrue(!shouldApplySteamAccountSelection(SteamAccountSourceState(loading = true)))
+        assertTrue(shouldApplySteamAccountSelection(SteamAccountSourceState(loading = false)))
     }
 
     private fun group(timestamp: Long) = SteamGroupChatSummary(

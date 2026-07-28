@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
+import takagi.ru.monica.steam.data.SteamAccountSourceState
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatViewModel
 import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionResult
@@ -64,6 +65,10 @@ import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 
 private enum class SteamChatSubpage { INFO, SEARCH, ADMIN }
+
+/** Keep the current chat session alive while an MDBX/local source is switching. */
+internal fun shouldApplySteamAccountSelection(sourceState: SteamAccountSourceState): Boolean =
+    !sourceState.loading
 
 @Composable
 fun SteamChatScreen(
@@ -177,21 +182,30 @@ fun SteamChatScreen(
     }
     val effectiveSearchQuery = if (standalone) standaloneSearchQuery else searchQuery
     LaunchedEffect(
+        accountSourceState.loading,
         selectedAccount?.id,
         selectedAccount?.steamId,
         selectedAccount?.accessToken,
         selectedAccount?.steamLoginSecure
     ) {
+        if (!shouldApplySteamAccountSelection(accountSourceState)) return@LaunchedEffect
         chatViewModel.selectAccount(selectedAccount)
         groupChatViewModel.selectAccount(selectedAccount)
         richMediaViewModel.selectAccount(selectedAccount)
         messageActionViewModel.selectAccount(selectedAccount)
         friendsViewModel.selectAccount(selectedAccount)
     }
-    LaunchedEffect(selectedAccount?.id, selectedAccount?.steamId, selectedAccount?.accessToken) {
+    LaunchedEffect(
+        accountSourceState.loading,
+        selectedAccount?.id,
+        selectedAccount?.steamId,
+        selectedAccount?.accessToken
+    ) {
+        if (!shouldApplySteamAccountSelection(accountSourceState)) return@LaunchedEffect
         selectedAccount?.let(voiceRuntime::observeAccount)
     }
-    LaunchedEffect(selectedAccount?.id, selectedAccount?.steamId) {
+    LaunchedEffect(accountSourceState.loading, selectedAccount?.id, selectedAccount?.steamId) {
+        if (!shouldApplySteamAccountSelection(accountSourceState)) return@LaunchedEffect
         if (voiceState.isActive && selectedAccount?.steamId != voiceState.accountSteamId) {
             voiceRuntime.stop()
         }
