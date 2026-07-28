@@ -15,6 +15,21 @@ class SteamVoiceMediaIntegrationGuardTest {
         assertTrue(source.contains("minptime=10;useinbandfec=1;usedtx=1"))
         assertTrue(source.contains("report.type === \"outbound-rtp\""))
         assertTrue(source.contains("onMediaStats"))
+        assertTrue(source.contains("descriptionChain"))
+        assertTrue(source.contains("onEngineTerminated"))
+    }
+
+    @Test
+    fun runtimeRebuildsMediaAfterIceRendererAndOutboundFailures() {
+        val runtime = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/voice/presentation/SteamVoiceCallRuntime.kt"
+        ).readText()
+
+        assertTrue(runtime.contains("SteamVoiceRecoveryBudget"))
+        assertTrue(runtime.contains("SteamVoiceMediaHealthMonitor"))
+        assertTrue(runtime.contains("OUTBOUND_STALLED"))
+        assertTrue(runtime.contains("ICE_DISCONNECT_GRACE_MILLIS"))
+        assertTrue(runtime.contains("restartMediaEngine"))
     }
 
     @Test

@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +34,11 @@ import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceWebRtcSession
 import takagi.ru.monica.steam.friends.voice.media.SteamVoiceWebViewCallbacks
 import takagi.ru.monica.steam.friends.voice.media.SteamVoiceWebViewEngine
+import takagi.ru.monica.steam.friends.voice.media.SteamVoiceMediaHealth
+import takagi.ru.monica.steam.friends.voice.media.SteamVoiceMediaHealthMonitor
+import takagi.ru.monica.steam.friends.voice.media.SteamVoiceMediaSample
+import takagi.ru.monica.steam.friends.voice.media.SteamVoiceRecoveryBudget
+import takagi.ru.monica.steam.friends.voice.media.isSteamVoiceMediaConnected
 import takagi.ru.monica.steam.network.cm.SteamCmClient
 import takagi.ru.monica.steam.network.cm.steamCmAccountKey
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
@@ -54,12 +60,20 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
     val state: StateFlow<SteamVoiceCallState> = _state.asStateFlow()
 
     private var account: SteamAccount? = null
+    private var accountKey: String = ""
     private var mediaEngine: SteamVoiceWebViewEngine? = null
     private var realtimeJob: Job? = null
+    private var mediaRecoveryJob: Job? = null
+    private var iceDisconnectJob: Job? = null
     private var webRtcSession: SteamVoiceWebRtcSession? = null
     private var remoteDescriptionVersion = "0"
     private var joiningVoice = false
     private var voiceWebRtcUpdated = false
+    private var directAccepted = false
+    private var mediaGeneration = 0L
+    private var iceConnected = false
+    private val mediaHealthMonitor = SteamVoiceMediaHealthMonitor()
+    private val recoveryBudget = SteamVoiceRecoveryBudget()
 
     fun startGroup(
         account: SteamAccount,
@@ -78,11 +92,33 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
 
     /** Keeps the CM voice notification stream alive for incoming call invites. */
     fun observeAccount(account: SteamAccount) {
-        if (this.account?.id == account.id && realtimeJob?.isActive == true) return
-        if (_state.value.isActive && this.account?.id != account.id) return
+        val nextAccountKey = resolveAccountKey(account)
+        if (this.account?.id == account.id &&
+            this.account?.steamId == account.steamId &&
+            accountKey == nextAccountKey &&
+            realtimeJob?.isActive == true
+        ) {
+            val credentialsChanged = this.account?.accessToken != account.accessToken ||
+                this.account?.refreshToken != account.refreshToken ||
+                this.account?.steamLoginSecure != account.steamLoginSecure
+            this.account = account
+            if (credentialsChanged) startRealtime(account)
+            return
+        }
+        if (_state.value.isActive && (
+                this.account?.id != account.id ||
+                    this.account?.steamId != account.steamId ||
+                    accountKey != nextAccountKey
+                )
+        ) return
         val previousAccount = this.account
         val previousRequest = _state.value.incomingRequest
-        if (previousAccount != null && previousAccount.id != account.id && previousRequest != null) {
+        val accountChanged = previousAccount != null && (
+            previousAccount.id != account.id ||
+                previousAccount.steamId != account.steamId ||
+                accountKey != nextAccountKey
+            )
+        if (accountChanged && previousRequest != null) {
             scope.launch {
                 runNetwork(previousAccount, "reject_previous_account") { prepared ->
                     gateway.answerDirectVoice(
@@ -97,6 +133,7 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
             _state.value = SteamVoiceCallState(accountSteamId = account.steamId)
         }
         this.account = account
+        accountKey = nextAccountKey
         _state.value = _state.value.copy(accountSteamId = account.steamId)
         startRealtime(account)
     }
@@ -121,6 +158,7 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
             return
         }
         this.account = account
+        accountKey = resolveAccountKey(account)
         scope.launch {
             val result = runNetwork("accept_direct") { prepared ->
                 gateway.answerDirectVoice(
@@ -208,10 +246,15 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
         }
         if (_state.value.isActive) stopInternal(notifySteam = true)
         this.account = account
+        accountKey = resolveAccountKey(account)
         webRtcSession = null
         remoteDescriptionVersion = "0"
         joiningVoice = false
         voiceWebRtcUpdated = false
+        directAccepted = target.type == SteamVoiceTargetType.DIRECT && initialVoiceChatId.isNotBlank()
+        iceConnected = false
+        mediaHealthMonitor.reset()
+        recoveryBudget.reset()
         _state.value = SteamVoiceCallState(
             accountSteamId = account.steamId,
             target = target,
@@ -226,44 +269,63 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
                     "voice_foreground_start failed type=${error::class.java.simpleName}"
                 )
             }
-        mediaEngine = SteamVoiceWebViewEngine(
+        startMediaEngine()
+    }
+
+    private fun startMediaEngine() {
+        if (!_state.value.isActive) return
+        val generation = ++mediaGeneration
+        val engine = SteamVoiceWebViewEngine(
             appContext,
             object : SteamVoiceWebViewCallbacks {
                 override fun onLocalOffer(descriptionJson: String) {
-                    scope.launch { initiateWebRtc(descriptionJson) }
+                    if (isCurrentMedia(generation)) {
+                        scope.launch { initiateWebRtc(descriptionJson, generation) }
+                    }
                 }
 
                 override fun onLocalAnswer(descriptionJson: String) {
-                    scope.launch { acknowledgeRemoteDescription(descriptionJson) }
+                    if (isCurrentMedia(generation)) {
+                        scope.launch { acknowledgeRemoteDescription(descriptionJson, generation) }
+                    }
                 }
 
                 override fun onIceStateChanged(state: String) {
-                    if (state == "connected" || state == "completed") {
-                        scope.launch { onIceConnected() }
-                    } else if (state == "failed") {
-                        scope.launch { fail("Steam voice media connection failed") }
-                    } else if (state == "disconnected") {
-                        if (_state.value.isActive) {
-                            _state.value = _state.value.copy(
-                                state = SteamVoiceConnectionState.RECONNECTING
-                            )
-                        }
+                    if (isCurrentMedia(generation)) {
+                        handleIceState(state, generation)
                     }
                 }
 
                 override fun onMediaStats(stats: String) {
-                    SteamDiagLogger.append("voice_media outbound=${stats.take(240)}")
+                    if (isCurrentMedia(generation)) {
+                        evaluateMediaStats(stats, generation)
+                    }
+                }
+
+                override fun onEngineTerminated(message: String) {
+                    if (isCurrentMedia(generation)) {
+                        requestMediaRecovery(message, generation)
+                    }
                 }
 
                 override fun onFailure(message: String) {
-                    scope.launch { fail("Steam voice media failed: ${message.take(160)}") }
+                    if (!isCurrentMedia(generation)) return
+                    if (message.isSteamVoicePermissionFailure()) {
+                        fail("Microphone permission is required for Steam voice chat")
+                    } else {
+                        requestMediaRecovery("Steam voice media error", generation)
+                    }
                 }
             }
-        ).also(SteamVoiceWebViewEngine::start)
+        )
+        mediaEngine = engine
+        engine.setMicrophoneMuted(_state.value.microphoneMuted)
+        engine.setOutputMuted(_state.value.outputMuted)
+        engine.start()
     }
 
-    private suspend fun initiateWebRtc(descriptionJson: String) {
-        if (!_state.value.isActive) return
+    private suspend fun initiateWebRtc(descriptionJson: String, generation: Long) {
+        if (!isCurrentMedia(generation)) return
         _state.value = _state.value.copy(state = SteamVoiceConnectionState.CONNECTING_MEDIA)
         val remote = runNetwork("init_webrtc") { prepared ->
             gateway.initiateWebRtc(
@@ -276,13 +338,17 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
             fail(it.voiceMessage("Steam WebRTC connection failed"))
             return
         }
+        if (!isCurrentMedia(generation)) return
         mediaEngine?.setRemoteDescription(remote)
     }
 
-    private suspend fun onIceConnected() {
-        if (!_state.value.isActive) return
+    private suspend fun onIceConnected(generation: Long) {
+        if (!isCurrentMedia(generation)) return
+        iceConnected = true
+        iceDisconnectJob?.cancel()
+        iceDisconnectJob = null
         if (voiceWebRtcUpdated && _state.value.voiceChatId.isNotBlank()) {
-            _state.value = _state.value.copy(state = SteamVoiceConnectionState.CONNECTED)
+            updateVoiceConnectionState()
             return
         }
         if (joiningVoice) return
@@ -290,6 +356,10 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
         joiningVoice = true
         when (currentTarget.type) {
             SteamVoiceTargetType.GROUP -> {
+                if (_state.value.voiceChatId.isNotBlank()) {
+                    maybeUpdateVoiceWebRtcData(generation)
+                    return
+                }
                 val voiceId = runNetwork("join_group") { prepared ->
                     gateway.joinGroupVoice(
                         prepared,
@@ -301,13 +371,14 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
                     fail(it.voiceMessage("Unable to join Steam voice channel"))
                     return
                 }
+                if (!isCurrentMedia(generation)) return
                 _state.value = _state.value.copy(voiceChatId = voiceId)
-                maybeUpdateVoiceWebRtcData()
+                maybeUpdateVoiceWebRtcData(generation)
             }
             SteamVoiceTargetType.DIRECT -> {
                 val partnerSteamId = requireNotNull(currentTarget.partnerSteamId)
                 if (_state.value.voiceChatId.isNotBlank()) {
-                    maybeUpdateVoiceWebRtcData()
+                    maybeUpdateVoiceWebRtcData(generation)
                 } else {
                     val voiceId = runNetwork("request_direct") { prepared ->
                         gateway.requestDirectVoice(prepared, partnerSteamId)
@@ -316,6 +387,7 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
                         fail(it.voiceMessage("Unable to start Steam voice call"))
                         return
                     }
+                    if (!isCurrentMedia(generation)) return
                     _state.value = _state.value.copy(
                         voiceChatId = voiceId,
                         state = SteamVoiceConnectionState.WAITING_FOR_ACCEPT
@@ -325,7 +397,10 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
         }
     }
 
-    private suspend fun maybeUpdateVoiceWebRtcData() {
+    private suspend fun maybeUpdateVoiceWebRtcData(
+        expectedGeneration: Long = mediaGeneration
+    ) {
+        if (!isCurrentMedia(expectedGeneration)) return
         val voiceChatId = _state.value.voiceChatId.takeIf(String::isNotBlank) ?: return
         val session = webRtcSession ?: return
         if (voiceWebRtcUpdated) return
@@ -341,15 +416,20 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
         if (result.isFailure) {
             voiceWebRtcUpdated = false
             joiningVoice = false
-            fail(result.exceptionOrNull().voiceMessage("Steam voice session setup failed"))
+            requestMediaRecovery("Steam voice session setup failed", expectedGeneration)
             return
         }
+        if (!isCurrentMedia(expectedGeneration)) return
         joiningVoice = false
-        _state.value = _state.value.copy(state = SteamVoiceConnectionState.CONNECTED)
+        updateVoiceConnectionState()
         publishVoiceStatus()
     }
 
-    private suspend fun acknowledgeRemoteDescription(localAnswerJson: String) {
+    private suspend fun acknowledgeRemoteDescription(
+        localAnswerJson: String,
+        generation: Long
+    ) {
+        if (!isCurrentMedia(generation)) return
         val session = webRtcSession ?: return
         val version = remoteDescriptionVersion
         val result = runNetwork("ack_remote_description") { prepared ->
@@ -360,11 +440,111 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
                 "voice_ack_remote failed type=${result.exceptionOrNull()?.javaClass?.simpleName}"
             )
         }
+        if (!isCurrentMedia(generation)) return
         // Steam's server receives the local answer through the acknowledged
         // WebRTC session coordinates; keeping the argument makes the callback
         // explicit and prevents accidental acknowledgement before an answer.
         if (localAnswerJson.isBlank()) return
     }
+
+    private fun handleIceState(rawState: String, generation: Long) {
+        when (rawState.lowercase()) {
+            "connected", "completed" -> scope.launch { onIceConnected(generation) }
+            "disconnected" -> {
+                iceConnected = false
+                _state.value = _state.value.copy(
+                    state = SteamVoiceConnectionState.RECONNECTING,
+                    failure = null
+                )
+                iceDisconnectJob?.cancel()
+                iceDisconnectJob = scope.launch {
+                    delay(ICE_DISCONNECT_GRACE_MILLIS)
+                    if (isCurrentMedia(generation) && !iceConnected) {
+                        requestMediaRecovery("Steam voice media disconnected", generation)
+                    }
+                }
+            }
+            "failed" -> {
+                iceConnected = false
+                requestMediaRecovery("Steam voice media connection failed", generation)
+            }
+        }
+    }
+
+    private fun evaluateMediaStats(rawStats: String, generation: Long) {
+        if (!isCurrentMedia(generation)) return
+        if (!hasMicrophonePermission()) {
+            fail("Microphone permission is required for Steam voice chat")
+            return
+        }
+        val sample = SteamVoiceMediaSample.parse(rawStats) ?: return
+        when (mediaHealthMonitor.observe(
+            sample = sample,
+            nowMillis = System.currentTimeMillis(),
+            microphoneMuted = _state.value.microphoneMuted
+        )) {
+            SteamVoiceMediaHealth.HEALTHY -> Unit
+            SteamVoiceMediaHealth.PERMISSION_REVOKED ->
+                fail("Microphone permission is required for Steam voice chat")
+            SteamVoiceMediaHealth.TRACK_MISSING,
+            SteamVoiceMediaHealth.TRACK_ENDED ->
+                requestMediaRecovery("Steam voice microphone track ended", generation)
+            SteamVoiceMediaHealth.OUTBOUND_STALLED ->
+                requestMediaRecovery("Steam voice outbound audio stalled", generation)
+        }
+    }
+
+    private fun requestMediaRecovery(reason: String, generation: Long) {
+        if (!isCurrentMedia(generation) || mediaRecoveryJob?.isActive == true) return
+        if (!hasMicrophonePermission()) {
+            fail("Microphone permission is required for Steam voice chat")
+            return
+        }
+        val attempt = recoveryBudget.request(System.currentTimeMillis())
+        if (attempt == null) {
+            fail("Steam voice media repeatedly failed")
+            return
+        }
+        _state.value = _state.value.copy(
+            state = SteamVoiceConnectionState.RECONNECTING,
+            failure = null
+        )
+        SteamDiagLogger.append(
+            "voice_media_recovery attempt=${attempt.attempt} reason=${reason.voiceDiagnostic()}"
+        )
+        val job = scope.launch {
+            delay(attempt.delayMillis)
+            if (isCurrentMedia(generation)) restartMediaEngine(reason)
+        }
+        mediaRecoveryJob = job
+        job.invokeOnCompletion {
+            if (mediaRecoveryJob === job) mediaRecoveryJob = null
+        }
+    }
+
+    private fun restartMediaEngine(reason: String) {
+        if (!_state.value.isActive) return
+        iceDisconnectJob?.cancel()
+        iceDisconnectJob = null
+        mediaGeneration++
+        mediaEngine?.stop()
+        mediaEngine = null
+        webRtcSession = null
+        remoteDescriptionVersion = "0"
+        joiningVoice = false
+        voiceWebRtcUpdated = false
+        iceConnected = false
+        mediaHealthMonitor.reset()
+        SteamDiagLogger.append("voice_media_restarted reason=${reason.voiceDiagnostic()}")
+        startMediaEngine()
+    }
+
+    private fun isCurrentMedia(generation: Long): Boolean =
+        _state.value.isActive && mediaGeneration == generation
+
+    private fun hasMicrophonePermission(): Boolean =
+        ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
 
     private fun startRealtime(account: SteamAccount) {
         realtimeJob?.cancel()
@@ -389,6 +569,8 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
             is SteamVoiceRealtimeEvent.ConnectionChanged -> {
                 if (!event.connected && _state.value.isActive) {
                     _state.value = _state.value.copy(state = SteamVoiceConnectionState.RECONNECTING)
+                } else if (event.connected && iceConnected && voiceWebRtcUpdated) {
+                    updateVoiceConnectionState()
                 }
             }
             is SteamVoiceRealtimeEvent.IncomingDirectRequest -> {
@@ -416,8 +598,14 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
                 if (event.voiceChatId == _state.value.voiceChatId &&
                     event.partnerSteamId == _state.value.target?.partnerSteamId
                 ) {
-                    if (event.accepted) maybeUpdateVoiceWebRtcData()
-                    else fail("Steam voice call was declined")
+                    if (event.accepted) {
+                        directAccepted = true
+                        maybeUpdateVoiceWebRtcData(mediaGeneration)
+                        updateVoiceConnectionState()
+                    } else {
+                        directAccepted = false
+                        fail("Steam voice call was declined")
+                    }
                 }
             }
             is SteamVoiceRealtimeEvent.UserJoined -> {
@@ -454,13 +642,13 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
                         voiceChatId = "",
                         state = SteamVoiceConnectionState.RECONNECTING
                     )
-                    onIceConnected()
+                    onIceConnected(mediaGeneration)
                 }
             }
             is SteamVoiceRealtimeEvent.WebRtcConnected -> {
                 if (_state.value.isActive) {
                     webRtcSession = event.session
-                    maybeUpdateVoiceWebRtcData()
+                    maybeUpdateVoiceWebRtcData(mediaGeneration)
                 }
             }
             is SteamVoiceRealtimeEvent.RemoteDescriptionUpdated -> {
@@ -531,12 +719,21 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
         }
         realtimeJob?.cancel()
         realtimeJob = null
+        mediaRecoveryJob?.cancel()
+        mediaRecoveryJob = null
+        iceDisconnectJob?.cancel()
+        iceDisconnectJob = null
+        mediaGeneration++
         mediaEngine?.stop()
         mediaEngine = null
         webRtcSession = null
         remoteDescriptionVersion = "0"
         joiningVoice = false
         voiceWebRtcUpdated = false
+        directAccepted = false
+        iceConnected = false
+        mediaHealthMonitor.reset()
+        recoveryBudget.reset()
         account = currentAccount
         _state.value = SteamVoiceCallState(
             accountSteamId = currentAccount?.steamId.orEmpty(),
@@ -586,8 +783,33 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
     private fun Throwable?.voiceMessage(fallback: String): String =
         this?.message?.takeIf(String::isNotBlank)?.take(180) ?: fallback
 
+    private fun resolveAccountKey(current: SteamAccount): String =
+        sourceRepository.sessionHandle(current)?.stableKey ?: steamCmAccountKey(current)
+
+    private fun updateVoiceConnectionState() {
+        val targetType = _state.value.target?.type ?: return
+        val connected = isSteamVoiceMediaConnected(
+            targetType = targetType,
+            voiceChatId = _state.value.voiceChatId,
+            iceConnected = iceConnected,
+            webRtcUpdated = voiceWebRtcUpdated,
+            directAccepted = directAccepted
+        )
+        _state.value = _state.value.copy(
+            state = when {
+                connected -> SteamVoiceConnectionState.CONNECTED
+                targetType == SteamVoiceTargetType.DIRECT &&
+                    _state.value.voiceChatId.isNotBlank() && !directAccepted ->
+                    SteamVoiceConnectionState.WAITING_FOR_ACCEPT
+                else -> SteamVoiceConnectionState.CONNECTING_MEDIA
+            },
+            failure = null
+        )
+    }
+
     companion object {
         const val MICROPHONE_PERMISSION = Manifest.permission.RECORD_AUDIO
+        private const val ICE_DISCONNECT_GRACE_MILLIS = 4_000L
         private const val ANDROID_WEBVIEW_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36 Monica-Steam"
         private val INSTANCE = AtomicReference<SteamVoiceCallRuntime?>()
@@ -598,3 +820,13 @@ class SteamVoiceCallRuntime private constructor(context: Context) {
             }
     }
 }
+
+private fun String.isSteamVoicePermissionFailure(): Boolean {
+    val normalized = lowercase()
+    return normalized.contains("permission") ||
+        normalized.contains("notallowederror") ||
+        normalized.contains("permissiondenied")
+}
+
+private fun String.voiceDiagnostic(): String =
+    replace(Regex("[\\r\\n\\t]+"), " ").take(120)

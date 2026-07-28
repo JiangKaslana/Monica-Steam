@@ -23,6 +23,7 @@ internal interface SteamVoiceWebViewCallbacks {
     fun onLocalAnswer(descriptionJson: String)
     fun onIceStateChanged(state: String)
     fun onMediaStats(stats: String)
+    fun onEngineTerminated(message: String)
     fun onFailure(message: String)
 }
 
@@ -39,11 +40,15 @@ internal class SteamVoiceWebViewEngine(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var webView: WebView? = null
     private var started = false
+    private var stopping = false
+    private var microphoneMuted = false
+    private var outputMuted = false
 
     @SuppressLint("SetJavaScriptEnabled")
     fun start() {
         if (started) return
         started = true
+        stopping = false
         mainHandler.post {
             if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) !=
                 PackageManager.PERMISSION_GRANTED
@@ -75,16 +80,17 @@ internal class SteamVoiceWebViewEngine(
                         view: WebView?,
                         detail: RenderProcessGoneDetail?
                     ): Boolean {
+                        val notifyRecovery = started && !stopping
                         webView = null
                         started = false
                         runCatching { view?.destroy() }
-                        callbacks.onFailure(
-                            if (detail?.didCrash() == true) {
+                        if (notifyRecovery) {
+                            callbacks.onEngineTerminated(if (detail?.didCrash() == true) {
                                 "Android WebView voice renderer crashed"
                             } else {
                                 "Android stopped the WebView voice renderer"
-                            }
-                        )
+                            })
+                        }
                         return true
                     }
                 }
@@ -138,16 +144,19 @@ internal class SteamVoiceWebViewEngine(
         "window.monicaVoice && window.monicaVoice.setRemoteDescription(${JSONObject.quote(descriptionJson)})"
     )
 
-    fun setMicrophoneMuted(muted: Boolean) = evaluate(
-        "window.monicaVoice && window.monicaVoice.setMicrophoneMuted(${muted})"
-    )
+    fun setMicrophoneMuted(muted: Boolean) {
+        microphoneMuted = muted
+        evaluate("window.monicaVoice && window.monicaVoice.setMicrophoneMuted(${muted})")
+    }
 
-    fun setOutputMuted(muted: Boolean) = evaluate(
-        "window.monicaVoice && window.monicaVoice.setOutputMuted(${muted})"
-    )
+    fun setOutputMuted(muted: Boolean) {
+        outputMuted = muted
+        evaluate("window.monicaVoice && window.monicaVoice.setOutputMuted(${muted})")
+    }
 
     fun stop() {
         started = false
+        stopping = true
         mainHandler.post {
             webView?.let { view ->
                 runCatching {
@@ -180,6 +189,12 @@ internal class SteamVoiceWebViewEngine(
 
         @android.webkit.JavascriptInterface
         fun onFailure(message: String) = callbacks.onFailure(message)
+
+        @android.webkit.JavascriptInterface
+        fun isMicrophoneMuted(): Boolean = microphoneMuted
+
+        @android.webkit.JavascriptInterface
+        fun isOutputMuted(): Boolean = outputMuted
     }
 
     private companion object {
@@ -192,6 +207,10 @@ internal class SteamVoiceWebViewEngine(
               let pc = null;
               let stream = null;
               let statsTimer = null;
+              let descriptionChain = Promise.resolve();
+              let microphoneMuted = false;
+              let outputMuted = false;
+              let microphonePermission = "unknown";
               const bridge = () => window.MonicaVoiceBridge;
               const fail = (e) => bridge().onFailure(String(e && e.message || e));
               const reportIce = () => {
@@ -235,13 +254,23 @@ internal class SteamVoiceWebViewEngine(
                     bytes, packets, audioLevel,
                     enabled: !!track && track.enabled,
                     muted: !!track && track.muted,
-                    readyState: track ? track.readyState : "missing"
+                    readyState: track ? track.readyState : "missing",
+                    permission: microphonePermission
                   }));
                 } catch (e) { /* stats are diagnostic and must never end a call */ }
               };
               window.monicaVoice = {
                 async start() {
                   try {
+                    microphoneMuted = !!bridge().isMicrophoneMuted();
+                    outputMuted = !!bridge().isOutputMuted();
+                    try {
+                      const permission = await navigator.permissions.query({ name: "microphone" });
+                      microphonePermission = permission.state || "unknown";
+                      permission.onchange = () => {
+                        microphonePermission = permission.state || "unknown";
+                      };
+                    } catch (e) { microphonePermission = "unknown"; }
                     stream = await navigator.mediaDevices.getUserMedia({
                       audio: {
                         echoCancellation: true,
@@ -255,20 +284,27 @@ internal class SteamVoiceWebViewEngine(
                     pc = new RTCPeerConnection({ sdpSemantics: "plan-b" });
                     stream.getTracks().forEach(t => {
                       if (t.kind === "audio" && "contentHint" in t) t.contentHint = "speech";
-                      t.enabled = true;
+                      t.enabled = !microphoneMuted;
                       pc.addTrack(t, stream);
                     });
                     pc.oniceconnectionstatechange = reportIce;
                     pc.onconnectionstatechange = reportIce;
                     pc.ontrack = (event) => {
                       try {
-                        const remote = document.createElement("audio");
-                        remote.autoplay = true;
-                        remote.controls = false;
+                        let remote = Array.from(document.querySelectorAll("audio[data-monica-remote='1']"))
+                          .find(a => a.dataset.monicaTrack === event.track.id);
+                        if (!remote) {
+                          remote = document.createElement("audio");
+                          remote.autoplay = true;
+                          remote.controls = false;
+                          remote.dataset.monicaRemote = "1";
+                          remote.dataset.monicaTrack = event.track.id;
+                          document.body.appendChild(remote);
+                        }
                         remote.srcObject = event.streams && event.streams[0]
                           ? event.streams[0] : new MediaStream([event.track]);
-                        remote.dataset.monicaRemote = "1";
-                        document.body.appendChild(remote);
+                        remote.muted = outputMuted;
+                        remote.play().catch(() => {});
                       } catch (e) { fail(e); }
                     };
                     const offer = normalizeOpus(await pc.createOffer({
@@ -280,8 +316,8 @@ internal class SteamVoiceWebViewEngine(
                     statsTimer = window.setInterval(reportMedia, 5000);
                   } catch (e) { fail(e); }
                 },
-                async setRemoteDescription(raw) {
-                  try {
+                setRemoteDescription(raw) {
+                  descriptionChain = descriptionChain.then(async () => {
                     if (!pc) return;
                     const description = typeof raw === "string" ? JSON.parse(raw) : raw;
                     await pc.setRemoteDescription(description);
@@ -290,13 +326,16 @@ internal class SteamVoiceWebViewEngine(
                       await pc.setLocalDescription(answer);
                       bridge().onLocalAnswer(JSON.stringify(pc.localDescription));
                     }
-                  } catch (e) { fail(e); }
+                  }).catch(e => fail(e));
+                  return descriptionChain;
                 },
                 setMicrophoneMuted(muted) {
-                  if (stream) stream.getAudioTracks().forEach(t => t.enabled = !muted);
+                  microphoneMuted = !!muted;
+                  if (stream) stream.getAudioTracks().forEach(t => t.enabled = !microphoneMuted);
                 },
                 setOutputMuted(muted) {
-                  document.querySelectorAll("audio[data-monica-remote='1']").forEach(a => a.muted = !!muted);
+                  outputMuted = !!muted;
+                  document.querySelectorAll("audio[data-monica-remote='1']").forEach(a => a.muted = outputMuted);
                 },
                 stop() {
                   if (statsTimer) window.clearInterval(statsTimer);
@@ -307,6 +346,7 @@ internal class SteamVoiceWebViewEngine(
                     a.remove();
                   });
                   pc = null; stream = null; statsTimer = null;
+                  descriptionChain = Promise.resolve();
                 }
               };
               window.addEventListener("load", () => window.monicaVoice.start());
