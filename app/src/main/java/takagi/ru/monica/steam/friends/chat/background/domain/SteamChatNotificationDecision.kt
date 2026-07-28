@@ -113,6 +113,10 @@ object SteamChatNotificationPolicy {
                 kind = SteamChatNotificationPreviewKind.TEXT,
                 text = compactText(content.body)
             )
+            is SteamChatRichContent.Action -> SteamChatNotificationPreview(
+                kind = SteamChatNotificationPreviewKind.TEXT,
+                text = compactText("* ${content.body}")
+            )
             is SteamChatRichContent.Sticker -> SteamChatNotificationPreview(
                 kind = SteamChatNotificationPreviewKind.STICKER,
                 text = content.name

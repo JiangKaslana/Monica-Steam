@@ -31,12 +31,19 @@ internal object SteamFriendChatRealtimeParser {
         val partnerSteamId = fields[1]?.asFixed64UnsignedString
             ?.takeIf(::isSteamId64) ?: return null
         val localEcho = fields[7]?.asBool == true
-        return when (fields[2]?.asInt ?: CHAT_ENTRY_TYPE_INVALID) {
+        val entryType = fields[2]?.asInt ?: CHAT_ENTRY_TYPE_INVALID
+        return when (entryType) {
             in MESSAGE_ENTRY_TYPES -> {
-                val body = fields[4]?.asString
+                val rawBody = fields[4]?.asString
                     ?.takeIf(String::isNotBlank)
                     ?: fields[8]?.asString?.takeIf(String::isNotBlank)
                     ?: return null
+                val body = if (entryType == CHAT_ENTRY_TYPE_EMOTE) {
+                    rawBody.takeIf { it.startsWith("/me ", ignoreCase = true) }
+                        ?: "/me $rawBody"
+                } else {
+                    rawBody
+                }
                 SteamChatRealtimeEvent.Message(
                     SteamChatMessage(
                         partnerSteamId = partnerSteamId,
@@ -98,12 +105,14 @@ internal object SteamFriendChatRealtimeParser {
     private const val CHAT_ENTRY_TYPE_MESSAGE = 1
     private const val CHAT_ENTRY_TYPE_TYPING = 2
     private const val CHAT_ENTRY_TYPE_INVITE_GAME = 3
+    private const val CHAT_ENTRY_TYPE_EMOTE = 4
     private const val CHAT_ENTRY_TYPE_LEFT_CONVERSATION = 6
     private const val CHAT_ENTRY_TYPE_HISTORICAL_CHAT = 11
     private const val CHAT_ENTRY_TYPE_LINK_BLOCKED = 14
     private val MESSAGE_ENTRY_TYPES = setOf(
         CHAT_ENTRY_TYPE_MESSAGE,
         CHAT_ENTRY_TYPE_INVITE_GAME,
+        CHAT_ENTRY_TYPE_EMOTE,
         CHAT_ENTRY_TYPE_HISTORICAL_CHAT,
         CHAT_ENTRY_TYPE_LINK_BLOCKED
     )

@@ -125,6 +125,14 @@ class SteamChatRichMediaModelsTest {
     }
 
     @Test
+    fun parsesSteamMeActionsAsAFirstClassMessage() {
+        assertEquals(
+            SteamChatRichContent.Action("waves hello"),
+            SteamChatRichContentParser.parse("/me waves hello")
+        )
+    }
+
+    @Test
     fun parsesSteamJoinLobbyInviteBeforeGenericLinks() {
         val content = SteamChatRichContentParser.parse(
             "[url=steam://joinlobby/730/123456789/76561198000000001]Join game[/url]"
@@ -144,6 +152,28 @@ class SteamChatRichMediaModelsTest {
         val unknown = SteamChatRichContentParser.parse(body) as SteamChatRichContent.OfficialMessage
         assertEquals(SteamChatOfficialMessageKind.UNKNOWN, unknown.message.kind)
         assertEquals(body, unknown.message.rawBody)
+    }
+
+    @Test
+    fun keepsUnknownSelfClosingSteamSystemMessagesReadable() {
+        val body = "[steam_new_feature type=42]"
+        val unknown = SteamChatRichContentParser.parse(body) as SteamChatRichContent.OfficialMessage
+
+        assertEquals(SteamChatOfficialMessageKind.UNKNOWN, unknown.message.kind)
+        assertEquals("42", unknown.message.attributes["type"])
+        assertEquals(body, unknown.message.rawBody)
+    }
+
+    @Test
+    fun parsesPlainSteamTradeOfferLinksAsTypedMessages() {
+        val body = "Trade: https://steamcommunity.com/tradeoffer/new/?partner=123&token=abc"
+        val trade = SteamChatRichContentParser.parse(body) as SteamChatRichContent.OfficialMessage
+
+        assertEquals(SteamChatOfficialMessageKind.TRADE_OFFER, trade.message.kind)
+        assertEquals(
+            "https://steamcommunity.com/tradeoffer/new/?partner=123&token=abc",
+            trade.message.url
+        )
     }
 
     @Test

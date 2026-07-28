@@ -72,6 +72,8 @@ data class SteamChatUploadedAttachment(
 sealed interface SteamChatRichContent {
     data class Text(val body: String) : SteamChatRichContent
 
+    data class Action(val body: String) : SteamChatRichContent
+
     /** A first-class Steam lobby/game invitation embedded in chat BBCode. */
     data class GameInvite(
         val appId: Int?,
@@ -99,6 +101,10 @@ sealed interface SteamChatRichContent {
 }
 
 object SteamChatRichContentParser {
+    private val actionPattern = Regex(
+        "^/me(?:\\s+)(.+)$",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
     private val stickerPattern = Regex("^/sticker\\s+(.+?)\\s*$", RegexOption.IGNORE_CASE)
     private val spoilerPattern = Regex(
         "^\\[spoiler(?:=[^]]+)?](.*?)\\[/spoiler]$",
@@ -145,11 +151,19 @@ object SteamChatRichContentParser {
         "^\\[((?:steam[_-][A-Za-z0-9_-]+)|(?:[A-Za-z0-9_-]+notification))(?:\\s+([^]]+))?](.*?)\\[/\\1]$",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
+    private val unknownOfficialSelfClosingTagPattern = Regex(
+        "^\\[((?:steam[_-][A-Za-z0-9_-]+)|(?:[A-Za-z0-9_-]+notification))(?:\\s+([^]]+))?]\\s*$",
+        RegexOption.IGNORE_CASE
+    )
     private val steamUrlPattern = Regex(
         "steam://(?:joinlobby|joinparty|rungame|remoteplay/connect)/[^\\s\\]]+",
         RegexOption.IGNORE_CASE
     )
     private val httpUrlPattern = Regex("https?://[^\\s\\]]+", RegexOption.IGNORE_CASE)
+    private val steamTradeOfferUrlPattern = Regex(
+        "https://steamcommunity\\.com/tradeoffer/(?:new/\\?[^\\s\\[\\]]+|\\d+/?[^\\s\\[\\]]*)",
+        RegexOption.IGNORE_CASE
+    )
     private val imagePattern = Regex("\\[img(?:=[^]]+)?](https?://[^\\[]+)\\[/img]", RegexOption.IGNORE_CASE)
     private val videoPattern = Regex("\\[video(?:=[^]]+)?](https?://[^\\[]+)\\[/video]", RegexOption.IGNORE_CASE)
     private val urlPattern = Regex(
@@ -158,6 +172,11 @@ object SteamChatRichContentParser {
     )
 
     fun parse(body: String): SteamChatRichContent {
+        actionPattern.matchEntire(body.trim())?.groupValues?.getOrNull(1)
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+            ?.let { return SteamChatRichContent.Action(it) }
+
         stickerPattern.matchEntire(body.trim())?.groupValues?.getOrNull(1)
             ?.trim()
             ?.takeIf(String::isNotBlank)
@@ -226,6 +245,17 @@ object SteamChatRichContentParser {
             )
         }
 
+        steamTradeOfferUrlPattern.find(body)?.let { match ->
+            return SteamChatRichContent.OfficialMessage(
+                SteamChatOfficialMessageParser.parse(
+                    tag = "tradeoffer",
+                    rawAttributes = "",
+                    innerText = match.value,
+                    rawBody = body
+                )
+            )
+        }
+
         specialTagPattern.find(body)?.let { match ->
             val kind = match.groupValues[1].lowercase()
             val attributes = parseAttributes(match.groupValues.getOrNull(2).orEmpty())
@@ -265,6 +295,16 @@ object SteamChatRichContentParser {
                     tag = match.groupValues[1],
                     rawAttributes = match.groupValues.getOrNull(2).orEmpty(),
                     innerText = match.groupValues.getOrNull(3).orEmpty(),
+                    rawBody = body
+                )
+            )
+        }
+        unknownOfficialSelfClosingTagPattern.matchEntire(body.trim())?.let { match ->
+            return SteamChatRichContent.OfficialMessage(
+                SteamChatOfficialMessageParser.parse(
+                    tag = match.groupValues[1],
+                    rawAttributes = match.groupValues.getOrNull(2).orEmpty(),
+                    innerText = "",
                     rawBody = body
                 )
             )

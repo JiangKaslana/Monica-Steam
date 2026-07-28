@@ -44,6 +44,16 @@ class SteamFriendChatRealtimeParserTest {
     }
 
     @Test
+    fun preservesSteamEmoteEntriesAsActionMessages() {
+        val event = SteamFriendChatRealtimeParser.parse(
+            incomingEnvelope(entryType = 4, body = "waves"),
+            ACCOUNT_STEAM_ID
+        ) as SteamChatRealtimeEvent.Message
+
+        assertEquals("/me waves", event.message.body)
+    }
+
+    @Test
     fun parsesTypingConversationExitAndAckEvents() {
         val typing = SteamFriendChatRealtimeParser.parse(
             incomingEnvelope(entryType = 2, body = "", localEcho = false),

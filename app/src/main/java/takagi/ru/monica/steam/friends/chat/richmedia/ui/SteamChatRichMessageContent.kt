@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.buildAnnotatedString
@@ -64,6 +65,13 @@ internal fun SteamChatRichMessageContent(
 ) {
     when (val content = remember(body) { SteamChatRichContentParser.parse(body) }) {
         is SteamChatRichContent.Text -> SteamChatEmoticonText(content.body, modifier)
+        is SteamChatRichContent.Action -> Text(
+            text = content.body,
+            modifier = modifier,
+            style = MaterialTheme.typography.bodyLarge,
+            fontStyle = FontStyle.Italic,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         is SteamChatRichContent.GameInvite -> GameInviteContent(content, modifier)
         is SteamChatRichContent.OfficialMessage -> SteamOfficialMessageContent(content.message, modifier)
         is SteamChatRichContent.Sticker -> SteamChatRemoteImage(
