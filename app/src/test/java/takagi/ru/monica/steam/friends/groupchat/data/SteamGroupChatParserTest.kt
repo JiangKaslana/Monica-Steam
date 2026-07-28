@@ -158,7 +158,8 @@ class SteamGroupChatParserTest {
         val response = SteamProtoWriter().apply { writeMessage(1, pair) }.toByteArray()
 
         assertEquals(
-            "https://avatars.steamstatic.com/000102030405060708090a0b0c0d0e0f10111213_full.jpg",
+            "https://community.akamai.steamstatic.com/images/chaticons/00/01/02/" +
+                "000102030405060708090a0b0c0d0e0f10111213_256.jpg",
             SteamGroupChatParser.parseGroups(response).single().avatarUrl
         )
     }
@@ -214,7 +215,8 @@ class SteamGroupChatParserTest {
         }.toByteArray()
 
         assertEquals(
-            "https://avatars.steamstatic.com/000102030405060708090a0b0c0d0e0f10111213_full.jpg",
+            "https://community.akamai.steamstatic.com/images/chaticons/00/01/02/" +
+                "000102030405060708090a0b0c0d0e0f10111213_256.jpg",
             SteamGroupChatParser.parseGroups(response).single().avatarUrl
         )
     }
@@ -227,7 +229,8 @@ class SteamGroupChatParserTest {
         }.toByteArray()
 
         assertEquals(
-            "https://avatars.steamstatic.com/131211100f0e0d0c0b0a09080706050403020100_full.jpg",
+            "https://community.akamai.steamstatic.com/images/chaticons/13/12/11/" +
+                "131211100f0e0d0c0b0a09080706050403020100_256.jpg",
             SteamGroupChatParser.parseGroupHeaderAvatarUrl(header)
         )
     }

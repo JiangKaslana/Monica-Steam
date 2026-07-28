@@ -149,8 +149,12 @@ fun steamGroupAvatarUrl(value: String): String {
     }
 }
 
-private fun steamGroupAvatarUrlFromHex(hex: String): String =
-    "https://avatars.steamstatic.com/${hex.lowercase()}_full.jpg"
+private fun steamGroupAvatarUrlFromHex(hex: String): String {
+    val normalized = hex.lowercase()
+    return "https://community.akamai.steamstatic.com/images/chaticons/" +
+        "${normalized.substring(0, 2)}/${normalized.substring(2, 4)}/" +
+        "${normalized.substring(4, 6)}/${normalized}_256.jpg"
+}
 
 private fun String.looksLikeSteamAvatarUrl(): Boolean =
     startsWith("https://", ignoreCase = true) ||
