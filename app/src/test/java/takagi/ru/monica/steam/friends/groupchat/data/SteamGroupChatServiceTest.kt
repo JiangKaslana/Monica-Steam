@@ -16,6 +16,25 @@ import takagi.ru.monica.steam.network.cm.SteamCmGateway
 
 class SteamGroupChatServiceTest {
     @Test
+    fun resolvesMissingAvatarFromOfficialFullGroupState() {
+        val sha = ByteArray(20) { it.toByte() }
+        val response = SteamProtoWriter().apply {
+            writeMessage(1, SteamProtoWriter().apply {
+                writeMessage(1, SteamProtoWriter().apply {
+                    writeUint64(1, "8001")
+                    writeBytes(16, sha)
+                })
+            })
+        }.toByteArray()
+        val cm = RecordingCmGateway(response)
+
+        val url = SteamGroupChatService(cm).getGroupAvatarUrl(account(), "8001")
+
+        assertEquals("ChatRoom.GetChatRoomGroupState#1", cm.method)
+        assertTrue(url.endsWith("000102030405060708090a0b0c0d0e0f10111213_256.jpg"))
+    }
+
+    @Test
     fun updatesOfficialGroupAvatarWithGroupIdAndSha() {
         val cm = RecordingCmGateway()
         val sha = ByteArray(20) { it.toByte() }

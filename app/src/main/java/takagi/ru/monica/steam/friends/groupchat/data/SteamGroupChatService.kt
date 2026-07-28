@@ -26,6 +26,13 @@ class SteamGroupChatService(
     override fun getMyGroups(account: SteamAccount): List<SteamGroupChatSummary> =
         SteamGroupChatParser.parseGroups(call(account, "GetMyChatRoomGroups", SteamProtoWriter()))
 
+    override fun getGroupAvatarUrl(account: SteamAccount, groupId: String): String =
+        SteamGroupChatParser.parseGroupStateAvatarUrl(
+            call(account, "GetChatRoomGroupState", SteamProtoWriter().apply {
+                writeUint64(1, groupId.requireUnsignedId("group"))
+            })
+        )
+
     override fun getHistory(
         account: SteamAccount,
         groupId: String,

@@ -4,6 +4,12 @@ import takagi.ru.monica.steam.data.SteamAccount
 
 interface SteamGroupChatGateway {
     fun getMyGroups(account: SteamAccount): List<SteamGroupChatSummary>
+    /**
+     * Resolves the avatar from the full group state. Steam occasionally omits
+     * avatar fields from GetMyChatRoomGroups while still returning them from
+     * GetChatRoomGroupState.
+     */
+    fun getGroupAvatarUrl(account: SteamAccount, groupId: String): String = ""
     fun getHistory(
         account: SteamAccount,
         groupId: String,

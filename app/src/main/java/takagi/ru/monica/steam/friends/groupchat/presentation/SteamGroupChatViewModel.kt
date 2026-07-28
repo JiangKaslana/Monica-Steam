@@ -864,7 +864,19 @@ class SteamGroupChatViewModel(
             if (!isCurrent(current, currentGeneration)) return@launch
             result.fold(
                 onSuccess = { groups ->
-                    val reconciledGroups = applyPendingAvatarUrls(groups)
+                    val groupsWithResolvedAvatars = withContext(ioDispatcher) {
+                        groups.map { group ->
+                            if (group.avatarUrl.isNotBlank()) group else {
+                                val resolved = runCatching {
+                                    withPreparedSession(current) { prepared ->
+                                        gateway.getGroupAvatarUrl(prepared, group.groupId)
+                                    }
+                                }.getOrDefault("")
+                                if (resolved.isBlank()) group else group.copy(avatarUrl = resolved)
+                            }
+                        }
+                    }
+                    val reconciledGroups = applyPendingAvatarUrls(groupsWithResolvedAvatars)
                     val snapshot = SteamGroupChatGroupsSnapshot(current.steamId, reconciledGroups, nowMillis())
                     withContext(ioDispatcher) { cache.saveGroups(snapshot) }
                     _state.value = _state.value.copy(

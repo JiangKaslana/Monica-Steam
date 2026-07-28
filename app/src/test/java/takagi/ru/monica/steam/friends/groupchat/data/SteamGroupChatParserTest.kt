@@ -236,6 +236,23 @@ class SteamGroupChatParserTest {
     }
 
     @Test
+    fun parsesAvatarFromFullGroupStateWhenSummaryOmitsIt() {
+        val sha = ByteArray(20) { (19 - it).toByte() }
+        val header = SteamProtoWriter().apply {
+            writeUint64(1, "8001")
+            writeBytes(16, sha)
+        }
+        val state = SteamProtoWriter().apply { writeMessage(1, header) }
+        val response = SteamProtoWriter().apply { writeMessage(1, state) }.toByteArray()
+
+        assertEquals(
+            "https://community.akamai.steamstatic.com/images/chaticons/13/12/11/" +
+                "131211100f0e0d0c0b0a09080706050403020100_256.jpg",
+            SteamGroupChatParser.parseGroupStateAvatarUrl(response)
+        )
+    }
+
+    @Test
     fun rendersKnownSteamGroupEventsInsteadOfNumericFallbacks() {
         val invited = SteamProtoWriter().apply { writeVarint(1, 5L) }
         val avatarChanged = SteamProtoWriter().apply { writeVarint(1, 10L) }

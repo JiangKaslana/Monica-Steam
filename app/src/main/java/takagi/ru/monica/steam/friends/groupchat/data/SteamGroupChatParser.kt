@@ -182,6 +182,17 @@ internal object SteamGroupChatParser {
         }
     }
 
+    /** Parses CChatRoom_GetChatRoomGroupState_Response.group_state.header_state. */
+    fun parseGroupStateAvatarUrl(payload: ByteArray): String {
+        val response = runCatching { SteamProtoReader(payload).parse() }.getOrNull()
+            ?: return ""
+        val groupState = response[1]?.bytes ?: return ""
+        val state = runCatching { SteamProtoReader(groupState).parse() }.getOrNull()
+            ?: return ""
+        val header = state[1]?.bytes ?: return ""
+        return parseGroupHeaderAvatarUrl(header)
+    }
+
     private fun parseAvatarUrl(fields: Map<Int, SteamProtoField>): String {
         val ugcUrl = fields[21]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
         return ugcUrl.ifBlank {
