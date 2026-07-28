@@ -35,12 +35,6 @@ interface SteamGroupChatGateway {
     fun reorderChannel(account: SteamAccount, groupId: String, chatId: String, moveAfterChatId: String?) {
         throw UnsupportedOperationException("Reordering Steam group channels is not supported")
     }
-    fun joinVoiceChat(account: SteamAccount, groupId: String, chatId: String): SteamGroupChatVoiceSession {
-        throw UnsupportedOperationException("Joining Steam voice channels is not supported")
-    }
-    fun leaveVoiceChat(account: SteamAccount, groupId: String, chatId: String) {
-        throw UnsupportedOperationException("Leaving Steam voice channels is not supported")
-    }
     fun getAdminSnapshot(account: SteamAccount, groupId: String): SteamGroupChatAdminSnapshot {
         throw UnsupportedOperationException("Steam group administration is not supported")
     }

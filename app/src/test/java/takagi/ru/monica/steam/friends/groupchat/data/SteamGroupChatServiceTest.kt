@@ -74,21 +74,6 @@ class SteamGroupChatServiceTest {
     }
 
     @Test
-    fun joinsAndLeavesOfficialVoiceChat() {
-        val cm = RecordingCmGateway(
-            response = SteamProtoWriter().apply { writeUint64(1, "7001") }.toByteArray()
-        )
-        val service = SteamGroupChatService(cm)
-
-        val session = service.joinVoiceChat(account(), "8001", "9002")
-        assertEquals("ChatRoom.JoinVoiceChat#1", cm.method)
-        assertEquals("7001", session.voiceChatId)
-
-        service.leaveVoiceChat(account(), "8001", "9002")
-        assertEquals("ChatRoom.LeaveVoiceChat#1", cm.method)
-    }
-
-    @Test
     fun createsAndDeletesOfficialInviteLinks() {
         val cm = RecordingCmGateway(
             response = SteamProtoWriter().apply {

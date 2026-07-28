@@ -33,7 +33,6 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatGroupsSnaps
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatHistoryBoundary
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
-import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatVoiceSession
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatInviteLink
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoleActions
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReactionType
@@ -62,7 +61,6 @@ data class SteamGroupChatUiState(
     val updatingGroup: Boolean = false,
     val updatingGroupAvatar: Boolean = false,
     val channelActionLoading: Boolean = false,
-    val voiceSession: SteamGroupChatVoiceSession? = null,
     val adminSnapshot: SteamGroupChatAdminSnapshot? = null,
     val adminLoading: Boolean = false,
     val adminActionLoading: Boolean = false,
@@ -519,66 +517,6 @@ class SteamGroupChatViewModel(
                 }
             )
         }
-    }
-
-    fun joinVoiceChat(chatId: String) {
-        val current = account ?: return
-        val groupId = _state.value.selectedGroupId ?: return
-        if (_state.value.channelActionLoading) return
-        _state.value = _state.value.copy(channelActionLoading = true, failure = null)
-        viewModelScope.launch {
-            val result = runCatchingCancellable { withContext(ioDispatcher) {
-                withPreparedSession(current) { prepared ->
-                    gateway.joinVoiceChat(prepared, groupId, chatId)
-                }
-            } }
-            result.fold(
-                onSuccess = { session ->
-                    _state.value = _state.value.copy(
-                        channelActionLoading = false,
-                        voiceSession = session
-                    )
-                },
-                onFailure = {
-                    _state.value = _state.value.copy(
-                        channelActionLoading = false,
-                        failure = it.groupChatMessage()
-                    )
-                }
-            )
-        }
-    }
-
-    fun leaveVoiceChat() {
-        val current = account ?: return
-        val session = _state.value.voiceSession ?: return
-        if (_state.value.channelActionLoading) return
-        _state.value = _state.value.copy(channelActionLoading = true, failure = null)
-        viewModelScope.launch {
-            val result = runCatchingCancellable { withContext(ioDispatcher) {
-                withPreparedSession(current) { prepared ->
-                    gateway.leaveVoiceChat(prepared, session.groupId, session.chatId)
-                }
-            } }
-            result.fold(
-                onSuccess = {
-                    _state.value = _state.value.copy(
-                        channelActionLoading = false,
-                        voiceSession = null
-                    )
-                },
-                onFailure = {
-                    _state.value = _state.value.copy(
-                        channelActionLoading = false,
-                        failure = it.groupChatMessage()
-                    )
-                }
-            )
-        }
-    }
-
-    fun clearVoiceSession() {
-        _state.value = _state.value.copy(voiceSession = null)
     }
 
     fun refreshAdminSnapshot() {

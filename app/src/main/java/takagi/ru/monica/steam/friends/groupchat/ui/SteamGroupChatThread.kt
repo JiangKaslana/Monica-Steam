@@ -73,6 +73,10 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReactionTyp
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReportReason
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
+import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceChannelPanel
+import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
 
 @Composable
 internal fun SteamGroupChatThread(
@@ -96,6 +100,11 @@ internal fun SteamGroupChatThread(
     onUpdateReaction: (SteamGroupChatMessage, SteamGroupChatReactionType, String, Boolean) -> Unit,
     onReportMessage: (SteamGroupChatMessage, SteamGroupChatReportReason) -> Unit,
     onDeleteMessage: (SteamGroupChatMessage) -> Unit,
+    voiceState: SteamVoiceCallState = SteamVoiceCallState(),
+    onJoinVoice: (String) -> Unit = {},
+    onLeaveVoice: () -> Unit = {},
+    onToggleVoiceMicrophone: () -> Unit = {},
+    onToggleVoiceOutput: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
@@ -143,8 +152,40 @@ internal fun SteamGroupChatThread(
             selectedChatId = state.selectedChatId,
             onSelect = { chatId -> onOpenRoom(group.groupId, chatId) }
         )
+        val selectedRoom = group.rooms.firstOrNull { it.chatId == state.selectedChatId }
+        val voiceRoom = selectedRoom?.takeIf { it.voiceAllowed }
+        val activeVoiceRoom = group.rooms.firstOrNull { it.isVoiceActive }
+        val joinVoiceRoom = voiceRoom ?: activeVoiceRoom
+        val localGroupCall = voiceState.isActive &&
+            voiceState.target?.type == SteamVoiceTargetType.GROUP &&
+            voiceState.target?.groupId == group.groupId
+        if (voiceState.isActive || group.isVoiceActive) {
+            SteamVoiceStatusBanner(
+                state = voiceState,
+                fallbackTitle = group.name,
+                activeMemberCount = if (!voiceState.isActive || localGroupCall) {
+                    group.activeVoiceMemberCount
+                } else 0,
+                onJoin = joinVoiceRoom?.takeIf { !voiceState.isActive }
+                    ?.let { { onJoinVoice(it.chatId) } },
+                onLeave = voiceState.isActive.takeIf { it }?.let { { onLeaveVoice() } },
+                onToggleMicrophone = voiceState.isActive.takeIf { it }?.let { { onToggleVoiceMicrophone() } },
+                onToggleOutput = voiceState.isActive.takeIf { it }?.let { { onToggleVoiceOutput() } }
+            )
+        }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
+                voiceRoom != null -> SteamVoiceChannelPanel(
+                    room = voiceRoom,
+                    state = voiceState,
+                    friends = friends,
+                    accountSteamId = state.accountSteamId,
+                    onJoin = { onJoinVoice(voiceRoom.chatId) },
+                    onLeave = onLeaveVoice,
+                    onToggleMicrophone = onToggleVoiceMicrophone,
+                    onToggleOutput = onToggleVoiceOutput,
+                    modifier = Modifier.fillMaxSize()
+                )
                 state.threadLoading && state.thread == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 else -> LazyColumn(
                     state = listState,
@@ -182,17 +223,19 @@ internal fun SteamGroupChatThread(
                 modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)
             )
         }
-        SteamChatComposer(
-            richMediaState = richMediaState,
-            onSend = onSend,
-            onAttachmentSelected = onAttachmentSelected,
-            onAttachmentSpoilerChanged = onAttachmentSpoilerChanged,
-            onUploadAttachment = onUploadAttachment,
-            onClearAttachment = onClearAttachment,
-            onClearAttachmentFailure = onClearAttachmentFailure,
-            onRefreshCatalogs = onRefreshCatalogs,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (voiceRoom == null) {
+            SteamChatComposer(
+                richMediaState = richMediaState,
+                onSend = onSend,
+                onAttachmentSelected = onAttachmentSelected,
+                onAttachmentSpoilerChanged = onAttachmentSpoilerChanged,
+                onUploadAttachment = onUploadAttachment,
+                onClearAttachment = onClearAttachment,
+                onClearAttachmentFailure = onClearAttachmentFailure,
+                onRefreshCatalogs = onRefreshCatalogs,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 
@@ -217,6 +260,11 @@ internal fun SteamGroupChatThreadHost(
     onUpdateReaction: (SteamGroupChatMessage, SteamGroupChatReactionType, String, Boolean) -> Unit,
     onReportMessage: (SteamGroupChatMessage, SteamGroupChatReportReason) -> Unit,
     onDeleteMessage: (SteamGroupChatMessage) -> Unit,
+    voiceState: SteamVoiceCallState = SteamVoiceCallState(),
+    onJoinVoice: (String) -> Unit = {},
+    onLeaveVoice: () -> Unit = {},
+    onToggleVoiceMicrophone: () -> Unit = {},
+    onToggleVoiceOutput: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val group = state.groups.firstOrNull { it.groupId == state.selectedGroupId } ?: return
@@ -241,6 +289,11 @@ internal fun SteamGroupChatThreadHost(
         onUpdateReaction = onUpdateReaction,
         onReportMessage = onReportMessage,
         onDeleteMessage = onDeleteMessage,
+        voiceState = voiceState,
+        onJoinVoice = onJoinVoice,
+        onLeaveVoice = onLeaveVoice,
+        onToggleVoiceMicrophone = onToggleVoiceMicrophone,
+        onToggleVoiceOutput = onToggleVoiceOutput,
         modifier = modifier
     )
 }

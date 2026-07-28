@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -126,6 +127,18 @@ private fun GroupCard(group: SteamGroupChatSummary, onClick: () -> Unit) {
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (group.isVoiceActive) {
+                    Text(
+                        text = "语音通话中${group.activeVoiceMemberCount.takeIf { it > 0 }?.let { " · $it 人" }.orEmpty()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (group.isVoiceActive) {
+                Icon(Icons.Default.Call, contentDescription = "语音通话中", tint = MaterialTheme.colorScheme.primary)
             }
             if (group.unreadCount > 0) Badge { Text(group.unreadCount.toString()) }
         }

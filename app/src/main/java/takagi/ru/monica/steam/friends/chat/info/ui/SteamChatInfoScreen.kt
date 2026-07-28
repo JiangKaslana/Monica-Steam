@@ -51,9 +51,9 @@ import androidx.compose.ui.unit.dp
 import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationPreferences
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
-import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatVoiceSession
 import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChannelManagement
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
 
 @Composable
 internal fun SteamChatInfoScreen(
@@ -73,7 +73,7 @@ internal fun SteamChatInfoScreen(
     onUpdateGroup: (String, String) -> Unit,
     onUpdateGroupAvatar: (String) -> Unit,
     channelActionLoading: Boolean = false,
-    voiceSession: SteamGroupChatVoiceSession? = null,
+    voiceState: SteamVoiceCallState = SteamVoiceCallState(),
     onCreateChannel: (String, Boolean) -> Unit = { _, _ -> },
     onRenameChannel: (String, String) -> Unit = { _, _ -> },
     onDeleteChannel: (String) -> Unit = {},
@@ -184,7 +184,7 @@ internal fun SteamChatInfoScreen(
                         group = group,
                         canEdit = canEditGroup,
                         actionLoading = channelActionLoading,
-                        voiceSession = voiceSession,
+                        voiceState = voiceState,
                         onCreate = onCreateChannel,
                         onRename = onRenameChannel,
                         onDelete = onDeleteChannel,

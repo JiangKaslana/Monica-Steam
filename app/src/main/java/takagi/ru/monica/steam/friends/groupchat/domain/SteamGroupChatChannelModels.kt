@@ -5,9 +5,3 @@ data class SteamGroupChatChannelCreateRequest(
     val name: String,
     val allowVoice: Boolean
 )
-
-data class SteamGroupChatVoiceSession(
-    val groupId: String,
-    val chatId: String,
-    val voiceChatId: String
-)

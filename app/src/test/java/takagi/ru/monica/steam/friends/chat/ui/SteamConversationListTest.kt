@@ -7,6 +7,11 @@ import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceConnectionState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceParticipant
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTarget
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 
 class SteamConversationListTest {
     @Test
@@ -37,6 +42,32 @@ class SteamConversationListTest {
 
         assertEquals(SteamConversationType.GROUP, entries.first().type)
         assertTrue(entries.first().pinned)
+    }
+
+    @Test
+    fun activeLocalGroupVoiceIsVisibleBeforeTheServerSummaryRefreshes() {
+        val entries = buildSteamConversationEntries(
+            sessions = emptyList(),
+            groups = listOf(group(timestamp = 100L)),
+            friends = emptyList(),
+            query = "",
+            pinnedPartnerSteamIds = emptySet(),
+            pinnedGroupIds = emptySet(),
+            voiceState = SteamVoiceCallState(
+                accountSteamId = "76561198000000001",
+                target = SteamVoiceTarget(
+                    type = SteamVoiceTargetType.GROUP,
+                    title = "Group",
+                    groupId = "8001",
+                    chatId = "9002"
+                ),
+                state = SteamVoiceConnectionState.CONNECTED,
+                participants = listOf(SteamVoiceParticipant("76561198000000002"))
+            )
+        )
+
+        assertTrue(entries.single().voiceActive)
+        assertEquals(2, entries.single().voiceMemberCount)
     }
 
     private fun group(timestamp: Long) = SteamGroupChatSummary(

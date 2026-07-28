@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -64,6 +66,9 @@ import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichM
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.ui.FriendAvatar
 import takagi.ru.monica.steam.friends.ui.label
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
+import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
 
 @Composable
 internal fun SteamChatThread(
@@ -86,6 +91,11 @@ internal fun SteamChatThread(
     onClearAttachment: () -> Unit,
     onClearAttachmentFailure: () -> Unit,
     onRefreshCatalogs: () -> Unit,
+    voiceState: SteamVoiceCallState = SteamVoiceCallState(),
+    onStartVoice: () -> Unit = {},
+    onStopVoice: () -> Unit = {},
+    onToggleVoiceMicrophone: () -> Unit = {},
+    onToggleVoiceOutput: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
@@ -98,6 +108,9 @@ internal fun SteamChatThread(
     val listState = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
     val partnerSteamId = state.selectedPartnerSteamId.orEmpty()
+    val currentPartnerVoiceActive = voiceState.target?.type == SteamVoiceTargetType.DIRECT &&
+        voiceState.target?.partnerSteamId == partnerSteamId && voiceState.isActive
+    val anotherVoiceCallActive = voiceState.isActive && !currentPartnerVoiceActive
     val conversationKey = remember(state.accountSteamId, partnerSteamId) {
         SteamChatReadingConversationKey.direct(state.accountSteamId, partnerSteamId)
     }
@@ -145,8 +158,21 @@ internal fun SteamChatThread(
             refreshing = state.threadRefreshing,
             onNavigateBack = onNavigateBack,
             onOpenInfo = onOpenInfo,
-            onRefresh = onRefresh
+            onRefresh = onRefresh,
+            voiceActive = currentPartnerVoiceActive,
+            voiceBusy = anotherVoiceCallActive,
+            onStartVoice = onStartVoice,
+            onStopVoice = onStopVoice
         )
+        if (voiceState.isActive) {
+            SteamVoiceStatusBanner(
+                state = voiceState,
+                fallbackTitle = friend?.displayName ?: partnerSteamId,
+                onLeave = onStopVoice,
+                onToggleMicrophone = onToggleVoiceMicrophone,
+                onToggleOutput = onToggleVoiceOutput
+            )
+        }
         if (state.threadRefreshing) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
@@ -295,7 +321,11 @@ private fun ChatThreadHeader(
     refreshing: Boolean,
     onNavigateBack: () -> Unit,
     onOpenInfo: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    voiceActive: Boolean,
+    voiceBusy: Boolean,
+    onStartVoice: () -> Unit,
+    onStopVoice: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().statusBarsPadding()
@@ -340,6 +370,19 @@ private fun ChatThreadHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
+            )
+        }
+        IconButton(
+            onClick = if (voiceActive) onStopVoice else onStartVoice,
+            enabled = !voiceBusy
+        ) {
+            Icon(
+                if (voiceActive) Icons.Default.CallEnd else Icons.Default.Call,
+                contentDescription = when {
+                    voiceActive -> "结束语音"
+                    voiceBusy -> "已有进行中的语音通话"
+                    else -> "发起语音"
+                }
             )
         }
         IconButton(onClick = onRefresh, enabled = !refreshing) {

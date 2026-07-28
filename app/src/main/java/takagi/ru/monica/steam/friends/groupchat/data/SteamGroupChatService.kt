@@ -12,7 +12,6 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessagePage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatInviteLink
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
-import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatVoiceSession
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoleActions
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReactionType
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReportReason
@@ -153,23 +152,6 @@ class SteamGroupChatService(
             moveAfterChatId?.takeIf(String::isNotBlank)?.let {
                 writeUint64(3, it.requireUnsignedId("chat"))
             }
-        })
-    }
-
-    override fun joinVoiceChat(account: SteamAccount, groupId: String, chatId: String): SteamGroupChatVoiceSession {
-        val response = call(account, "JoinVoiceChat", SteamProtoWriter().apply {
-            writeUint64(1, groupId.requireUnsignedId("group"))
-            writeUint64(2, chatId.requireUnsignedId("chat"))
-        })
-        val voiceId = SteamGroupChatParser.parseVoiceChatId(response)
-            .takeIf(String::isNotBlank) ?: error("Steam did not return a voice chat ID")
-        return SteamGroupChatVoiceSession(groupId, chatId, voiceId)
-    }
-
-    override fun leaveVoiceChat(account: SteamAccount, groupId: String, chatId: String) {
-        call(account, "LeaveVoiceChat", SteamProtoWriter().apply {
-            writeUint64(1, groupId.requireUnsignedId("group"))
-            writeUint64(2, chatId.requireUnsignedId("chat"))
         })
     }
 

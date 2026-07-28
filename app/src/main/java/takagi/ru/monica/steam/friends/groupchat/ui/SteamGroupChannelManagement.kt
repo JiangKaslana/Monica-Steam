@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,14 +43,15 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoomType
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
-import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatVoiceSession
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 
 @Composable
 internal fun SteamGroupChannelManagement(
     group: SteamGroupChatSummary,
     canEdit: Boolean,
     actionLoading: Boolean,
-    voiceSession: SteamGroupChatVoiceSession?,
+    voiceState: SteamVoiceCallState,
     onCreate: (String, Boolean) -> Unit,
     onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
@@ -96,13 +98,29 @@ internal fun SteamGroupChannelManagement(
                 group.rooms
                     .sortedWith(compareBy<SteamGroupChatRoom> { it.sortOrder }.thenBy { it.chatId })
                     .forEachIndexed { index, room ->
+                        val localVoiceRoom = voiceState.isActive &&
+                            voiceState.target?.type == SteamVoiceTargetType.GROUP &&
+                            voiceState.target?.groupId == group.groupId &&
+                            voiceState.target?.chatId == room.chatId
+                        val localVoiceMemberCount = if (localVoiceRoom) {
+                            (voiceState.participants.map { it.steamId } + voiceState.accountSteamId)
+                                .filter(String::isNotBlank)
+                                .distinct()
+                                .size
+                        } else 0
                         ChannelManagementRow(
                             room = room,
                             canEdit = canEdit,
                             actionLoading = actionLoading,
                             canMoveUp = index > 0,
                             canMoveDown = index < group.rooms.lastIndex,
-                            voiceJoined = voiceSession?.chatId == room.chatId,
+                            voiceJoined = localVoiceRoom,
+                            voiceConnecting = localVoiceRoom && !voiceState.isConnected,
+                            voiceBusy = voiceState.isActive && !localVoiceRoom,
+                            voiceMemberCount = maxOf(
+                                room.voiceMemberSteamIds.size,
+                                localVoiceMemberCount
+                            ),
                             onRename = { renameRoom = room },
                             onDelete = { deleteRoom = room },
                             onMoveUp = {
@@ -177,6 +195,9 @@ private fun ChannelManagementRow(
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     voiceJoined: Boolean,
+    voiceConnecting: Boolean,
+    voiceBusy: Boolean,
+    voiceMemberCount: Int,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onMoveUp: () -> Unit,
@@ -221,9 +242,25 @@ private fun ChannelManagementRow(
                 FilterChip(
                     selected = voiceJoined,
                     onClick = if (voiceJoined) onLeaveVoice else onJoinVoice,
-                    enabled = !actionLoading,
-                    label = { Text(if (voiceJoined) "退出语音" else "加入语音") },
-                    leadingIcon = { Icon(Icons.Default.Phone, null) }
+                    enabled = !actionLoading && !voiceConnecting && (!voiceBusy || voiceJoined),
+                    label = {
+                        Text(
+                            when {
+                                voiceConnecting -> "正在加入"
+                                voiceJoined -> "退出语音"
+                                voiceBusy -> "已有进行中的通话"
+                                voiceMemberCount > 0 -> "加入语音 · $voiceMemberCount 人"
+                                else -> "加入语音"
+                            }
+                        )
+                    },
+                    leadingIcon = {
+                        if (voiceConnecting) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Phone, null)
+                        }
+                    }
                 )
             }
         }

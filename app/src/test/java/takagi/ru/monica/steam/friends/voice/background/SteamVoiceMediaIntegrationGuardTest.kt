@@ -49,6 +49,34 @@ class SteamVoiceMediaIntegrationGuardTest {
         assertTrue(runtime.indexOf("gateway.answerDirectVoice") < runtime.indexOf("initialVoiceChatId = request.voiceChatId"))
     }
 
+    @Test
+    fun chatUiUsesTheSharedVoiceRuntimeAcrossThreadsListsAndChannelManagement() {
+        val chatScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
+        ).readText()
+        val directThread = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatThread.kt"
+        ).readText()
+        val conversationList = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamConversationList.kt"
+        ).readText()
+        val groupThread = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatThread.kt"
+        ).readText()
+        val groupGateway = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/domain/SteamGroupChatGateway.kt"
+        ).readText()
+
+        assertTrue(chatScreen.contains("voiceRuntime.startDirect"))
+        assertTrue(chatScreen.contains("voiceRuntime.startGroup"))
+        assertTrue(chatScreen.contains("voiceRuntime.acceptIncoming"))
+        assertTrue(directThread.contains("SteamVoiceStatusBanner"))
+        assertTrue(conversationList.contains("active-voice-call"))
+        assertTrue(groupThread.contains("SteamVoiceChannelPanel"))
+        assertFalse(groupGateway.contains("SteamGroupChatVoiceSession"))
+        assertFalse(groupGateway.contains("joinVoiceChat"))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (

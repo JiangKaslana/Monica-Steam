@@ -1,6 +1,10 @@
 package takagi.ru.monica.steam.friends.chat.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.WindowInsets
@@ -13,7 +17,10 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import android.widget.Toast
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
@@ -50,6 +58,7 @@ import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationType
 import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatHistoryItem
 import takagi.ru.monica.steam.friends.chat.info.ui.SteamChatHistorySearchScreen
 import takagi.ru.monica.steam.friends.chat.info.ui.SteamChatInfoScreen
+import takagi.ru.monica.steam.friends.voice.presentation.SteamVoiceCallRuntime
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
@@ -92,6 +101,24 @@ fun SteamChatScreen(
     val chatState by chatViewModel.uiState.collectAsState()
     val groupChatState by groupChatViewModel.state.collectAsState()
     val richMediaState by richMediaViewModel.uiState.collectAsState()
+    val voiceRuntime = remember(context) { SteamVoiceCallRuntime.get(context) }
+    val voiceState by voiceRuntime.state.collectAsState()
+    var pendingVoiceAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val action = pendingVoiceAction
+        pendingVoiceAction = null
+        if (granted) action?.invoke()
+    }
+    fun runVoiceAction(action: () -> Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) action() else {
+            pendingVoiceAction = action
+            microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
     val selectedAccount = accountSourceState.accounts.firstOrNull {
         it.id == accountSourceState.selectedAccountId
     } ?: accountSourceState.accounts.firstOrNull()
@@ -161,6 +188,14 @@ fun SteamChatScreen(
         messageActionViewModel.selectAccount(selectedAccount)
         friendsViewModel.selectAccount(selectedAccount)
     }
+    LaunchedEffect(selectedAccount?.id, selectedAccount?.steamId, selectedAccount?.accessToken) {
+        selectedAccount?.let(voiceRuntime::observeAccount)
+    }
+    LaunchedEffect(selectedAccount?.id, selectedAccount?.steamId) {
+        if (voiceState.isActive && selectedAccount?.steamId != voiceState.accountSteamId) {
+            voiceRuntime.stop()
+        }
+    }
     LaunchedEffect(messageActionViewModel) {
         messageActionViewModel.results.collect { result ->
             val message = when (result) {
@@ -170,6 +205,14 @@ fun SteamChatScreen(
             }
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
+    }
+    LaunchedEffect(voiceState.failure) {
+        val failure = voiceState.failure ?: return@LaunchedEffect
+        val message = if (failure.contains("Microphone permission", ignoreCase = true)) {
+            "需要麦克风权限才能使用 Steam 语音聊天"
+        } else failure
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        voiceRuntime.clearFailure()
     }
     SteamChatThreadLifecycle(
         chatState = chatState,
@@ -364,6 +407,10 @@ fun SteamChatScreen(
                                     groupChatViewModel.refreshGroups()
                                 },
                                 onCreateGroup = { showCreateGroup = true },
+                                voiceState = voiceState,
+                                onLeaveVoice = voiceRuntime::stop,
+                                onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
+                                onToggleVoiceOutput = voiceRuntime::toggleOutput,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -390,6 +437,10 @@ fun SteamChatScreen(
                         groupChatViewModel.refreshGroups()
                     },
                     onCreateGroup = { showCreateGroup = true },
+                    voiceState = voiceState,
+                    onLeaveVoice = voiceRuntime::stop,
+                    onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
+                    onToggleVoiceOutput = voiceRuntime::toggleOutput,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -424,13 +475,26 @@ fun SteamChatScreen(
                 onUpdateGroup = groupChatViewModel::updateGroup,
                 onUpdateGroupAvatar = groupChatViewModel::updateGroupAvatar,
                 channelActionLoading = groupChatState.channelActionLoading,
-                voiceSession = groupChatState.voiceSession,
+                voiceState = voiceState,
                 onCreateChannel = groupChatViewModel::createChannel,
                 onRenameChannel = groupChatViewModel::renameChannel,
                 onDeleteChannel = groupChatViewModel::deleteChannel,
                 onReorderChannel = groupChatViewModel::reorderChannel,
-                onJoinVoiceChat = groupChatViewModel::joinVoiceChat,
-                onLeaveVoiceChat = groupChatViewModel::leaveVoiceChat,
+                onJoinVoiceChat = { chatId ->
+                    group?.let { targetGroup ->
+                        runVoiceAction {
+                            selectedAccount?.let { account ->
+                                voiceRuntime.startGroup(
+                                    account,
+                                    targetGroup.groupId,
+                                    chatId,
+                                    targetGroup.name
+                                )
+                            }
+                        }
+                    }
+                },
+                onLeaveVoiceChat = voiceRuntime::stop,
                 modifier = Modifier.fillMaxSize()
             )
         } else if (currentSubpage == SteamChatSubpage.ADMIN) {
@@ -520,13 +584,25 @@ fun SteamChatScreen(
                 onClearAttachment = richMediaViewModel::clearAttachment,
                 onClearAttachmentFailure = richMediaViewModel::clearAttachmentFailure,
                 onRefreshCatalogs = richMediaViewModel::refreshCatalogs,
+                voiceState = voiceState,
+                onStartVoice = {
+                    val friendName = selectedFriend?.displayName ?: partnerSteamId
+                    runVoiceAction {
+                        selectedAccount?.let { account ->
+                            voiceRuntime.startDirect(account, partnerSteamId, friendName)
+                        }
+                    }
+                },
+                onStopVoice = voiceRuntime::stop,
+                onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
+                onToggleVoiceOutput = voiceRuntime::toggleOutput,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
             SteamGroupChatThreadHost(
                 state = groupChatState,
                 richMediaState = richMediaState,
-                friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
+                friends = friendsState.snapshot?.friends.orEmpty(),
                 targetMessageId = targetMessageId,
                 onBack = groupChatViewModel::closeRoom,
                 onOpenInfo = { subpage = SteamChatSubpage.INFO },
@@ -543,9 +619,58 @@ fun SteamChatScreen(
                 onUpdateReaction = groupChatViewModel::updateMessageReaction,
                 onReportMessage = groupChatViewModel::reportMessage,
                 onDeleteMessage = groupChatViewModel::deleteMessage,
+                voiceState = voiceState,
+                onJoinVoice = { chatId ->
+                    val group = groupChatState.groups.firstOrNull {
+                        it.groupId == groupChatState.selectedGroupId
+                    }
+                    runVoiceAction {
+                        selectedAccount?.let { account ->
+                            voiceRuntime.startGroup(
+                                account,
+                                groupChatState.selectedGroupId.orEmpty(),
+                                chatId,
+                                group?.name ?: "Steam 语音"
+                            )
+                        }
+                    }
+                },
+                onLeaveVoice = voiceRuntime::stop,
+                onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
+                onToggleVoiceOutput = voiceRuntime::toggleOutput,
                 modifier = Modifier.fillMaxSize()
             )
         }
+    }
+
+    voiceState.incomingRequest?.let { request ->
+        val incomingFriendName = friendsState.snapshot?.friends
+            ?.firstOrNull { it.steamId == request.partnerSteamId }
+            ?.displayName
+            .orEmpty()
+            .ifBlank { request.partnerSteamId }
+        AlertDialog(
+            onDismissRequest = voiceRuntime::rejectIncoming,
+            title = { Text("收到 Steam 语音邀请") },
+            text = { Text("$incomingFriendName 邀请进行语音聊天") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        runVoiceAction {
+                            selectedAccount?.let { account ->
+                                voiceRuntime.acceptIncoming(
+                                    account,
+                                    incomingFriendName
+                                )
+                            }
+                        }
+                    }
+                ) { Text("接听") }
+            },
+            dismissButton = {
+                TextButton(onClick = voiceRuntime::rejectIncoming) { Text("拒绝") }
+            }
+        )
     }
 
     if (standalone && showAccounts) {
