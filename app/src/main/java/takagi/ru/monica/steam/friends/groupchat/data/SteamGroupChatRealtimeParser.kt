@@ -4,6 +4,7 @@ import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessageModification
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRealtimeEvent
+import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupAvatarUrl
 import takagi.ru.monica.steam.friends.groupchat.domain.steamGroupEventText
 import takagi.ru.monica.steam.network.SteamProtoField
 import takagi.ru.monica.steam.network.SteamProtoReader
@@ -22,8 +23,8 @@ internal object SteamGroupChatRealtimeParser {
             ACK_METHOD -> parseAck(envelope)
             ROOMS_CHANGED_METHOD -> parseRoomsChanged(envelope)
             DISCONNECT_METHOD -> parseDisconnected(envelope)
+            HEADER_STATE_CHANGED_METHOD -> parseHeaderChanged(envelope)
             USER_STATE_CHANGED_METHOD,
-            HEADER_STATE_CHANGED_METHOD,
             MEMBER_STATE_CHANGED_METHOD,
             REACTION_METHOD -> parseRoomChanged(envelope)
             else -> null
@@ -131,6 +132,26 @@ internal object SteamGroupChatRealtimeParser {
         val nestedGroupId = header?.get(1)?.asUnsignedVarintString()
             ?.takeIf(String::isNotBlank)
         return nestedGroupId?.let(SteamGroupChatRealtimeEvent::RoomChanged)
+    }
+
+    private fun parseHeaderChanged(envelope: SteamCmEnvelope): SteamGroupChatRealtimeEvent? {
+        val outer = runCatching { SteamProtoReader(envelope.body).parse() }.getOrNull()
+            ?: return null
+        val header = outer[1]?.bytes?.let { payload ->
+            runCatching { SteamProtoReader(payload).parse() }.getOrNull()
+        } ?: return null
+        val groupId = header[1]?.asUnsignedVarintString().orEmpty()
+            .takeIf(String::isNotBlank) ?: return null
+        val avatarField = header[25] ?: header[16]
+        return SteamGroupChatRealtimeEvent.HeaderChanged(
+            groupId = groupId,
+            name = header[2]?.takeIf { it.wireType == WIRE_TYPE_LENGTH_DELIMITED }?.asString,
+            tagline = header[15]?.takeIf { it.wireType == WIRE_TYPE_LENGTH_DELIMITED }?.asString,
+            avatarUrl = avatarField
+                ?.takeIf { it.wireType == WIRE_TYPE_LENGTH_DELIMITED }
+                ?.bytes
+                ?.let(::steamGroupAvatarUrl)
+        )
     }
 
     private fun parseDisconnected(envelope: SteamCmEnvelope): SteamGroupChatRealtimeEvent {

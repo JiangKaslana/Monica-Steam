@@ -120,7 +120,37 @@ class SteamGroupChatRealtimeParserTest {
             )
         )
 
-        assertEquals(SteamGroupChatRealtimeEvent.RoomChanged(GROUP_ID), event)
+        assertEquals(
+            SteamGroupChatRealtimeEvent.HeaderChanged(groupId = GROUP_ID),
+            event
+        )
+    }
+
+    @Test
+    fun parsesAvatarNameAndTaglineFromOfficialHeaderNotification() {
+        val event = SteamGroupChatRealtimeParser.parse(
+            envelope(
+                method = "ChatRoomClient.NotifyChatRoomHeaderStateChange#1",
+                body = SteamProtoWriter().apply {
+                    writeMessage(1, SteamProtoWriter().apply {
+                        writeUint64(1, GROUP_ID)
+                        writeString(2, "Voice group")
+                        writeString(15, "Join the call")
+                        writeString(25, "https://steamusercontent-a.akamaihd.net/ugc/123/avatar.png")
+                    })
+                }.toByteArray()
+            )
+        )
+
+        assertEquals(
+            SteamGroupChatRealtimeEvent.HeaderChanged(
+                groupId = GROUP_ID,
+                name = "Voice group",
+                tagline = "Join the call",
+                avatarUrl = "https://steamusercontent-a.akamaihd.net/ugc/123/avatar.png"
+            ),
+            event
+        )
     }
 
     @Test

@@ -28,6 +28,13 @@ sealed interface SteamGroupChatRealtimeEvent {
 
     data class RoomChanged(val groupId: String) : SteamGroupChatRealtimeEvent
 
+    data class HeaderChanged(
+        val groupId: String,
+        val name: String? = null,
+        val tagline: String? = null,
+        val avatarUrl: String? = null
+    ) : SteamGroupChatRealtimeEvent
+
     data class Disconnected(val groupIds: Set<String>) : SteamGroupChatRealtimeEvent
 }
 

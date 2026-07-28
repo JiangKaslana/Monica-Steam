@@ -793,6 +793,26 @@ class SteamGroupChatViewModel(
                             refreshGroups()
                             if (_state.value.selectedGroupId == event.groupId) refreshThread()
                         }
+                        is SteamGroupChatRealtimeEvent.HeaderChanged -> {
+                            val updatedGroups = _state.value.groups.map { group ->
+                                if (group.groupId != event.groupId) group else group.copy(
+                                    name = event.name ?: group.name,
+                                    tagline = event.tagline ?: group.tagline,
+                                    avatarUrl = event.avatarUrl ?: group.avatarUrl
+                                )
+                            }
+                            _state.value = _state.value.copy(groups = updatedGroups)
+                            viewModelScope.launch(ioDispatcher) {
+                                cache.saveGroups(
+                                    SteamGroupChatGroupsSnapshot(
+                                        accountSteamId = current.steamId,
+                                        groups = updatedGroups,
+                                        fetchedAt = nowMillis()
+                                    )
+                                )
+                            }
+                            refreshGroups()
+                        }
                         is SteamGroupChatRealtimeEvent.Disconnected -> {
                             if (event.groupIds.isEmpty() ||
                                 _state.value.selectedGroupId in event.groupIds
