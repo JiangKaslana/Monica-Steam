@@ -100,6 +100,53 @@ class SteamGroupChatViewModelTest {
         }
 
     @Test
+    fun transientRefreshFailureKeepsCachedGroupsUsable() = runTest(dispatcher.scheduler) {
+        val cached = group("8", "Cached group")
+        val cache = MemoryCache().apply {
+            groups = SteamGroupChatGroupsSnapshot(ACCOUNT_ID, listOf(cached), 90_000L)
+        }
+        val gateway = FakeGateway().apply {
+            groupsError = IOException("temporary route failure")
+        }
+        val viewModel = viewModel(gateway, cache = cache)
+
+        viewModel.selectAccount(account())
+        runCurrent()
+
+        assertEquals("Cached group", viewModel.state.value.groups.single().name)
+        assertFalse(viewModel.state.value.groupsFailure)
+    }
+
+    @Test
+    fun avatarResolutionFromPreviousAccountCannotOverwriteTheNewAccount() =
+        runTest(dispatcher.scheduler) {
+            val gateway = FakeGateway()
+            lateinit var viewModel: SteamGroupChatViewModel
+            gateway.groupProvider = { selected ->
+                listOf(group("8", if (selected.steamId == ACCOUNT_ID) "Old" else "New"))
+            }
+            gateway.avatarResolver = { selected, _ ->
+                if (selected.steamId == ACCOUNT_ID) {
+                    viewModel.selectAccount(account(id = 2L, steamId = OTHER_ACCOUNT_ID))
+                    "https://avatars.steamstatic.com/old_full.jpg"
+                } else {
+                    "https://avatars.steamstatic.com/new_full.jpg"
+                }
+            }
+            viewModel = viewModel(gateway)
+
+            viewModel.selectAccount(account())
+            runCurrent()
+
+            assertEquals(OTHER_ACCOUNT_ID, viewModel.state.value.accountSteamId)
+            assertEquals("New", viewModel.state.value.groups.single().name)
+            assertEquals(
+                "https://avatars.steamstatic.com/new_full.jpg",
+                viewModel.state.value.groups.single().avatarUrl
+            )
+        }
+
+    @Test
     fun avatarTimeoutReconcilesAChangeThatReachedSteam() = runTest(dispatcher.scheduler) {
         val sha = ByteArray(20) { it.toByte() }
         val avatarUrl = steamGroupAvatarUrl(sha)
@@ -332,10 +379,11 @@ class SteamGroupChatViewModelTest {
     private fun viewModel(
         gateway: FakeGateway,
         realtime: SteamGroupChatRealtimeGateway? = null,
-        avatarUploader: SteamGroupAvatarUploadGateway? = null
+        avatarUploader: SteamGroupAvatarUploadGateway? = null,
+        cache: MemoryCache = MemoryCache()
     ) = SteamGroupChatViewModel(
         gateway = gateway,
-        cache = MemoryCache(),
+        cache = cache,
         ioDispatcher = dispatcher,
         nowMillis = { 100_000L },
         newClientId = { "client-1" },
@@ -374,6 +422,8 @@ class SteamGroupChatViewModelTest {
             SteamGroupChatSummary("8", "Group", defaultChatId = "9", rooms = listOf(SteamGroupChatRoom("9", "General")))
         )
         var groupsError: Throwable? = null
+        var groupProvider: ((SteamAccount) -> List<SteamGroupChatSummary>)? = null
+        var avatarResolver: (SteamAccount, String) -> String = { _, _ -> "" }
         var history: (String, String) -> SteamGroupChatMessagePage = { _, _ -> SteamGroupChatMessagePage(emptyList(), false) }
         var send: (String, String, String) -> SteamGroupChatMessage = { groupId, chatId, body ->
             SteamGroupChatMessage(groupId, chatId, ACCOUNT_ID, 101L, 1, body)
@@ -389,8 +439,10 @@ class SteamGroupChatViewModelTest {
         override fun getMyGroups(account: SteamAccount): List<SteamGroupChatSummary> {
             groupCalls++
             groupsError?.let { throw it }
-            return groups
+            return groupProvider?.invoke(account) ?: groups
         }
+        override fun getGroupAvatarUrl(account: SteamAccount, groupId: String): String =
+            avatarResolver(account, groupId)
         override fun getHistory(account: SteamAccount, groupId: String, chatId: String, before: SteamGroupChatHistoryBoundary?): SteamGroupChatMessagePage {
             historyCalls++
             return history(groupId, chatId)

@@ -88,6 +88,7 @@ class SteamGroupChatViewModel(
     private var foreground = false
     private var pollingJob: Job? = null
     private var realtimeJob: Job? = null
+    private var avatarResolutionJob: Job? = null
     private val pendingAvatarUrls = mutableMapOf<String, PendingGroupAvatar>()
 
     fun selectAccount(account: SteamAccount?) {
@@ -100,6 +101,8 @@ class SteamGroupChatViewModel(
         this.account = account
         accountGeneration++
         roomGeneration++
+        avatarResolutionJob?.cancel()
+        avatarResolutionJob = null
         pendingAvatarUrls.clear()
         if (account == null) {
             _state.value = SteamGroupChatUiState(failure = "Steam account required")
@@ -857,6 +860,8 @@ class SteamGroupChatViewModel(
     }
 
     private fun fetchGroups(current: SteamAccount, currentGeneration: Long) {
+        avatarResolutionJob?.cancel()
+        avatarResolutionJob = null
         viewModelScope.launch {
             val result = runCatchingCancellable { withContext(ioDispatcher) {
                 withPreparedSession(current) { prepared -> gateway.getMyGroups(prepared) }
@@ -864,21 +869,10 @@ class SteamGroupChatViewModel(
             if (!isCurrent(current, currentGeneration)) return@launch
             result.fold(
                 onSuccess = { groups ->
-                    val groupsWithResolvedAvatars = withContext(ioDispatcher) {
-                        groups.map { group ->
-                            if (group.avatarUrl.isNotBlank()) group else {
-                                val resolved = runCatching {
-                                    withPreparedSession(current) { prepared ->
-                                        gateway.getGroupAvatarUrl(prepared, group.groupId)
-                                    }
-                                }.getOrDefault("")
-                                if (resolved.isBlank()) group else group.copy(avatarUrl = resolved)
-                            }
-                        }
-                    }
-                    val reconciledGroups = applyPendingAvatarUrls(groupsWithResolvedAvatars)
+                    val reconciledGroups = applyPendingAvatarUrls(groups)
                     val snapshot = SteamGroupChatGroupsSnapshot(current.steamId, reconciledGroups, nowMillis())
                     withContext(ioDispatcher) { cache.saveGroups(snapshot) }
+                    if (!isCurrent(current, currentGeneration)) return@launch
                     _state.value = _state.value.copy(
                         groups = reconciledGroups,
                         groupsLoading = false,
@@ -886,15 +880,58 @@ class SteamGroupChatViewModel(
                         groupsFailure = false,
                         failure = null
                     )
+                    resolveMissingGroupAvatars(current, currentGeneration, reconciledGroups)
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
                         groupsLoading = false,
                         groupsRefreshing = false,
-                        groupsFailure = true
+                        // Cached conversations remain usable during a transient
+                        // CM/community route failure.
+                        groupsFailure = _state.value.groups.isEmpty()
                     )
                 }
             )
+        }
+    }
+
+    private fun resolveMissingGroupAvatars(
+        current: SteamAccount,
+        currentGeneration: Long,
+        groups: List<SteamGroupChatSummary>
+    ) {
+        val missing = groups.filter { it.avatarUrl.isBlank() }
+        if (missing.isEmpty()) return
+        avatarResolutionJob?.cancel()
+        avatarResolutionJob = viewModelScope.launch {
+            val prepared = runCatchingCancellable {
+                withContext(ioDispatcher) { sessionResolver.resolveOrKeep(current) }
+            }.getOrNull() ?: return@launch
+            for (group in missing) {
+                if (!isCurrent(current, currentGeneration)) return@launch
+                val resolved = runCatchingCancellable {
+                    withContext(ioDispatcher) {
+                        gateway.getGroupAvatarUrl(prepared, group.groupId)
+                    }
+                }.getOrNull().orEmpty()
+                if (resolved.isBlank() || !isCurrent(current, currentGeneration)) continue
+                val updated = _state.value.groups.map { existing ->
+                    if (existing.groupId == group.groupId && existing.avatarUrl.isBlank()) {
+                        existing.copy(avatarUrl = resolved)
+                    } else existing
+                }
+                _state.value = _state.value.copy(groups = updated)
+            }
+            if (!isCurrent(current, currentGeneration)) return@launch
+            withContext(ioDispatcher) {
+                cache.saveGroups(
+                    SteamGroupChatGroupsSnapshot(
+                        accountSteamId = current.steamId,
+                        groups = _state.value.groups,
+                        fetchedAt = nowMillis()
+                    )
+                )
+            }
         }
     }
 
