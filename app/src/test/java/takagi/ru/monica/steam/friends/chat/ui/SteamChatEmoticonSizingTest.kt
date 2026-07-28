@@ -30,6 +30,9 @@ class SteamChatEmoticonSizingTest {
         val source = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRemoteImage.kt"
         ).readText()
+        val decoder = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/foundation/ui/SteamRemoteImage.kt"
+        ).readText()
 
         assertTrue(source.contains("ImageView.ScaleType.FIT_CENTER"))
         assertTrue(source.contains("ImageView.ScaleType.CENTER_INSIDE"))
@@ -39,9 +42,9 @@ class SteamChatEmoticonSizingTest {
         assertTrue(source.contains("SteamAnimatedImageView"))
         assertTrue(source.contains("filterQuality = FilterQuality.None"))
         assertTrue(source.contains("drawImage("))
-        assertTrue(source.contains("inScaled = false"))
-        assertTrue(source.contains("BitmapFactory.decodeByteArray"))
-        assertTrue(!source.contains("DENSITY_DEFAULT"))
+        assertTrue(decoder.contains("inScaled = false"))
+        assertTrue(decoder.contains("BitmapFactory.decodeByteArray"))
+        assertTrue(!decoder.contains("DENSITY_DEFAULT"))
     }
 
     @Test

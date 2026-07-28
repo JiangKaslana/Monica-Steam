@@ -1,7 +1,6 @@
 package takagi.ru.monica.steam.friends.chat.richmedia.ui
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.drawable.Animatable
 import android.graphics.drawable.Drawable
@@ -42,6 +41,8 @@ import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteBytes
 import takagi.ru.monica.steam.foundation.ui.normalizeSteamImageUrl
 import takagi.ru.monica.steam.foundation.ui.steamRemoteImageCacheFile
+import takagi.ru.monica.steam.foundation.ui.decodeSteamRemoteBitmap
+import takagi.ru.monica.steam.foundation.ui.isSafeSteamRemoteImagePayload
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 
 /** Rendering policy for the small, fixed-size assets served by Steam. */
@@ -82,6 +83,10 @@ internal fun SteamChatRemoteImage(
             return@LaunchedEffect
         }
         val payload = loadSteamRemoteBytes(context, normalizedUrl) ?: return@LaunchedEffect
+        if (!isSafeSteamRemoteImagePayload(payload)) {
+            SteamDiagLogger.append("chat_media image_rejected reason=unsafe_dimensions")
+            return@LaunchedEffect
+        }
         if (isAnimatedPng(payload)) {
             val animationResult = runCatching {
                 withContext(Dispatchers.Default) {
@@ -292,15 +297,7 @@ private fun stopSteamAnimation(drawable: Drawable?) {
 }
 
 private suspend fun decodeStaticSteamBitmap(payload: ByteArray): Bitmap? =
-    withContext(Dispatchers.Default) {
-        val options = BitmapFactory.Options().apply {
-            // Keep the CDN's actual pixels; density-based decoding would make
-            // the already-small Steam assets even less predictable.
-            inScaled = false
-            inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-        }
-        BitmapFactory.decodeByteArray(payload, 0, payload.size, options)
-    }
+    withContext(Dispatchers.Default) { decodeSteamRemoteBitmap(payload) }
 
 private fun imageScaleType(mode: SteamChatRemoteImageMode): ImageView.ScaleType =
     if (mode == SteamChatRemoteImageMode.STICKER) {
