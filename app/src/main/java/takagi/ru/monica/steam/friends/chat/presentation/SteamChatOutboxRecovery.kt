@@ -15,7 +15,7 @@ internal suspend fun recoverPendingSteamChatOutbox(
     isCurrent: () -> Boolean,
     onRecovered: (SteamChatRecoveredOutbox) -> Unit
 ) {
-    val recovered = runCatching {
+    val recovered = runSteamChatCatching {
         withContext(ioDispatcher) { outbox?.recover(account, partnerSteamId, accountKey).orEmpty() }
     }.onFailure { logSteamChatFailure("outbox_recover", it) }.getOrDefault(emptyList())
     if (!isCurrent()) return

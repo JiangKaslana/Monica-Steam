@@ -56,6 +56,25 @@ class SteamChatStateUpdatesTest {
         assertEquals(100L, reconciled.lastViewTimestamp)
     }
 
+    @Test
+    fun remoteRefreshKeepsLocalOnlyConversationRows() {
+        val localOnly = SteamChatSession(
+            partnerSteamId = PARTNER_ID,
+            lastMessageTimestamp = 150L,
+            lastViewTimestamp = 150L,
+            unreadCount = 0
+        )
+        val remote = SteamChatSessionsSnapshot(
+            accountSteamId = ACCOUNT_ID,
+            sessions = emptyList(),
+            fetchedAt = 2L
+        )
+
+        val reconciled = reconcileSteamChatSessions(remote, snapshot(localOnly))
+
+        assertEquals(listOf(localOnly), reconciled.sessions)
+    }
+
     private fun snapshot(session: SteamChatSession) = SteamChatSessionsSnapshot(
         accountSteamId = ACCOUNT_ID,
         sessions = listOf(session),

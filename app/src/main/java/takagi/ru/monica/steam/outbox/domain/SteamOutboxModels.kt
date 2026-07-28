@@ -84,7 +84,11 @@ object SteamOutboxStateMachine {
             SteamOutboxStatus.AWAITING_CONFIRMATION -> when (event) {
                 SteamOutboxEvent.AWAIT_CONFIRMATION -> SteamOutboxStatus.AWAITING_CONFIRMATION
                 SteamOutboxEvent.COMPLETE -> SteamOutboxStatus.COMPLETED
-                SteamOutboxEvent.RETRY -> SteamOutboxStatus.RETRYABLE
+                SteamOutboxEvent.RETRY -> if (record.attemptCount >= MAX_DELIVERY_ATTEMPTS) {
+                    SteamOutboxStatus.PERMANENT_FAILURE
+                } else {
+                    SteamOutboxStatus.RETRYABLE
+                }
                 SteamOutboxEvent.PERMANENT_FAILURE -> SteamOutboxStatus.PERMANENT_FAILURE
                 SteamOutboxEvent.CANCEL -> SteamOutboxStatus.CANCELLED
                 SteamOutboxEvent.CLAIM -> invalid(record, event)
@@ -129,6 +133,7 @@ object SteamOutboxStateMachine {
     private const val BASE_RETRY_DELAY_MILLIS = 1_000L
     private const val MAX_RETRY_DELAY_MILLIS = 5 * 60 * 1_000L
     private const val CONFIRMATION_WINDOW_MILLIS = 45_000L
+    const val MAX_DELIVERY_ATTEMPTS = 5
 }
 
 object SteamOutboxKeys {

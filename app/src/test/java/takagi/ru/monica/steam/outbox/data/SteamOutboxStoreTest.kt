@@ -64,6 +64,40 @@ class SteamOutboxStoreTest {
         assertEquals(listOf("second"), store.recoverable(1L).map { it.id })
     }
 
+    @Test
+    fun explicitUserRetryCanBypassTheAutomaticBackoffWindow() = runTest {
+        val dao = MemoryOutboxDao()
+        val store = SteamOutboxStore(
+            dao = dao,
+            protectPayload = { it },
+            revealPayload = { it },
+            nowMillis = { 2_000L }
+        )
+        store.enqueue(command(id = "request", dedupe = "request", createdAt = 1_000L))
+        store.transition("request", SteamOutboxEvent.CLAIM, now = 2_000L)
+        val retryable = store.transition(
+            "request",
+            SteamOutboxEvent.RETRY,
+            error = "offline",
+            now = 2_100L
+        )
+        assertTrue(retryable.nextAttemptAtMillis > 2_100L)
+
+        val scheduledClaim = runCatching {
+            store.transition("request", SteamOutboxEvent.CLAIM, now = 2_100L)
+        }
+        assertTrue(scheduledClaim.isFailure)
+
+        val forced = store.transition(
+            "request",
+            SteamOutboxEvent.CLAIM,
+            now = 2_100L,
+            forceClaim = true
+        )
+        assertEquals(SteamOutboxStatus.IN_FLIGHT, forced.status)
+        assertEquals(2, forced.attemptCount)
+    }
+
     private fun command(
         id: String,
         dedupe: String,
@@ -106,10 +140,10 @@ private class MemoryOutboxDao : SteamOutboxDao {
         .sortedWith(compareBy<SteamOutboxEntity> { it.createdAtMillis }.thenBy { it.id })
         .take(limit)
 
-    override suspend fun claim(id: String, nowMillis: Long): Int {
+    override suspend fun claim(id: String, nowMillis: Long, ignoreSchedule: Boolean): Int {
         val current = items[id] ?: return 0
         if (current.status != "QUEUED" && current.status != "RETRYABLE") return 0
-        if (current.nextAttemptAtMillis > nowMillis) return 0
+        if (!ignoreSchedule && current.nextAttemptAtMillis > nowMillis) return 0
         items[id] = current.copy(
             status = "IN_FLIGHT",
             attemptCount = current.attemptCount + 1,

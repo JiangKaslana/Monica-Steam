@@ -29,13 +29,14 @@ internal class SteamChatOutgoingCoordinator(
         accountKey: String = "${account.id}:${account.steamId}",
         pending: SteamChatMessage,
         verifyBeforeSend: Boolean,
+        forceRetry: Boolean = false,
         isCurrent: () -> Boolean,
         onSessionRefreshed: (SteamAccount) -> Unit,
         onUpdate: (SteamChatMessage) -> Unit
     ) {
         if (jobs[pending.clientMessageId]?.isActive == true) return
         val job = scope.launch {
-            val outboxRecord = runCatching {
+            val outboxRecord = runSteamChatCatching {
                 withContext(ioDispatcher) { outbox?.enqueue(account, pending, accountKey) }
             }.onFailure { logSteamChatFailure("outbox_enqueue", it) }.getOrElse {
                 if (isCurrent()) {
@@ -65,16 +66,25 @@ internal class SteamChatOutgoingCoordinator(
                 if (outboxRecord?.status == SteamOutboxStatus.IN_FLIGHT ||
                     outboxRecord?.status == SteamOutboxStatus.AWAITING_CONFIRMATION
                 ) {
-                    retryOutbox(pending.clientMessageId, "unconfirmed-after-restart")
+                    val retryStatus = retryOutbox(
+                        pending.clientMessageId,
+                        "unconfirmed-after-restart"
+                    )
                     if (isCurrent()) {
-                        onUpdate(pending.copy(deliveryState = SteamChatDeliveryState.FAILED_RETRYABLE))
+                        onUpdate(
+                            pending.copy(
+                                deliveryState = retryStatus.toDeliveryFailureState()
+                            )
+                        )
                     }
                     return@launch
                 }
             }
             if (outbox != null) {
-                val claimed = runCatching {
-                    withContext(ioDispatcher) { outbox.claim(pending.clientMessageId) }
+                val claimed = runSteamChatCatching {
+                    withContext(ioDispatcher) {
+                        outbox.claim(pending.clientMessageId, force = forceRetry)
+                    }
                 }.onFailure { logSteamChatFailure("outbox_claim", it) }.isSuccess
                 if (!claimed) {
                     if (isCurrent()) {
@@ -104,7 +114,7 @@ internal class SteamChatOutgoingCoordinator(
             val error = result.exceptionOrNull() ?: return@launch
             logSteamChatFailure("send", error)
             if (error.isTransientSteamChatNetworkFailure()) {
-                runCatching {
+                runSteamChatCatching {
                     withContext(ioDispatcher) {
                         outbox?.awaitingConfirmation(pending.clientMessageId)
                     }
@@ -116,13 +126,20 @@ internal class SteamChatOutgoingCoordinator(
                     completeOutbox(pending.clientMessageId)
                     if (isCurrent()) onUpdate(verified)
                 } else {
-                    retryOutbox(pending.clientMessageId, error.outboxDiagnostic())
+                    val retryStatus = retryOutbox(
+                        pending.clientMessageId,
+                        error.outboxDiagnostic()
+                    )
                     if (isCurrent()) {
-                        onUpdate(verifying.copy(deliveryState = SteamChatDeliveryState.FAILED_RETRYABLE))
+                        onUpdate(
+                            verifying.copy(
+                                deliveryState = retryStatus.toDeliveryFailureState()
+                            )
+                        )
                     }
                 }
             } else {
-                runCatching {
+                runSteamChatCatching {
                     withContext(ioDispatcher) {
                         outbox?.permanentFailure(
                             pending.clientMessageId,
@@ -145,7 +162,7 @@ internal class SteamChatOutgoingCoordinator(
         pending: SteamChatMessage,
         onSessionRefreshed: (SteamAccount) -> Unit
     ): SteamChatMessage? {
-        val page = runCatching {
+        val page = runSteamChatCatching {
             withContext(ioDispatcher) {
                 val resolved = resolveSteamChatSession(account, sessionResolver)
                 if (hasSessionChanged(account, resolved)) onSessionRefreshed(resolved)
@@ -163,16 +180,19 @@ internal class SteamChatOutgoingCoordinator(
             previous.steamLoginSecure != current.steamLoginSecure
 
     private suspend fun completeOutbox(clientMessageId: String) {
-        runCatching {
+        runSteamChatCatching {
             withContext(ioDispatcher) { outbox?.complete(clientMessageId) }
         }.onFailure { logSteamChatFailure("outbox_complete", it) }
     }
 
-    private suspend fun retryOutbox(clientMessageId: String, error: String?) {
-        runCatching {
-            withContext(ioDispatcher) { outbox?.retry(clientMessageId, error) }
-        }.onFailure { logSteamChatFailure("outbox_retry", it) }
-    }
+    private suspend fun retryOutbox(
+        clientMessageId: String,
+        error: String?
+    ): SteamOutboxStatus? = runSteamChatCatching {
+        withContext(ioDispatcher) { outbox?.retry(clientMessageId, error) }
+    }.onFailure { logSteamChatFailure("outbox_retry", it) }
+        .getOrNull()
+        ?.status
 }
 
 private fun SteamChatMessage.asConfirmedEchoOf(pending: SteamChatMessage): SteamChatMessage = copy(
@@ -190,3 +210,10 @@ private val TERMINAL_OUTBOX_FAILURES = setOf(
     SteamOutboxStatus.PERMANENT_FAILURE,
     SteamOutboxStatus.CANCELLED
 )
+
+private fun SteamOutboxStatus?.toDeliveryFailureState(): SteamChatDeliveryState =
+    if (this == SteamOutboxStatus.PERMANENT_FAILURE || this == SteamOutboxStatus.CANCELLED) {
+        SteamChatDeliveryState.FAILED_PERMANENT
+    } else {
+        SteamChatDeliveryState.FAILED_RETRYABLE
+    }

@@ -45,7 +45,7 @@ class SteamOutboxStore(
                     event = SteamOutboxEvent.CLAIM,
                     nowMillis = now
                 )
-                if (dao.claim(candidate.id, now) == 1) {
+                if (dao.claim(candidate.id, now, ignoreSchedule = false) == 1) {
                     return dao.getById(candidate.id)?.toDomain(revealPayload)
                 }
             }
@@ -56,15 +56,23 @@ class SteamOutboxStore(
         id: String,
         event: SteamOutboxEvent,
         error: String? = null,
-        now: Long = nowMillis()
+        now: Long = nowMillis(),
+        forceClaim: Boolean = false
     ): SteamOutboxRecord {
         val existingEntity = requireNotNull(dao.getById(id)) {
             "Outbox item not found: $id"
         }
         val existing = existingEntity.toDomain(revealPayload)
-        val next = SteamOutboxStateMachine.transition(existing, event, now, error)
+        val transitionTime = if (event == SteamOutboxEvent.CLAIM && forceClaim) {
+            maxOf(now, existing.nextAttemptAtMillis)
+        } else {
+            now
+        }
+        val next = SteamOutboxStateMachine.transition(existing, event, transitionTime, error)
         if (event == SteamOutboxEvent.CLAIM) {
-            check(dao.claim(id, now) == 1) { "Outbox item was claimed by another worker: $id" }
+            check(dao.claim(id, now, ignoreSchedule = forceClaim) == 1) {
+                "Outbox item was claimed by another worker: $id"
+            }
         } else {
             check(
                 dao.transition(

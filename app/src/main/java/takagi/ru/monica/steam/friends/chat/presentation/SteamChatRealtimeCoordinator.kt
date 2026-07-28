@@ -146,7 +146,7 @@ internal class SteamChatRealtimeCoordinator(
         }
         if (!message.isOutgoing(account.steamId) || outbox == null) return
         scope.launch(ioDispatcher) {
-            runCatching {
+            runSteamChatCatching {
                 completeMatchingRealtimeOutboxEcho(outbox, account, accountKey, message)
             }.onFailure { logSteamChatFailure("realtime_outbox_complete", it) }
         }

@@ -16,7 +16,7 @@ internal suspend fun sendSteamChatMessageWithSessionRecovery(
 ): Result<SteamChatMessage> {
     val preparedAccount = resolveSteamChatSession(account, sessionResolver)
     notifySessionChanged(account, preparedAccount, onSessionRefreshed)
-    val firstAttempt = runCatching {
+    val firstAttempt = runSteamChatCatching {
         gateway.sendMessage(
             account = preparedAccount,
             partnerSteamId = partnerSteamId,
@@ -28,12 +28,12 @@ internal suspend fun sendSteamChatMessageWithSessionRecovery(
     if (firstError == null || !firstError.requiresSteamChatSessionRefresh()) return firstAttempt
 
     logSteamChatFailure("send_session_refresh", firstError)
-    val refreshedAccount = runCatching {
+    val refreshedAccount = runSteamChatCatching {
         resolveSteamChatSession(account, sessionResolver, forceRefresh = true)
     }.getOrNull() ?: return firstAttempt
     notifySessionChanged(account, refreshedAccount, onSessionRefreshed)
 
-    return runCatching {
+    return runSteamChatCatching {
         gateway.sendMessage(
             account = refreshedAccount,
             partnerSteamId = partnerSteamId,
@@ -54,6 +54,6 @@ private suspend fun notifySessionChanged(
     ) {
         return
     }
-    runCatching { onSessionRefreshed(current) }
+    runSteamChatCatching { onSessionRefreshed(current) }
         .onFailure { logSteamChatFailure("session_resolved", it) }
 }

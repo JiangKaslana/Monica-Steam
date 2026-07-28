@@ -102,6 +102,25 @@ class SteamOutboxStateMachineTest {
     }
 
     @Test
+    fun repeatedDeliveryFailuresStopAtTheCommercialSafetyCap() {
+        val exhausted = record().copy(
+            status = SteamOutboxStatus.IN_FLIGHT,
+            attemptCount = SteamOutboxStateMachine.MAX_DELIVERY_ATTEMPTS
+        )
+
+        val failed = SteamOutboxStateMachine.transition(
+            exhausted,
+            SteamOutboxEvent.RETRY,
+            nowMillis = 5_000L,
+            error = "timeout"
+        )
+
+        assertEquals(SteamOutboxStatus.PERMANENT_FAILURE, failed.status)
+        assertEquals("timeout", failed.lastError)
+        assertEquals(exhausted.attemptCount, failed.attemptCount)
+    }
+
+    @Test
     fun friendMessageDedupeKeyIsAccountAndRequestScoped() {
         val first = SteamOutboxKeys.friendMessage("account-a", "partner", "request-1")
         val same = SteamOutboxKeys.friendMessage("account-a", "partner", "request-1")

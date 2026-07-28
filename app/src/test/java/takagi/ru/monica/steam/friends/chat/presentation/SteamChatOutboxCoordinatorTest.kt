@@ -107,6 +107,79 @@ class SteamChatOutboxCoordinatorTest {
         assertEquals(SteamChatDeliveryState.FAILED_RETRYABLE, updates.last())
     }
 
+    @Test
+    fun explicitRetryBypassesBackoffAndUsesTheExistingRequestId() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val outbox = RecordingChatOutbox(SteamOutboxStatus.RETRYABLE)
+        var sends = 0
+        val gateway = TestGateway(
+            send = {
+                sends++
+                it.copy(timestamp = 200L, ordinal = 2)
+            },
+            messages = { emptyList() }
+        )
+        val updates = mutableListOf<SteamChatDeliveryState>()
+
+        SteamChatOutgoingCoordinator(
+            scope = this,
+            gateway = gateway,
+            sessionResolver = null,
+            ioDispatcher = dispatcher,
+            outbox = outbox
+        ).dispatch(
+            account = account(),
+            partnerSteamId = PARTNER,
+            pending = pending().copy(deliveryState = SteamChatDeliveryState.VERIFYING),
+            verifyBeforeSend = true,
+            forceRetry = true,
+            isCurrent = { true },
+            onSessionRefreshed = {},
+            onUpdate = { updates += it.deliveryState }
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(1, sends)
+        assertEquals(listOf("enqueue", "claim-force", "complete"), outbox.events)
+        assertEquals(SteamChatDeliveryState.SENT, updates.last())
+    }
+
+    @Test
+    fun exhaustedOutboxBecomesPermanentInsteadOfRetryingForever() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val outbox = RecordingChatOutbox(
+            status = SteamOutboxStatus.QUEUED,
+            retryResultStatus = SteamOutboxStatus.PERMANENT_FAILURE
+        )
+        val gateway = TestGateway(
+            send = { throw SocketTimeoutException("timeout") },
+            messages = { emptyList() }
+        )
+        val updates = mutableListOf<SteamChatDeliveryState>()
+
+        SteamChatOutgoingCoordinator(
+            scope = this,
+            gateway = gateway,
+            sessionResolver = null,
+            ioDispatcher = dispatcher,
+            outbox = outbox
+        ).dispatch(
+            account = account(),
+            partnerSteamId = PARTNER,
+            pending = pending(),
+            verifyBeforeSend = false,
+            isCurrent = { true },
+            onSessionRefreshed = {},
+            onUpdate = { updates += it.deliveryState }
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(SteamChatDeliveryState.FAILED_PERMANENT, updates.last())
+        assertEquals(listOf("enqueue", "claim", "await", "retry"), outbox.events)
+    }
+
     private fun pending() = SteamChatMessage(
         partnerSteamId = PARTNER,
         senderSteamId = ACCOUNT_STEAM_ID,
@@ -145,7 +218,8 @@ class SteamChatOutboxCoordinatorTest {
 }
 
 private class RecordingChatOutbox(
-    private var status: SteamOutboxStatus
+    private var status: SteamOutboxStatus,
+    private val retryResultStatus: SteamOutboxStatus = SteamOutboxStatus.RETRYABLE
 ) : SteamChatOutbox {
     val events = mutableListOf<String>()
     var lastAccountKey: String? = null
@@ -160,8 +234,8 @@ private class RecordingChatOutbox(
         return record(pending, status)
     }
 
-    override suspend fun claim(clientMessageId: String): SteamOutboxRecord {
-        events += "claim"
+    override suspend fun claim(clientMessageId: String, force: Boolean): SteamOutboxRecord {
+        events += if (force) "claim-force" else "claim"
         status = SteamOutboxStatus.IN_FLIGHT
         return record(status = status)
     }
@@ -180,7 +254,7 @@ private class RecordingChatOutbox(
 
     override suspend fun retry(clientMessageId: String, error: String?): SteamOutboxRecord {
         events += "retry"
-        status = SteamOutboxStatus.RETRYABLE
+        status = retryResultStatus
         return record(status = status)
     }
 

@@ -29,7 +29,7 @@ internal class SteamChatDataCoordinator(
 ) {
     fun fetchSessions(account: SteamAccount, generation: Long, silent: Boolean) {
         scope.launch {
-            val result = runCatching {
+            val result = runSteamChatCatching {
                 withContext(ioDispatcher) {
                     gateway.fetchSessions(resolve(account))
                 }
@@ -73,7 +73,7 @@ internal class SteamChatDataCoordinator(
         silent: Boolean
     ) {
         scope.launch {
-            val result = runCatching {
+            val result = runSteamChatCatching {
                 withContext(ioDispatcher) {
                     gateway.fetchMessages(
                         resolve(account),
@@ -127,7 +127,7 @@ internal class SteamChatDataCoordinator(
         if (!thread.moreAvailable || currentState.loadingOlder) return
         updateState(currentState.copy(loadingOlder = true, threadFailure = null))
         scope.launch {
-            val result = runCatching {
+            val result = runSteamChatCatching {
                 withContext(ioDispatcher) {
                     gateway.fetchMessages(
                         account = resolve(account),
@@ -178,7 +178,7 @@ internal class SteamChatDataCoordinator(
             .firstOrNull { !it.isOutgoing(account.steamId) }
             ?.timestamp ?: return
         scope.launch {
-            runCatching {
+            runSteamChatCatching {
                 withContext(ioDispatcher) {
                     gateway.acknowledge(
                         resolve(account),

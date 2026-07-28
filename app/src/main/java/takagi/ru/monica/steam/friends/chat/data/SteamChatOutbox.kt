@@ -22,7 +22,7 @@ interface SteamChatOutbox {
         pending: SteamChatMessage,
         accountKey: String = legacySteamChatAccountKey(account)
     ): SteamOutboxRecord
-    suspend fun claim(clientMessageId: String): SteamOutboxRecord
+    suspend fun claim(clientMessageId: String, force: Boolean = false): SteamOutboxRecord
     suspend fun awaitingConfirmation(clientMessageId: String): SteamOutboxRecord
     suspend fun complete(clientMessageId: String): SteamOutboxRecord
     suspend fun retry(clientMessageId: String, error: String?): SteamOutboxRecord
@@ -72,8 +72,12 @@ class SteamChatRoomOutbox(
         )
     }
 
-    override suspend fun claim(clientMessageId: String): SteamOutboxRecord =
-        store.transition(clientMessageId, SteamOutboxEvent.CLAIM)
+    override suspend fun claim(clientMessageId: String, force: Boolean): SteamOutboxRecord =
+        store.transition(
+            id = clientMessageId,
+            event = SteamOutboxEvent.CLAIM,
+            forceClaim = force
+        )
 
     override suspend fun awaitingConfirmation(clientMessageId: String): SteamOutboxRecord =
         store.transition(clientMessageId, SteamOutboxEvent.AWAIT_CONFIRMATION)

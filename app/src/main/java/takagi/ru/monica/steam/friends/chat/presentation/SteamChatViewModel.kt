@@ -251,7 +251,13 @@ class SteamChatViewModel(
         } ?: return
         val pending = failed.copy(deliveryState = SteamChatDeliveryState.VERIFYING)
         updateMessage(account, partnerSteamId, pending)
-        dispatchSend(account, partnerSteamId, pending, verifyBeforeSend = true)
+        dispatchSend(
+            account,
+            partnerSteamId,
+            pending,
+            verifyBeforeSend = true,
+            forceRetry = true
+        )
     }
 
     fun setForeground(active: Boolean) {
@@ -269,7 +275,8 @@ class SteamChatViewModel(
         account: SteamAccount,
         partnerSteamId: String,
         pending: SteamChatMessage,
-        verifyBeforeSend: Boolean = false
+        verifyBeforeSend: Boolean = false,
+        forceRetry: Boolean = false
     ) {
         val generation = requestGuard.currentThreadGeneration()
         outgoingCoordinator.dispatch(
@@ -278,6 +285,7 @@ class SteamChatViewModel(
             accountKey = activeAccountKey.ifBlank { resolveAccountKey(account) },
             pending = pending,
             verifyBeforeSend = verifyBeforeSend,
+            forceRetry = forceRetry,
             isCurrent = { isThreadCurrent(account, partnerSteamId, generation) },
             onSessionRefreshed = { refreshedAccount ->
                 if (activeAccount?.id == account.id && activeAccount?.steamId == account.steamId) {

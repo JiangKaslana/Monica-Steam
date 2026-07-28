@@ -102,7 +102,7 @@ private class RealtimeEchoOutbox(
         accountKey: String
     ) = record()
 
-    override suspend fun claim(clientMessageId: String) = record()
+    override suspend fun claim(clientMessageId: String, force: Boolean) = record()
 
     override suspend fun awaitingConfirmation(clientMessageId: String) = record()
 

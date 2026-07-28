@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.chat.presentation
 
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatDeliveryState
@@ -82,23 +83,30 @@ internal fun reconcileSteamChatSessions(
 ): SteamChatSessionsSnapshot {
     if (local == null || local.accountSteamId != remote.accountSteamId) return remote
     val localByPartner = local.sessions.associateBy(SteamChatSession::partnerSteamId)
-    return remote.copy(
-        sessions = remote.sessions.map { remoteSession ->
-            val localSession = localByPartner[remoteSession.partnerSteamId]
-                ?: return@map remoteSession
-            val localAcknowledgementCoversRemote =
-                localSession.unreadCount == 0 &&
-                    localSession.lastViewTimestamp >= remoteSession.lastViewTimestamp &&
-                    remoteSession.lastMessageTimestamp <= localSession.lastViewTimestamp
-            if (localAcknowledgementCoversRemote) {
-                remoteSession.copy(
-                    lastViewTimestamp = localSession.lastViewTimestamp,
-                    unreadCount = 0
-                )
-            } else {
-                remoteSession
-            }
+    val remotePartners = remote.sessions.mapTo(mutableSetOf(), SteamChatSession::partnerSteamId)
+    val reconciledRemote = remote.sessions.map { remoteSession ->
+        val localSession = localByPartner[remoteSession.partnerSteamId]
+            ?: return@map remoteSession
+        val localAcknowledgementCoversRemote =
+            localSession.unreadCount == 0 &&
+                localSession.lastViewTimestamp >= remoteSession.lastViewTimestamp &&
+                remoteSession.lastMessageTimestamp <= localSession.lastViewTimestamp
+        if (localAcknowledgementCoversRemote) {
+            remoteSession.copy(
+                lastViewTimestamp = localSession.lastViewTimestamp,
+                unreadCount = 0
+            )
+        } else {
+            remoteSession
         }
+    }
+    return remote.copy(
+        // GetActiveMessageSessions may omit a freshly-created or old cached
+        // conversation. Keep those local rows so optimistic sends and offline
+        // history do not disappear during an otherwise successful refresh.
+        sessions = (reconciledRemote + local.sessions.filter {
+            it.partnerSteamId !in remotePartners
+        }).sortedByDescending(SteamChatSession::lastMessageTimestamp)
     )
 }
 
@@ -115,6 +123,17 @@ internal suspend fun resolveSteamChatSession(
     resolver: SteamAccountSessionResolver?,
     forceRefresh: Boolean = false
 ): SteamAccount = resolver.resolveOrKeep(account, forceRefresh)
+
+/** Result wrapper for suspend work that never converts structured cancellation into a failure. */
+internal suspend inline fun <T> runSteamChatCatching(
+    crossinline block: suspend () -> T
+): Result<T> = try {
+    Result.success(block())
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (error: Throwable) {
+    Result.failure(error)
+}
 
 internal fun logSteamChatFailure(operation: String, error: Throwable) {
     runCatching {

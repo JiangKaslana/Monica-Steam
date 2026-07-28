@@ -37,10 +37,10 @@ interface SteamOutboxDao {
             last_error = NULL
         WHERE id = :id
           AND status IN ('QUEUED', 'RETRYABLE')
-          AND next_attempt_at <= :nowMillis
+          AND (:ignoreSchedule = 1 OR next_attempt_at <= :nowMillis)
         """
     )
-    suspend fun claim(id: String, nowMillis: Long): Int
+    suspend fun claim(id: String, nowMillis: Long, ignoreSchedule: Boolean = false): Int
 
     @Query(
         """
