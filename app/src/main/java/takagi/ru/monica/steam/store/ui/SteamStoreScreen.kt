@@ -278,13 +278,7 @@ fun SteamStoreScreen(
                     )
                 }
             }
-            SteamStoreDestination.Home -> SteamStoreBrowseDrawer(
-                selectedFilter = state.browseFilter,
-                onSelectFilter = viewModel::selectBrowseFilter,
-                onOpenPointsShop = viewModel::openPointsShop,
-                modifier = Modifier.fillMaxSize()
-            ) { openBrowseDrawer ->
-                Scaffold(
+            SteamStoreDestination.Home -> Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                     topBar = {
@@ -311,7 +305,9 @@ fun SteamStoreScreen(
                         } else null,
                         actions = {
                             SteamStoreBrowseMenu(
-                                onOpenDrawer = openBrowseDrawer
+                                selectedFilter = state.browseFilter,
+                                onSelectFilter = viewModel::selectBrowseFilter,
+                                onOpenPointsShop = viewModel::openPointsShop
                             )
                             IconButton(
                                 onClick = { showAccounts = true },
@@ -448,7 +444,6 @@ fun SteamStoreScreen(
                         }
                     }
                     }
-                }
                 }
             }
         }

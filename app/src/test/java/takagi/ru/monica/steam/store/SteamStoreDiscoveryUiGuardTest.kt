@@ -6,15 +6,15 @@ import org.junit.Test
 
 class SteamStoreDiscoveryUiGuardTest {
     @Test
-    fun homeUsesModularM3BrowseDrawerEventsAndPointsShop() {
+    fun homeUsesModularM3BrowseMenuEventsAndPointsShop() {
         val screen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
         val discovery = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreDiscoveryContent.kt"
         ).readText()
-        val drawer = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreBrowseDrawer.kt"
+        val menu = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreBrowseMenu.kt"
         ).readText()
 
         assertTrue(screen.contains("SteamStoreBrowseMenu("))
@@ -24,8 +24,8 @@ class SteamStoreDiscoveryUiGuardTest {
         assertTrue(discovery.contains("SteamStoreEventSection("))
         assertTrue(discovery.contains("LazyRow("))
         assertTrue(discovery.contains("MaterialTheme.colorScheme"))
-        assertTrue(drawer.contains("ModalNavigationDrawer("))
-        assertTrue(drawer.contains("NavigationDrawerItem("))
+        assertTrue(menu.contains("MonicaTopActionsDropdownMenu("))
+        assertTrue(menu.contains("DropdownMenuItem("))
     }
 
     private fun projectFile(path: String): File {

@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
-import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.NewReleases
@@ -23,7 +22,6 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,18 +41,6 @@ import takagi.ru.monica.steam.store.domain.SteamStoreEvent
 import takagi.ru.monica.steam.store.domain.SteamStoreHome
 import takagi.ru.monica.steam.store.domain.SteamStoreItem
 import takagi.ru.monica.steam.store.domain.visibleStoreCollections
-
-@Composable
-internal fun SteamStoreBrowseMenu(
-    onOpenDrawer: () -> Unit
-) {
-    IconButton(onClick = onOpenDrawer) {
-        Icon(
-            imageVector = Icons.Default.FilterAlt,
-            contentDescription = stringResource(R.string.steam_store_browse)
-        )
-    }
-}
 
 @Composable
 internal fun SteamStoreDiscoveryContent(
