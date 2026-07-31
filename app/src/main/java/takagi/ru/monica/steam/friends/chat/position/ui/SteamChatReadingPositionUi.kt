@@ -211,6 +211,14 @@ internal fun SteamChatAutoScrollToLatestEffect(
     restored: Boolean,
     listState: LazyListState
 ) {
+    SteamChatImeBottomAnchorEffect(
+        conversationKey = conversationKey,
+        messageCount = messageCount,
+        leadingItemCount = leadingItemCount,
+        messagesBelow = messagesBelow,
+        restored = restored,
+        listState = listState
+    )
     var observedLatestMessageId by remember(conversationKey) { mutableStateOf<String?>(null) }
     LaunchedEffect(conversationKey, latestMessageId, restored) {
         val latest = latestMessageId ?: return@LaunchedEffect
