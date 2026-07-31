@@ -30,6 +30,7 @@ import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaChall
 import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaPolicy
 import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaResolution
 import takagi.ru.monica.steam.token.loginerror.domain.SteamLoginErrorPolicy
+import takagi.ru.monica.steam.token.loginsecurity.data.SteamMobileAuthRequestProfile
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.spec.RSAPublicKeySpec
@@ -71,8 +72,8 @@ class SteamLoginImportService(
         private const val URL_LEGACY_DO_LOGIN =
             "https://steamcommunity.com/login/dologin/"
 
-        private const val STEAM_WEBSITE_ID = "Mobile"
-        private const val DEVICE_FRIENDLY_NAME = "Monica Steam"
+        private const val STEAM_WEBSITE_ID = SteamMobileAuthRequestProfile.websiteId
+        private const val DEVICE_FRIENDLY_NAME = SteamMobileAuthRequestProfile.deviceFriendlyName
         private const val MAX_POLL_ATTEMPTS = 10
         private const val POLL_INTERVAL_MS = 900L
         private const val AUTH_CODE_TYPE_EMAIL = 2
@@ -170,6 +171,11 @@ class SteamLoginImportService(
         SESSION_ONLY
     }
 
+    private enum class FormRequestProfile {
+        MOBILE_AUTH,
+        COMMUNITY_WEB
+    }
+
     private data class PendingAuthSession(
         val flow: AuthFlow,
         val purpose: LoginPurpose = LoginPurpose.IMPORT_AUTHENTICATOR,
@@ -194,11 +200,29 @@ class SteamLoginImportService(
     )
 
     private val pendingSessions = ConcurrentHashMap<String, PendingAuthSession>()
-    private val steamApi = SteamApiClient(client, json)
+    private val steamApi = SteamApiClient(
+        client = client,
+        json = json,
+        defaultRequestHeaders = SteamMobileAuthRequestProfile.headers
+    )
     private val credentialLoginInFlight = AtomicBoolean(false)
 
     private fun logDiag(line: String) {
         SteamDiagLogger.append("[SteamLoginImport] $line")
+    }
+
+    private fun safeLogWarning(message: String, error: Throwable? = null) {
+        runCatching {
+            if (error == null) {
+                android.util.Log.w(TAG, message)
+            } else {
+                android.util.Log.w(TAG, message, error)
+            }
+        }
+    }
+
+    private fun safeLogError(message: String, error: Throwable) {
+        runCatching { android.util.Log.e(TAG, message, error) }
     }
 
     sealed class LoginResult {
@@ -457,24 +481,29 @@ class SteamLoginImportService(
                     "remember_login" to "true",
                     "website_id" to STEAM_WEBSITE_ID,
                     "device_friendly_name" to DEVICE_FRIENDLY_NAME,
-                    "platform_type" to "3",
+                    "platform_type" to SteamMobileAuthRequestProfile.platformType.toString(),
                     "guard_data" to "",
                     "language" to "0",
                     "qos_level" to "2"
-                )
+                ),
+                profile = FormRequestProfile.MOBILE_AUTH
             ) ?: return@runCatching LoginResult.Failure("Steam 登录请求失败")
 
             val beginPayload = beginAuthResponse.responseObject()
+            val beginEResult = beginAuthResponse.eResultInt() ?: beginPayload?.eResultInt()
             val beginSuccess = beginAuthResponse.successBoolean() ?: (beginPayload != null)
             if (!beginSuccess || beginPayload == null) {
-                val eResult = beginAuthResponse.eResultInt() ?: beginPayload?.eResultInt()
+                if (SteamLoginErrorPolicy.shouldFallbackToLegacyWeb(beginEResult)) {
+                    logDiag("begin auth captcha challenge; falling back legacy web")
+                    return@runCatching beginLegacyLogin(userName.trim(), password, purpose)
+                }
                 return@runCatching LoginResult.Failure(
                     message = SteamLoginErrorPolicy.userMessage(
-                        eResult = eResult,
+                        eResult = beginEResult,
                         rawMessage = beginPayload?.messageString()
                             ?: beginAuthResponse.messageString()
                     ),
-                    retryable = SteamLoginErrorPolicy.isRetryable(eResult)
+                    retryable = SteamLoginErrorPolicy.isRetryable(beginEResult)
                 )
             }
 
@@ -482,25 +511,14 @@ class SteamLoginImportService(
             val requestId = beginPayload.stringAny("request_id", "requestId", "requestID")
             val steamId = beginPayload.stringAny("steamid", "steam_id", "steamId")
             if (clientId.isNullOrBlank() || requestId.isNullOrBlank() || steamId.isNullOrBlank()) {
-                val eResult = beginAuthResponse.eResultInt() ?: beginPayload.eResultInt()
+                val eResult = beginEResult
                 val payloadKeys = beginPayload.keys.joinToString(",")
-                android.util.Log.w(
-                    TAG,
+                safeLogWarning(
                     "BeginAuth missing required fields. eResult=$eResult, payloadKeys=[$payloadKeys]"
                 )
-                if (!SteamLoginErrorPolicy.shouldFallbackCredentialAuth(eResult, 200)) {
-                    return@runCatching LoginResult.Failure(
-                        message = SteamLoginErrorPolicy.userMessage(
-                            eResult = eResult,
-                            rawMessage = beginPayload.messageString()
-                        ),
-                        retryable = SteamLoginErrorPolicy.isRetryable(eResult)
-                    )
-                }
-                val fallbackResult = beginLegacyLogin(userName.trim(), password, purpose)
-                if (fallbackResult !is LoginResult.Failure) {
-                    android.util.Log.i(TAG, "Fallback to legacy Steam login route succeeded")
-                    return@runCatching fallbackResult
+                if (SteamLoginErrorPolicy.shouldFallbackToLegacyWeb(eResult)) {
+                    logDiag("begin auth form captcha challenge; falling back legacy web")
+                    return@runCatching beginLegacyLogin(userName.trim(), password, purpose)
                 }
                 val intervalHint = beginPayload.intAny("interval", "poll_interval")
                 val message = mapEresultToMessage(eResult)
@@ -510,9 +528,7 @@ class SteamLoginImportService(
                         fallback = if (intervalHint != null) {
                         "Steam 登录被拒绝（EResult=${eResult ?: "未知"}，interval=$intervalHint）"
                     } else {
-                            fallbackResult.message.ifBlank {
-                                "Steam 登录响应不完整（可能需要额外验证或触发风控）"
-                            }
+                            "Steam 登录响应不完整（可能需要额外验证或触发风控）"
                         }
                     )
                 return@runCatching LoginResult.Failure(message)
@@ -543,7 +559,7 @@ class SteamLoginImportService(
 
             pollForToken(clientId, requestId, steamId, purpose = purpose)
             }.getOrElse { error ->
-                android.util.Log.e(TAG, "beginLogin failed: ${error.message}", error)
+                safeLogError("beginLogin failed: ${error.message}", error)
                 val apiError = error as? SteamApiException
                 LoginResult.Failure(
                     message = SteamLoginErrorPolicy.userMessage(
@@ -692,14 +708,15 @@ class SteamLoginImportService(
         encryptionTimestamp: String,
         throwApiErrors: Boolean = false
     ): BeginAuthSessionData? {
-        val timestamp = encryptionTimestamp.toLongOrNull() ?: return null
+        val timestamp = encryptionTimestamp.toLongOrNull()
+            ?: throw IllegalStateException("Steam returned an invalid RSA timestamp")
         val request = SteamProtoWriter().apply {
             writeString(1, DEVICE_FRIENDLY_NAME)
             writeString(2, userName)
             writeString(3, encryptedPassword)
             writeUint64(4, timestamp)
             writeBool(5, false)
-            writeVarint(6, 3L)
+            writeVarint(6, SteamMobileAuthRequestProfile.platformType)
             writeVarint(7, 1L)
             writeString(8, STEAM_WEBSITE_ID)
             writeMessage(9, buildAuthApiDeviceDetails())
@@ -717,27 +734,27 @@ class SteamLoginImportService(
                 )
             ).parseAll()
         } catch (error: SteamApiException) {
-            android.util.Log.w(
-                TAG,
-                "BeginAuthSessionViaCredentials protobuf failed: eResult=${error.eResult}, message=${error.message}"
+            safeLogWarning(
+                "BeginAuthSessionViaCredentials protobuf failed: " +
+                    "eResult=${error.eResult}, message=${error.message}",
+                error
             )
             if (
-                throwApiErrors ||
-                !SteamLoginErrorPolicy.shouldFallbackCredentialAuth(
+                !throwApiErrors &&
+                SteamLoginErrorPolicy.shouldFallbackToMobileForm(
                     eResult = error.eResult,
                     httpStatusCode = error.httpStatusCode
                 )
             ) {
-                throw error
+                return null
             }
-            return null
+            throw error
         } catch (error: Exception) {
-            android.util.Log.w(
-                TAG,
+            safeLogWarning(
                 "BeginAuthSessionViaCredentials protobuf exception: ${error.message}",
                 error
             )
-            return null
+            throw error
         }
 
         val clientId = fields.firstOrNull { it.number == 1 }
@@ -747,19 +764,18 @@ class SteamLoginImportService(
         val requestId = fields.firstOrNull { it.number == 2 }
             ?.bytes
             ?.takeIf { it.isNotEmpty() }
-            ?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+            ?.let { java.util.Base64.getEncoder().encodeToString(it) }
         val steamId = fields.firstOrNull { it.number == 5 }
             ?.asLong
             ?.takeIf { it != 0L }
             ?.let(::unsignedLongToString)
         if (clientId.isNullOrBlank() || requestId.isNullOrBlank() || steamId.isNullOrBlank()) {
-            android.util.Log.w(
-                TAG,
+            safeLogWarning(
                 "BeginAuthSessionViaCredentials protobuf missing fields: fieldNumbers=${
                     fields.joinToString(",") { it.number.toString() }
                 }"
             )
-            return null
+            throw IllegalStateException("Steam returned an incomplete authentication response")
         }
 
         return BeginAuthSessionData(
@@ -835,9 +851,9 @@ class SteamLoginImportService(
     private fun buildAuthApiDeviceDetails(): SteamProtoWriter {
         return SteamProtoWriter().apply {
             writeString(1, DEVICE_FRIENDLY_NAME)
-            writeVarint(2, 3L)
-            writeVarint(3, -500L)
-            writeVarint(4, 528L)
+            writeVarint(2, SteamMobileAuthRequestProfile.platformType)
+            writeVarint(3, SteamMobileAuthRequestProfile.osType)
+            writeVarint(4, SteamMobileAuthRequestProfile.gamingDeviceType)
         }
     }
 
@@ -924,7 +940,8 @@ class SteamLoginImportService(
                 "steamid" to session.steamId,
                 "code" to code.trim(),
                 "code_type" to confirmationType.toString()
-            )
+            ),
+            profile = FormRequestProfile.MOBILE_AUTH
         ) ?: return LoginResult.Failure("提交 Steam 验证码失败")
 
         val updatePayload = updateResponse.responseObject()
@@ -1212,7 +1229,8 @@ class SteamLoginImportService(
                 mapOf(
                     "client_id" to clientId,
                     "request_id" to requestId
-                )
+                ),
+                profile = FormRequestProfile.MOBILE_AUTH
             ) ?: return LoginResult.Failure("Steam 轮询失败")
 
             val payload = pollResponse.responseObject()
@@ -2277,29 +2295,38 @@ class SteamLoginImportService(
             val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
             cipher.init(Cipher.ENCRYPT_MODE, publicKey)
             val encrypted = cipher.doFinal(password.toByteArray(Charsets.UTF_8))
-            Base64.encodeToString(encrypted, Base64.NO_WRAP)
+            java.util.Base64.getEncoder().encodeToString(encrypted)
         }.onFailure { error ->
-            android.util.Log.e(TAG, "encryptPasswordWithRsa failed: ${error.message}", error)
+            safeLogError("encryptPasswordWithRsa failed: ${error.message}", error)
         }.getOrNull()
     }
 
     private fun postForm(
         url: String,
-        params: Map<String, String>
+        params: Map<String, String>,
+        profile: FormRequestProfile = FormRequestProfile.COMMUNITY_WEB
     ): JsonObject? {
         val bodyBuilder = FormBody.Builder()
         params.forEach { (key, value) ->
             bodyBuilder.add(key, value)
         }
 
-        val request = Request.Builder()
+        val requestBuilder = Request.Builder()
             .url(url)
             .post(bodyBuilder.build())
-            .header("User-Agent", "Mozilla/5.0 (Monica Android)")
-            .header("Accept", "application/json")
-            .header("Origin", "https://steamcommunity.com")
-            .header("Referer", "https://steamcommunity.com/login/home/")
-            .build()
+        when (profile) {
+            FormRequestProfile.MOBILE_AUTH -> {
+                SteamMobileAuthRequestProfile.applyTo(requestBuilder)
+            }
+            FormRequestProfile.COMMUNITY_WEB -> {
+                requestBuilder
+                    .header("User-Agent", "Mozilla/5.0 (Monica Android)")
+                    .header("Accept", "application/json")
+                    .header("Origin", "https://steamcommunity.com")
+                    .header("Referer", "https://steamcommunity.com/login/home/")
+            }
+        }
+        val request = requestBuilder.build()
 
         return runCatching {
             client.newCall(request).execute().use { response ->

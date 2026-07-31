@@ -16,7 +16,8 @@ import okhttp3.Response
 
 class SteamApiClient(
     private val client: OkHttpClient = OkHttpClient.Builder().build(),
-    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val defaultRequestHeaders: Map<String, String> = emptyMap()
 ) {
     fun steamApiGetJson(
         path: String,
@@ -76,11 +77,12 @@ class SteamApiClient(
         request: SteamProtoWriter,
         accessToken: String? = null,
         useGet: Boolean = false,
-        version: Int = 1
+        version: Int = 1,
+        requestHeaders: Map<String, String> = emptyMap()
     ): ByteArray {
         val baseUrl = "https://api.steampowered.com/$iface/$method/v$version/"
         val encoded = Base64.getEncoder().encodeToString(request.toByteArray())
-        val httpRequest = if (useGet) {
+        val requestBuilder = if (useGet) {
             val url = baseUrl.toHttpUrl().newBuilder()
                 .addQueryParameter("input_protobuf_encoded", encoded)
                 .apply {
@@ -98,9 +100,13 @@ class SteamApiClient(
                 }
                 .build()
             Request.Builder().url(url).post(body)
-        }.header("User-Agent", "okhttp/4.9.2")
+        }
+        requestBuilder
+            .header("User-Agent", "okhttp/4.9.2")
             .header("Accept", "application/json, text/plain, */*")
-            .build()
+        defaultRequestHeaders.forEach { (name, value) -> requestBuilder.header(name, value) }
+        requestHeaders.forEach { (name, value) -> requestBuilder.header(name, value) }
+        val httpRequest = requestBuilder.build()
 
         client.newCall(httpRequest).execute().use { response ->
             val eResult = response.header("x-eresult")?.toIntOrNull()

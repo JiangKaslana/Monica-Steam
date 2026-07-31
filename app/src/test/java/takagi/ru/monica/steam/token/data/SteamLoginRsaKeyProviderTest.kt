@@ -19,11 +19,15 @@ class SteamLoginRsaKeyProviderTest {
         val communityCalls = AtomicInteger()
         val provider = provider { request ->
             when (request.url.host) {
-                "api.steampowered.com" -> jsonResponse(
-                    request,
-                    200,
-                    """{"response":${validKeyJson()}}"""
-                )
+                "api.steampowered.com" -> {
+                    assertEquals("okhttp/4.9.2", request.header("User-Agent"))
+                    assertTrue(request.header("Cookie").orEmpty().contains("mobileClient=android"))
+                    jsonResponse(
+                        request,
+                        200,
+                        """{"response":${validKeyJson()}}"""
+                    )
+                }
                 else -> {
                     communityCalls.incrementAndGet()
                     jsonResponse(request, 500, "{}")

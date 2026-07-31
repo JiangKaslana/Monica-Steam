@@ -41,8 +41,16 @@ class SteamLoginImportServiceGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/token/presentation/SteamViewModel.kt"
         ).readText()
 
-        assertTrue(source.contains("\"platform_type\" to \"3\""))
-        assertTrue(source.contains("STEAM_WEBSITE_ID = \"Mobile\""))
+        assertTrue(
+            source.contains(
+                "\"platform_type\" to SteamMobileAuthRequestProfile.platformType.toString()"
+            )
+        )
+        assertTrue(
+            source.contains(
+                "STEAM_WEBSITE_ID = SteamMobileAuthRequestProfile.websiteId"
+            )
+        )
         assertTrue(source.contains("pollPendingSession"))
         assertTrue(source.contains("codeAlreadyAccepted = updateEResult == 29"))
         assertTrue(source.contains("method = \"AddAuthenticator\""))
@@ -220,7 +228,9 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(source.contains("writeString(3, encryptedPassword)"))
         assertTrue(source.contains("writeUint64(4, timestamp)"))
         assertTrue(source.contains("writeBool(5, false)"))
-        assertTrue(source.contains("writeVarint(6, 3L)"))
+        assertTrue(
+            source.contains("writeVarint(6, SteamMobileAuthRequestProfile.platformType)")
+        )
         assertTrue(source.contains("writeVarint(7, 1L)"))
         assertTrue(source.contains("writeString(8, STEAM_WEBSITE_ID)"))
         assertTrue(source.contains("writeMessage(9, buildAuthApiDeviceDetails())"))
@@ -237,7 +247,12 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(source.contains("SteamGuardSubmitResult.UnsupportedSession"))
         assertTrue(errorPolicySource.contains("87 -> \"Steam 暂时限制了登录请求"))
         assertTrue(errorPolicySource.contains("88 -> \"Steam 登录失败：令牌验证码错误\""))
-        assertTrue(source.contains("SteamLoginErrorPolicy.shouldFallbackCredentialAuth"))
+        assertTrue(errorPolicySource.contains("fun shouldFallbackToMobileForm"))
+        assertTrue(errorPolicySource.contains("fun shouldFallbackToLegacyWeb"))
+        assertTrue(source.contains("SteamLoginErrorPolicy.shouldFallbackToMobileForm"))
+        assertTrue(source.contains("SteamLoginErrorPolicy.shouldFallbackToLegacyWeb"))
+        assertFalse(source.contains("method = \"GetAuthSessionInfo\""))
+        assertFalse(source.contains("shouldFallbackCredentialAuth"))
         assertTrue(source.contains("credentialLoginInFlight.compareAndSet(false, true)"))
 
         assertTrue(source.contains("pollForTokenWithProtobuf"))

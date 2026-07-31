@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.token.loginsecurity.data.SteamMobileAuthRequestProfile
 
 data class SteamSessionRefreshResult(
     val accessToken: String,
@@ -53,7 +54,8 @@ class SteamSessionRefreshService(
                 api.callProtobuf(
                     iface = "IAuthenticationService",
                     method = "GenerateAccessTokenForApp",
-                    request = request
+                    request = request,
+                    requestHeaders = SteamMobileAuthRequestProfile.headers
                 )
             ).parse()
             val accessToken = fields[1]?.asString?.takeIf { it.isNotBlank() } ?: return null

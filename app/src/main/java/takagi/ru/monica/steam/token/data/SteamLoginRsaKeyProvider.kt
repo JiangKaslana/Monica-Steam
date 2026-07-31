@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
+import takagi.ru.monica.steam.token.loginsecurity.data.SteamMobileAuthRequestProfile
 
 internal data class SteamLoginRsaKey(
     val modulusHex: String,
@@ -55,16 +56,15 @@ internal class SteamLoginRsaKeyProvider(
     }
 
     private fun requestAuthApi(accountName: String): SteamLoginRsaKey? {
-        val request = Request.Builder()
-            .url(
-                AUTH_API_URL.toHttpUrl().newBuilder()
-                    .addQueryParameter("account_name", accountName)
-                    .build()
-            )
-            .get()
-            .header("User-Agent", MOBILE_USER_AGENT)
-            .header("Accept", "application/json")
-            .build()
+        val request = SteamMobileAuthRequestProfile.applyTo(
+            Request.Builder()
+                .url(
+                    AUTH_API_URL.toHttpUrl().newBuilder()
+                        .addQueryParameter("account_name", accountName)
+                        .build()
+                )
+                .get()
+        ).build()
         return execute(request, SteamLoginRsaSource.AUTH_API)
     }
 

@@ -16,7 +16,7 @@ class SteamLoginErrorPolicyTest {
         assertTrue(message.contains("限制"))
         assertTrue(message.contains("等待"))
         assertFalse(
-            SteamLoginErrorPolicy.shouldFallbackCredentialAuth(
+            SteamLoginErrorPolicy.shouldFallbackToMobileForm(
                 eResult = 87,
                 httpStatusCode = 200
             )
@@ -24,12 +24,24 @@ class SteamLoginErrorPolicyTest {
     }
 
     @Test
-    fun challengeResultsMayUseLegacyFlowButDefinitiveFailuresDoNot() {
-        assertTrue(SteamLoginErrorPolicy.shouldFallbackCredentialAuth(85, 200))
-        assertTrue(SteamLoginErrorPolicy.shouldFallbackCredentialAuth(101, 200))
-        assertFalse(SteamLoginErrorPolicy.shouldFallbackCredentialAuth(5, 200))
-        assertFalse(SteamLoginErrorPolicy.shouldFallbackCredentialAuth(84, 200))
-        assertFalse(SteamLoginErrorPolicy.shouldFallbackCredentialAuth(88, 200))
+    fun onlyExplicitChallengesMayUseTheMobileFormFallback() {
+        assertTrue(SteamLoginErrorPolicy.shouldFallbackToMobileForm(63, 200))
+        assertTrue(SteamLoginErrorPolicy.shouldFallbackToMobileForm(85, 200))
+        assertTrue(SteamLoginErrorPolicy.shouldFallbackToMobileForm(101, 200))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToMobileForm(null, null))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToMobileForm(500, 500))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToMobileForm(5, 200))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToMobileForm(84, 200))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToMobileForm(88, 200))
+    }
+
+    @Test
+    fun automaticLegacyWebFallbackIsReservedForCaptcha() {
+        assertTrue(SteamLoginErrorPolicy.shouldFallbackToLegacyWeb(101))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToLegacyWeb(null))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToLegacyWeb(63))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToLegacyWeb(85))
+        assertFalse(SteamLoginErrorPolicy.shouldFallbackToLegacyWeb(87))
     }
 
     @Test

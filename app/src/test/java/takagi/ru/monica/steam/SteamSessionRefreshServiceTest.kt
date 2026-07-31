@@ -75,6 +75,10 @@ class SteamSessionRefreshServiceTest {
                 Interceptor { chain ->
                     calls.incrementAndGet()
                     assertTrue(chain.request().url.encodedPath.contains("GenerateAccessTokenForApp"))
+                    assertEquals("okhttp/4.9.2", chain.request().header("User-Agent"))
+                    assertTrue(
+                        chain.request().header("Cookie").orEmpty().contains("mobileClient=android")
+                    )
                     val body = SteamProtoWriter().apply {
                         writeString(1, "new-access-token")
                         writeString(2, "new-refresh-token")

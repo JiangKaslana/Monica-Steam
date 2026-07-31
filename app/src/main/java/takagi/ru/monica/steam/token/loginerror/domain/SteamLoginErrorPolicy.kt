@@ -1,22 +1,18 @@
 package takagi.ru.monica.steam.token.loginerror.domain
 
 internal object SteamLoginErrorPolicy {
-    private val legacyChallengeResults = setOf(63, 85, 101)
+    private val mobileFormChallengeResults = setOf(63, 85, 101)
 
-    fun shouldFallbackCredentialAuth(
+    fun shouldFallbackToMobileForm(
         eResult: Int?,
         httpStatusCode: Int?
     ): Boolean {
-        if (eResult == null) return true
-        if (
-            httpStatusCode != null &&
-            httpStatusCode !in 200..299 &&
-            eResult == httpStatusCode
-        ) {
-            return true
-        }
-        return eResult in legacyChallengeResults
+        if (eResult == null) return false
+        if (httpStatusCode != null && httpStatusCode !in 200..299) return false
+        return eResult in mobileFormChallengeResults
     }
+
+    fun shouldFallbackToLegacyWeb(eResult: Int?): Boolean = eResult == 101
 
     fun messageForEresult(eResult: Int?): String? = when (eResult) {
         null, 1 -> null
