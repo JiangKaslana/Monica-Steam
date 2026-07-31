@@ -41,3 +41,25 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## KernelSU FloatingBottomBar
+
+The optional Monica Steam liquid-glass Dock adapts the motion and rendering
+structure of KernelSU's `FloatingBottomBar` at commit
+`778fb38bbf0c43f168b8bbd7d9e369d6fb46754b`.
+
+Copyright (C) KernelSU contributors
+
+Licensed under the GNU General Public License v3.0. The complete license text
+is included in this repository's `LICENSE` file.
+
+## Miuix blur and AndroidLiquidGlass
+
+The liquid-glass backdrop capture, RuntimeShader effects, highlight model, and
+supporting lens concepts use
+[`miuix-blur`](https://github.com/compose-miuix-ui/miuix) and
+[`AndroidLiquidGlass`](https://github.com/Kyant0/AndroidLiquidGlass).
+
+Copyright (C) compose-miuix-ui contributors and Kyant0 contributors
+
+Licensed under the Apache License, Version 2.0.

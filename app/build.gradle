@@ -236,6 +236,10 @@ android {
     }
     kotlinOptions {
         jvmTarget = '11'
+        // Miuix 0.9.3 is published with Kotlin 2.4 metadata. Its Android AAR
+        // only uses stable JVM/Compose APIs here, so keep Monica Steam's
+        // existing compiler and permit reading the newer library metadata.
+        freeCompilerArgs += ['-Xskip-metadata-version-check']
     }
     buildFeatures {
         compose true
@@ -382,6 +386,15 @@ dependencies {
     implementation libs.androidx.material3.window.size
     implementation "androidx.compose.animation:animation"
     implementation "androidx.compose.animation:animation-graphics"
+
+    // Native liquid-glass renderer used by the optional Dock. Transitives are
+    // intentionally excluded so the app keeps its AndroidX Compose graph.
+    implementation('top.yukonga.miuix.kmp:miuix-shader-android:0.9.3') {
+        transitive = false
+    }
+    implementation('top.yukonga.miuix.kmp:miuix-blur-android:0.9.3') {
+        transitive = false
+    }
     
     // Navigation
     implementation libs.androidx.navigation.compose

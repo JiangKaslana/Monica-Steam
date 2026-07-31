@@ -25,7 +25,8 @@ class MonicaSteamMotionParityTest {
         assertFalse(source.contains("slideOutHorizontally"))
         assertTrue(source.contains("EnterTransition.None"))
         assertTrue(source.contains("ExitTransition.None"))
-        assertTrue(source.contains("initialState.isDockPage() && targetState.isDockPage()"))
+        assertTrue(source.contains("initialState.isDockPage(dockStyle)"))
+        assertTrue(source.contains("targetState.isDockPage(dockStyle)"))
         assertTrue(source.contains("easyNotesScreenEnter().togetherWith(easyNotesScreenExit())"))
         assertTrue(source.contains("var pageHistory by rememberSaveable"))
         assertTrue(source.contains("fun navigateTo(page: MonicaSteamPage)"))
@@ -58,7 +59,8 @@ class MonicaSteamMotionParityTest {
         val source = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
         ).readText()
-        assertTrue(source.contains("initialState.isDockPage() && targetState.isDockPage()"))
+        assertTrue(source.contains("initialState.isDockPage(dockStyle)"))
+        assertTrue(source.contains("targetState.isDockPage(dockStyle)"))
         assertTrue(source.contains("EnterTransition.None togetherWith ExitTransition.None"))
         assertTrue(source.contains("easyNotesScreenEnter().togetherWith(easyNotesScreenExit())"))
     }

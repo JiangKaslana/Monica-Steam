@@ -51,7 +51,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import takagi.ru.monica.steam.navigation.SteamDockPreferences
+import takagi.ru.monica.steam.navigation.SteamDockStyle
 import takagi.ru.monica.steam.navigation.SteamDockTab
+import takagi.ru.monica.steam.navigation.liquidglass.render.rememberSteamLiquidGlassBackdrop
+import takagi.ru.monica.steam.navigation.liquidglass.render.steamLiquidGlassBackdropSource
+import takagi.ru.monica.steam.navigation.liquidglass.ui.SteamLiquidGlassDock
+import takagi.ru.monica.steam.navigation.liquidglass.ui.SteamLiquidGlassDockVisibility
 import takagi.ru.monica.steam.navigation.ui.SteamEssentialsFloatingToolbar
 import takagi.ru.monica.steam.navigation.ui.SteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
@@ -229,14 +234,23 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 val dockPreferences = remember {
                     SteamDockPreferences(this@MonicaSteamActivity.applicationContext)
                 }
-                val dockOrder by dockPreferences.order.collectAsState(
-                    initial = emptyList()
+                val dockConfiguration by dockPreferences.configuration.collectAsState(
+                    initial = null
                 )
+                val dockStyle = dockConfiguration?.style ?: SteamDockStyle.M3E
+                val dockOrder = dockConfiguration?.m3eOrder.orEmpty()
+                val liquidGlassDockOrder = dockConfiguration?.liquidGlassOrder.orEmpty()
+                val activeDockOrder = if (dockStyle == SteamDockStyle.LIQUID_GLASS) {
+                    liquidGlassDockOrder
+                } else {
+                    dockOrder
+                }
+                val liquidGlassBackdrop = rememberSteamLiquidGlassBackdrop()
                 val dockBlurHeightPx = with(LocalDensity.current) { 130.dp.toPx() }
-                val homePage = dockOrder.firstOrNull()?.toPage() ?: MonicaSteamPage.STEAM
+                val homePage = activeDockOrder.firstOrNull()?.toPage() ?: MonicaSteamPage.STEAM
                 var appliedInitialDockPage by rememberSaveable { mutableStateOf(false) }
-                LaunchedEffect(dockOrder) {
-                    if (!appliedInitialDockPage && dockOrder.isNotEmpty()) {
+                LaunchedEffect(dockConfiguration, homePage) {
+                    if (!appliedInitialDockPage && dockConfiguration != null) {
                         currentPage = homePage
                         pageHistory = emptyList()
                         appliedInitialDockPage = true
@@ -264,7 +278,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                     }
                 }
 
-                LaunchedEffect(currentPage) {
+                LaunchedEffect(currentPage, dockStyle) {
+                    if (currentPage.isDockPage(dockStyle) && pageHistory.isNotEmpty()) {
+                        pageHistory = emptyList()
+                    }
                     if (
                         currentPage != MonicaSteamPage.STEAM &&
                         currentPage != MonicaSteamPage.CHAT
@@ -275,7 +292,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
 
                 fun navigateTo(page: MonicaSteamPage) {
                     if (page == currentPage) return
-                    pageHistory = if (page.isDockPage()) {
+                    pageHistory = if (page.isDockPage(dockStyle)) {
                         emptyList()
                     } else {
                         pageHistory + currentPage.name
@@ -308,7 +325,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             return@BackHandler
                         }
 
-                        if (currentPage.isDockPage()) {
+                        if (currentPage.isDockPage(dockStyle)) {
                             if (backPressedOnce) {
                                 this@MonicaSteamActivity.finish()
                             } else {
@@ -343,7 +360,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 ProvideSteamContentDensity {
                                     CompositionLocalProvider(
                                         LocalSteamDockContentClearance provides if (
-                                            currentPage.isDockPage() && !isSteamChatThreadOpen
+                                            currentPage.isDockPage(dockStyle) && !isSteamChatThreadOpen
                                         ) {
                                             SteamDockContentClearance
                                         } else {
@@ -354,14 +371,25 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .steamDockProgressiveBlur(
-                                                    enabled = currentPage.isDockPage() && !isSteamChatThreadOpen,
+                                                    enabled = dockStyle == SteamDockStyle.M3E &&
+                                                        currentPage.isDockPage(dockStyle) &&
+                                                        !isSteamChatThreadOpen,
                                                     blurRadius = 40f,
                                                     height = dockBlurHeightPx
+                                                )
+                                                .steamLiquidGlassBackdropSource(
+                                                    backdrop = liquidGlassBackdrop,
+                                                    enabled = dockStyle == SteamDockStyle.LIQUID_GLASS &&
+                                                        currentPage.isDockPage(dockStyle) &&
+                                                        !isSteamChatThreadOpen
                                                 ),
                                             targetState = currentPage,
                                             label = "monica_steam_page_transition",
                                             transitionSpec = {
-                                                if (initialState.isDockPage() && targetState.isDockPage()) {
+                                                if (
+                                                    initialState.isDockPage(dockStyle) &&
+                                                    targetState.isDockPage(dockStyle)
+                                                ) {
                                                     // Monica Android's SimpleMainScreen swaps top-level tabs
                                                     // directly; only the NavigationBar selection animates.
                                                     EnterTransition.None togetherWith ExitTransition.None
@@ -404,9 +432,19 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     navigateTo(MonicaSteamPage.WEBDAV_BACKUP)
                                 },
                                 onOpenMdbx = { navigateTo(MonicaSteamPage.MDBX) },
+                                dockStyle = dockStyle,
+                                onDockStyleChange = { style ->
+                                    composeScope.launch { dockPreferences.updateStyle(style) }
+                                },
                                 dockOrder = dockOrder,
                                 onDockOrderChange = { order ->
                                     composeScope.launch { dockPreferences.updateOrder(order) }
+                                },
+                                liquidGlassDockOrder = liquidGlassDockOrder,
+                                onLiquidGlassDockOrderChange = { order ->
+                                    composeScope.launch {
+                                        dockPreferences.updateLiquidGlassOrder(order)
+                                    }
                                 },
                                 showNavigationBack = false,
                                 modifier = Modifier.fillMaxSize()
@@ -585,11 +623,30 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 }
                     }
 
-                            if (currentPage.isDockPage() && !isSteamChatThreadOpen) {
+                            val dockVisible = dockConfiguration != null &&
+                                currentPage.isDockPage(dockStyle) &&
+                                !isSteamChatThreadOpen
+                            if (dockStyle == SteamDockStyle.M3E && dockVisible) {
                                 SteamStandaloneDock(
                                     modifier = Modifier.align(Alignment.BottomCenter),
                                     order = dockOrder,
                                     selected = currentPage.toDockTab(),
+                                    onSelected = { tab ->
+                                        pageHistory = emptyList()
+                                        currentPage = tab.toPage()
+                                    }
+                                )
+                            }
+                            SteamLiquidGlassDockVisibility(
+                                visible = dockStyle == SteamDockStyle.LIQUID_GLASS && dockVisible,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .zIndex(1f)
+                            ) {
+                                SteamLiquidGlassDock(
+                                    order = liquidGlassDockOrder,
+                                    selected = currentPage.toDockTab(),
+                                    backdrop = liquidGlassBackdrop,
                                     onSelected = { tab ->
                                         pageHistory = emptyList()
                                         currentPage = tab.toPage()
@@ -655,12 +712,12 @@ class MonicaSteamActivity : BaseMonicaActivity() {
 
 }
 
-private fun MonicaSteamPage.isDockPage(): Boolean = when (this) {
+private fun MonicaSteamPage.isDockPage(style: SteamDockStyle): Boolean = when (this) {
     MonicaSteamPage.STEAM,
     MonicaSteamPage.LIBRARY,
     MonicaSteamPage.STORE,
     MonicaSteamPage.CHAT -> true
-    MonicaSteamPage.SETTINGS,
+    MonicaSteamPage.SETTINGS -> style == SteamDockStyle.LIQUID_GLASS
     MonicaSteamPage.SCANNER,
     MonicaSteamPage.HEALTH,
     MonicaSteamPage.COMMUNITY,

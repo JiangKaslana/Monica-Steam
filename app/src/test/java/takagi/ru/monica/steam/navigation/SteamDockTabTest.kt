@@ -35,6 +35,45 @@ class SteamDockTabTest {
     }
 
     @Test
+    fun liquidGlassOrderAlwaysContainsAllFiveDestinations() {
+        assertEquals(
+            listOf(
+                SteamDockTab.CHAT,
+                SteamDockTab.TOKEN,
+                SteamDockTab.STORE,
+                SteamDockTab.LIBRARY,
+                SteamDockTab.SETTINGS
+            ),
+            SteamDockTab.completeLiquidGlassOrder(
+                listOf(
+                    SteamDockTab.CHAT,
+                    SteamDockTab.TOKEN,
+                    SteamDockTab.CHAT,
+                    SteamDockTab.STORE
+                )
+            )
+        )
+    }
+
+    @Test
+    fun liquidGlassOrderCanMoveEveryDestination() {
+        assertEquals(
+            listOf(
+                SteamDockTab.SETTINGS,
+                SteamDockTab.STORE,
+                SteamDockTab.LIBRARY,
+                SteamDockTab.CHAT,
+                SteamDockTab.TOKEN
+            ),
+            reorderLiquidGlassDockOrder(
+                SteamDockTab.LIQUID_GLASS_DEFAULT_ORDER,
+                fromIndex = 4,
+                toIndex = 0
+            )
+        )
+    }
+
+    @Test
     fun legacyDefaultOrderMigratesButCustomOrderIsPreserved() {
         assertEquals(
             SteamDockTab.DEFAULT_ORDER,
