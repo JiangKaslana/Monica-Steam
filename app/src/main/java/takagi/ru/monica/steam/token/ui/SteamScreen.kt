@@ -922,6 +922,7 @@ fun SteamScreen(
         SteamAddAccountMethod.LOGIN -> SteamLoginImportDialog(
             pendingChallenge = uiState.pendingLoginChallenge,
             availableCodeAccounts = uiState.accounts,
+            loading = uiState.loading,
             onDismissRequest = {
                 viewModel.cancelSteamLoginChallenge()
                 addAccountMethod = null
@@ -948,6 +949,7 @@ fun SteamScreen(
         SteamLoginImportDialog(
             pendingChallenge = uiState.pendingLoginChallenge,
             availableCodeAccounts = uiState.accounts,
+            loading = uiState.loading,
             onDismissRequest = {
                 viewModel.cancelSteamLoginChallenge()
                 steamIdCompletionAccountId = null
@@ -966,6 +968,7 @@ fun SteamScreen(
         SteamLoginImportDialog(
             pendingChallenge = uiState.pendingLoginChallenge,
             availableCodeAccounts = uiState.accounts,
+            loading = uiState.loading,
             onDismissRequest = {
                 viewModel.cancelSteamLoginChallenge()
                 steamAccountRebindAccountId = null
@@ -5543,6 +5546,7 @@ private fun createSteamQrLoginBitmap(content: String, size: Int = 768): ImageBit
 private fun SteamLoginImportDialog(
     pendingChallenge: SteamLoginChallengeUi?,
     availableCodeAccounts: List<SteamAccount>,
+    loading: Boolean,
     onDismissRequest: () -> Unit,
     onBeginLogin: (String, String, String) -> Unit,
     onSubmitLoginCode: (String) -> Unit,
@@ -5702,20 +5706,27 @@ private fun SteamLoginImportDialog(
                         }
                     },
                     enabled = if (waitingForCode) {
-                        challengeCode.isNotBlank()
+                        !loading && challengeCode.isNotBlank()
                     } else {
-                        loginName.isNotBlank() && loginPassword.isNotBlank()
+                        !loading && loginName.isNotBlank() && loginPassword.isNotBlank()
                     }
                 ) {
-                    Text(
-                        stringResource(
-                            if (waitingForCode) {
-                                R.string.steam_submit_code_button
-                            } else {
-                                R.string.steam_login_button
-                            }
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
                         )
-                    )
+                    } else {
+                        Text(
+                            stringResource(
+                                if (waitingForCode) {
+                                    R.string.steam_submit_code_button
+                                } else {
+                                    R.string.steam_login_button
+                                }
+                            )
+                        )
+                    }
                 }
             }
         },

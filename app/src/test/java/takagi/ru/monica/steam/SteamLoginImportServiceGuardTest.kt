@@ -209,6 +209,9 @@ class SteamLoginImportServiceGuardTest {
         val source = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/token/data/SteamLoginImportService.kt"
         ).readText()
+        val errorPolicySource = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/token/loginerror/domain/SteamLoginErrorPolicy.kt"
+        ).readText()
 
         assertTrue(source.contains("beginAuthSessionViaCredentialsWithProtobuf"))
         assertTrue(source.contains("method = \"BeginAuthSessionViaCredentials\""))
@@ -232,7 +235,10 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(source.contains("writeVarint(4, confirmationType.toLong())"))
         assertTrue(source.contains("9 -> {"))
         assertTrue(source.contains("SteamGuardSubmitResult.UnsupportedSession"))
-        assertTrue(source.contains("88 -> \"Steam 登录失败：令牌验证码无效或已过期\""))
+        assertTrue(errorPolicySource.contains("87 -> \"Steam 暂时限制了登录请求"))
+        assertTrue(errorPolicySource.contains("88 -> \"Steam 登录失败：令牌验证码错误\""))
+        assertTrue(source.contains("SteamLoginErrorPolicy.shouldFallbackCredentialAuth"))
+        assertTrue(source.contains("credentialLoginInFlight.compareAndSet(false, true)"))
 
         assertTrue(source.contains("pollForTokenWithProtobuf"))
         assertTrue(source.contains("method = \"PollAuthSessionStatus\""))

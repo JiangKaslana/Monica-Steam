@@ -29,11 +29,13 @@ import takagi.ru.monica.steam.token.loginchallenge.data.SteamLoginCaptchaUrl
 import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaChallenge
 import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaPolicy
 import takagi.ru.monica.steam.token.loginchallenge.domain.SteamLoginCaptchaResolution
+import takagi.ru.monica.steam.token.loginerror.domain.SteamLoginErrorPolicy
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.spec.RSAPublicKeySpec
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.crypto.Cipher
 
 /**
@@ -193,6 +195,7 @@ class SteamLoginImportService(
 
     private val pendingSessions = ConcurrentHashMap<String, PendingAuthSession>()
     private val steamApi = SteamApiClient(client, json)
+    private val credentialLoginInFlight = AtomicBoolean(false)
 
     private fun logDiag(line: String) {
         SteamDiagLogger.append("[SteamLoginImport] $line")
@@ -379,8 +382,15 @@ class SteamLoginImportService(
         if (userName.isBlank() || password.isBlank()) {
             return@withContext LoginResult.Failure("账号或密码不能为空", retryable = false)
         }
+        if (!credentialLoginInFlight.compareAndSet(false, true)) {
+            return@withContext LoginResult.Failure(
+                "Steam 登录请求正在处理中，请勿重复点击",
+                retryable = false
+            )
+        }
 
-        runCatching {
+        return@withContext try {
+            runCatching {
             logDiag("begin login start")
             val rsaResult = rsaKeyProvider.load(userName)
             val rsaKey = (rsaResult as? SteamLoginRsaResult.Success)?.key
@@ -422,7 +432,9 @@ class SteamLoginImportService(
                         pendingSessionId = pendingSessionId,
                         steamId = protobufBeginSession.steamId,
                         challenges = protobufBeginSession.challenges,
-                        message = protobufBeginSession.message
+                        message = SteamLoginErrorPolicy.challengeMessage(
+                            protobufBeginSession.message
+                        )
                     )
                 }
 
@@ -455,35 +467,54 @@ class SteamLoginImportService(
             val beginPayload = beginAuthResponse.responseObject()
             val beginSuccess = beginAuthResponse.successBoolean() ?: (beginPayload != null)
             if (!beginSuccess || beginPayload == null) {
-                val message = beginPayload?.messageString()
-                    ?: beginAuthResponse.messageString()
-                    ?: "Steam 登录失败"
-                return@runCatching LoginResult.Failure(message)
+                val eResult = beginAuthResponse.eResultInt() ?: beginPayload?.eResultInt()
+                return@runCatching LoginResult.Failure(
+                    message = SteamLoginErrorPolicy.userMessage(
+                        eResult = eResult,
+                        rawMessage = beginPayload?.messageString()
+                            ?: beginAuthResponse.messageString()
+                    ),
+                    retryable = SteamLoginErrorPolicy.isRetryable(eResult)
+                )
             }
 
             val clientId = beginPayload.stringAny("client_id", "clientId", "clientID")
             val requestId = beginPayload.stringAny("request_id", "requestId", "requestID")
             val steamId = beginPayload.stringAny("steamid", "steam_id", "steamId")
             if (clientId.isNullOrBlank() || requestId.isNullOrBlank() || steamId.isNullOrBlank()) {
-                val eResult = beginAuthResponse.eResultInt()
+                val eResult = beginAuthResponse.eResultInt() ?: beginPayload.eResultInt()
                 val payloadKeys = beginPayload.keys.joinToString(",")
                 android.util.Log.w(
                     TAG,
                     "BeginAuth missing required fields. eResult=$eResult, payloadKeys=[$payloadKeys]"
                 )
+                if (!SteamLoginErrorPolicy.shouldFallbackCredentialAuth(eResult, 200)) {
+                    return@runCatching LoginResult.Failure(
+                        message = SteamLoginErrorPolicy.userMessage(
+                            eResult = eResult,
+                            rawMessage = beginPayload.messageString()
+                        ),
+                        retryable = SteamLoginErrorPolicy.isRetryable(eResult)
+                    )
+                }
                 val fallbackResult = beginLegacyLogin(userName.trim(), password, purpose)
                 if (fallbackResult !is LoginResult.Failure) {
                     android.util.Log.i(TAG, "Fallback to legacy Steam login route succeeded")
                     return@runCatching fallbackResult
                 }
                 val intervalHint = beginPayload.intAny("interval", "poll_interval")
-                val message = beginPayload.messageString()
-                    ?: mapEresultToMessage(eResult)
-                    ?: if (intervalHint != null) {
+                val message = mapEresultToMessage(eResult)
+                    ?: SteamLoginErrorPolicy.userMessage(
+                        eResult = null,
+                        rawMessage = beginPayload.messageString(),
+                        fallback = if (intervalHint != null) {
                         "Steam 登录被拒绝（EResult=${eResult ?: "未知"}，interval=$intervalHint）"
                     } else {
-                        "Steam 登录响应不完整（可能需要额外验证或触发风控）"
-                    }
+                            fallbackResult.message.ifBlank {
+                                "Steam 登录响应不完整（可能需要额外验证或触发风控）"
+                            }
+                        }
+                    )
                 return@runCatching LoginResult.Failure(message)
             }
 
@@ -504,14 +535,26 @@ class SteamLoginImportService(
                     pendingSessionId = pendingSessionId,
                     steamId = steamId,
                     challenges = challenges,
-                    message = beginPayload.messageString()
+                    message = SteamLoginErrorPolicy.challengeMessage(
+                        beginPayload.messageString()
+                    )
                 )
             }
 
             pollForToken(clientId, requestId, steamId, purpose = purpose)
-        }.getOrElse { error ->
-            android.util.Log.e(TAG, "beginLogin failed: ${error.message}", error)
-            LoginResult.Failure(error.message ?: "Steam 登录失败")
+            }.getOrElse { error ->
+                android.util.Log.e(TAG, "beginLogin failed: ${error.message}", error)
+                val apiError = error as? SteamApiException
+                LoginResult.Failure(
+                    message = SteamLoginErrorPolicy.userMessage(
+                        eResult = apiError?.eResult,
+                        rawMessage = error.message
+                    ),
+                    retryable = SteamLoginErrorPolicy.isRetryable(apiError?.eResult)
+                )
+            }
+        } finally {
+            credentialLoginInFlight.set(false)
         }
     }
 
@@ -678,7 +721,15 @@ class SteamLoginImportService(
                 TAG,
                 "BeginAuthSessionViaCredentials protobuf failed: eResult=${error.eResult}, message=${error.message}"
             )
-            if (throwApiErrors) throw error
+            if (
+                throwApiErrors ||
+                !SteamLoginErrorPolicy.shouldFallbackCredentialAuth(
+                    eResult = error.eResult,
+                    httpStatusCode = error.httpStatusCode
+                )
+            ) {
+                throw error
+            }
             return null
         } catch (error: Exception) {
             android.util.Log.w(
@@ -2083,8 +2134,7 @@ class SteamLoginImportService(
                     rsaTimestamp = rsaTimestamp,
                     steamId = doLoginResponse.stringAny("steamid", "steam_id") ?: userName,
                     confirmationType = SteamLoginCaptchaPolicy.CONFIRMATION_TYPE,
-                    associatedMessage = responseMessage?.ifBlank { "请输入图片中的验证码" }
-                        ?: "请输入图片中的验证码",
+                    associatedMessage = "请输入图片中的验证码",
                     emailSteamId = doLoginResponse.stringAny("emailsteamid", "email_steamid")
                         ?: emailSteamId,
                     captcha = SteamLoginCaptchaChallenge(
@@ -2104,8 +2154,7 @@ class SteamLoginImportService(
                 rsaTimestamp = rsaTimestamp,
                 steamId = steamId,
                 confirmationType = LEGACY_CODE_TYPE_TWO_FACTOR,
-                associatedMessage = responseMessage?.ifBlank { "请输入 Steam 令牌验证码" }
-                    ?: "请输入 Steam 令牌验证码",
+                associatedMessage = "请输入 Steam 令牌验证码",
                 emailSteamId = emailSteamId
             )
         }
@@ -2121,16 +2170,20 @@ class SteamLoginImportService(
                 rsaTimestamp = rsaTimestamp,
                 steamId = steamId,
                 confirmationType = LEGACY_CODE_TYPE_EMAIL,
-                associatedMessage = responseMessage?.ifBlank { "请输入邮箱验证码" }
-                    ?: "请输入邮箱验证码",
+                associatedMessage = "请输入邮箱验证码",
                 emailSteamId = emailId
             )
         }
 
+        val eResult = doLoginResponse.eResultInt()
         return LoginResult.Failure(
-            responseMessage
-                ?: doLoginResponse.stringAny("message", "extended_error_message")
-                ?: "Steam 登录失败（旧版流程）"
+            message = SteamLoginErrorPolicy.userMessage(
+                eResult = eResult,
+                rawMessage = responseMessage
+                    ?: doLoginResponse.stringAny("message", "extended_error_message"),
+                fallback = "Steam 登录失败（兼容流程）"
+            ),
+            retryable = SteamLoginErrorPolicy.isRetryable(eResult)
         )
     }
 
@@ -2355,18 +2408,7 @@ class SteamLoginImportService(
     }
 
     private fun mapEresultToMessage(eResult: Int?): String? {
-        return when (eResult) {
-            1 -> null
-            5 -> "Steam 登录失败：账号或密码错误"
-            29 -> "Steam 返回重复请求（EResult=29），通常表示该账号已绑定令牌"
-            20 -> "Steam 登录失败：会话冲突，请稍后重试"
-            63 -> "Steam 登录失败：需要额外验证（EResult=63）"
-            65 -> "Steam 登录失败：验证码无效或已过期"
-            84 -> "Steam 登录失败：登录失败（EResult=84）"
-            88 -> "Steam 登录失败：令牌验证码无效或已过期"
-            89 -> "Steam 登录失败：短信或邮箱验证码无效或已过期"
-            else -> eResult?.let { "Steam 登录失败（EResult=$it）" }
-        }
+        return SteamLoginErrorPolicy.messageForEresult(eResult)
     }
 
     private fun JsonObject.allowedConfirmations(): List<SteamGuardChallenge> {
