@@ -49,6 +49,7 @@ fun SteamChatScreen(
     onConsumeRequestedPartner: () -> Unit = {},
     onUnreadCountChange: (Int) -> Unit = {},
     onThreadVisibilityChange: (Boolean) -> Unit = {},
+    onOpenStoreApp: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -370,6 +371,7 @@ fun SteamChatScreen(
                     targetMessageId = messageId
                     subpage = null
                 },
+                onOpenStoreApp = onOpenStoreApp,
                 modifier = Modifier.fillMaxSize()
             )
         }

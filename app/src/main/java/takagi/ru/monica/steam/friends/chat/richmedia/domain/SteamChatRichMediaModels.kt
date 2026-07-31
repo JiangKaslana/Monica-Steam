@@ -132,11 +132,11 @@ object SteamChatRichContentParser {
         RegexOption.IGNORE_CASE
     )
     private val gameUrlPattern = Regex(
-        "steam://(joinlobby|joinparty|rungame|remoteplay/connect)/([^\\s\\]]+)",
+        "steam://(joinlobby|joinparty|rungame|rungameid|run|launch|remoteplay/connect)/([^\\s\\]]+)",
         RegexOption.IGNORE_CASE
     )
     private val linkedUrlPattern = Regex(
-        "\\[url=(steam://joinlobby/[^]]+)]([^\\[]+)\\[/url]",
+        "\\[url=(steam://(?:joinlobby|joinparty|rungame|rungameid|run|launch|remoteplay/connect)/[^]]+)]([^\\[]+)\\[/url]",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
     private val specialTagPattern = Regex(
@@ -145,6 +145,10 @@ object SteamChatRichContentParser {
     )
     private val officialSelfClosingMessagePattern = Regex(
         "^\\[(tradeoffer|trade_offer|incomingtradeoffer|broadcastinvite|broadcastviewrequest|playtestinvite|remoteplayinvite|gift|giftreceived|giftnotification|inventoryitem|itemnotification|newitem|friendinvite|friendrequest|claninvite|groupinvite|eventnotification|commentnotification|marketnotification)(?:\\s+([^]]+))?]\\s*$",
+        RegexOption.IGNORE_CASE
+    )
+    private val selfClosingGameInvitePattern = Regex(
+        "^\\[(gameinvite|lobbyinvite)(?:\\s+([^]]+))?]\\s*$",
         RegexOption.IGNORE_CASE
     )
     private val unknownOfficialTagPattern = Regex(
@@ -156,7 +160,7 @@ object SteamChatRichContentParser {
         RegexOption.IGNORE_CASE
     )
     private val steamUrlPattern = Regex(
-        "steam://(?:joinlobby|joinparty|rungame|remoteplay/connect)/[^\\s\\]]+",
+        "steam://(?:joinlobby|joinparty|rungame|rungameid|run|launch|remoteplay/connect)/[^\\s\\]]+",
         RegexOption.IGNORE_CASE
     )
     private val httpUrlPattern = Regex("https?://[^\\s\\]]+", RegexOption.IGNORE_CASE)
@@ -199,6 +203,14 @@ object SteamChatRichContentParser {
                 inner = "",
                 rawBody = body
             )?.let { return it }
+        }
+        selfClosingGameInvitePattern.matchEntire(body.trim())?.let { match ->
+            return parseGameInviteTag(
+                kind = match.groupValues[1],
+                rawAttributes = match.groupValues.getOrNull(2).orEmpty(),
+                innerText = "",
+                rawBody = body
+            )
         }
         officialSelfClosingMessagePattern.matchEntire(body.trim())?.let { match ->
             return SteamChatRichContent.OfficialMessage(
@@ -260,23 +272,21 @@ object SteamChatRichContentParser {
             val kind = match.groupValues[1].lowercase()
             val attributes = parseAttributes(match.groupValues.getOrNull(2).orEmpty())
             val innerText = match.groupValues.getOrNull(3).orEmpty().trim()
-            val appId = attributes["appid"]?.toIntOrNull()
-            val lobbyId = attributes["lobbyid"] ?: attributes["lobby_id"]
-            val inviter = attributes["steamid"] ?: attributes["steamid64"]
+            if (kind == "gameinvite" || kind == "lobbyinvite") {
+                return parseGameInviteTag(
+                    kind = kind,
+                    rawAttributes = match.groupValues.getOrNull(2).orEmpty(),
+                    innerText = innerText,
+                    rawBody = body
+                )
+            }
+            val appId = attributes.firstValue("appid", "app_id", "gameid", "game_id")
+                ?.toIntOrNull()
+            val lobbyId = attributes.firstValue("lobbyid", "lobby_id", "lobby")
+            val inviter = attributes.firstValue("steamid", "steamid64", "steam_id")
             val url = steamUrlPattern.find(innerText)?.value
                 ?: httpUrlPattern.find(innerText)?.value
                 ?: buildInviteUrl(kind, appId, lobbyId, inviter, attributes)
-            if (kind == "gameinvite" || kind == "lobbyinvite") {
-                return SteamChatRichContent.GameInvite(
-                    appId = appId,
-                    lobbyId = lobbyId,
-                    inviterSteamId = inviter,
-                    url = url,
-                    label = innerText.ifBlank { "Steam game invitation" },
-                    rawBody = body,
-                    inviteKind = kind
-                )
-            }
             return SteamChatRichContent.OfficialMessage(
                 SteamChatOfficialMessageParser.parse(
                     tag = kind,
@@ -414,6 +424,40 @@ object SteamChatRichContentParser {
     private fun decodeMediaName(value: String): String = runCatching {
         URLDecoder.decode(value.trim().trim('"', '\''), StandardCharsets.UTF_8.name())
     }.getOrDefault(value.trim().trim('"', '\''))
+
+    private fun parseGameInviteTag(
+        kind: String,
+        rawAttributes: String,
+        innerText: String,
+        rawBody: String
+    ): SteamChatRichContent.GameInvite {
+        val normalizedKind = kind.lowercase()
+        val attributes = parseAttributes(rawAttributes)
+        val appId = attributes.firstValue("appid", "app_id", "gameid", "game_id")
+            ?.toIntOrNull()
+            ?: Regex("\\bApp\\s+(\\d+)\\b", RegexOption.IGNORE_CASE)
+                .find(innerText)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+        val lobbyId = attributes.firstValue("lobbyid", "lobby_id", "lobby")
+        val inviter = attributes.firstValue("steamid", "steamid64", "steam_id")
+        val url = steamUrlPattern.find(innerText)?.value
+            ?: httpUrlPattern.find(innerText)?.value
+            ?: buildInviteUrl(normalizedKind, appId, lobbyId, inviter, attributes)
+        return SteamChatRichContent.GameInvite(
+            appId = appId,
+            lobbyId = lobbyId,
+            inviterSteamId = inviter,
+            url = url,
+            label = innerText.ifBlank { "Steam game invitation" },
+            rawBody = rawBody,
+            inviteKind = normalizedKind
+        )
+    }
+
+    private fun Map<String, String>.firstValue(vararg names: String): String? =
+        names.firstNotNullOfOrNull { name -> get(name)?.takeIf(String::isNotBlank) }
 
     private fun buildInviteUrl(
         kind: String,

@@ -108,6 +108,7 @@ internal fun SteamGroupChatThread(
     onToggleVoiceMicrophone: () -> Unit = {},
     onToggleVoiceOutput: () -> Unit = {},
     onSelectVoiceAudioRoute: (SteamVoiceAudioRoute) -> Unit = {},
+    onOpenStoreApp: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
@@ -214,7 +215,8 @@ internal fun SteamGroupChatThread(
                             onRetryMessage = onRetryMessage,
                             onUpdateReaction = onUpdateReaction,
                             onReportMessage = onReportMessage,
-                            onDeleteMessage = onDeleteMessage
+                            onDeleteMessage = onDeleteMessage,
+                            onOpenStoreApp = onOpenStoreApp
                         )
                     }
                 }
@@ -274,6 +276,7 @@ internal fun SteamGroupChatThreadHost(
     onToggleVoiceMicrophone: () -> Unit = {},
     onToggleVoiceOutput: () -> Unit = {},
     onSelectVoiceAudioRoute: (SteamVoiceAudioRoute) -> Unit = {},
+    onOpenStoreApp: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val group = state.groups.firstOrNull { it.groupId == state.selectedGroupId } ?: return
@@ -305,6 +308,7 @@ internal fun SteamGroupChatThreadHost(
         onToggleVoiceMicrophone = onToggleVoiceMicrophone,
         onToggleVoiceOutput = onToggleVoiceOutput,
         onSelectVoiceAudioRoute = onSelectVoiceAudioRoute,
+        onOpenStoreApp = onOpenStoreApp,
         modifier = modifier
     )
 }
@@ -343,7 +347,8 @@ private fun GroupMessageBubble(
     onRetryMessage: (String) -> Unit,
     onUpdateReaction: (SteamGroupChatMessage, SteamGroupChatReactionType, String, Boolean) -> Unit,
     onReportMessage: (SteamGroupChatMessage, SteamGroupChatReportReason) -> Unit,
-    onDeleteMessage: (SteamGroupChatMessage) -> Unit
+    onDeleteMessage: (SteamGroupChatMessage) -> Unit,
+    onOpenStoreApp: (Int) -> Unit
 ) {
     var showMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var showReactions by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -379,7 +384,10 @@ private fun GroupMessageBubble(
                 if (!outgoing) Text(senderName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 if (message.deleted) {
                     Text("Message deleted", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else SteamChatRichMessageContent(message.body)
+                } else SteamChatRichMessageContent(
+                    body = message.body,
+                    onOpenStoreApp = onOpenStoreApp
+                )
                 if (message.reactions.isNotEmpty()) {
                     Row(
                         modifier = Modifier.padding(top = 6.dp),

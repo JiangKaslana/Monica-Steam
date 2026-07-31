@@ -2036,6 +2036,7 @@ fun SteamScreen(
                                     isChatThreadOpen = open
                                     onThreadVisibilityChange(open)
                                 },
+                                onOpenStoreApp = onOpenStoreApp,
                                 modifier = Modifier.fillMaxSize()
                             )
                             SteamSection.NOTIFICATIONS -> SteamNotificationsScreen(

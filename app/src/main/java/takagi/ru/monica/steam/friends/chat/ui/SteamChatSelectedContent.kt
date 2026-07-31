@@ -46,6 +46,7 @@ internal fun SteamChatSelectedContent(
     onInviteFriend: () -> Unit,
     onPreferencesChange: (SteamChatConversationPreferences) -> Unit,
     onOpenTargetMessage: (String) -> Unit,
+    onOpenStoreApp: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     when (currentSubpage) {
@@ -123,6 +124,7 @@ internal fun SteamChatSelectedContent(
                 onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
                 onToggleVoiceOutput = voiceRuntime::toggleOutput,
                 onSelectVoiceAudioRoute = voiceRuntime::selectAudioRoute,
+                onOpenStoreApp = onOpenStoreApp,
                 modifier = modifier.fillMaxSize()
             )
         } else {
@@ -167,6 +169,7 @@ internal fun SteamChatSelectedContent(
                 onToggleVoiceMicrophone = voiceRuntime::toggleMicrophone,
                 onToggleVoiceOutput = voiceRuntime::toggleOutput,
                 onSelectVoiceAudioRoute = voiceRuntime::selectAudioRoute,
+                onOpenStoreApp = onOpenStoreApp,
                 modifier = modifier.fillMaxSize()
             )
         }

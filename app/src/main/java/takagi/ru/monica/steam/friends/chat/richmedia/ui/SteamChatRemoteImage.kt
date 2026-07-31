@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
@@ -70,7 +71,8 @@ internal fun SteamChatRemoteImage(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     playAnimation: Boolean = true,
-    mode: SteamChatRemoteImageMode = SteamChatRemoteImageMode.CONTENT
+    mode: SteamChatRemoteImageMode = SteamChatRemoteImageMode.CONTENT,
+    fallbackIcon: ImageVector = Icons.Default.EmojiEmotions
 ) {
     val context = LocalContext.current
     val normalizedUrl = remember(url) { normalizeSteamImageUrl(url) }
@@ -167,7 +169,7 @@ internal fun SteamChatRemoteImage(
             }
         )
         else -> Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.EmojiEmotions, contentDescription = contentDescription)
+            Icon(fallbackIcon, contentDescription = contentDescription)
         }
     }
 }

@@ -80,6 +80,7 @@ internal fun SteamChatMessageBubble(
     groupedWithNext: Boolean,
     onRetry: () -> Unit,
     onLongClick: () -> Unit,
+    onOpenStoreApp: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val outgoing = message.isOutgoing(accountSteamId)
@@ -130,7 +131,10 @@ internal fun SteamChatMessageBubble(
                     Box {
                         Column {
                             replyToMessage?.let { ReplyPreview(it) }
-                            SteamChatRichMessageContent(body = message.body)
+                            SteamChatRichMessageContent(
+                                body = message.body,
+                                onOpenStoreApp = onOpenStoreApp
+                            )
                         }
                         Surface(
                             modifier = Modifier.align(Alignment.BottomEnd),
@@ -159,6 +163,7 @@ internal fun SteamChatMessageBubble(
                     ) {
                         SteamChatRichMessageContent(
                             body = message.body,
+                            onOpenStoreApp = onOpenStoreApp,
                             modifier = Modifier.weight(1f, fill = false)
                         )
                         DeliveryMetadata(message, outgoing, retryLabel)

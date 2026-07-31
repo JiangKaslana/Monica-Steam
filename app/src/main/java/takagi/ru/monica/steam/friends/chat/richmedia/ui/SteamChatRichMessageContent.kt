@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEmoticon
+import takagi.ru.monica.steam.friends.chat.gameinvite.ui.SteamChatGameInviteCard
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContent
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContentParser
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatOfficialMessage
@@ -61,6 +62,7 @@ import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatOfficialMes
 @Composable
 internal fun SteamChatRichMessageContent(
     body: String,
+    onOpenStoreApp: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     when (val content = remember(body) { SteamChatRichContentParser.parse(body) }) {
@@ -72,7 +74,11 @@ internal fun SteamChatRichMessageContent(
             fontStyle = FontStyle.Italic,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        is SteamChatRichContent.GameInvite -> GameInviteContent(content, modifier)
+        is SteamChatRichContent.GameInvite -> SteamChatGameInviteCard(
+            content = content,
+            onOpenStoreApp = onOpenStoreApp,
+            modifier = modifier
+        )
         is SteamChatRichContent.OfficialMessage -> SteamOfficialMessageContent(content.message, modifier)
         is SteamChatRichContent.Sticker -> SteamChatRemoteImage(
             url = content.imageUrl,
@@ -217,54 +223,6 @@ private fun officialMessageFallback(kind: SteamChatOfficialMessageKind): String 
     SteamChatOfficialMessageKind.INVENTORY_ITEM -> "A new Steam inventory item was received."
     SteamChatOfficialMessageKind.UNKNOWN -> "This Steam message type is not recognized yet."
     else -> "Steam sent an invitation or account notification."
-}
-
-@Composable
-private fun GameInviteContent(
-    content: SteamChatRichContent.GameInvite,
-    modifier: Modifier
-) {
-    val context = LocalContext.current
-    val open = {
-        content.url?.let { url ->
-            runCatching {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            }
-        }
-        Unit
-    }
-    Surface(
-        modifier = modifier
-            .widthIn(min = 190.dp, max = 280.dp)
-            .clickable(enabled = content.url != null, onClick = open),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(Icons.Default.SportsEsports, contentDescription = null)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = content.label,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = content.appId?.let { "App $it" } ?: "Steam invitation",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.76f)
-                )
-            }
-            if (content.url != null) {
-                Icon(Icons.Default.OpenInNew, contentDescription = null)
-            }
-        }
-    }
 }
 
 @Composable

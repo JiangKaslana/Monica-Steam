@@ -470,6 +470,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onThreadVisibilityChange = { open ->
                                     isSteamChatThreadOpen = open
                                 },
+                                onOpenStoreApp = { appId ->
+                                    pendingStoreAppId = appId
+                                    navigateTo(MonicaSteamPage.STORE)
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

@@ -96,6 +96,7 @@ internal fun SteamChatThread(
     onToggleVoiceMicrophone: () -> Unit = {},
     onToggleVoiceOutput: () -> Unit = {},
     onSelectVoiceAudioRoute: (SteamVoiceAudioRoute) -> Unit = {},
+    onOpenStoreApp: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val messages = state.thread?.messages.orEmpty()
@@ -237,6 +238,7 @@ internal fun SteamChatThread(
                                     groupedWithNext = next?.senderSteamId == message.senderSteamId &&
                                         sameChatDay(next.timestamp, message.timestamp),
                                     onRetry = { onRetryMessage(message.clientMessageId) },
+                                    onOpenStoreApp = onOpenStoreApp,
                                     onLongClick = {
                                         selectedMessageId = message.stableId
                                     }
