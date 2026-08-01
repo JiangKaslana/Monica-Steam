@@ -81,14 +81,17 @@ object SteamFriendsParser {
 
     internal fun merge(
         relationships: Map<String, SteamFriendRelationshipRecord>,
-        profiles: Map<String, SteamFriendProfile>
+        profiles: Map<String, SteamFriendProfile>,
+        nicknames: Map<String, String> = emptyMap()
     ): List<SteamFriend> = relationships.values.map { relationship ->
         val profile = profiles[relationship.steamId]
         SteamFriend(
             steamId = relationship.steamId,
             relationship = relationship.relationship,
             friendSince = relationship.friendSince,
-            nickname = relationship.nickname,
+            nickname = nicknames[relationship.steamId]
+                ?.takeIf(String::isNotBlank)
+                ?: relationship.nickname,
             personaName = profile?.personaName.orEmpty(),
             realName = profile?.realName.orEmpty(),
             avatarUrl = profile?.avatarUrl.orEmpty(),

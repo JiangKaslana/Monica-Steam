@@ -13,6 +13,7 @@ import org.junit.Test
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
+import takagi.ru.monica.steam.friends.nickname.domain.SteamFriendNicknameGateway
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.SteamProtoWriter
@@ -52,7 +53,12 @@ class SteamFriendsServiceTest {
             }
             .build()
 
-        val snapshot = SteamFriendsService(SteamApiClient(client))
+        val snapshot = SteamFriendsService(
+            api = SteamApiClient(client),
+            nicknameGateway = SteamFriendNicknameGateway {
+                mapOf("76561198000000002" to "Official Alyx note")
+            }
+        )
             .fetch(account(), fetchedAt = 42L)
 
         assertEquals(42L, snapshot.fetchedAt)
@@ -61,7 +67,8 @@ class SteamFriendsServiceTest {
         assertEquals(1, snapshot.incomingRequests.size)
         assertEquals(1, snapshot.onlineCount)
         val playing = snapshot.acceptedFriends.single()
-        assertEquals("Alyx", playing.displayName)
+        assertEquals("Official Alyx note", playing.displayName)
+        assertEquals("Alyx", playing.personaName)
         assertEquals("Counter-Strike 2", playing.gameName)
         assertTrue(playing.isPlaying)
         assertEquals(
@@ -73,6 +80,43 @@ class SteamFriendsServiceTest {
         )
         assertTrue(requests.all { it.url.queryParameter("access_token") == "access-token" })
         assertEquals("all", requests.first().url.queryParameter("relationship"))
+    }
+
+    @Test
+    fun nicknameFailureKeepsTheOAuthFriendListAvailable() {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val payload = when {
+                    request.url.encodedPath.contains("GetFriendList") -> """{
+                        "friendslist":{"friends":[
+                          {"steamid":"76561198000000002","relationship":"friend","nickname":"OAuth note"}
+                        ]}
+                    }"""
+                    request.url.encodedPath.contains("GetUserSummaries") -> """{
+                        "response":{"players":[
+                          {"steamid":"76561198000000002","personaname":"Alyx","personastate":1}
+                        ]}
+                    }"""
+                    else -> error("Unexpected request: ${request.url}")
+                }
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(payload.toResponseBody("application/json".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val snapshot = SteamFriendsService(
+            api = SteamApiClient(client),
+            nicknameGateway = SteamFriendNicknameGateway { error("CM unavailable") }
+        ).fetch(account(), fetchedAt = 43L)
+
+        assertEquals("OAuth note", snapshot.acceptedFriends.single().displayName)
+        assertEquals(43L, snapshot.fetchedAt)
     }
 
     @Test

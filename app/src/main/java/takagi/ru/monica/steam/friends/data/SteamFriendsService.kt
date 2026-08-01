@@ -6,10 +6,13 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.friends.domain.SteamFriendActionResult
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.domain.SteamFriendsGateway
 import takagi.ru.monica.steam.friends.domain.SteamFriendsSnapshot
+import takagi.ru.monica.steam.friends.nickname.data.SteamFriendNicknameService
+import takagi.ru.monica.steam.friends.nickname.domain.SteamFriendNicknameGateway
 import takagi.ru.monica.steam.market.SteamInventoryService
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoReader
@@ -20,7 +23,8 @@ import takagi.ru.monica.steam.network.cm.SteamCmProtocol
 
 class SteamFriendsService(
     private val api: SteamApiClient = SteamApiClient(),
-    private val cm: SteamCmGateway = SteamCmClient()
+    private val cm: SteamCmGateway = SteamCmClient(),
+    private val nicknameGateway: SteamFriendNicknameGateway = SteamFriendNicknameService(cm)
 ) : SteamFriendsGateway {
     override fun fetch(account: SteamAccount, fetchedAt: Long): SteamFriendsSnapshot {
         require(account.hasRealSteamId) { "real Steam ID required" }
@@ -48,8 +52,16 @@ class SteamFriendsService(
             }.getOrDefault(emptyList())
         }.associateBy(SteamFriendProfile::steamId)
 
+        val nicknames = runCatching { nicknameGateway.fetch(account) }
+            .onFailure { error ->
+                SteamDiagLogger.append(
+                    "friends nickname_sync failed type=${error.javaClass.simpleName}"
+                )
+            }
+            .getOrDefault(emptyMap())
+
         return SteamFriendsSnapshot(
-            friends = SteamFriendsParser.merge(relationships, profiles),
+            friends = SteamFriendsParser.merge(relationships, profiles, nicknames),
             fetchedAt = fetchedAt
         )
     }
