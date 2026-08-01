@@ -17,10 +17,11 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.groupchat.avatar.domain.SteamGroupAvatarUploadGateway
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 
 class SteamGroupAvatarUploader(
     context: Context,
-    private val client: OkHttpClient = OkHttpClient()
+    private val client: OkHttpClient = SteamHttpClientProvider.client
 ) : SteamGroupAvatarUploadGateway {
     private val resolver = context.applicationContext.contentResolver
 

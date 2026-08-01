@@ -21,6 +21,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import takagi.ru.monica.steam.network.SteamApiClient
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 
 data class SteamMiniProfileBackground(
     val mp4Url: String?,
@@ -213,7 +214,7 @@ class SteamMiniProfileBackgroundRepository private constructor(
 
 class SteamMiniProfileMediaCache(
     context: Context,
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = SteamHttpClientProvider.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
         .callTimeout(60, TimeUnit.SECONDS)

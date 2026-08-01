@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 
 internal sealed interface SteamImageDownloadResult {
     data class Success(val displayName: String) : SteamImageDownloadResult
@@ -239,7 +240,7 @@ internal class SteamImageDownloader(
         const val MAX_IMAGE_BYTES = 24L * 1024L * 1024L
 
         fun defaultClient(): OkHttpClient {
-            return OkHttpClient.Builder()
+            return SteamHttpClientProvider.newBuilder()
                 .connectTimeout(12, TimeUnit.SECONDS)
                 .readTimeout(35, TimeUnit.SECONDS)
                 .callTimeout(45, TimeUnit.SECONDS)

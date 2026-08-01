@@ -5,9 +5,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import takagi.ru.monica.steam.community.eligibility.domain.SteamLimitedAccountSupportProgress
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 
 internal class SteamLimitedAccountSupportService(
-    client: OkHttpClient = OkHttpClient()
+    client: OkHttpClient = SteamHttpClientProvider.client
 ) {
     private val client = client.newBuilder()
         .followRedirects(false)

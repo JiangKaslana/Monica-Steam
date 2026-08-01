@@ -4822,4 +4822,17 @@
     <string name="steam_chat_game_invite_join">加入游戏</string>
     <string name="steam_chat_game_invite_artwork">%1$s 游戏头图</string>
     <string name="steam_chat_notification_steam_event">Steam 通知</string>
+    <string name="steam_network_optimization_section">网络与连接</string>
+    <string name="steam_network_optimization_title">Steam 网络优化</string>
+    <string name="steam_network_optimization_description">仅在 Monica Steam 内为 Steam API、商店、社区和媒体资源使用安全解析。</string>
+    <string name="steam_network_optimization_status_section">状态</string>
+    <string name="steam_network_optimization_switch_title">优化 Steam 连接</string>
+    <string name="steam_network_optimization_switch_description">白名单 Steam 域名优先使用可信 DNS，失败时自动回退系统 DNS。</string>
+    <string name="steam_network_optimization_scope_section">作用范围</string>
+    <string name="steam_network_optimization_scope_title">仅 Monica Steam</string>
+    <string name="steam_network_optimization_scope_description">不会修改系统 Hosts，不使用 VPN 或代理，也不影响其他应用；支付和结算域名继续使用系统 DNS。</string>
+    <string name="steam_network_optimization_maintenance_section">维护</string>
+    <string name="steam_network_optimization_clear_cache">清除 DNS 缓存</string>
+    <string name="steam_network_optimization_clear_cache_description">删除已缓存的 Steam 地址，下次请求时重新解析。</string>
+    <string name="steam_network_optimization_cache_cleared">Steam DNS 缓存已清除</string>
 </resources>

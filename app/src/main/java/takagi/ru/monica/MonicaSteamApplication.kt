@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import takagi.ru.monica.steam.diagnostics.SteamCrashDiagnostics
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.friends.chat.background.SteamChatBackground
+import takagi.ru.monica.steam.network.optimization.SteamNetworkOptimizationRuntime
 
 class MonicaSteamApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -17,6 +18,7 @@ class MonicaSteamApplication : Application() {
         SteamCrashDiagnostics.install(this)
         SteamDiagLogger.initialize(this)
         super.onCreate()
+        SteamNetworkOptimizationRuntime.initialize(this)
         applicationScope.launch {
             try {
                 SteamChatBackground.syncService(this@MonicaSteamApplication)

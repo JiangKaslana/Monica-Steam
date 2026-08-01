@@ -3,13 +3,14 @@ package takagi.ru.monica.steam.store.points.data
 import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.network.SteamApiClient
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.store.data.effectiveSteamStoreAccessToken
 import takagi.ru.monica.steam.store.points.domain.SteamPointsShopCategory
 import takagi.ru.monica.steam.store.points.domain.SteamPointsShopPage
 
 internal class SteamPointsShopService(
-    client: OkHttpClient = OkHttpClient(),
+    client: OkHttpClient = SteamHttpClientProvider.client,
     private val api: SteamApiClient = SteamApiClient(client)
 ) {
     fun page(

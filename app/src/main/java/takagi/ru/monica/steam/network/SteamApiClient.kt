@@ -15,7 +15,7 @@ import okhttp3.Request
 import okhttp3.Response
 
 class SteamApiClient(
-    private val client: OkHttpClient = OkHttpClient.Builder().build(),
+    private val client: OkHttpClient = SteamHttpClientProvider.client,
     private val json: Json = Json { ignoreUnknownKeys = true },
     private val defaultRequestHeaders: Map<String, String> = emptyMap()
 ) {

@@ -17,6 +17,7 @@ import okhttp3.Response
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamApiException
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.SteamProtoWriter
@@ -44,7 +45,7 @@ internal val STEAM_STORE_DISCOVERY_COUNTRY_CODES =
     listOf("US", "CN", "JP", "KR", "DE", "RU")
 
 class SteamStoreService(
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = SteamHttpClientProvider.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(45, TimeUnit.SECONDS)

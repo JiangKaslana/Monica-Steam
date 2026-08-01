@@ -14,12 +14,12 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.OkHttpClient
 import okhttp3.Request
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 
 class SteamRemoteImageCache private constructor(context: Context) {
     private val directory = File(context.applicationContext.cacheDir, "steam_library_images")
-    private val client = OkHttpClient.Builder()
+    private val client = SteamHttpClientProvider.newBuilder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
         .callTimeout(35, TimeUnit.SECONDS)

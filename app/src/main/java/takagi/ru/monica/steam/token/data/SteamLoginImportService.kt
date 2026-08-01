@@ -23,6 +23,7 @@ import takagi.ru.monica.steam.core.SteamTotp
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamApiException
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.token.loginchallenge.data.SteamLoginCaptchaUrl
@@ -51,7 +52,7 @@ import javax.crypto.Cipher
  * - 基于 token 拉取/生成 Steam Guard 数据并落地导入
  */
 class SteamLoginImportService(
-    private val client: OkHttpClient = OkHttpClient.Builder().build(),
+    private val client: OkHttpClient = SteamHttpClientProvider.client,
     private val json: Json = Json { ignoreUnknownKeys = true }
 ) {
     companion object {

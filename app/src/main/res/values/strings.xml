@@ -4995,4 +4995,17 @@
     <string name="steam_chat_game_invite_join">Join game</string>
     <string name="steam_chat_game_invite_artwork">%1$s game artwork</string>
     <string name="steam_chat_notification_steam_event">Steam notification</string>
+    <string name="steam_network_optimization_section">Network and connection</string>
+    <string name="steam_network_optimization_title">Steam network optimization</string>
+    <string name="steam_network_optimization_description">Use secure app-only DNS for Steam API, Store, Community, and media.</string>
+    <string name="steam_network_optimization_status_section">Status</string>
+    <string name="steam_network_optimization_switch_title">Optimize Steam connections</string>
+    <string name="steam_network_optimization_switch_description">Prefer trusted DNS for selected Steam domains and automatically fall back to system DNS.</string>
+    <string name="steam_network_optimization_scope_section">Scope</string>
+    <string name="steam_network_optimization_scope_title">Only Monica Steam</string>
+    <string name="steam_network_optimization_scope_description">Does not modify system Hosts, use a VPN, proxy traffic, or affect other apps. Payment and checkout domains stay on system DNS.</string>
+    <string name="steam_network_optimization_maintenance_section">Maintenance</string>
+    <string name="steam_network_optimization_clear_cache">Clear DNS cache</string>
+    <string name="steam_network_optimization_clear_cache_description">Discard cached Steam addresses and resolve them again on the next request.</string>
+    <string name="steam_network_optimization_cache_cleared">Steam DNS cache cleared</string>
 </resources>

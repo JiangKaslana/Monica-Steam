@@ -83,6 +83,7 @@ import takagi.ru.monica.steam.navigation.reorderDockOrder
 import takagi.ru.monica.steam.navigation.reorderLiquidGlassDockOrder
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSettingsScreen
+import takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationSettingsScreen
 import takagi.ru.monica.steam.diagnostics.SteamSupportLogExporter
 import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
@@ -105,7 +106,8 @@ private enum class SteamSettingsChild {
     PAYMENT,
     DEVELOPER,
     EXTENSIONS,
-    NOTIFICATIONS
+    NOTIFICATIONS,
+    NETWORK_OPTIMIZATION
 }
 
 @Composable
@@ -171,6 +173,7 @@ fun MonicaSteamSettingsScreen(
                 onOpenDeveloper = { child = SteamSettingsChild.DEVELOPER },
                 onOpenExtensions = { child = SteamSettingsChild.EXTENSIONS },
                 onOpenNotifications = { child = SteamSettingsChild.NOTIFICATIONS },
+                onOpenNetworkOptimization = { child = SteamSettingsChild.NETWORK_OPTIMIZATION },
                 showNavigationBack = showNavigationBack,
                 modifier = Modifier.fillMaxSize(),
                 context = context
@@ -275,6 +278,10 @@ fun MonicaSteamSettingsScreen(
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.NOTIFICATIONS -> SteamNotificationSettingsScreen(
+                    onNavigateBack = { child = null },
+                    modifier = Modifier.fillMaxSize()
+                )
+                SteamSettingsChild.NETWORK_OPTIMIZATION -> SteamNetworkOptimizationSettingsScreen(
                     onNavigateBack = { child = null },
                     modifier = Modifier.fillMaxSize()
                 )

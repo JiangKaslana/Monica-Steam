@@ -30,6 +30,7 @@ import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentK
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentTarget
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatPendingAttachment
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatUploadedAttachment
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 
 class SteamChatAttachmentUploader internal constructor(
     context: Context,
@@ -327,7 +328,7 @@ class SteamChatAttachmentUploader internal constructor(
         private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "avif")
         private val VIDEO_EXTENSIONS = setOf("webm", "mpg", "mp4", "mpeg", "ogv")
 
-        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+        private fun defaultClient(): OkHttpClient = SteamHttpClientProvider.newBuilder()
             .followRedirects(false)
             .followSslRedirects(false)
             .connectTimeout(20, TimeUnit.SECONDS)
