@@ -142,7 +142,7 @@ internal object SteamGroupChatRealtimeParser {
         } ?: return null
         val groupId = header[1]?.asUnsignedVarintString().orEmpty()
             .takeIf(String::isNotBlank) ?: return null
-        val avatarField = header[16] ?: header[25]
+        val avatarField = header[25] ?: header[16]
         return SteamGroupChatRealtimeEvent.HeaderChanged(
             groupId = groupId,
             name = header[2]?.takeIf { it.wireType == WIRE_TYPE_LENGTH_DELIMITED }?.asString,

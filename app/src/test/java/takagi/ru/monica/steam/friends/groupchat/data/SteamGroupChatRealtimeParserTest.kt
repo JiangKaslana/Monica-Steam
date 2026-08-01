@@ -154,7 +154,7 @@ class SteamGroupChatRealtimeParserTest {
     }
 
     @Test
-    fun realtimeHeaderPrefersBoundedChatIconOverOriginalUgcImage() {
+    fun realtimeHeaderPrefersOfficialUgcImage() {
         val event = SteamGroupChatRealtimeParser.parse(
             envelope(
                 method = "ChatRoomClient.NotifyChatRoomHeaderStateChange#1",
@@ -169,8 +169,7 @@ class SteamGroupChatRealtimeParserTest {
         ) as SteamGroupChatRealtimeEvent.HeaderChanged
 
         assertEquals(
-            "https://community.akamai.steamstatic.com/images/chaticons/00/01/02/" +
-                "000102030405060708090a0b0c0d0e0f10111213_256.jpg",
+            "https://steamusercontent-a.akamaihd.net/ugc/123/original.png",
             event.avatarUrl
         )
     }

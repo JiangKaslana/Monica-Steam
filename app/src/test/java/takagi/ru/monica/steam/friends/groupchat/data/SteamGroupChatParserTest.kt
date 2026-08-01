@@ -201,7 +201,7 @@ class SteamGroupChatParserTest {
     }
 
     @Test
-    fun prefersBoundedChatIconWhenSteamReturnsShaAndOriginalUgcImage() {
+    fun prefersOfficialUgcImageWhenSteamReturnsBothAvatarSources() {
         val sha = ByteArray(20) { it.toByte() }
         val room = SteamProtoWriter().apply { writeUint64(1, "9001") }
         val summary = SteamProtoWriter().apply {
@@ -217,8 +217,7 @@ class SteamGroupChatParserTest {
         }.toByteArray()
 
         assertEquals(
-            "https://community.akamai.steamstatic.com/images/chaticons/00/01/02/" +
-                "000102030405060708090a0b0c0d0e0f10111213_256.jpg",
+            "https://steamusercontent-a.akamaihd.net/ugc/123/original.png",
             SteamGroupChatParser.parseGroups(response).single().avatarUrl
         )
     }
@@ -259,7 +258,7 @@ class SteamGroupChatParserTest {
     }
 
     @Test
-    fun fullHeaderAlsoPrefersBoundedChatIconOverOriginalUgcImage() {
+    fun fullHeaderAlsoPrefersOfficialUgcImage() {
         val header = SteamProtoWriter().apply {
             writeUint64(1, "8001")
             writeBytes(16, ByteArray(20) { it.toByte() })
@@ -267,8 +266,7 @@ class SteamGroupChatParserTest {
         }.toByteArray()
 
         assertEquals(
-            "https://community.akamai.steamstatic.com/images/chaticons/00/01/02/" +
-                "000102030405060708090a0b0c0d0e0f10111213_256.jpg",
+            "https://steamusercontent-a.akamaihd.net/ugc/123/original.png",
             SteamGroupChatParser.parseGroupHeaderAvatarUrl(header)
         )
     }
