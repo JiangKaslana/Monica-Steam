@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import takagi.ru.monica.steam.community.eligibility.domain.DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS
+import takagi.ru.monica.steam.community.eligibility.domain.CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityEligibilityGateway
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityBudgetGame
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
@@ -114,6 +115,7 @@ internal class SteamCommunityEligibilityService(
             localRemainingMinor = localRemaining,
             exchangeRateFetchedAt = rates?.fetchedAt,
             exactProgress = support?.hasExactProgress == true,
+            evidenceRevision = CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION,
             suggestedGames = suggestions,
             fetchedAt = nowMillis()
         )

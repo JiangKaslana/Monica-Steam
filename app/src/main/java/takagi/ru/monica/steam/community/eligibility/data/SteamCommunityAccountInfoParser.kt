@@ -9,11 +9,14 @@ internal object SteamCommunityAccountInfoParser {
 
     fun parse(body: ByteArray): SteamCommunityAccountInfo {
         val fields = SteamProtoReader(body).parse()
-        val flags = fields[7]?.asLong ?: 0L
+        val flagsField = fields[7]
+        val flags = flagsField?.asLong ?: 0L
         return SteamCommunityAccountInfo(
             countryCode = fields[2]?.asString.orEmpty().trim().uppercase(),
             accountFlags = flags,
-            limited = flags and (LIMITED_USER_FLAG or FORCED_LIMITED_USER_FLAG) != 0L
+            limited = flagsField?.let {
+                flags and (LIMITED_USER_FLAG or FORCED_LIMITED_USER_FLAG) != 0L
+            }
         )
     }
 }

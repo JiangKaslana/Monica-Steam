@@ -21,6 +21,8 @@ import takagi.ru.monica.steam.community.data.SteamCommunityService
 import takagi.ru.monica.steam.community.eligibility.data.SteamCommunityEligibilityService
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityEligibilityGateway
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
+import takagi.ru.monica.steam.community.eligibility.domain.CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
 import takagi.ru.monica.steam.community.domain.SteamCommunityGateway
 import takagi.ru.monica.steam.community.domain.SteamCommunitySection
 import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
@@ -270,10 +272,10 @@ internal fun mergeCommunitySnapshot(
         val use = SteamCommunitySection.ELIGIBILITY in fresh.unavailableSections ||
             freshProgress == null ||
             (
-                freshProgress.status == SteamCommunityRestrictionStatus.UNKNOWN &&
-                    cachedProgress.status != SteamCommunityRestrictionStatus.UNKNOWN
-                ) ||
-            (!freshProgress.exactProgress && cachedProgress.exactProgress)
+                !freshProgress.exactProgress &&
+                    cachedProgress.exactProgress &&
+                    cachedProgress.isSafeEligibilityFallback()
+                )
         if (use) stale += SteamCommunitySection.ELIGIBILITY
         use
     } == true
@@ -303,6 +305,10 @@ internal fun mergeCommunitySnapshot(
         staleSections = stale
     )
 }
+
+private fun SteamCommunityUnlockProgress.isSafeEligibilityFallback(): Boolean =
+    status != SteamCommunityRestrictionStatus.UNRESTRICTED ||
+        evidenceRevision >= CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
 
 private fun SteamCommunitySnapshot.hasVisibleContent(): Boolean =
     profile != null || steamLevel != null || badges.isNotEmpty() ||

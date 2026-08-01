@@ -27,11 +27,11 @@ internal object SteamLimitedAccountSupportParser {
             else -> null
         }
         val limited = when {
-            text.contains("your account is not limited", ignoreCase = true) -> false
             spent != null && threshold != null -> spent < threshold
             text.contains("your account is limited", ignoreCase = true) -> true
             text.contains("your account is a limited", ignoreCase = true) -> true
             text.contains("limited user account", ignoreCase = true) -> true
+            text.contains("your account is not limited", ignoreCase = true) -> false
             else -> null
         }
         if (limited == null && spent == null && remaining == null) return null

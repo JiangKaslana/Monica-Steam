@@ -44,6 +44,7 @@ data class SteamCommunityUnlockProgress(
     val localRemainingMinor: Long? = null,
     val exchangeRateFetchedAt: Long? = null,
     val exactProgress: Boolean = false,
+    val evidenceRevision: Int = 0,
     val suggestedGames: List<SteamCommunityBudgetGame> = emptyList(),
     val fetchedAt: Long = System.currentTimeMillis()
 ) {
@@ -59,7 +60,7 @@ data class SteamCommunityUnlockProgress(
 internal data class SteamCommunityAccountInfo(
     val countryCode: String,
     val accountFlags: Long,
-    val limited: Boolean
+    val limited: Boolean?
 )
 
 internal data class SteamLimitedAccountSupportProgress(
@@ -123,6 +124,7 @@ internal fun steamCurrencyForCountry(countryCode: String): String {
 }
 
 internal const val DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS = 500
+internal const val CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION = 1
 
 fun interface SteamCommunityEligibilityGateway {
     suspend fun fetch(account: SteamAccount): SteamCommunityUnlockProgress

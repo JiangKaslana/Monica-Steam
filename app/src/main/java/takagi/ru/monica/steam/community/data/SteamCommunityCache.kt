@@ -4,6 +4,9 @@ import android.content.Context
 import java.security.MessageDigest
 import kotlinx.serialization.json.Json
 import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
+import takagi.ru.monica.steam.community.eligibility.domain.CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockSource
 
 interface SteamCommunityCache {
     fun load(accountSteamId: String): SteamCommunitySnapshot?
@@ -26,6 +29,7 @@ class SteamCommunityPreferencesCache internal constructor(
         store.get(key(accountSteamId))
             ?.let(SteamCommunityCacheCodec::decode)
             ?.takeIf { it.accountSteamId == accountSteamId }
+            ?.sanitizeLegacyEligibility()
 
     override fun save(snapshot: SteamCommunitySnapshot) {
         store.put(key(snapshot.accountSteamId), SteamCommunityCacheCodec.encode(snapshot))
@@ -34,6 +38,27 @@ class SteamCommunityPreferencesCache internal constructor(
     private fun key(value: String): String = "community_" + MessageDigest.getInstance("SHA-256")
         .digest(value.trim().toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+}
+
+private fun SteamCommunitySnapshot.sanitizeLegacyEligibility(): SteamCommunitySnapshot {
+    val progress = unlockProgress ?: return this
+    if (
+        progress.status != SteamCommunityRestrictionStatus.UNRESTRICTED ||
+        progress.evidenceRevision >= CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
+    ) {
+        return this
+    }
+    return copy(
+        unlockProgress = progress.copy(
+            status = SteamCommunityRestrictionStatus.UNKNOWN,
+            source = SteamCommunityUnlockSource.ESTIMATE,
+            spentUsdCents = null,
+            remainingUsdCents = progress.thresholdUsdCents,
+            localRemainingMinor = progress.localThresholdMinor,
+            exactProgress = false,
+            suggestedGames = emptyList()
+        )
+    )
 }
 
 private class SteamCommunityPreferencesStore(context: Context) : SteamCommunityKeyValueStore {

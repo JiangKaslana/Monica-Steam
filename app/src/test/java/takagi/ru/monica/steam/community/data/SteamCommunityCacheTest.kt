@@ -40,6 +40,29 @@ class SteamCommunityCacheTest {
         assertTrue(store.values.keys.none { it.contains(ACCOUNT_A) })
     }
 
+    @Test
+    fun legacyUnrestrictedEligibilityIsLoadedAsUnknown() {
+        val store = MemoryStore()
+        val cache = SteamCommunityPreferencesCache(store)
+        cache.save(
+            snapshot(ACCOUNT_A).copy(
+                unlockProgress = SteamCommunityUnlockProgress(
+                    status = SteamCommunityRestrictionStatus.UNRESTRICTED,
+                    source = SteamCommunityUnlockSource.STEAM_SUPPORT,
+                    remainingUsdCents = 0,
+                    exactProgress = true,
+                    evidenceRevision = 0
+                )
+            )
+        )
+
+        val restored = cache.load(ACCOUNT_A)?.unlockProgress
+
+        assertEquals(SteamCommunityRestrictionStatus.UNKNOWN, restored?.status)
+        assertEquals(500, restored?.remainingUsdCents)
+        assertEquals(false, restored?.exactProgress)
+    }
+
     private fun snapshot(steamId: String) = SteamCommunitySnapshot(
         accountSteamId = steamId,
         profile = SteamCommunityProfile(

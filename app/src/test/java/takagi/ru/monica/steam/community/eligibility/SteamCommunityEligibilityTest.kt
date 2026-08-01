@@ -22,7 +22,7 @@ class SteamCommunityEligibilityTest {
         val info = SteamCommunityAccountInfoParser.parse(body)
 
         assertEquals("CN", info.countryCode)
-        assertTrue(info.limited)
+        assertEquals(true, info.limited)
         assertEquals(4096L, info.accountFlags)
     }
 
@@ -33,7 +33,19 @@ class SteamCommunityEligibilityTest {
             writeVarint(7, 8192L)
         }.toByteArray()
 
-        assertTrue(SteamCommunityAccountInfoParser.parse(body).limited)
+        assertEquals(true, SteamCommunityAccountInfoParser.parse(body).limited)
+    }
+
+    @Test
+    fun missingAccountFlagsDoesNotInventAnUnrestrictedAccount() {
+        val body = SteamProtoWriter().apply {
+            writeString(1, "New account")
+            writeString(2, "CN")
+        }.toByteArray()
+
+        val info = SteamCommunityAccountInfoParser.parse(body)
+
+        assertNull(info.limited)
     }
 
     @Test
@@ -62,6 +74,22 @@ class SteamCommunityEligibilityTest {
         assertEquals(false, result?.limited)
         assertNull(result?.spentUsdCents)
         assertEquals(0, result?.remainingUsdCents)
+    }
+
+    @Test
+    fun exactZeroSpendWinsOverGenericUnrestrictedHelpCopy() {
+        val result = SteamLimitedAccountSupportParser.parse(
+            """
+            <html><body>
+              <p>Your account has spent ${'$'}0.00 USD out of the ${'$'}5.00 USD required.</p>
+              <p>If your account is not limited, these restrictions do not apply.</p>
+            </body></html>
+            """.trimIndent()
+        )
+
+        assertEquals(true, result?.limited)
+        assertEquals(0, result?.spentUsdCents)
+        assertEquals(500, result?.remainingUsdCents)
     }
 
     @Test
