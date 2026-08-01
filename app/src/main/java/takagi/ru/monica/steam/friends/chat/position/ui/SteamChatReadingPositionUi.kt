@@ -1,22 +1,6 @@
 package takagi.ru.monica.steam.friends.chat.position.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -29,14 +13,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.position.data.SteamChatReadingPositionStore
 import takagi.ru.monica.steam.friends.chat.position.domain.SteamChatReadingPosition
 import takagi.ru.monica.steam.friends.chat.position.domain.resolveSteamChatReadingIndex
@@ -44,7 +24,8 @@ import takagi.ru.monica.steam.friends.chat.position.domain.steamChatMessagesBelo
 
 internal data class SteamChatReadingUiState(
     val restored: Boolean,
-    val messagesBelow: Int
+    val messagesBelow: Int,
+    val lastVisibleMessageId: String?
 )
 
 @Composable
@@ -131,55 +112,14 @@ internal fun rememberSteamChatReadingPosition(
         }
     }
 
-    return remember(restored, messagesBelow) {
-        mutableStateOf(SteamChatReadingUiState(restored, messagesBelow))
-    }
-}
-
-@Composable
-internal fun SteamChatJumpToLatestButton(
-    visible: Boolean,
-    messagesBelow: Int,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    AnimatedVisibility(
-        visible = visible,
-        modifier = modifier,
-        enter = fadeIn() + scaleIn(initialScale = 0.82f),
-        exit = fadeOut() + scaleOut(targetScale = 0.82f)
-    ) {
-        BadgedBox(
-            badge = {
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary
-                ) {
-                    Text(
-                        text = if (messagesBelow > 999) "999+" else messagesBelow.toString(),
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                }
-            }
-        ) {
-            Surface(
-                onClick = onClick,
-                modifier = Modifier.size(52.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                tonalElevation = 5.dp,
-                shadowElevation = 5.dp
-            ) {
-                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Icon(
-                        Icons.Default.KeyboardArrowDown,
-                        contentDescription = stringResource(R.string.steam_chat_jump_to_latest),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
+    return remember(restored, messagesBelow, lastVisibleMessageId) {
+        mutableStateOf(
+            SteamChatReadingUiState(
+                restored = restored,
+                messagesBelow = messagesBelow,
+                lastVisibleMessageId = lastVisibleMessageId
+            )
+        )
     }
 }
 
@@ -197,6 +137,23 @@ internal suspend fun LazyListState.animateToLatestSteamChatMessage(
         // A history refresh can replace the lazy-list snapshot during animation.
     } catch (_: IllegalArgumentException) {
         // The next list snapshot will expose a valid target.
+    }
+}
+
+internal suspend fun LazyListState.scrollToLatestSteamChatMessage(
+    messageCount: Int,
+    leadingItemCount: Int
+) {
+    if (messageCount <= 0) return
+    val lastLaidOutIndex = layoutInfo.totalItemsCount - 1
+    if (lastLaidOutIndex < 0) return
+    val target = minOf(messageCount - 1 + leadingItemCount, lastLaidOutIndex)
+    try {
+        scrollToItem(target)
+    } catch (_: IndexOutOfBoundsException) {
+        // Insets and message snapshots can settle in adjacent frames.
+    } catch (_: IllegalArgumentException) {
+        // The following layout frame will expose a valid target.
     }
 }
 

@@ -40,11 +40,12 @@ class SteamChatImeBottomAnchorPolicyTest {
     }
 
     @Test
-    fun insetAnimationFramesDoNotRepeatedlyTriggerScrolling() {
+    fun everyInsetAnimationLayoutKeepsTheLatestMessageAnchored() {
         val result = reduceSteamChatImeAnchor(
             previous = SteamChatImeAnchorState(
                 imeVisible = true,
                 wasAtBottomBeforeIme = true,
+                followingIme = true,
                 restored = true
             ),
             imeVisible = true,
@@ -53,7 +54,7 @@ class SteamChatImeBottomAnchorPolicyTest {
             hasMessages = true
         )
 
-        assertFalse(result.shouldScrollToLatest)
+        assertTrue(result.shouldScrollToLatest)
     }
 
     @Test

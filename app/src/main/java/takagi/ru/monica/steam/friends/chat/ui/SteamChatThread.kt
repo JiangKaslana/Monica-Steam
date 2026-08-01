@@ -68,7 +68,6 @@ import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
-
 @Composable
 internal fun SteamChatThread(
     state: SteamChatUiState,
@@ -123,6 +122,12 @@ internal fun SteamChatThread(
         requestedMessageId = targetMessageId,
         leadingItemCount = leadingItemCount,
         listState = listState
+    )
+    val jumpUi = rememberDirectSteamChatJumpToLatestState(
+        state = state,
+        messages = messages,
+        conversationKey = conversationKey,
+        readingUi = readingUi
     )
     val shouldLoadOlder by remember(listState, state.thread?.moreAvailable, state.loadingOlder) {
         derivedStateOf {
@@ -282,8 +287,8 @@ internal fun SteamChatThread(
                 }
             }
             SteamChatJumpToLatestButton(
-                visible = readingUi.restored && readingUi.messagesBelow > 0,
-                messagesBelow = readingUi.messagesBelow,
+                visible = jumpUi.visible,
+                messagesBelow = jumpUi.unreadBelowCount,
                 onClick = {
                     scrollScope.launch {
                         listState.animateToLatestSteamChatMessage(messages.size, leadingItemCount)

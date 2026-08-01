@@ -28,7 +28,7 @@ class SteamChatReadingPositionIntegrationTest {
         assertTrue(controller.contains("collectLatest"))
         assertTrue(controller.contains("SteamChatReadingPositionStore"))
         assertTrue(controller.contains("handledRequestedMessageId"))
-        assertTrue(controller.contains("BadgedBox("))
+        assertTrue(controller.contains("lastVisibleMessageId"))
     }
 
     private fun projectFile(path: String): File {

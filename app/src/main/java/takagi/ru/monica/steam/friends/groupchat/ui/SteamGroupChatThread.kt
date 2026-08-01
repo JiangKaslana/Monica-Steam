@@ -60,9 +60,11 @@ import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatMessageActionMenu
 import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatReactionPicker
 import takagi.ru.monica.steam.friends.chat.actions.ui.SteamChatReportDialog
 import takagi.ru.monica.steam.friends.chat.position.domain.SteamChatReadingConversationKey
+import takagi.ru.monica.steam.friends.chat.position.domain.SteamChatJumpMessage
 import takagi.ru.monica.steam.friends.chat.position.ui.SteamChatAutoScrollToLatestEffect
 import takagi.ru.monica.steam.friends.chat.position.ui.SteamChatJumpToLatestButton
 import takagi.ru.monica.steam.friends.chat.position.ui.animateToLatestSteamChatMessage
+import takagi.ru.monica.steam.friends.chat.position.ui.rememberSteamChatJumpToLatestState
 import takagi.ru.monica.steam.friends.chat.position.ui.rememberSteamChatReadingPosition
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMessageContent
 import takagi.ru.monica.steam.friends.chat.ui.SteamChatComposer
@@ -124,12 +126,30 @@ internal fun SteamGroupChatThread(
     }
     val messageIds = remember(messages) { messages.map(SteamGroupChatMessage::stableId) }
     val leadingItemCount = if (state.loadingOlder) 1 else 0
+    val selectedRoom = group.rooms.firstOrNull { it.chatId == state.selectedChatId }
     val readingUi by rememberSteamChatReadingPosition(
         conversationKey = conversationKey,
         messageIds = messageIds,
         requestedMessageId = targetMessageId,
         leadingItemCount = leadingItemCount,
         listState = listState
+    )
+    val jumpMessages = remember(messages, state.accountSteamId) {
+        messages.map { message ->
+            SteamChatJumpMessage(
+                id = message.stableId,
+                timestamp = message.timestamp,
+                incoming = message.senderSteamId != state.accountSteamId
+            )
+        }
+    }
+    val jumpUi = rememberSteamChatJumpToLatestState(
+        conversationKey = conversationKey,
+        initialAcknowledgedTimestamp = selectedRoom?.lastAcknowledgedTimestamp ?: 0L,
+        messages = jumpMessages,
+        lastVisibleMessageId = readingUi.lastVisibleMessageId,
+        messagesBelow = readingUi.messagesBelow,
+        restored = readingUi.restored
     )
     val shouldLoadOlder by remember(listState, state.loadingOlder, state.thread?.moreAvailable) {
         derivedStateOf {
@@ -156,7 +176,6 @@ internal fun SteamGroupChatThread(
             selectedChatId = state.selectedChatId,
             onSelect = { chatId -> onOpenRoom(group.groupId, chatId) }
         )
-        val selectedRoom = group.rooms.firstOrNull { it.chatId == state.selectedChatId }
         val voiceRoom = selectedRoom?.takeIf { it.voiceAllowed }
         val activeVoiceRoom = group.rooms.firstOrNull { it.isVoiceActive }
         val joinVoiceRoom = voiceRoom ?: activeVoiceRoom
@@ -222,8 +241,8 @@ internal fun SteamGroupChatThread(
                 }
             }
             SteamChatJumpToLatestButton(
-                visible = readingUi.restored && readingUi.messagesBelow > 0,
-                messagesBelow = readingUi.messagesBelow,
+                visible = jumpUi.visible,
+                messagesBelow = jumpUi.unreadBelowCount,
                 onClick = {
                     scrollScope.launch {
                         listState.animateToLatestSteamChatMessage(messages.size, leadingItemCount)
