@@ -182,7 +182,9 @@ fun SteamStoreScreen(
 
     AnimatedContent(
         targetState = storeDestination,
-        modifier = modifier,
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         transitionSpec = {
             easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
         },
