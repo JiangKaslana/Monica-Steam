@@ -24,7 +24,10 @@ import takagi.ru.monica.steam.network.cm.SteamCmProtocol
 class SteamFriendsService(
     private val api: SteamApiClient = SteamApiClient(),
     private val cm: SteamCmGateway = SteamCmClient(),
-    private val nicknameGateway: SteamFriendNicknameGateway = SteamFriendNicknameService(cm)
+    private val nicknameGateway: SteamFriendNicknameGateway = SteamFriendNicknameService(
+        cm = cm,
+        api = api
+    )
 ) : SteamFriendsGateway {
     override fun fetch(account: SteamAccount, fetchedAt: Long): SteamFriendsSnapshot {
         require(account.hasRealSteamId) { "real Steam ID required" }
