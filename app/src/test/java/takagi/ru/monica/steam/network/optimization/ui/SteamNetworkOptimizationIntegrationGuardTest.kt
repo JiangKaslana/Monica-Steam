@@ -39,6 +39,19 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         }
     }
 
+    @Test
+    fun togglingOptimizationNeverClosesHttpsSocketsOnTheUiThread() {
+        val provider = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/SteamHttpClientProvider.kt"
+        ).readText()
+        val toggleHandler = provider
+            .substringAfter("internal fun onOptimizationChanged()")
+            .substringBefore("internal fun clearDnsCache()")
+
+        assertTrue(toggleHandler.contains("dispatcher.executorService.execute"))
+        assertTrue(provider.contains("connection_pool_cleanup_failed"))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (
