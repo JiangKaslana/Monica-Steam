@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.chat.gameinvite.ui
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,11 +34,33 @@ class SteamChatGameInviteIntegrationGuardTest {
 
         assertTrue(card.contains("SteamChatGameInviteMetadataRepository"))
         assertTrue(card.contains("heightIn(min = 48.dp)"))
-        assertTrue(card.contains("surfaceContainerHighest"))
+        assertTrue(card.contains("surfaceContainerHigh"))
+        assertTrue(card.contains("FilledTonalButton"))
         assertTrue(card.contains("onOpenStoreApp"))
         assertTrue(activity.contains("onOpenStoreApp = { appId ->"))
         assertTrue(directThread.contains("onOpenStoreApp = onOpenStoreApp"))
         assertTrue(groupThread.contains("onOpenStoreApp = onOpenStoreApp"))
+    }
+
+    @Test
+    fun gameInviteIsStandaloneAndDoesNotOfferAnUnsupportedMobileJoinAction() {
+        val bubble = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatMessageBubble.kt"
+        ).readText()
+        val card = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/gameinvite/ui/SteamChatGameInviteCard.kt"
+        ).readText()
+
+        assertTrue(
+            bubble.contains(
+                "val standaloneCard = richContent is SteamChatRichContent.GameInvite"
+            )
+        )
+        assertTrue(bubble.contains("if (standaloneCard)"))
+        assertTrue(card.contains("steam_chat_game_invite_view_store"))
+        assertFalse(card.contains("steam_chat_game_invite_join"))
+        assertFalse(card.contains("Intent.ACTION_VIEW"))
+        assertFalse(card.contains("presentation.joinUrl"))
     }
 
     private fun projectFile(path: String): File {

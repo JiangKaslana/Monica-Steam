@@ -4992,7 +4992,6 @@
     <string name="steam_chat_notification_game_invite">Steam game invitation</string>
     <string name="steam_chat_game_invite_app_id">App %1$d</string>
     <string name="steam_chat_game_invite_view_store">Store</string>
-    <string name="steam_chat_game_invite_join">Join game</string>
     <string name="steam_chat_game_invite_artwork">%1$s game artwork</string>
     <string name="steam_chat_notification_steam_event">Steam notification</string>
     <string name="steam_network_optimization_section">Network and connection</string>

@@ -20,7 +20,7 @@ class SteamChatGameInvitePresentationTest {
 
         assertEquals("Counter-Strike 2", presentation.gameName)
         assertEquals("https://cdn.example/header.jpg", presentation.artworkUrl)
-        assertEquals("https://store.steampowered.com/app/730/", presentation.storeUrl)
+        assertEquals(730, presentation.appId)
     }
 
     @Test

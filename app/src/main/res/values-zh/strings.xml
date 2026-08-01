@@ -4819,7 +4819,6 @@
     <string name="steam_chat_notification_game_invite">Steam 游戏邀请</string>
     <string name="steam_chat_game_invite_app_id">App %1$d</string>
     <string name="steam_chat_game_invite_view_store">查看商店</string>
-    <string name="steam_chat_game_invite_join">加入游戏</string>
     <string name="steam_chat_game_invite_artwork">%1$s 游戏头图</string>
     <string name="steam_chat_notification_steam_event">Steam 通知</string>
     <string name="steam_network_optimization_section">网络与连接</string>

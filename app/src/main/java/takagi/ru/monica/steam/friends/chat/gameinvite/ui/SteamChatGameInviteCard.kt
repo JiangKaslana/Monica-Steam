@@ -1,7 +1,5 @@
 package takagi.ru.monica.steam.friends.chat.gameinvite.ui
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -17,12 +15,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -48,11 +46,11 @@ internal fun SteamChatGameInviteCard(
     onOpenStoreApp: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     val language = remember(locale.language) {
         if (locale.language.equals("zh", ignoreCase = true)) "schinese" else "english"
     }
+    val context = LocalContext.current
     val repository = remember(context.applicationContext) {
         SteamChatGameInviteMetadataRepository.get(context.applicationContext)
     }
@@ -73,34 +71,24 @@ internal fun SteamChatGameInviteCard(
         presentation.appId?.let(onOpenStoreApp)
         Unit
     }
-    val joinGame = {
-        val opened = presentation.joinUrl?.let { url ->
-            runCatching {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            }.isSuccess
-        } == true
-        if (!opened) openStore()
-        Unit
-    }
 
     Surface(
-        onClick = if (presentation.appId != null) openStore else joinGame,
-        enabled = presentation.appId != null || presentation.joinUrl != null,
         modifier = modifier
-            .widthIn(min = 220.dp, max = 292.dp)
+            .widthIn(min = 232.dp, max = 304.dp)
             .animateContentSize(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 1.dp
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Surface(
-                    modifier = Modifier.size(width = 104.dp, height = 58.dp),
+                    modifier = Modifier.size(width = 112.dp, height = 63.dp),
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
@@ -145,32 +133,23 @@ internal fun SteamChatGameInviteCard(
                     }
                 }
             }
-            if (presentation.appId != null || presentation.joinUrl != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+            if (presentation.appId != null) {
+                FilledTonalButton(
+                    onClick = openStore,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                        .heightIn(min = 48.dp)
                 ) {
-                    presentation.appId?.let {
-                        TextButton(
-                            onClick = openStore,
-                            modifier = Modifier.heightIn(min = 48.dp)
-                        ) {
-                            Text(stringResource(R.string.steam_chat_game_invite_view_store))
-                        }
-                    }
-                    if (presentation.joinUrl != null) {
-                        FilledTonalButton(
-                            onClick = joinGame,
-                            modifier = Modifier.heightIn(min = 48.dp)
-                        ) {
-                            Icon(Icons.Default.SportsEsports, contentDescription = null)
-                            Text(
-                                text = stringResource(R.string.steam_chat_game_invite_join),
-                                modifier = Modifier.padding(start = 6.dp)
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Storefront,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.steam_chat_game_invite_view_store),
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
                 }
             }
         }

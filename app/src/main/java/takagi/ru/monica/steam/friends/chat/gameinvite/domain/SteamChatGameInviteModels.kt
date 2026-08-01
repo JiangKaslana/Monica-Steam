@@ -11,9 +11,7 @@ data class SteamChatGameInviteMetadata(
 data class SteamChatGameInvitePresentation(
     val appId: Int?,
     val gameName: String?,
-    val artworkUrl: String?,
-    val joinUrl: String?,
-    val storeUrl: String?
+    val artworkUrl: String?
 )
 
 internal fun SteamChatRichContent.GameInvite.toGameInvitePresentation(
@@ -26,9 +24,7 @@ internal fun SteamChatRichContent.GameInvite.toGameInvitePresentation(
         gameName = matchingMetadata?.name?.trim()?.takeIf(String::isNotBlank)
             ?: meaningfulGameInviteLabel(label),
         artworkUrl = matchingMetadata?.headerImageUrl?.trim()?.takeIf(String::isNotBlank)
-            ?: validAppId?.let(::steamGameInviteHeaderUrl),
-        joinUrl = url?.trim()?.takeIf { it.startsWith("steam://", ignoreCase = true) },
-        storeUrl = validAppId?.let { "https://store.steampowered.com/app/$it/" }
+            ?: validAppId?.let(::steamGameInviteHeaderUrl)
     )
 }
 

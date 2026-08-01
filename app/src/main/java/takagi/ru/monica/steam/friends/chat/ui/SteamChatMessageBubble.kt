@@ -89,8 +89,23 @@ internal fun SteamChatMessageBubble(
     val retryLabel = stringResource(R.string.steam_chat_retry_send)
     val bubbleShape = chatBubbleShape(outgoing, groupedWithPrevious, groupedWithNext)
     val richContent = remember(message.body) { SteamChatRichContentParser.parse(message.body) }
+    val standaloneCard = richContent is SteamChatRichContent.GameInvite
     val transparentMedia = richContent is SteamChatRichContent.Sticker ||
         isSingleSteamEmoticonMessage(message.body)
+    val interactionModifier = Modifier.pointerInput(retryable, message.stableId) {
+        detectTapGestures(
+            onTap = {
+                if (retryable) {
+                    haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                    onRetry()
+                }
+            },
+            onLongPress = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onLongClick()
+            }
+        )
+    }
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = if (outgoing) Alignment.CenterEnd else Alignment.CenterStart
@@ -98,75 +113,85 @@ internal fun SteamChatMessageBubble(
         Column(
             horizontalAlignment = if (outgoing) Alignment.End else Alignment.Start
         ) {
-            Surface(
-                modifier = Modifier
-                    .widthIn(max = 324.dp)
-                    .pointerInput(retryable, message.stableId) {
-                        detectTapGestures(
-                            onTap = {
-                                if (retryable) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                    onRetry()
-                                }
-                            },
-                            onLongPress = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onLongClick()
-                            }
-                        )
-                    },
-                shape = bubbleShape,
-                color = if (transparentMedia) Color.Transparent else if (outgoing) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                },
-                contentColor = if (outgoing) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurface
+            if (standaloneCard) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 324.dp)
+                        .then(interactionModifier),
+                    horizontalAlignment = if (outgoing) Alignment.End else Alignment.Start
+                ) {
+                    replyToMessage?.let { ReplyPreview(it) }
+                    SteamChatRichMessageContent(
+                        body = message.body,
+                        onOpenStoreApp = onOpenStoreApp
+                    )
+                    DeliveryMetadata(
+                        message = message,
+                        outgoing = outgoing,
+                        retryLabel = retryLabel,
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 3.dp, end = 4.dp)
+                    )
                 }
-            ) {
-                if (transparentMedia) {
-                    Box {
-                        Column {
-                            replyToMessage?.let { ReplyPreview(it) }
+            } else {
+                Surface(
+                    modifier = Modifier
+                        .widthIn(max = 324.dp)
+                        .then(interactionModifier),
+                    shape = bubbleShape,
+                    color = if (transparentMedia) Color.Transparent else if (outgoing) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHigh
+                    },
+                    contentColor = if (outgoing) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
+                ) {
+                    if (transparentMedia) {
+                        Box {
+                            Column {
+                                replyToMessage?.let { ReplyPreview(it) }
+                                SteamChatRichMessageContent(
+                                    body = message.body,
+                                    onOpenStoreApp = onOpenStoreApp
+                                )
+                            }
+                            Surface(
+                                modifier = Modifier.align(Alignment.BottomEnd),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                DeliveryMetadata(
+                                    message = message,
+                                    outgoing = outgoing,
+                                    retryLabel = retryLabel,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    } else Column {
+                        replyToMessage?.let { ReplyPreview(it) }
+                        Row(
+                            modifier = Modifier.padding(
+                                start = 13.dp,
+                                top = if (groupedWithPrevious) 7.dp else 10.dp,
+                                end = if (outgoing) 7.dp else 11.dp,
+                                bottom = if (groupedWithNext) 7.dp else 9.dp
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
                             SteamChatRichMessageContent(
                                 body = message.body,
-                                onOpenStoreApp = onOpenStoreApp
+                                onOpenStoreApp = onOpenStoreApp,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
+                            DeliveryMetadata(message, outgoing, retryLabel)
                         }
-                        Surface(
-                            modifier = Modifier.align(Alignment.BottomEnd),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            DeliveryMetadata(
-                                message = message,
-                                outgoing = outgoing,
-                                retryLabel = retryLabel,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                            )
-                        }
-                    }
-                } else Column {
-                    replyToMessage?.let { ReplyPreview(it) }
-                    Row(
-                        modifier = Modifier.padding(
-                            start = 13.dp,
-                            top = if (groupedWithPrevious) 7.dp else 10.dp,
-                            end = if (outgoing) 7.dp else 11.dp,
-                            bottom = if (groupedWithNext) 7.dp else 9.dp
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        SteamChatRichMessageContent(
-                            body = message.body,
-                            onOpenStoreApp = onOpenStoreApp,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        DeliveryMetadata(message, outgoing, retryLabel)
                     }
                 }
             }
