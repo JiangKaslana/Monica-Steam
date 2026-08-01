@@ -69,6 +69,7 @@ import takagi.ru.monica.steam.friends.chat.position.ui.rememberSteamChatReadingP
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMessageContent
 import takagi.ru.monica.steam.friends.chat.ui.SteamChatComposer
 import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.friends.groupchat.avatar.ui.SteamGroupAvatarImage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatDeliveryState
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatMessage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatReactionType
@@ -344,6 +345,12 @@ private fun GroupThreadHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+        SteamGroupAvatarImage(
+            url = group.avatarUrl,
+            contentDescription = group.name,
+            modifier = Modifier.size(40.dp).clickable(onClick = onOpenInfo)
+        )
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f).clickable(onClick = onOpenInfo).padding(vertical = 4.dp)) {
             Text(group.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(

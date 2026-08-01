@@ -29,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,8 +38,8 @@ import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatFailureReason
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
-import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImage
 import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.friends.groupchat.avatar.ui.SteamGroupAvatarImage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatRoom
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
@@ -302,10 +301,10 @@ private fun SteamConversationRow(
         ) {
             when {
                 entry.friend != null -> FriendAvatar(entry.friend, 50)
-                entry.avatarUrl.isNotBlank() -> SteamChatRemoteImage(
-                    entry.avatarUrl,
-                    entry.title,
-                    Modifier.size(50.dp).clip(CircleShape)
+                entry.type == SteamConversationType.GROUP -> SteamGroupAvatarImage(
+                    url = entry.avatarUrl,
+                    contentDescription = entry.title,
+                    modifier = Modifier.size(50.dp)
                 )
                 else -> Surface(Modifier.size(50.dp), CircleShape, MaterialTheme.colorScheme.primaryContainer) {
                     Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Groups, null) }

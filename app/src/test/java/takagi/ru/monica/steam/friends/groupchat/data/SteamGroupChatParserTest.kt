@@ -201,6 +201,29 @@ class SteamGroupChatParserTest {
     }
 
     @Test
+    fun prefersBoundedChatIconWhenSteamReturnsShaAndOriginalUgcImage() {
+        val sha = ByteArray(20) { it.toByte() }
+        val room = SteamProtoWriter().apply { writeUint64(1, "9001") }
+        val summary = SteamProtoWriter().apply {
+            writeUint64(1, "8001")
+            writeString(2, "Large avatar group")
+            writeUint64(5, "9001")
+            writeMessage(6, room)
+            writeBytes(11, sha)
+            writeString(21, "https://steamusercontent-a.akamaihd.net/ugc/123/original.png")
+        }
+        val response = SteamProtoWriter().apply {
+            writeMessage(1, SteamProtoWriter().apply { writeMessage(2, summary) })
+        }.toByteArray()
+
+        assertEquals(
+            "https://community.akamai.steamstatic.com/images/chaticons/00/01/02/" +
+                "000102030405060708090a0b0c0d0e0f10111213_256.jpg",
+            SteamGroupChatParser.parseGroups(response).single().avatarUrl
+        )
+    }
+
+    @Test
     fun parsesHexEncodedAvatarShaReturnedAsString() {
         val room = SteamProtoWriter().apply { writeUint64(1, "9001") }
         val summary = SteamProtoWriter().apply {
@@ -231,6 +254,21 @@ class SteamGroupChatParserTest {
         assertEquals(
             "https://community.akamai.steamstatic.com/images/chaticons/13/12/11/" +
                 "131211100f0e0d0c0b0a09080706050403020100_256.jpg",
+            SteamGroupChatParser.parseGroupHeaderAvatarUrl(header)
+        )
+    }
+
+    @Test
+    fun fullHeaderAlsoPrefersBoundedChatIconOverOriginalUgcImage() {
+        val header = SteamProtoWriter().apply {
+            writeUint64(1, "8001")
+            writeBytes(16, ByteArray(20) { it.toByte() })
+            writeString(25, "https://steamusercontent-a.akamaihd.net/ugc/123/original.png")
+        }.toByteArray()
+
+        assertEquals(
+            "https://community.akamai.steamstatic.com/images/chaticons/00/01/02/" +
+                "000102030405060708090a0b0c0d0e0f10111213_256.jpg",
             SteamGroupChatParser.parseGroupHeaderAvatarUrl(header)
         )
     }

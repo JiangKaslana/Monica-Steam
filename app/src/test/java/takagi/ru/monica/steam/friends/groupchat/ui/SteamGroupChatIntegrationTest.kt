@@ -183,6 +183,27 @@ class SteamGroupChatIntegrationTest {
         assertTrue(manifest.contains("android:windowSoftInputMode=\"adjustResize\""))
     }
 
+    @Test
+    fun everyGroupConversationSurfaceUsesTheDedicatedAvatarLoader() {
+        val groupList = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatList.kt"
+        ).readText()
+        val conversationList = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamConversationList.kt"
+        ).readText()
+        val thread = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/groupchat/ui/SteamGroupChatThread.kt"
+        ).readText()
+        val editor = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/info/ui/SteamGroupAvatarEditor.kt"
+        ).readText()
+
+        assertTrue(groupList.contains("SteamGroupAvatarImage("))
+        assertTrue(conversationList.contains("SteamGroupAvatarImage("))
+        assertTrue(thread.contains("SteamGroupAvatarImage("))
+        assertTrue(editor.contains("SteamGroupAvatarImage("))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (directory.parentFile != null && !File(directory, "settings.gradle").exists()) {

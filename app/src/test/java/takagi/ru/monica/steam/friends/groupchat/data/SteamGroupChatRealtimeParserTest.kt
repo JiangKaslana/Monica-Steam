@@ -154,6 +154,28 @@ class SteamGroupChatRealtimeParserTest {
     }
 
     @Test
+    fun realtimeHeaderPrefersBoundedChatIconOverOriginalUgcImage() {
+        val event = SteamGroupChatRealtimeParser.parse(
+            envelope(
+                method = "ChatRoomClient.NotifyChatRoomHeaderStateChange#1",
+                body = SteamProtoWriter().apply {
+                    writeMessage(1, SteamProtoWriter().apply {
+                        writeUint64(1, GROUP_ID)
+                        writeBytes(16, ByteArray(20) { it.toByte() })
+                        writeString(25, "https://steamusercontent-a.akamaihd.net/ugc/123/original.png")
+                    })
+                }.toByteArray()
+            )
+        ) as SteamGroupChatRealtimeEvent.HeaderChanged
+
+        assertEquals(
+            "https://community.akamai.steamstatic.com/images/chaticons/00/01/02/" +
+                "000102030405060708090a0b0c0d0e0f10111213_256.jpg",
+            event.avatarUrl
+        )
+    }
+
+    @Test
     fun ignoresUnsupportedAndMalformedNotifications() {
         val unsupported = SteamGroupChatRealtimeParser.parse(
             envelope(

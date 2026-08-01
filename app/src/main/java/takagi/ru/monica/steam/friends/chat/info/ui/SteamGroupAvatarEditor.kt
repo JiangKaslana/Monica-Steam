@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -17,7 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImage
+import takagi.ru.monica.steam.friends.groupchat.avatar.ui.SteamGroupAvatarImage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 
 /** Keeps the edit affordance outside the circular avatar clipping boundary. */
@@ -38,27 +37,11 @@ internal fun SteamGroupAvatarEditor(
                 .then(if (canEdit && !updating) Modifier.clickable(onClick = onPick) else Modifier),
             contentAlignment = Alignment.Center
         ) {
-            if (group.avatarUrl.isNotBlank()) {
-                SteamChatRemoteImage(
-                    url = group.avatarUrl,
-                    contentDescription = group.name,
-                    modifier = Modifier.size(72.dp)
-                )
-            } else {
-                Surface(
-                    modifier = Modifier.size(72.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Groups,
-                            contentDescription = null,
-                            modifier = Modifier.size(34.dp)
-                        )
-                    }
-                }
-            }
+            SteamGroupAvatarImage(
+                url = group.avatarUrl,
+                contentDescription = group.name,
+                modifier = Modifier.size(72.dp)
+            )
             if (updating) {
                 Surface(
                     modifier = Modifier.size(72.dp),

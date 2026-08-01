@@ -11,13 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,7 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
-import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRemoteImage
+import takagi.ru.monica.steam.friends.groupchat.avatar.ui.SteamGroupAvatarImage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
 
@@ -110,13 +107,11 @@ private fun GroupCard(group: SteamGroupChatSummary, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (group.avatarUrl.isNotBlank()) {
-                SteamChatRemoteImage(group.avatarUrl, group.name, Modifier.size(54.dp).clip(CircleShape))
-            } else Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-                Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Groups, null, Modifier.size(28.dp))
-                }
-            }
+            SteamGroupAvatarImage(
+                url = group.avatarUrl,
+                contentDescription = group.name,
+                modifier = Modifier.size(54.dp)
+            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(group.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(

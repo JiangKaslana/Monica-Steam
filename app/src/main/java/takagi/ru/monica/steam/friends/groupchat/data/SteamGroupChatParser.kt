@@ -177,8 +177,8 @@ internal object SteamGroupChatParser {
     fun parseGroupHeaderAvatarUrl(payload: ByteArray): String {
         val fields = runCatching { SteamProtoReader(payload).parse() }.getOrNull()
             ?: return ""
-        return fields[25]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty().ifBlank {
-            fields[16]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
+        return fields[16]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty().ifBlank {
+            fields[25]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
         }
     }
 
@@ -194,9 +194,9 @@ internal object SteamGroupChatParser {
     }
 
     private fun parseAvatarUrl(fields: Map<Int, SteamProtoField>): String {
-        val ugcUrl = fields[21]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
-        return ugcUrl.ifBlank {
-            fields[11]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
+        val boundedChatIcon = fields[11]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
+        return boundedChatIcon.ifBlank {
+            fields[21]?.bytes?.let { steamGroupAvatarUrl(it) }.orEmpty()
         }
     }
 
