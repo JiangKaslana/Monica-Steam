@@ -108,7 +108,6 @@ internal fun SteamChatRootContent(
                 if (rootMode == 1) {
                     SteamChatFriendPicker(
                         friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
-                        sessions = chatState.sessions?.sessions.orEmpty(),
                         loading = friendsState.loading && friendsState.snapshot == null,
                         query = effectiveSearchQuery,
                         onOpenThread = onOpenDirect,

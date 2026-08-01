@@ -2,29 +2,31 @@ package takagi.ru.monica.steam.friends.chat.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import takagi.ru.monica.steam.friends.chat.domain.SteamChatSession
 import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.friends.domain.SteamPersonaState
 
 class SteamChatFriendPickerTest {
     @Test
-    fun friendsWithRecentMessagesComeBeforeFriendsWithoutMessages() {
+    fun onlineFriendsStayAboveOfflineFriends() {
         val friends = listOf(
-            friend("older"),
-            friend("never"),
-            friend("newer")
+            friend("offline-recent"),
+            friend("online", SteamPersonaState.ONLINE),
+            friend("away", SteamPersonaState.AWAY)
         )
-        val sessions = listOf(
-            SteamChatSession("older", lastMessageTimestamp = 100L),
-            SteamChatSession("newer", lastMessageTimestamp = 300L)
+        val sorted = sortSteamChatFriendsForPicker(friends)
+
+        assertEquals(
+            listOf("away", "online", "offline-recent"),
+            sorted.map(SteamFriend::steamId)
         )
-
-        val sorted = sortSteamChatFriendsByRecentMessage(friends, sessions)
-
-        assertEquals(listOf("newer", "older", "never"), sorted.map(SteamFriend::steamId))
     }
 
-    private fun friend(steamId: String) = SteamFriend(
+    private fun friend(
+        steamId: String,
+        state: SteamPersonaState = SteamPersonaState.OFFLINE
+    ) = SteamFriend(
         steamId = steamId,
-        personaName = steamId
+        personaName = steamId,
+        personaState = state
     )
 }
