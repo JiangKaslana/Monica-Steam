@@ -9,6 +9,9 @@ import takagi.ru.monica.steam.community.domain.SteamCommunityProfile
 import takagi.ru.monica.steam.community.domain.SteamCommunityRecentGame
 import takagi.ru.monica.steam.community.domain.SteamCommunitySection
 import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockSource
 
 class SteamCommunityCacheTest {
     @Test
@@ -21,6 +24,7 @@ class SteamCommunityCacheTest {
 
         assertEquals(original, restored)
         assertEquals("Portal 2", restored?.recentGames?.single()?.name)
+        assertEquals(265, restored?.unlockProgress?.remainingUsdCents)
         assertTrue(SteamCommunitySection.BADGES in restored!!.unavailableSections)
     }
 
@@ -56,6 +60,17 @@ class SteamCommunityCacheTest {
         playerXpNeededToLevelUp = 800,
         recentGames = listOf(
             SteamCommunityRecentGame(appId = 620, name = "Portal 2")
+        ),
+        unlockProgress = SteamCommunityUnlockProgress(
+            status = SteamCommunityRestrictionStatus.LIMITED,
+            source = SteamCommunityUnlockSource.STEAM_SUPPORT,
+            accountCountryCode = "CN",
+            accountCurrencyCode = "CNY",
+            spentUsdCents = 235,
+            remainingUsdCents = 265,
+            localRemainingMinor = 1_893,
+            exactProgress = true,
+            fetchedAt = 88L
         ),
         unavailableSections = setOf(SteamCommunitySection.BADGES),
         fetchedAt = 99L

@@ -8,6 +8,8 @@ import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,9 +18,13 @@ import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.community.data.SteamCommunityCache
 import takagi.ru.monica.steam.community.data.SteamCommunityPreferencesCache
 import takagi.ru.monica.steam.community.data.SteamCommunityService
+import takagi.ru.monica.steam.community.eligibility.data.SteamCommunityEligibilityService
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityEligibilityGateway
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
 import takagi.ru.monica.steam.community.domain.SteamCommunityGateway
 import takagi.ru.monica.steam.community.domain.SteamCommunitySection
 import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
+import takagi.ru.monica.steam.community.domain.STEAM_COMMUNITY_CORE_SECTIONS
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
@@ -29,6 +35,7 @@ import takagi.ru.monica.steam.session.domain.resolveOrKeep
 class SteamCommunityViewModel(
     private val gateway: SteamCommunityGateway,
     private val cache: SteamCommunityCache,
+    private val eligibilityGateway: SteamCommunityEligibilityGateway? = null,
     private val sessionResolver: SteamAccountSessionResolver? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
@@ -95,7 +102,27 @@ class SteamCommunityViewModel(
         viewModelScope.launch {
             val result = runCommunityCatching {
                 withContext(ioDispatcher) {
-                    withSessionRetry(account) { prepared -> gateway.fetch(prepared) }
+                    withSessionRetry(account) { prepared ->
+                        coroutineScope {
+                            val snapshot = async { gateway.fetch(prepared) }
+                            val eligibility = eligibilityGateway?.let { gateway ->
+                                async { runCommunityCatching { gateway.fetch(prepared) } }
+                            }
+                            val base = snapshot.await()
+                            when (val result = eligibility?.await()) {
+                                null -> base
+                                else -> result.fold(
+                                    onSuccess = { base.copy(unlockProgress = it) },
+                                    onFailure = {
+                                        base.copy(
+                                            unavailableSections = base.unavailableSections +
+                                                SteamCommunitySection.ELIGIBILITY
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
             if (!isCurrent(account, generation)) return@launch
@@ -126,7 +153,9 @@ class SteamCommunityViewModel(
                 staleSections = merge.staleSections,
                 failure = if (
                     !hasContent &&
-                    merge.snapshot.unavailableSections.size == SteamCommunitySection.entries.size
+                    merge.snapshot.unavailableSections.containsAll(
+                        STEAM_COMMUNITY_CORE_SECTIONS
+                    )
                 ) {
                     SteamCommunityFailureReason.UNAVAILABLE
                 } else {
@@ -150,7 +179,7 @@ class SteamCommunityViewModel(
 
     private suspend fun <T> withSessionRetry(
         account: SteamAccount,
-        block: (SteamAccount) -> T
+        block: suspend (SteamAccount) -> T
     ): T {
         val prepared = prepareSession(account)
         return try {
@@ -193,6 +222,7 @@ class SteamCommunityViewModel(
                     SteamCommunityViewModel(
                         gateway = SteamCommunityService(),
                         cache = SteamCommunityPreferencesCache(appContext),
+                        eligibilityGateway = SteamCommunityEligibilityService(),
                         sessionResolver = accountSourceRepository.sessionResolver()
                     ) as T
             }
@@ -235,6 +265,18 @@ internal fun mergeCommunitySnapshot(
         SteamCommunitySection.RECENT_GAMES,
         safeCache?.recentGames?.isNotEmpty() == true
     )
+    val eligibilityFromCache = safeCache?.unlockProgress?.let { cachedProgress ->
+        val freshProgress = fresh.unlockProgress
+        val use = SteamCommunitySection.ELIGIBILITY in fresh.unavailableSections ||
+            freshProgress == null ||
+            (
+                freshProgress.status == SteamCommunityRestrictionStatus.UNKNOWN &&
+                    cachedProgress.status != SteamCommunityRestrictionStatus.UNKNOWN
+                ) ||
+            (!freshProgress.exactProgress && cachedProgress.exactProgress)
+        if (use) stale += SteamCommunitySection.ELIGIBILITY
+        use
+    } == true
 
     return SteamCommunityMerge(
         snapshot = fresh.copy(
@@ -247,7 +289,16 @@ internal fun mergeCommunitySnapshot(
             } else {
                 fresh.playerXpNeededToLevelUp
             },
-            recentGames = if (gamesFromCache) safeCache?.recentGames.orEmpty() else fresh.recentGames
+            recentGames = if (gamesFromCache) {
+                safeCache?.recentGames.orEmpty()
+            } else {
+                fresh.recentGames
+            },
+            unlockProgress = if (eligibilityFromCache) {
+                safeCache?.unlockProgress
+            } else {
+                fresh.unlockProgress
+            }
         ),
         staleSections = stale
     )
@@ -255,7 +306,7 @@ internal fun mergeCommunitySnapshot(
 
 private fun SteamCommunitySnapshot.hasVisibleContent(): Boolean =
     profile != null || steamLevel != null || badges.isNotEmpty() ||
-        playerXp != null || recentGames.isNotEmpty()
+        playerXp != null || recentGames.isNotEmpty() || unlockProgress != null
 
 private suspend fun <T> runCommunityCatching(block: suspend () -> T): Result<T> = try {
     Result.success(block())

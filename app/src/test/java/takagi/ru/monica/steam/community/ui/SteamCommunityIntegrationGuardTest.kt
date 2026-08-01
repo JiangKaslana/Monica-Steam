@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.community.ui
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -65,12 +66,29 @@ class SteamCommunityIntegrationGuardTest {
         ).readText()
 
         assertTrue(service.contains("\"steamids\" to account.steamId"))
-        assertTrue(service.contains("SteamCommunitySection.entries.size"))
+        assertTrue(service.contains("failures.containsAll(STEAM_COMMUNITY_CORE_SECTIONS)"))
         assertTrue(cache.contains("key(snapshot.accountSteamId)"))
         assertTrue(cache.contains("it.accountSteamId == accountSteamId"))
         assertTrue(viewModel.contains("activeAccount?.steamId == account.steamId"))
         assertTrue(viewModel.contains("requestGeneration == generation"))
         assertTrue(viewModel.contains("sessionResolver.resolveOrKeep"))
+    }
+
+    @Test
+    fun communityLazyColumnUsesUniqueExplicitItemKeys() {
+        val source = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityContent.kt"
+        ).readText()
+        val keys = Regex("item\\(key = \\\"([^\\\"]+)\\\"\\)")
+            .findAll(source)
+            .map { match -> match.groupValues[1] }
+            .toList()
+
+        assertEquals(
+            "Every explicit Community LazyColumn key must be unique",
+            keys.distinct(),
+            keys
+        )
     }
 
     private fun projectFile(path: String): File {

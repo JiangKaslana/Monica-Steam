@@ -21,6 +21,7 @@ import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.network.SteamProtoWriter
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
+import takagi.ru.monica.steam.data.SteamAccount
 import java.io.IOException
 import takagi.ru.monica.steam.store.catalog.data.SteamStoreCatalogService
 import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentService
@@ -58,6 +59,25 @@ class SteamStoreService(
     private val relatedContentService = SteamStoreRelatedContentService(api)
     private val packageMetadataService = SteamStorePackageMetadataService(client)
     private val purchasePageService = SteamStorePurchasePageService(client, relatedContentService)
+
+    fun accountCountryCode(account: SteamAccount): String? = accountCountryOrFail(
+        steamLoginSecure = account.steamLoginSecure,
+        accessToken = account.accessToken
+    )
+
+    fun budgetSuggestions(
+        targetMinor: Int,
+        countryCode: String,
+        steamLoginSecure: String?,
+        language: String = "schinese",
+        limit: Int = 6
+    ): List<SteamStoreItem> = catalogService.budgetSuggestions(
+        targetMinor = targetMinor,
+        countryCode = countryCode,
+        steamLoginSecure = steamLoginSecure,
+        language = language,
+        limit = limit
+    )
 
     fun featured(
         steamLoginSecure: String? = null,

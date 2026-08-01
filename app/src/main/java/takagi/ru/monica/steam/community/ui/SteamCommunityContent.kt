@@ -28,6 +28,8 @@ internal fun SteamCommunityContent(
     state: SteamCommunityUiState,
     onRetry: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    onOpenStoreApp: (Int) -> Unit,
+    onOpenStore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dockClearance = LocalSteamDockContentClearance.current
@@ -73,6 +75,21 @@ internal fun SteamCommunityContent(
                         level = snapshot.steamLevel,
                         stale = SteamCommunitySection.PROFILE in state.staleSections
                     )
+                }
+                item(key = "community-unlock-progress") {
+                    snapshot.unlockProgress?.let { progress ->
+                        CommunityUnlockSection(
+                            progress = progress,
+                            stale = SteamCommunitySection.ELIGIBILITY in state.staleSections,
+                            onOpenGame = onOpenStoreApp,
+                            onOpenStore = onOpenStore,
+                            onOpenRules = {
+                                onOpenUrl(
+                                    "https://help.steampowered.com/en/wizard/HelpWithLimitedAccount"
+                                )
+                            }
+                        )
+                    }
                 }
                 item(key = "community-level-xp") {
                     CommunityLevelCard(

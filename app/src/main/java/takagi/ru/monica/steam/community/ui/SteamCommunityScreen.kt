@@ -40,6 +40,8 @@ fun SteamCommunityScreen(
     onNavigateBack: () -> Unit,
     initialSteamId: String? = null,
     onInitialSteamIdConsumed: () -> Unit = {},
+    onOpenStoreApp: (Int) -> Unit = {},
+    onOpenStore: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -156,6 +158,8 @@ fun SteamCommunityScreen(
                 state = state,
                 onRetry = viewModel::refresh,
                 onOpenUrl = { url -> openCommunityUrl(context, url) },
+                onOpenStoreApp = onOpenStoreApp,
+                onOpenStore = onOpenStore,
                 modifier = Modifier.fillMaxSize()
             )
         }

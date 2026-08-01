@@ -463,6 +463,11 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onNavigateBack = { navigateBack() },
                                 initialSteamId = pendingCommunitySteamId,
                                 onInitialSteamIdConsumed = { pendingCommunitySteamId = null },
+                                onOpenStoreApp = { appId ->
+                                    pendingStoreAppId = appId
+                                    navigateTo(MonicaSteamPage.STORE)
+                                },
+                                onOpenStore = { navigateTo(MonicaSteamPage.STORE) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

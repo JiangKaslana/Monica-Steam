@@ -70,6 +70,9 @@ class SteamCmClient internal constructor(
         accountKey = accountKeyResolver(account)
     )
 
+    internal fun latestEvent(account: SteamAccount, eMsg: Int): SteamCmEnvelope? =
+        pool.latestEvent(accountKeyResolver(account), eMsg)
+
     /**
      * Drops the authenticated socket and its bootstrap snapshot for an account.
      * Realtime consumers use this when a collector stops or credentials rotate;

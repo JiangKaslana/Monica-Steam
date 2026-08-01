@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.community.domain
 
 import kotlinx.serialization.Serializable
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
 
 @Serializable
 data class SteamCommunityProfile(
@@ -38,7 +39,14 @@ data class SteamCommunityRecentGame(
 )
 
 @Serializable
-enum class SteamCommunitySection { PROFILE, LEVEL, BADGES, RECENT_GAMES }
+enum class SteamCommunitySection { PROFILE, LEVEL, BADGES, RECENT_GAMES, ELIGIBILITY }
+
+internal val STEAM_COMMUNITY_CORE_SECTIONS = setOf(
+    SteamCommunitySection.PROFILE,
+    SteamCommunitySection.LEVEL,
+    SteamCommunitySection.BADGES,
+    SteamCommunitySection.RECENT_GAMES
+)
 
 @Serializable
 data class SteamCommunitySnapshot(
@@ -49,6 +57,7 @@ data class SteamCommunitySnapshot(
     val playerXp: Int? = null,
     val playerXpNeededToLevelUp: Int? = null,
     val recentGames: List<SteamCommunityRecentGame> = emptyList(),
+    val unlockProgress: SteamCommunityUnlockProgress? = null,
     val unavailableSections: Set<SteamCommunitySection> = emptySet(),
     val fetchedAt: Long
 )

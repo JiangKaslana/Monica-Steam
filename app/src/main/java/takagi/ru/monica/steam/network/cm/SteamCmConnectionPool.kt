@@ -23,6 +23,7 @@ internal class SteamCmConnectionPool(
     private val lock = Any()
     private val connections = mutableMapOf<String, Entry>()
     private val bootstraps = mutableMapOf<String, CachedBootstrap>()
+    private val latestEvents = mutableMapOf<String, MutableMap<Int, SteamCmEnvelope>>()
 
     fun execute(
         account: SteamAccount,
@@ -104,11 +105,16 @@ internal class SteamCmConnectionPool(
         connections[accountKey]?.connection?.isHealthy() == true
     }
 
+    fun latestEvent(accountKey: String, eMsg: Int): SteamCmEnvelope? = synchronized(lock) {
+        latestEvents[accountKey]?.get(eMsg)
+    }
+
     override fun close() {
         val entries = synchronized(lock) {
             val current = connections.values.toList()
             connections.clear()
             bootstraps.clear()
+            latestEvents.clear()
             current
         }
         entries.forEach { it.connection.close() }
@@ -121,6 +127,7 @@ internal class SteamCmConnectionPool(
         val key = accountKey
         val entry = synchronized(lock) {
             bootstraps.remove(key)
+            latestEvents.remove(key)
             connections.remove(key)
         }
         entry?.connection?.close()
@@ -165,7 +172,12 @@ internal class SteamCmConnectionPool(
                 steamId = session.steamId,
                 webLogonToken = session.webLogonToken,
                 timeoutMillis = timeoutMillis,
-                eventSink = { envelope -> eventSink(SteamCmEvent(accountKey, envelope)) }
+                eventSink = { envelope ->
+                    synchronized(lock) {
+                        latestEvents.getOrPut(accountKey) { mutableMapOf() }[envelope.eMsg] = envelope
+                    }
+                    eventSink(SteamCmEvent(accountKey, envelope))
+                }
             )
             connections[accountKey] = Entry(
                 endpoint = endpoint,

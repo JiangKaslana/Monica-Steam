@@ -37,14 +37,14 @@ internal fun CommunityProfileHero(
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -54,7 +54,7 @@ internal fun CommunityProfileHero(
                 CommunityAvatar(
                     imageUrl = profile?.avatarUrl.orEmpty(),
                     fallback = displayName.take(1).uppercase(),
-                    modifier = Modifier.size(84.dp)
+                    modifier = Modifier.size(72.dp)
                 )
                 Column(
                     modifier = Modifier.weight(1f),

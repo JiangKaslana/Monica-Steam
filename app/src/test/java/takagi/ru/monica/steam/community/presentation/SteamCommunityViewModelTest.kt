@@ -20,6 +20,10 @@ import takagi.ru.monica.steam.community.domain.SteamCommunityProfile
 import takagi.ru.monica.steam.community.domain.SteamCommunityRecentGame
 import takagi.ru.monica.steam.community.domain.SteamCommunitySection
 import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityEligibilityGateway
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockSource
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
@@ -99,6 +103,45 @@ class SteamCommunityViewModelTest {
         assertTrue(SteamCommunitySection.LEVEL in viewModel.uiState.value.staleSections)
         assertTrue(viewModel.uiState.value.fromCache)
         assertEquals(200L, cache.load(ACCOUNT_A)?.fetchedAt)
+    }
+
+    @Test
+    fun cachedExactUnlockProgressWinsOverOfflineEstimate() = runTest(scheduler) {
+        val exact = SteamCommunityUnlockProgress(
+            status = SteamCommunityRestrictionStatus.LIMITED,
+            source = SteamCommunityUnlockSource.STEAM_SUPPORT,
+            spentUsdCents = 300,
+            remainingUsdCents = 200,
+            exactProgress = true,
+            fetchedAt = 90L
+        )
+        val cache = MemoryCommunityCache().apply {
+            save(snapshot(ACCOUNT_A).copy(unlockProgress = exact))
+        }
+        val eligibility = SteamCommunityEligibilityGateway {
+            SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.UNKNOWN,
+                source = SteamCommunityUnlockSource.ESTIMATE,
+                remainingUsdCents = 500,
+                exactProgress = false,
+                fetchedAt = 200L
+            )
+        }
+        val viewModel = SteamCommunityViewModel(
+            gateway = SteamCommunityGateway { account -> snapshot(account.steamId) },
+            cache = cache,
+            eligibilityGateway = eligibility,
+            ioDispatcher = dispatcher
+        )
+
+        viewModel.selectAccount(account())
+        advanceUntilIdle()
+
+        assertEquals(200, viewModel.uiState.value.snapshot?.unlockProgress?.remainingUsdCents)
+        assertTrue(
+            SteamCommunitySection.ELIGIBILITY in viewModel.uiState.value.staleSections
+        )
+        assertTrue(viewModel.uiState.value.fromCache)
     }
 
     @Test

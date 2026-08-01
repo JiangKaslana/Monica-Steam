@@ -32,6 +32,7 @@ internal object SteamCmProtocol {
     const val EMSG_SERVICE_METHOD_SEND_TO_CLIENT = 152
     const val EMSG_CLIENT_LOGON_RESPONSE = 751
     const val EMSG_CLIENT_LOGGED_OFF = 757
+    const val EMSG_CLIENT_ACCOUNT_INFO = 768
     const val EMSG_CLIENT_REMOVE_FRIEND = 714
     const val EMSG_CLIENT_FRIENDS_LIST = 767
     const val EMSG_CLIENT_ADD_FRIEND = 791

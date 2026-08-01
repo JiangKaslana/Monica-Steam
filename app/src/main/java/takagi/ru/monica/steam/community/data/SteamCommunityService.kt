@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.community.data
 import takagi.ru.monica.steam.community.domain.SteamCommunityGateway
 import takagi.ru.monica.steam.community.domain.SteamCommunitySection
 import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
+import takagi.ru.monica.steam.community.domain.STEAM_COMMUNITY_CORE_SECTIONS
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamApiException
@@ -75,7 +76,7 @@ class SteamCommunityService(
         }
 
         if (
-            failures.size == SteamCommunitySection.entries.size &&
+            failures.containsAll(STEAM_COMMUNITY_CORE_SECTIONS) &&
             authenticationFailures.isNotEmpty()
         ) {
             throw authenticationFailures.first()
