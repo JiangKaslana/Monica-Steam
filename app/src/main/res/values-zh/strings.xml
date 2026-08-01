@@ -4734,6 +4734,9 @@
     <string name="steam_community_unlock_unrestricted">社区功能已经可用</string>
     <string name="steam_community_unlock_unknown">Steam 暂未返回当前账号的受限状态</string>
     <string name="steam_community_unlock_complete">社区功能已解锁</string>
+    <string name="steam_community_unlock_complete_summary">Steam 已确认当前账号不受社区功能限制。</string>
+    <string name="steam_community_unlock_unknown_headline">暂时无法确认受限状态</string>
+    <string name="steam_community_unlock_unknown_summary">Steam 返回的信息不足，Monica Steam 会等待明确证据后再显示“已解锁”。</string>
     <string name="steam_community_unlock_remaining">还需约 %1$s</string>
     <string name="steam_community_unlock_official_progress">Steam 官方进度还差 %1$s；本地货币金额按最新汇率换算。</string>
     <string name="steam_community_unlock_estimate_summary">Steam 未公开精确消费进度，当前按最高仍需 5 美元估算，实际所需金额可能更少。</string>

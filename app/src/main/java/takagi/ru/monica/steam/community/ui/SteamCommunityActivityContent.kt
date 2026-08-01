@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +44,8 @@ import takagi.ru.monica.steam.community.domain.SteamCommunityRecentGame
 
 @Composable
 internal fun CommunityBadges(badges: List<SteamCommunityBadge>, unavailable: Boolean) {
+    val fontScale = LocalDensity.current.fontScale
+    val badgeWidth = if (fontScale > 1.15f) 176.dp else 142.dp
     when {
         badges.isNotEmpty() -> LazyRow(
             contentPadding = PaddingValues(horizontal = 2.dp),
@@ -50,7 +53,7 @@ internal fun CommunityBadges(badges: List<SteamCommunityBadge>, unavailable: Boo
         ) {
             items(badges, key = { "${it.badgeId}-${it.completionTime}" }) { badge ->
                 Card(
-                    modifier = Modifier.width(142.dp),
+                    modifier = Modifier.width(badgeWidth),
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer
@@ -65,7 +68,7 @@ internal fun CommunityBadges(badges: List<SteamCommunityBadge>, unavailable: Boo
                             stringResource(R.string.steam_community_badge_number, badge.badgeId),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(

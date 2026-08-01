@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.community.presentation.SteamCommunityViewModel
@@ -109,6 +110,8 @@ fun SteamCommunityScreen(
                 isSearchExpanded = false,
                 onSearchExpandedChange = {},
                 modifier = Modifier.statusBarsPadding(),
+                compact = true,
+                collapsedTitleEndPadding = 120.dp,
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(

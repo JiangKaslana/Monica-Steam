@@ -4907,6 +4907,9 @@
     <string name="steam_community_unlock_unrestricted">Community features available</string>
     <string name="steam_community_unlock_unknown">Steam did not return the current restriction state</string>
     <string name="steam_community_unlock_complete">Community unlocked</string>
+    <string name="steam_community_unlock_complete_summary">Steam confirmed that this account is not limited.</string>
+    <string name="steam_community_unlock_unknown_headline">Restriction state unavailable</string>
+    <string name="steam_community_unlock_unknown_summary">Steam did not return enough evidence. Monica Steam will wait for confirmation before showing this account as unlocked.</string>
     <string name="steam_community_unlock_remaining">About %1$s remaining</string>
     <string name="steam_community_unlock_official_progress">Steam reports %1$s remaining; the local amount uses the latest exchange rate.</string>
     <string name="steam_community_unlock_estimate_summary">Steam did not expose exact spending progress. This is the maximum $5 USD estimate and may be higher than the actual amount remaining.</string>

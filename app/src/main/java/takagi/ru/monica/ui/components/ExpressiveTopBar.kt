@@ -57,6 +57,7 @@ fun ExpressiveTopBar(
     navigationIcon: @Composable (() -> Unit)? = null,
     onActionPillBoundsChanged: ((Rect) -> Unit)? = null,
     collapsedTitleEndPadding: Dp = 180.dp,
+    compact: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -72,17 +73,22 @@ fun ExpressiveTopBar(
 
     val isLongTitle = title.length > 10
     val titleStyle = when {
+        compact -> MaterialTheme.typography.titleLarge
         title.length > 18 -> MaterialTheme.typography.bodyLarge
         isLongTitle -> MaterialTheme.typography.titleMedium
         else -> MaterialTheme.typography.headlineLarge
     }
     val pillReserve = if (isSearchExpanded) 0.dp else collapsedTitleEndPadding
+    val minimumHeight = if (compact) 72.dp else 88.dp
+    val horizontalPadding = if (compact) 16.dp else 24.dp
+    val verticalPadding = if (compact) 8.dp else 16.dp
+    val titleSpacing = if (compact) 8.dp else 16.dp
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 88.dp)
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .heightIn(min = minimumHeight)
+            .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         contentAlignment = Alignment.Center
     ) {
         // 1. 标题区 (在左侧，始终占位，只改变透明度)
@@ -92,7 +98,7 @@ fun ExpressiveTopBar(
                 .graphicsLayer { alpha = titleAlpha }
                 .padding(end = pillReserve),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(titleSpacing)
         ) {
             navigationIcon?.invoke()
             

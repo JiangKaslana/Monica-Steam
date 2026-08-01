@@ -36,7 +36,7 @@ internal fun CommunitySectionHeader(title: String, supporting: String) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
             supporting,
             style = MaterialTheme.typography.bodySmall,

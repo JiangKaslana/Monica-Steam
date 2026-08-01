@@ -91,6 +91,30 @@ class SteamCommunityIntegrationGuardTest {
         )
     }
 
+    @Test
+    fun communityHeaderAndPrimaryCardsAdaptToLargeText() {
+        val screen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityScreen.kt"
+        ).readText()
+        val profile = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityProfileContent.kt"
+        ).readText()
+        val unlock = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityUnlockContent.kt"
+        ).readText()
+        val actions = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityUnlockActions.kt"
+        ).readText()
+
+        assertTrue(screen.contains("compact = true"))
+        assertTrue(profile.contains("BoxWithConstraints"))
+        assertTrue(profile.contains("fontScale > 1.15f"))
+        assertFalse(profile.contains("private fun CommunityMetric("))
+        assertTrue(unlock.contains("steam_community_unlock_unknown_headline"))
+        assertTrue(actions.contains("stackActions"))
+        assertTrue(actions.contains("fontScale > 1.10f"))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (
