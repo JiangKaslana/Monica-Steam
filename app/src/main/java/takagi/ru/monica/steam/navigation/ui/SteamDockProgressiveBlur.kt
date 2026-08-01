@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.navigation.ui
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.asComposeRenderEffect
@@ -62,13 +63,16 @@ internal fun Modifier.steamDockProgressiveBlur(
         !isRuntimeBlurProblematicDevice()
 
     val blurModifier = if (canUseRuntimeBlur && blurRadius > 0f) {
+        val shader = remember { RuntimeShader(STEAM_DOCK_BLUR_SHADER) }
+        val blurRenderEffect = remember(shader) {
+            RenderEffect.createRuntimeShaderEffect(shader, "content")
+                .asComposeRenderEffect()
+        }
         Modifier.graphicsLayer {
-            val shader = RuntimeShader(STEAM_DOCK_BLUR_SHADER)
             shader.setFloatUniform("blurRadius", blurRadius)
             shader.setFloatUniform("height", height)
             shader.setFloatUniform("contentHeight", size.height)
-            renderEffect = RenderEffect.createRuntimeShaderEffect(shader, "content")
-                .asComposeRenderEffect()
+            renderEffect = blurRenderEffect
         }
     } else {
         Modifier

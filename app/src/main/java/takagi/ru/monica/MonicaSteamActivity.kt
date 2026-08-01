@@ -120,6 +120,7 @@ private enum class MonicaSteamPage {
 }
 
 private const val MONICA_BACK_EXIT_TIMEOUT_MS = 2_000L
+private const val MONICA_STEAM_DOCK_CONTENT_KEY = "monica_steam_dock_root"
 private const val STEAM_AUTO_BACKUP_PREFS_NAME = "webdav_config"
 private const val STEAM_AUTO_BACKUP_ENABLED_KEY = "auto_backup_enabled"
 private const val STEAM_LAST_BACKUP_TIME_KEY = "last_backup_time"
@@ -385,6 +386,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                                 ),
                                             targetState = currentPage,
                                             label = "monica_steam_page_transition",
+                                            contentKey = { page -> page.transitionContentKey(dockStyle) },
                                             transitionSpec = {
                                                 if (
                                                     initialState.isDockPage(dockStyle) &&
@@ -734,6 +736,9 @@ private fun MonicaSteamPage.isDockPage(style: SteamDockStyle): Boolean = when (t
     MonicaSteamPage.MDBX_WEBDAV_CREATE,
     MonicaSteamPage.MDBX_WEBDAV_OPEN -> false
 }
+
+private fun MonicaSteamPage.transitionContentKey(style: SteamDockStyle): Any =
+    if (isDockPage(style)) MONICA_STEAM_DOCK_CONTENT_KEY else this
 
 private fun MonicaSteamPage.toDockTab(): SteamDockTab = when (this) {
     MonicaSteamPage.LIBRARY -> SteamDockTab.LIBRARY

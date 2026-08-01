@@ -15,7 +15,7 @@ class MonicaSteamBackBehaviorTest {
         assertTrue(source.contains("var backPressedOnce by remember"))
         assertTrue(source.contains("BackHandler(enabled = true)"))
         assertTrue(source.contains("if (pageHistory.isNotEmpty())"))
-        assertTrue(source.contains("if (currentPage.isDockPage())"))
+        assertTrue(source.contains("if (currentPage.isDockPage(dockStyle))"))
         assertTrue(source.contains("R.string.press_back_again_to_exit"))
         assertTrue(source.contains("Toast.LENGTH_SHORT"))
         assertTrue(source.contains("delay(MONICA_BACK_EXIT_TIMEOUT_MS)"))
