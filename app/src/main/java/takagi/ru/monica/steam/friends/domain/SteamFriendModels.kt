@@ -73,6 +73,9 @@ data class SteamFriend(
 
     val isPlaying: Boolean
         get() = gameId.isNotBlank() || gameName.isNotBlank()
+
+    val isOnlineOrPlaying: Boolean
+        get() = personaState.isOnline || isPlaying
 }
 
 @Serializable
@@ -81,7 +84,9 @@ data class SteamFriendsSnapshot(
     val fetchedAt: Long = 0L
 ) {
     val acceptedFriends: List<SteamFriend>
-        get() = friends.filter { it.relationship == SteamFriendRelationship.FRIEND }
+        get() = sortSteamFriendsForList(
+            friends.filter { it.relationship == SteamFriendRelationship.FRIEND }
+        )
 
     val incomingRequests: List<SteamFriend>
         get() = friends.filter { it.relationship == SteamFriendRelationship.REQUEST_INCOMING }
@@ -90,7 +95,7 @@ data class SteamFriendsSnapshot(
         get() = friends.filter { it.relationship == SteamFriendRelationship.REQUEST_OUTGOING }
 
     val onlineCount: Int
-        get() = acceptedFriends.count { it.personaState.isOnline || it.isPlaying }
+        get() = acceptedFriends.count(SteamFriend::isOnlineOrPlaying)
 }
 
 data class SteamFriendActionResult(

@@ -64,6 +64,27 @@ class SteamFriendsModelsTest {
         )
     }
 
+    @Test
+    fun acceptedFriendsPutOnlineAccountsAboveOfflineAccounts() {
+        val snapshot = SteamFriendsSnapshot(
+            friends = listOf(
+                friend("76561198000000002", "Alpha offline"),
+                friend("76561198000000003", "Zulu online", SteamPersonaState.ONLINE),
+                friend(
+                    "76561198000000004",
+                    "Mike playing",
+                    SteamPersonaState.ONLINE,
+                    gameName = "Portal 2"
+                )
+            )
+        )
+
+        assertEquals(
+            listOf("Mike playing", "Zulu online", "Alpha offline"),
+            snapshot.acceptedFriends.map(SteamFriend::displayName)
+        )
+    }
+
     private fun friend(
         id: String,
         name: String,

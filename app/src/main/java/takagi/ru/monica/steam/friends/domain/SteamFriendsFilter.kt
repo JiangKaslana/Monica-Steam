@@ -13,7 +13,7 @@ fun filterSteamFriends(
     filter: SteamFriendsFilter
 ): List<SteamFriend> {
     val needle = query.trim().lowercase()
-    return friends.asSequence()
+    val filtered = friends.asSequence()
         .filter { friend ->
             when (filter) {
                 SteamFriendsFilter.ALL -> friend.relationship == SteamFriendRelationship.FRIEND
@@ -34,13 +34,6 @@ fun filterSteamFriends(
                 friend.gameName
             ).any { it.lowercase().contains(needle) }
         }
-        .sortedWith(
-            compareByDescending<SteamFriend> {
-                it.relationship == SteamFriendRelationship.REQUEST_INCOMING
-            }
-                .thenByDescending(SteamFriend::isPlaying)
-                .thenByDescending { it.personaState.isOnline }
-                .thenBy { it.displayName.lowercase() }
-        )
         .toList()
+    return sortSteamFriendsForList(filtered)
 }
