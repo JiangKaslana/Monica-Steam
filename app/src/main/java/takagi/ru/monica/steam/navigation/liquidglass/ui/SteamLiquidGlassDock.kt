@@ -59,6 +59,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp as lerpColor
@@ -138,6 +139,7 @@ private const val VELOCITY_NORMALIZATION_DIVISOR = 10f
 private const val VELOCITY_SCALE_X_MULTIPLIER = 0.75f
 private const val VELOCITY_SCALE_Y_MULTIPLIER = 0.25f
 private const val VELOCITY_SCALE_CLAMP = 0.2f
+private const val LIQUID_GLASS_CAPTURE_ALPHA = 0.001f
 
 @Composable
 internal fun SteamLiquidGlassDockVisibility(
@@ -344,7 +346,7 @@ internal fun SteamLiquidGlassDock(
                         .width(dockWidth)
                         .align(Alignment.CenterStart)
                         .clearAndSetSemantics {}
-                        .alpha(0f)
+                        .liquidGlassCaptureLayer()
                         .layerBackdrop(tabsBackdrop)
                         .graphicsLayer { translationX = panelOffsetPx }
                         .drawBackdrop(
@@ -634,6 +636,13 @@ private fun rememberGravityRotatedHighlight(
 
 private fun BackdropEffectScope.liquidGlassVibrancy() {
     colorControls(brightness = 0f, contrast = 1f, saturation = 1.5f)
+}
+
+// A zero-alpha RenderEffect layer may be elided or leak through on some Android GPUs.
+// A near-zero offscreen layer keeps the backdrop recording alive without a visible export band.
+private fun Modifier.liquidGlassCaptureLayer(): Modifier = graphicsLayer {
+    alpha = LIQUID_GLASS_CAPTURE_ALPHA
+    compositingStrategy = CompositingStrategy.Offscreen
 }
 
 private fun resolveLiquidGlassDockWidth(containerWidth: Dp, itemCount: Int): Dp {

@@ -61,6 +61,22 @@ class SteamLiquidGlassDockGuardTest {
         assertFalse(settings.contains("showSwitch = style == SteamDockStyle.LIQUID_GLASS"))
     }
 
+    @Test
+    fun hiddenIndicatorCaptureUsesAnIsolatedNonZeroAlphaLayer() {
+        val dock = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/navigation/liquidglass/ui/SteamLiquidGlassDock.kt"
+        ).readText()
+        val captureLayer = dock
+            .substringAfter(".height(56.dp)")
+            .substringBefore("if (selectedIndex >= 0)")
+
+        assertTrue(dock.contains("LIQUID_GLASS_CAPTURE_ALPHA = 0.001f"))
+        assertTrue(dock.contains("CompositingStrategy.Offscreen"))
+        assertTrue(captureLayer.contains(".liquidGlassCaptureLayer()"))
+        assertTrue(captureLayer.contains(".layerBackdrop(tabsBackdrop)"))
+        assertFalse(captureLayer.contains(".alpha(0f)"))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (
