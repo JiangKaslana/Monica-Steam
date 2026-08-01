@@ -2,16 +2,14 @@ package takagi.ru.monica.steam.network
 
 import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
-import takagi.ru.monica.steam.network.optimization.SteamOptimizedDns
+import takagi.ru.monica.steam.network.optimization.SteamCustomHostsDns
 
 object SteamHttpClientProvider {
     private val baseClientDelegate = lazy { OkHttpClient.Builder().build() }
-    private val optimizedDnsDelegate = lazy {
-        SteamOptimizedDns.create(baseClientDelegate.value)
-    }
+    private val customHostsDnsDelegate = lazy { SteamCustomHostsDns() }
     private val clientDelegate = lazy {
         baseClientDelegate.value.newBuilder()
-            .dns(optimizedDnsDelegate.value)
+            .dns(customHostsDnsDelegate.value)
             .build()
     }
 
@@ -19,8 +17,7 @@ object SteamHttpClientProvider {
 
     fun newBuilder(): OkHttpClient.Builder = client.newBuilder()
 
-    internal fun onOptimizationChanged() {
-        clearDnsCache()
+    internal fun onCustomHostsChanged() {
         if (!clientDelegate.isInitialized()) return
         val initializedClient = clientDelegate.value
         runCatching {
@@ -30,12 +27,6 @@ object SteamHttpClientProvider {
                 }.onFailure(::logConnectionPoolCleanupFailure)
             }
         }.onFailure(::logConnectionPoolCleanupFailure)
-    }
-
-    internal fun clearDnsCache() {
-        if (optimizedDnsDelegate.isInitialized()) {
-            optimizedDnsDelegate.value.clearCache()
-        }
     }
 
     private fun logConnectionPoolCleanupFailure(error: Throwable) {

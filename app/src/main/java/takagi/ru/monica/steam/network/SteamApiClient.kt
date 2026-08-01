@@ -56,7 +56,6 @@ class SteamApiClient(
     }
 
     private val communityClient = client.newBuilder()
-        .dns(SteamCommunityDns.create(client))
         .followRedirects(false)
         .followSslRedirects(false)
         .connectTimeout(15, TimeUnit.SECONDS)

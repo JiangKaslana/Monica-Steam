@@ -1,12 +1,13 @@
 package takagi.ru.monica.steam.network.optimization.ui
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SteamNetworkOptimizationIntegrationGuardTest {
     @Test
-    fun applicationSettingsAndCoreSteamClientsShareTheOptimizationRuntime() {
+    fun applicationSettingsAndCoreSteamClientsShareTheCustomHostsRuntime() {
         val application = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamApplication.kt"
         ).readText()
@@ -19,12 +20,37 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         val provider = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/network/SteamHttpClientProvider.kt"
         ).readText()
+        val apiClient = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/SteamApiClient.kt"
+        ).readText()
+        val runtime = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/SteamNetworkOptimizationRuntime.kt"
+        ).readText()
+        val optimizationScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/SteamNetworkOptimizationSettingsScreen.kt"
+        ).readText()
 
         assertTrue(application.contains("SteamNetworkOptimizationRuntime.initialize(this)"))
         assertTrue(settings.contains("SteamSettingsChild.NETWORK_OPTIMIZATION"))
         assertTrue(settings.contains("SteamNetworkOptimizationSettingsScreen("))
         assertTrue(settingsHost.contains("SteamNetworkOptimizationSettingsEntry("))
-        assertTrue(provider.contains("SteamOptimizedDns.create"))
+        assertTrue(provider.contains("SteamCustomHostsDns()"))
+        assertFalse(apiClient.contains("SteamCommunityDns"))
+        assertTrue(runtime.contains("KEY_CUSTOM_HOSTS"))
+        assertTrue(runtime.contains("saveHosts("))
+        assertTrue(optimizationScreen.contains("OutlinedTextField("))
+        assertTrue(optimizationScreen.contains("SteamHostsRuleParser.parse("))
+        assertTrue(optimizationScreen.contains("SteamNetworkOptimizationRuntime.saveHosts("))
+        assertFalse(
+            projectFile(
+                "app/src/main/java/takagi/ru/monica/steam/network/optimization/SteamOptimizedDns.kt"
+            ).exists()
+        )
+        assertFalse(
+            projectFile(
+                "app/src/main/java/takagi/ru/monica/steam/network/SteamCommunityDns.kt"
+            ).exists()
+        )
 
         listOf(
             "app/src/main/java/takagi/ru/monica/steam/network/SteamApiClient.kt",
@@ -40,16 +66,19 @@ class SteamNetworkOptimizationIntegrationGuardTest {
     }
 
     @Test
-    fun togglingOptimizationNeverClosesHttpsSocketsOnTheUiThread() {
+    fun applyingCustomHostsNeverClosesHttpsSocketsOnTheUiThread() {
         val provider = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/network/SteamHttpClientProvider.kt"
         ).readText()
         val toggleHandler = provider
-            .substringAfter("internal fun onOptimizationChanged()")
-            .substringBefore("internal fun clearDnsCache()")
+            .substringAfter("internal fun onCustomHostsChanged()")
+            .substringBefore("private fun logConnectionPoolCleanupFailure")
 
         assertTrue(toggleHandler.contains("dispatcher.executorService.execute"))
         assertTrue(provider.contains("connection_pool_cleanup_failed"))
+        assertFalse(provider.contains("DnsOverHttps"))
+        assertFalse(provider.contains("dns.alidns.com"))
+        assertFalse(provider.contains("doh.pub"))
     }
 
     private fun projectFile(path: String): File {
