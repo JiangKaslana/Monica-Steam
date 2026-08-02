@@ -97,6 +97,24 @@ class SteamCommunityEligibilityTest {
     }
 
     @Test
+    fun parsesOfficialSpendRatioFromLocalizedSupportHomePage() {
+        val result = SteamLimitedAccountSupportParser.parse(
+            """
+            <html><body>
+              <section>
+                <p>Steam 上的花费额度： ${'$'}0.00 / ${'$'}5.00 USD</p>
+              </section>
+            </body></html>
+            """.trimIndent()
+        )
+
+        assertEquals(true, result?.limited)
+        assertEquals(0, result?.spentUsdCents)
+        assertEquals(500, result?.thresholdUsdCents)
+        assertEquals(500, result?.remainingUsdCents)
+    }
+
+    @Test
     fun detectsUnrestrictedAccountWithoutInventingSpendValues() {
         val result = SteamLimitedAccountSupportParser.parse(
             "<html><body>Your account is not limited.</body></html>"

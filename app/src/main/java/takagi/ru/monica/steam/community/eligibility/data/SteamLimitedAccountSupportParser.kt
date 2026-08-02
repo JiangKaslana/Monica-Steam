@@ -18,8 +18,9 @@ internal object SteamLimitedAccountSupportParser {
         val explicitlyUnrestricted = document.allElements.any { element ->
             normalizeText(element.text()).matches(EXPLICIT_UNRESTRICTED_STATEMENT)
         }
-        val spent = findAmount(SPENT_AMOUNT, text)
-        val threshold = findAmount(THRESHOLD_AMOUNT, text)
+        val spendRatio = findSpendRatio(text)
+        val spent = spendRatio?.first ?: findAmount(SPENT_AMOUNT, text)
+        val threshold = spendRatio?.second ?: findAmount(THRESHOLD_AMOUNT, text)
             ?: if (spent != null) DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS else null
         val explicitRemaining = findAmount(REMAINING_AMOUNT, text)
         val remaining = when {
@@ -47,8 +48,18 @@ internal object SteamLimitedAccountSupportParser {
     private fun findAmount(pattern: Regex, text: String): Int? = pattern.find(text)
         ?.groupValues
         ?.getOrNull(1)
-        ?.replace(",", "")
-        ?.toDoubleOrNull()
+        ?.let(::amountToCents)
+
+    private fun findSpendRatio(text: String): Pair<Int, Int>? {
+        val match = SPEND_RATIO.find(text) ?: return null
+        val spent = match.groupValues.getOrNull(1)?.let(::amountToCents) ?: return null
+        val threshold = match.groupValues.getOrNull(2)?.let(::amountToCents) ?: return null
+        return spent to threshold
+    }
+
+    private fun amountToCents(value: String): Int? = value
+        .replace(",", "")
+        .toDoubleOrNull()
         ?.times(100.0)
         ?.roundToInt()
 
@@ -69,6 +80,11 @@ internal object SteamLimitedAccountSupportParser {
             "(?:your\\s+)?total\\s+spend(?:ing)?\\s*(?:is|:|equals)|" +
             "qualifying\\s+spend\\s*(?:is|:))" +
             "[^$]{0,80}(?:US)?\\$\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"
+    )
+    private val SPEND_RATIO = Regex(
+        "(?i)(?:US\\s*)?\\$\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)" +
+            "\\s*/\\s*(?:US\\s*)?\\$\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)" +
+            "\\s*USD"
     )
     private val THRESHOLD_AMOUNT = Regex(
         "(?i)(?:out\\s+of(?:\\s+the)?|minimum|required|at\\s+least)" +

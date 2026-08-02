@@ -67,6 +67,18 @@ class SteamCommunityUnlockContentTest {
         )
     }
 
+    @Test
+    fun officialZeroSpendRemainsARealMeasuredProgressValue() {
+        val officialZero = progress(
+            source = SteamCommunityProgressSource.STEAM_SUPPORT,
+            spentUsdCents = 0
+        )
+
+        assertEquals(CommunitySpendDisplayMode.OFFICIAL, communitySpendDisplayMode(officialZero))
+        assertTrue(shouldShowCommunityProgressIndicator(officialZero))
+        assertEquals(0f, officialZero.progressFraction)
+    }
+
     private fun progress(
         source: SteamCommunityProgressSource,
         spentUsdCents: Int?

@@ -22,8 +22,25 @@ internal class SteamLimitedAccountSupportService(
                 "${account.steamId}||$it"
             }
             ?: return null
+        var lastFailure: Throwable? = null
+        for (url in SUPPORT_URLS) {
+            val progress = runCatching {
+                fetchFromUrl(url = url, secure = secure)
+            }.onFailure { error ->
+                lastFailure = error
+            }.getOrNull()
+            if (progress != null) return progress
+        }
+        lastFailure?.let { throw it }
+        return null
+    }
+
+    private fun fetchFromUrl(
+        url: String,
+        secure: String
+    ): SteamLimitedAccountSupportProgress? {
         val request = Request.Builder()
-            .url(SUPPORT_URL)
+            .url(url)
             .get()
             .header("User-Agent", MOBILE_USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml")
@@ -45,8 +62,10 @@ internal class SteamLimitedAccountSupportService(
         .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private companion object {
-        const val SUPPORT_URL =
+        val SUPPORT_URLS = listOf(
+            "https://help.steampowered.com/zh-cn/",
             "https://help.steampowered.com/en/wizard/HelpWithLimitedAccount"
+        )
         const val MOBILE_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
