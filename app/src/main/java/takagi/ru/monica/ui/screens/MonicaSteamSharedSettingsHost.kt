@@ -4,6 +4,7 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Widgets
@@ -117,6 +118,17 @@ internal fun MonicaSteamSharedSettingsHost(
                 onClick = { showUiScaleSheet = true }
             )
             SettingsItemWithSwitch(
+                icon = Icons.Default.SpaceBar,
+                title = context.getString(R.string.steam_guard_code_grouping_title),
+                subtitle = context.getString(R.string.steam_guard_code_grouping_description),
+                checked = settings.steamGuardCodeGroupingEnabled,
+                onCheckedChange = { enabled ->
+                    coroutineScope.launch {
+                        settingsManager.updateSteamGuardCodeGroupingEnabled(enabled)
+                    }
+                }
+            )
+            SettingsItemWithSwitch(
                 icon = Icons.Default.Speed,
                 title = context.getString(R.string.reduce_animations),
                 subtitle = context.getString(R.string.reduce_animations_description),
@@ -127,6 +139,8 @@ internal fun MonicaSteamSharedSettingsHost(
         additionalAppearanceSearchTexts = listOf(
             context.getString(R.string.steam_ui_scale_title),
             context.getString(R.string.steam_ui_scale_description),
+            context.getString(R.string.steam_guard_code_grouping_title),
+            context.getString(R.string.steam_guard_code_grouping_description),
             context.getString(R.string.reduce_animations),
             context.getString(R.string.reduce_animations_description),
             "DPI"
