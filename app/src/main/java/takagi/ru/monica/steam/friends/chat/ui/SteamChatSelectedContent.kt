@@ -1,12 +1,20 @@
 package takagi.ru.monica.steam.friends.chat.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionViewModel
 import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationPreferences
 import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatHistoryItem
+import takagi.ru.monica.steam.friends.chat.info.ui.SteamChatFriendDetailScreen
 import takagi.ru.monica.steam.friends.chat.info.ui.SteamChatHistorySearchScreen
 import takagi.ru.monica.steam.friends.chat.info.ui.SteamChatInfoScreen
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
@@ -19,8 +27,12 @@ import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatViewM
 import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupAdminScreen
 import takagi.ru.monica.steam.friends.groupchat.ui.SteamGroupChatThreadHost
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsUiState
+import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
 import takagi.ru.monica.steam.friends.voice.presentation.SteamVoiceCallRuntime
+import takagi.ru.monica.ui.LocalReduceAnimations
+import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
+import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 
 @Composable
 internal fun SteamChatSelectedContent(
@@ -36,6 +48,7 @@ internal fun SteamChatSelectedContent(
     conversationPreferences: SteamChatConversationPreferences,
     targetMessageId: String?,
     chatViewModel: SteamChatViewModel,
+    friendsViewModel: SteamFriendsViewModel,
     groupChatViewModel: SteamGroupChatViewModel,
     richMediaViewModel: SteamChatRichMediaViewModel,
     messageActionViewModel: SteamChatMessageActionViewModel,
@@ -57,6 +70,8 @@ internal fun SteamChatSelectedContent(
             friendsState = friendsState,
             groupChatState = groupChatState,
             conversationPreferences = conversationPreferences,
+            chatViewModel = chatViewModel,
+            friendsViewModel = friendsViewModel,
             groupChatViewModel = groupChatViewModel,
             voiceState = voiceState,
             voiceRuntime = voiceRuntime,
@@ -184,6 +199,8 @@ private fun SteamChatInfoContent(
     friendsState: SteamFriendsUiState,
     groupChatState: SteamGroupChatUiState,
     conversationPreferences: SteamChatConversationPreferences,
+    chatViewModel: SteamChatViewModel,
+    friendsViewModel: SteamFriendsViewModel,
     groupChatViewModel: SteamGroupChatViewModel,
     voiceState: SteamVoiceCallState,
     voiceRuntime: SteamVoiceCallRuntime,
@@ -194,53 +211,92 @@ private fun SteamChatInfoContent(
     onPreferencesChange: (SteamChatConversationPreferences) -> Unit,
     modifier: Modifier
 ) {
+    val reduceAnimations = LocalReduceAnimations.current
     val group = groupChatState.groups.firstOrNull { it.groupId == groupChatState.selectedGroupId }
     val friendMap = friendsState.snapshot?.friends.orEmpty().associateBy { it.steamId }
     val groupMembers = group?.topMemberSteamIds.orEmpty().mapNotNull(friendMap::get)
-    SteamChatInfoScreen(
-        title = if (partnerSteamId != null) "聊天信息" else "群聊信息",
-        directFriend = if (partnerSteamId != null) selectedFriend else null,
-        group = group,
-        members = groupMembers,
-        preferences = conversationPreferences,
-        canEditGroup = group?.ownerAccountId?.let { owner ->
-            owner > 0L && accountIdFromSteamId(groupChatState.accountSteamId) == owner
-        } == true,
-        updatingGroup = groupChatState.updatingGroup,
-        updatingGroupAvatar = groupChatState.updatingGroupAvatar,
-        onBack = { onSubpageChange(null) },
-        onAddMember = {
-            if (partnerSteamId != null) onCreateGroupFromFriend(partnerSteamId)
-            else onInviteFriend()
+    var detailFriendSteamId by remember(partnerSteamId, groupChatState.selectedGroupId) {
+        mutableStateOf<String?>(null)
+    }
+    BackHandler(enabled = detailFriendSteamId != null) {
+        detailFriendSteamId = null
+    }
+    AnimatedContent(
+        targetState = detailFriendSteamId,
+        modifier = modifier.fillMaxSize(),
+        transitionSpec = {
+            easyNotesScreenEnter(reduceAnimations)
+                .togetherWith(easyNotesScreenExit(reduceAnimations))
         },
-        onSearchHistory = { onSubpageChange(SteamChatSubpage.SEARCH) },
-        onOpenGroupAdmin = { onSubpageChange(SteamChatSubpage.ADMIN) },
-        onPreferencesChange = onPreferencesChange,
-        onUpdateGroup = groupChatViewModel::updateGroup,
-        onUpdateGroupAvatar = groupChatViewModel::updateGroupAvatar,
-        channelActionLoading = groupChatState.channelActionLoading,
-        voiceState = voiceState,
-        onCreateChannel = groupChatViewModel::createChannel,
-        onRenameChannel = groupChatViewModel::renameChannel,
-        onDeleteChannel = groupChatViewModel::deleteChannel,
-        onReorderChannel = groupChatViewModel::reorderChannel,
-        onJoinVoiceChat = { chatId ->
-            group?.let { targetGroup ->
-                runVoiceAction {
-                    selectedAccount?.let { account ->
-                        voiceRuntime.startGroup(
-                            account,
-                            targetGroup.groupId,
-                            chatId,
-                            targetGroup.name
-                        )
+        label = "SteamChatInfoFriendDetails"
+    ) { animatedSteamId ->
+        val animatedFriend = animatedSteamId?.let(friendMap::get)
+        if (animatedFriend != null) {
+            SteamChatFriendDetailScreen(
+                friend = animatedFriend,
+                actionInProgress = friendsState.actionSteamId == animatedFriend.steamId,
+                onBack = { detailFriendSteamId = null },
+                onStartChat = {
+                    detailFriendSteamId = null
+                    onSubpageChange(null)
+                    if (partnerSteamId != animatedFriend.steamId) {
+                        groupChatViewModel.closeRoom()
+                        chatViewModel.openThread(animatedFriend.steamId)
                     }
-                }
-            }
-        },
-        onLeaveVoiceChat = voiceRuntime::stop,
-        modifier = modifier.fillMaxSize()
-    )
+                },
+                onChangeRelationship = { action ->
+                    friendsViewModel.changeRelationship(animatedFriend, action)
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            SteamChatInfoScreen(
+                title = if (partnerSteamId != null) "聊天信息" else "群聊信息",
+                directFriend = if (partnerSteamId != null) selectedFriend else null,
+                group = group,
+                members = groupMembers,
+                preferences = conversationPreferences,
+                canEditGroup = group?.ownerAccountId?.let { owner ->
+                    owner > 0L && accountIdFromSteamId(groupChatState.accountSteamId) == owner
+                } == true,
+                updatingGroup = groupChatState.updatingGroup,
+                updatingGroupAvatar = groupChatState.updatingGroupAvatar,
+                onBack = { onSubpageChange(null) },
+                onAddMember = {
+                    if (partnerSteamId != null) onCreateGroupFromFriend(partnerSteamId)
+                    else onInviteFriend()
+                },
+                onOpenFriendDetails = { detailFriendSteamId = it.steamId },
+                onSearchHistory = { onSubpageChange(SteamChatSubpage.SEARCH) },
+                onOpenGroupAdmin = { onSubpageChange(SteamChatSubpage.ADMIN) },
+                onPreferencesChange = onPreferencesChange,
+                onUpdateGroup = groupChatViewModel::updateGroup,
+                onUpdateGroupAvatar = groupChatViewModel::updateGroupAvatar,
+                channelActionLoading = groupChatState.channelActionLoading,
+                voiceState = voiceState,
+                onCreateChannel = groupChatViewModel::createChannel,
+                onRenameChannel = groupChatViewModel::renameChannel,
+                onDeleteChannel = groupChatViewModel::deleteChannel,
+                onReorderChannel = groupChatViewModel::reorderChannel,
+                onJoinVoiceChat = { chatId ->
+                    group?.let { targetGroup ->
+                        runVoiceAction {
+                            selectedAccount?.let { account ->
+                                voiceRuntime.startGroup(
+                                    account,
+                                    targetGroup.groupId,
+                                    chatId,
+                                    targetGroup.name
+                                )
+                            }
+                        }
+                    }
+                },
+                onLeaveVoiceChat = voiceRuntime::stop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
 }
 
 @Composable

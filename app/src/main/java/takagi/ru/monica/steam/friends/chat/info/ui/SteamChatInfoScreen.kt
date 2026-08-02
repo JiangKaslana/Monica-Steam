@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,6 +68,7 @@ internal fun SteamChatInfoScreen(
     updatingGroupAvatar: Boolean,
     onBack: () -> Unit,
     onAddMember: () -> Unit,
+    onOpenFriendDetails: (SteamFriend) -> Unit,
     onSearchHistory: () -> Unit,
     onOpenGroupAdmin: () -> Unit = {},
     onPreferencesChange: (SteamChatConversationPreferences) -> Unit,
@@ -129,10 +131,15 @@ internal fun SteamChatInfoScreen(
             item("members") {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     directFriend?.let { friend ->
-                        item(friend.steamId) { MemberAvatar(friend) }
+                        item(friend.steamId) {
+                            MemberAvatar(friend, onClick = { onOpenFriendDetails(friend) })
+                        }
                     }
-                    items(members.filter { it.steamId != directFriend?.steamId }, key = SteamFriend::steamId) {
-                        MemberAvatar(it)
+                    items(
+                        members.filter { it.steamId != directFriend?.steamId },
+                        key = SteamFriend::steamId
+                    ) { friend ->
+                        MemberAvatar(friend, onClick = { onOpenFriendDetails(friend) })
                     }
                     item("add") {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -207,8 +214,15 @@ internal fun SteamChatInfoScreen(
 }
 
 @Composable
-private fun MemberAvatar(friend: SteamFriend) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(70.dp)) {
+private fun MemberAvatar(friend: SteamFriend, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(70.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp)
+    ) {
         FriendAvatar(friend, 58)
         Text(friend.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
     }

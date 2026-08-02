@@ -357,6 +357,7 @@ fun SteamChatScreen(
                 conversationPreferences = conversationPreferences,
                 targetMessageId = targetMessageId,
                 chatViewModel = chatViewModel,
+                friendsViewModel = friendsViewModel,
                 groupChatViewModel = groupChatViewModel,
                 richMediaViewModel = richMediaViewModel,
                 messageActionViewModel = messageActionViewModel,
