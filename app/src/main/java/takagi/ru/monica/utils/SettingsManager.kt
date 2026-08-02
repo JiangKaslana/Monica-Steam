@@ -191,6 +191,8 @@ class SettingsManager(private val context: Context) {
         private val VALIDATOR_PROGRESS_BAR_STYLE_KEY = stringPreferencesKey("validator_progress_bar_style")
         private val VALIDATOR_UNIFIED_PROGRESS_BAR_KEY = stringPreferencesKey("validator_unified_progress_bar")
         private val VALIDATOR_SMOOTH_PROGRESS_KEY = booleanPreferencesKey("validator_smooth_progress")
+        private val STEAM_GUARD_CODE_GROUPING_ENABLED_KEY =
+            booleanPreferencesKey("steam_guard_code_grouping_enabled")
         private val VALIDATOR_VIBRATION_ENABLED_KEY = booleanPreferencesKey("validator_vibration_enabled")
         private val BITWARDEN_BOTTOM_STATUS_BAR_ENABLED_KEY = booleanPreferencesKey("bitwarden_bottom_status_bar_enabled")
         private val COPY_NEXT_CODE_WHEN_EXPIRING_KEY = booleanPreferencesKey("copy_next_code_when_expiring")
@@ -563,6 +565,8 @@ class SettingsManager(private val context: Context) {
                 takagi.ru.monica.data.UnifiedProgressBarMode.valueOf(modeString)
             }.getOrDefault(takagi.ru.monica.data.UnifiedProgressBarMode.ENABLED),
             validatorSmoothProgress = preferences[VALIDATOR_SMOOTH_PROGRESS_KEY] ?: true,
+            steamGuardCodeGroupingEnabled =
+                preferences[STEAM_GUARD_CODE_GROUPING_ENABLED_KEY] ?: true,
             validatorVibrationEnabled = preferences[VALIDATOR_VIBRATION_ENABLED_KEY] ?: true,
             hideFabOnScroll = preferences[HIDE_FAB_ON_SCROLL_KEY] ?: false,
             securityAnalysisAutoEnabled = preferences[SECURITY_ANALYSIS_AUTO_ENABLED_KEY] ?: false,
@@ -1050,6 +1054,12 @@ class SettingsManager(private val context: Context) {
     suspend fun updateValidatorSmoothProgress(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[VALIDATOR_SMOOTH_PROGRESS_KEY] = enabled
+        }
+    }
+
+    suspend fun updateSteamGuardCodeGroupingEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[STEAM_GUARD_CODE_GROUPING_ENABLED_KEY] = enabled
         }
     }
 

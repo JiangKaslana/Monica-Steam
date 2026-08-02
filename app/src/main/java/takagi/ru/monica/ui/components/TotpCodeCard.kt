@@ -679,9 +679,17 @@ fun TotpCodeCard(
                 DisableSelection {
                     Text(
                         text = if (showOtpCode) {
-                            formatOtpCode(currentCode, totpData.otpType)
+                            formatOtpCodeForDisplay(
+                                currentCode,
+                                totpData.otpType,
+                                settings.steamGuardCodeGroupingEnabled
+                            )
                         } else {
-                            formatMaskedOtpCode(currentCode, totpData)
+                            formatMaskedOtpCode(
+                                currentCode,
+                                totpData,
+                                settings.steamGuardCodeGroupingEnabled
+                            )
                         },
                         fontSize = codeFontSize,
                         fontFamily = FontFamily.Monospace,
@@ -713,9 +721,17 @@ fun TotpCodeCard(
                         DisableSelection {
                             Text(
                                 text = if (showOtpCode) {
-                                    formatOtpCode(nextCode, totpData.otpType)
+                                    formatOtpCodeForDisplay(
+                                        nextCode,
+                                        totpData.otpType,
+                                        settings.steamGuardCodeGroupingEnabled
+                                    )
                                 } else {
-                                    formatMaskedOtpCode(nextCode, totpData)
+                                    formatMaskedOtpCode(
+                                        nextCode,
+                                        totpData,
+                                        settings.steamGuardCodeGroupingEnabled
+                                    )
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
@@ -986,7 +1002,11 @@ private fun normalizeTotpData(data: TotpData): TotpData {
     return TotpDataResolver.normalizeTotpData(data)
 }
 
-private fun formatMaskedOtpCode(code: String, totpData: TotpData): String {
+private fun formatMaskedOtpCode(
+    code: String,
+    totpData: TotpData,
+    groupSteamCode: Boolean
+): String {
     val fallbackLength = when (totpData.otpType) {
         OtpType.STEAM -> 5
         else -> totpData.digits.coerceIn(1, 12)
@@ -999,7 +1019,7 @@ private fun formatMaskedOtpCode(code: String, totpData: TotpData): String {
             repeat(visibleCode.length - 2) { append('*') }
         }
     }
-    return formatOtpCode(maskedCode, totpData.otpType)
+    return formatOtpCodeForDisplay(maskedCode, totpData.otpType, groupSteamCode)
 }
 
 /**
@@ -1009,11 +1029,15 @@ private fun formatMaskedOtpCode(code: String, totpData: TotpData): String {
  * - TOTP 8位: 12345678 -> 1234 5678
  * - Steam 5位: 2BC4X -> 2B C4X
  */
-private fun formatOtpCode(code: String, otpType: OtpType): String {
+internal fun formatOtpCodeForDisplay(
+    code: String,
+    otpType: OtpType,
+    groupSteamCode: Boolean = true
+): String {
     return when (otpType) {
         OtpType.STEAM -> {
             // Steam使用5位字符，格式为 2B C4X
-            if (code.length == 5) {
+            if (groupSteamCode && code.length == 5) {
                 "${code.substring(0, 2)} ${code.substring(2)}"
             } else {
                 code

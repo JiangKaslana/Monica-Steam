@@ -1499,6 +1499,8 @@
     <string name="unified_progress_bar_description">Display a single 30s progress bar at the top for all standard TOTP entries</string>
     <string name="smooth_progress_bar_title">Smooth Progress Bar</string>
     <string name="smooth_progress_bar_description">Enable smooth animation for seamless progress display without stuttering</string>
+    <string name="steam_guard_code_grouping_title">Group Steam Guard codes</string>
+    <string name="steam_guard_code_grouping_description">Display five-character codes as “AB CDE”. Turn this off to show “ABCDE”.</string>
     <string name="validator_settings_section">Validator Settings</string>
     <string name="experimental_features_section">Experimental Features</string>
     <string name="mdbx_format_title">MDBX 1.0 Format</string>

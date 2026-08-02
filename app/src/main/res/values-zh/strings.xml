@@ -1477,6 +1477,8 @@
     <string name="unified_progress_bar_description">在顶部显示统一的30秒进度条，适用于所有标准TOTP验证器</string>
     <string name="smooth_progress_bar_title">平滑进度条</string>
     <string name="smooth_progress_bar_description">启用平滑动画，消除进度条的停顿感</string>
+    <string name="steam_guard_code_grouping_title">验证码分段</string>
+    <string name="steam_guard_code_grouping_description">将五位 Steam Guard 验证码显示为“AB CDE”；关闭后连续显示为“ABCDE”。</string>
     <string name="validator_settings_section">验证器设置</string>
     <string name="experimental_features_section">实验功能</string>
     <string name="mdbx_format_title">MDBX 1.0 格式</string>

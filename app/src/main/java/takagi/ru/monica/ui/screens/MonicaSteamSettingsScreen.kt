@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Settings as SettingsIcon
+import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.ViewStream
@@ -729,6 +730,17 @@ private fun MonicaSteamLegacySettingsScreen(
                         onCheckedChange = { enabled ->
                             coroutineScope.launch {
                                 settingsManager.updateValidatorSmoothProgress(enabled)
+                            }
+                        }
+                    )
+                    SteamSettingsSwitchItem(
+                        icon = Icons.Default.SpaceBar,
+                        title = stringResource(R.string.steam_guard_code_grouping_title),
+                        subtitle = stringResource(R.string.steam_guard_code_grouping_description),
+                        checked = settings.steamGuardCodeGroupingEnabled,
+                        onCheckedChange = { enabled ->
+                            coroutineScope.launch {
+                                settingsManager.updateSteamGuardCodeGroupingEnabled(enabled)
                             }
                         }
                     )
