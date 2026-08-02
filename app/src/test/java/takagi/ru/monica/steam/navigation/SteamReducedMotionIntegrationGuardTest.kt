@@ -17,7 +17,16 @@ class SteamReducedMotionIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/ui/screens/MonicaSteamSettingsScreen.kt"
         ).readText()
 
-        assertTrue(settingsHost.contains("showReduceAnimations = true"))
+        assertTrue(settingsHost.contains("showReduceAnimations = false"))
+        assertTrue(settingsHost.contains("SettingsItemWithSwitch("))
+        assertTrue(settingsHost.contains("settingsViewModel::updateReduceAnimations"))
+        assertTrue(settingsHost.contains("context.getString(R.string.reduce_animations)"))
+        assertTrue(
+            settingsHost.contains(
+                "context.getString(R.string.reduce_animations_description)"
+            )
+        )
+        assertTrue(settingsHost.contains("showPreviewFeatures = false"))
         assertTrue(
             activity.contains("LocalReduceAnimations provides settings.reduceAnimations")
         )

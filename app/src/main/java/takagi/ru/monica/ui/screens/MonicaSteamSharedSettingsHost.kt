@@ -3,6 +3,7 @@ package takagi.ru.monica.ui.screens
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.runtime.Composable
@@ -81,7 +82,7 @@ internal fun MonicaSteamSharedSettingsHost(
         onNavigateToPageCustomization = {},
         onNavigateToMdbx = onOpenMdbx,
         showTopBar = showNavigationBack,
-        showReduceAnimations = true,
+        showReduceAnimations = false,
         showSyncBackupSurface = false,
         showAutofillSurface = false,
         showMdbxSurface = true,
@@ -112,10 +113,19 @@ internal fun MonicaSteamSharedSettingsHost(
                 currentScale = currentUiScale,
                 onClick = { showUiScaleSheet = true }
             )
+            SettingsItemWithSwitch(
+                icon = Icons.Default.Speed,
+                title = context.getString(R.string.reduce_animations),
+                subtitle = context.getString(R.string.reduce_animations_description),
+                checked = settings.reduceAnimations,
+                onCheckedChange = settingsViewModel::updateReduceAnimations
+            )
         },
         additionalAppearanceSearchTexts = listOf(
             context.getString(R.string.steam_ui_scale_title),
             context.getString(R.string.steam_ui_scale_description),
+            context.getString(R.string.reduce_animations),
+            context.getString(R.string.reduce_animations_description),
             "DPI"
         ),
         contentBottomPadding = dockContentClearance + 16.dp,
