@@ -2,6 +2,7 @@ package takagi.ru.monica.steam.security
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -57,10 +58,54 @@ class SteamTokenPageLockScopeGuardTest {
         assertTrue(gate.contains("if (!enabled)"))
         assertTrue(gate.contains("allowStartupVerificationBypass: Boolean = true"))
         assertTrue(activity.contains("enabled = !settings.steamLockTokenPageOnly"))
-        assertTrue(activity.contains("enabled = settings.steamLockTokenPageOnly"))
+        assertTrue(activity.contains("enabled = shouldProtectSteamSensitiveSurface("))
         assertTrue(activity.contains("allowStartupVerificationBypass = false"))
         assertEquals(2, activity.windowed("SteamAppLockGate(".length)
             .count { it == "SteamAppLockGate(" })
+    }
+
+    @Test
+    fun masterPasswordSecurityPagesStayProtectedWhenTheOuterGateIsBypassed() {
+        val steamSettings = projectFile(
+            "app/src/main/java/takagi/ru/monica/ui/screens/MonicaSteamSettingsScreen.kt"
+        ).readText()
+
+        assertTrue(steamSettings.contains("fun SteamSensitiveSettingsGate("))
+        assertTrue(steamSettings.contains("enabled = shouldProtectSteamSensitiveSurface("))
+        assertTrue(steamSettings.contains("allowStartupVerificationBypass = false"))
+        assertTrue(steamSettings.contains("SteamSettingsChild.MASTER_PASSWORD_LOCKING ->"))
+        assertTrue(steamSettings.contains("SteamSettingsChild.RESET_PASSWORD ->"))
+        assertTrue(steamSettings.contains("SteamSettingsChild.SECURITY_QUESTIONS ->"))
+        assertTrue(steamSettings.windowed("SteamSensitiveSettingsGate(".length)
+            .count { it == "SteamSensitiveSettingsGate(" } >= 4)
+    }
+
+    @Test
+    fun sensitiveSurfacesAreProtectedWheneverTheOuterGateDoesNotAuthenticate() {
+        assertFalse(
+            shouldProtectSteamSensitiveSurface(
+                tokenPageOnly = false,
+                startupVerificationBypass = false
+            )
+        )
+        assertTrue(
+            shouldProtectSteamSensitiveSurface(
+                tokenPageOnly = true,
+                startupVerificationBypass = false
+            )
+        )
+        assertTrue(
+            shouldProtectSteamSensitiveSurface(
+                tokenPageOnly = false,
+                startupVerificationBypass = true
+            )
+        )
+        assertTrue(
+            shouldProtectSteamSensitiveSurface(
+                tokenPageOnly = true,
+                startupVerificationBypass = true
+            )
+        )
     }
 
     private fun projectFile(path: String): File {

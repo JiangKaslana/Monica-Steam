@@ -86,6 +86,8 @@ import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSetting
 import takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationSettingsScreen
 import takagi.ru.monica.steam.diagnostics.SteamSupportLogExporter
 import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
+import takagi.ru.monica.steam.security.SteamAppLockGate
+import takagi.ru.monica.steam.security.shouldProtectSteamSensitiveSurface
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 import takagi.ru.monica.utils.SettingsManager
@@ -210,36 +212,57 @@ fun MonicaSteamSettingsScreen(
                     }
                 )
                 SteamSettingsChild.MASTER_PASSWORD_LOCKING ->
-                    MasterPasswordLockingSettingsScreen(
-                        viewModel = settingsViewModel,
-                        onNavigateBack = { child = null },
-                        onResetPassword = {
-                            child = SteamSettingsChild.RESET_PASSWORD
-                        },
-                        onSecurityQuestions = {
-                            child = SteamSettingsChild.SECURITY_QUESTIONS
-                        },
-                        showSteamTokenPageLockOption = true
-                    )
-                SteamSettingsChild.RESET_PASSWORD -> ResetPasswordScreen(
-                    securityManager = securityManager,
-                    onNavigateBack = {
-                        child = SteamSettingsChild.MASTER_PASSWORD_LOCKING
-                    },
-                    onResetSuccess = {
-                        child = SteamSettingsChild.MASTER_PASSWORD_LOCKING
+                    SteamSensitiveSettingsGate(
+                        settings = settings,
+                        settingsViewModel = settingsViewModel,
+                        passwordViewModel = passwordViewModel,
+                        securityManager = securityManager
+                    ) {
+                        MasterPasswordLockingSettingsScreen(
+                            viewModel = settingsViewModel,
+                            onNavigateBack = { child = null },
+                            onResetPassword = {
+                                child = SteamSettingsChild.RESET_PASSWORD
+                            },
+                            onSecurityQuestions = {
+                                child = SteamSettingsChild.SECURITY_QUESTIONS
+                            },
+                            showSteamTokenPageLockOption = true
+                        )
                     }
-                )
-                SteamSettingsChild.SECURITY_QUESTIONS ->
-                    SecurityQuestionsSetupScreen(
+                SteamSettingsChild.RESET_PASSWORD -> SteamSensitiveSettingsGate(
+                    settings = settings,
+                    settingsViewModel = settingsViewModel,
+                    passwordViewModel = passwordViewModel,
+                    securityManager = securityManager
+                ) {
+                    ResetPasswordScreen(
                         securityManager = securityManager,
                         onNavigateBack = {
                             child = SteamSettingsChild.MASTER_PASSWORD_LOCKING
                         },
-                        onSetupComplete = {
+                        onResetSuccess = {
                             child = SteamSettingsChild.MASTER_PASSWORD_LOCKING
                         }
                     )
+                }
+                SteamSettingsChild.SECURITY_QUESTIONS ->
+                    SteamSensitiveSettingsGate(
+                        settings = settings,
+                        settingsViewModel = settingsViewModel,
+                        passwordViewModel = passwordViewModel,
+                        securityManager = securityManager
+                    ) {
+                        SecurityQuestionsSetupScreen(
+                            securityManager = securityManager,
+                            onNavigateBack = {
+                                child = SteamSettingsChild.MASTER_PASSWORD_LOCKING
+                            },
+                            onSetupComplete = {
+                                child = SteamSettingsChild.MASTER_PASSWORD_LOCKING
+                            }
+                        )
+                    }
                 SteamSettingsChild.PLUS -> MonicaPlusScreen(
                     isPlusActivated = settings.isPlusActivated,
                     onNavigateBack = { child = null },
@@ -290,6 +313,28 @@ fun MonicaSteamSettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SteamSensitiveSettingsGate(
+    settings: AppSettings,
+    settingsViewModel: SettingsViewModel,
+    passwordViewModel: PasswordViewModel,
+    securityManager: SecurityManager,
+    content: @Composable () -> Unit
+) {
+    SteamAppLockGate(
+        enabled = shouldProtectSteamSensitiveSurface(
+            tokenPageOnly = settings.steamLockTokenPageOnly,
+            startupVerificationBypass = settings.disablePasswordVerification
+        ),
+        allowStartupVerificationBypass = false,
+        settings = settings,
+        settingsViewModel = settingsViewModel,
+        passwordViewModel = passwordViewModel,
+        securityManager = securityManager,
+        content = content
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

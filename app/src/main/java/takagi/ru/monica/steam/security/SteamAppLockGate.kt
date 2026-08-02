@@ -43,6 +43,11 @@ private enum class SteamAppRecoveryRoute {
     RESET_PASSWORD
 }
 
+internal fun shouldProtectSteamSensitiveSurface(
+    tokenPageOnly: Boolean,
+    startupVerificationBypass: Boolean
+): Boolean = tokenPageOnly || startupVerificationBypass
+
 /**
  * Monica's startup/foreground authentication gate adapted to Steam's optional
  * master-password model. All credential, biometric and session work remains in

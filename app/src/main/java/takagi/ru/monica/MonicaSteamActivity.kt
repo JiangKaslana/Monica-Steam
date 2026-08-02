@@ -72,6 +72,7 @@ import takagi.ru.monica.repository.MdbxVaultStore
 import takagi.ru.monica.repository.SecureItemRepository
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.security.SteamAppLockGate
+import takagi.ru.monica.steam.security.shouldProtectSteamSensitiveSurface
 import takagi.ru.monica.steam.scanner.ui.SteamQrScannerScreen
 import takagi.ru.monica.steam.community.ui.SteamCommunityScreen
 import takagi.ru.monica.steam.backup.ui.SteamMaFileTransferScreen
@@ -596,7 +597,11 @@ class MonicaSteamActivity : BaseMonicaActivity() {
 
                         MonicaSteamPage.STEAM -> {
                             SteamAppLockGate(
-                                enabled = settings.steamLockTokenPageOnly,
+                                enabled = shouldProtectSteamSensitiveSurface(
+                                    tokenPageOnly = settings.steamLockTokenPageOnly,
+                                    startupVerificationBypass =
+                                        settings.disablePasswordVerification
+                                ),
                                 allowStartupVerificationBypass = false,
                                 settings = settings,
                                 settingsViewModel = steamSettingsViewModel,
