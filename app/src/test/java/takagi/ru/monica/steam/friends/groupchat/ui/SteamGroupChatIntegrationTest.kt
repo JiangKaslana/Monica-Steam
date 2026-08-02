@@ -202,6 +202,10 @@ class SteamGroupChatIntegrationTest {
         assertTrue(conversationList.contains("SteamGroupAvatarImage("))
         assertTrue(thread.contains("SteamGroupAvatarImage("))
         assertTrue(editor.contains("SteamGroupAvatarImage("))
+        assertTrue(groupList.contains("members = groupMembers"))
+        assertTrue(conversationList.contains("members = entry.groupMembers"))
+        assertTrue(thread.contains("members = members"))
+        assertTrue(editor.contains("members = members"))
     }
 
     private fun projectFile(path: String): File {

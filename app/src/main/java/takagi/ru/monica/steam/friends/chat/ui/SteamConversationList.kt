@@ -63,6 +63,7 @@ internal data class SteamConversationListEntry(
     val pinned: Boolean,
     val friend: SteamFriend? = null,
     val avatarUrl: String = "",
+    val groupMembers: List<SteamFriend> = emptyList(),
     val voiceActive: Boolean = false,
     val voiceMemberCount: Int = 0
 ) {
@@ -151,6 +152,8 @@ internal fun buildSteamConversationEntries(
             unreadCount = group.unreadCount,
             pinned = group.groupId in pinnedGroupIds,
             avatarUrl = group.avatarUrl,
+            groupMembers = group.topMemberSteamIds
+                .mapNotNull(friendsById::get),
             voiceActive = group.isVoiceActive || localVoiceActive,
             voiceMemberCount = maxOf(
                 group.activeVoiceMemberCount,
@@ -303,6 +306,7 @@ private fun SteamConversationRow(
                 entry.friend != null -> FriendAvatar(entry.friend, 50)
                 entry.type == SteamConversationType.GROUP -> SteamGroupAvatarImage(
                     url = entry.avatarUrl,
+                    members = entry.groupMembers,
                     contentDescription = entry.title,
                     modifier = Modifier.size(50.dp)
                 )

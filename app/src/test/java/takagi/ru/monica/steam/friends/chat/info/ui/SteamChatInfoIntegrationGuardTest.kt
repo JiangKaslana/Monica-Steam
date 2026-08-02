@@ -45,7 +45,7 @@ class SteamChatInfoIntegrationGuardTest {
     }
 
     @Test
-    fun groupAvatarEditButtonLivesOutsideTheCircularClip() {
+    fun groupAvatarEditButtonLivesOutsideTheRoundedClip() {
         val info = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/info/ui/SteamChatInfoScreen.kt"
         ).readText()
@@ -57,8 +57,8 @@ class SteamChatInfoIntegrationGuardTest {
         assertTrue(editor.isFile)
         val source = editor.readText()
         assertTrue(source.contains("Modifier.align(Alignment.BottomEnd).size(48.dp)"))
-        assertTrue(source.contains(".clip(CircleShape)"))
-        assertTrue(source.indexOf(".clip(CircleShape)") < source.indexOf("IconButton("))
+        assertTrue(source.contains(".clip(RoundedCornerShape(22))"))
+        assertTrue(source.indexOf(".clip(RoundedCornerShape(22))") < source.indexOf("IconButton("))
     }
 
     private fun projectFile(path: String): File {

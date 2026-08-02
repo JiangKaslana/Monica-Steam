@@ -116,6 +116,9 @@ internal fun SteamGroupChatThread(
 ) {
     val messages = state.thread?.messages.orEmpty()
     val friendsById = remember(friends) { friends.associateBy(SteamFriend::steamId) }
+    val groupMembers = remember(group.topMemberSteamIds, friends) {
+        group.topMemberSteamIds.mapNotNull(friendsById::get)
+    }
     val listState = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
     val conversationKey = remember(state.accountSteamId, group.groupId, state.selectedChatId) {
@@ -171,7 +174,7 @@ internal fun SteamGroupChatThread(
     )
 
     Column(modifier.fillMaxSize().imePadding()) {
-        GroupThreadHeader(group, onBack, onOpenInfo, onInvite)
+        GroupThreadHeader(group, groupMembers, onBack, onOpenInfo, onInvite)
         SteamGroupChannelQuickFilter(
             rooms = group.rooms,
             selectedChatId = state.selectedChatId,
@@ -336,6 +339,7 @@ internal fun SteamGroupChatThreadHost(
 @Composable
 private fun GroupThreadHeader(
     group: SteamGroupChatSummary,
+    members: List<SteamFriend>,
     onBack: () -> Unit,
     onOpenInfo: () -> Unit,
     onInvite: () -> Unit
@@ -347,6 +351,7 @@ private fun GroupThreadHeader(
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
         SteamGroupAvatarImage(
             url = group.avatarUrl,
+            members = members,
             contentDescription = group.name,
             modifier = Modifier.size(40.dp).clickable(onClick = onOpenInfo)
         )

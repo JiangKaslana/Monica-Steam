@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
+import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.avatar.ui.SteamGroupAvatarImage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
@@ -39,12 +41,14 @@ import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiSta
 internal fun SteamGroupChatList(
     state: SteamGroupChatUiState,
     query: String,
+    friends: List<SteamFriend> = emptyList(),
     pinnedGroupIds: Set<String> = emptySet(),
     onOpenRoom: (String, String) -> Unit,
     onRefresh: () -> Unit,
     onCreateGroup: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val friendsById = remember(friends) { friends.associateBy(SteamFriend::steamId) }
     val groups = state.groups.sortedWith(
         compareByDescending<SteamGroupChatSummary> { it.groupId in pinnedGroupIds }
             .thenByDescending { group -> group.rooms.maxOfOrNull { it.lastMessageTimestamp } ?: 0L }
@@ -80,7 +84,11 @@ internal fun SteamGroupChatList(
                 }
                 else -> {
                     items(groups, key = SteamGroupChatSummary::groupId) { group ->
-                        GroupCard(group) { onOpenRoom(group.groupId, group.preferredChatId) }
+                        val groupMembers = group.topMemberSteamIds
+                            .mapNotNull(friendsById::get)
+                        GroupCard(group, groupMembers) {
+                            onOpenRoom(group.groupId, group.preferredChatId)
+                        }
                     }
                 }
             }
@@ -95,7 +103,11 @@ internal fun SteamGroupChatList(
 }
 
 @Composable
-private fun GroupCard(group: SteamGroupChatSummary, onClick: () -> Unit) {
+private fun GroupCard(
+    group: SteamGroupChatSummary,
+    groupMembers: List<SteamFriend>,
+    onClick: () -> Unit
+) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -109,6 +121,7 @@ private fun GroupCard(group: SteamGroupChatSummary, onClick: () -> Unit) {
         ) {
             SteamGroupAvatarImage(
                 url = group.avatarUrl,
+                members = groupMembers,
                 contentDescription = group.name,
                 modifier = Modifier.size(54.dp)
             )

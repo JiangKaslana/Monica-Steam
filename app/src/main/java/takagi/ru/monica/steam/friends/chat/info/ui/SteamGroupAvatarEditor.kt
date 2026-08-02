@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CircularProgressIndicator
@@ -16,13 +17,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.avatar.ui.SteamGroupAvatarImage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 
-/** Keeps the edit affordance outside the circular avatar clipping boundary. */
+/** Keeps the edit affordance outside the rounded group avatar clipping boundary. */
 @Composable
 internal fun SteamGroupAvatarEditor(
     group: SteamGroupChatSummary,
+    members: List<SteamFriend>,
     canEdit: Boolean,
     updating: Boolean,
     onPick: () -> Unit,
@@ -33,12 +36,13 @@ internal fun SteamGroupAvatarEditor(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .size(72.dp)
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(22))
                 .then(if (canEdit && !updating) Modifier.clickable(onClick = onPick) else Modifier),
             contentAlignment = Alignment.Center
         ) {
             SteamGroupAvatarImage(
                 url = group.avatarUrl,
+                members = members,
                 contentDescription = group.name,
                 modifier = Modifier.size(72.dp)
             )

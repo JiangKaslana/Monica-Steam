@@ -3,7 +3,7 @@ package takagi.ru.monica.steam.friends.groupchat.avatar.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.Icon
@@ -19,10 +19,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteImage
+import takagi.ru.monica.steam.friends.domain.SteamFriend
 
 @Composable
 internal fun SteamGroupAvatarImage(
     url: String,
+    members: List<SteamFriend> = emptyList(),
     contentDescription: String?,
     modifier: Modifier = Modifier
 ) {
@@ -39,7 +41,7 @@ internal fun SteamGroupAvatarImage(
     }
     Surface(
         modifier = modifier,
-        shape = CircleShape,
+        shape = RoundedCornerShape(22),
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
     ) {
@@ -50,6 +52,12 @@ internal fun SteamGroupAvatarImage(
                 contentDescription = contentDescription,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
+            )
+        } else if (members.isNotEmpty()) {
+            SteamGroupMemberAvatarGrid(
+                members = members,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize()
             )
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

@@ -117,6 +117,7 @@ internal fun SteamChatInfoScreen(
                     ) {
                         SteamGroupAvatarEditor(
                             group = group,
+                            members = members,
                             canEdit = canEditGroup,
                             updating = updatingGroupAvatar,
                             onPick = { avatarPicker.launch("image/*") }
