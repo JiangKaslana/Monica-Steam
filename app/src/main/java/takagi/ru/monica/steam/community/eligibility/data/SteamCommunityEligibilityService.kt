@@ -11,8 +11,11 @@ import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestric
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockCalculator
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockSource
+import takagi.ru.monica.steam.community.eligibility.domain.estimateCommunitySpend
+import takagi.ru.monica.steam.community.eligibility.domain.resolveCommunitySpendProgress
 import takagi.ru.monica.steam.community.eligibility.domain.steamCurrencyForCountry
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.library.SteamCurrencyExchangeService
 import takagi.ru.monica.steam.store.data.SteamStoreService
 
@@ -21,6 +24,8 @@ internal class SteamCommunityEligibilityService(
         SteamCommunityAccountInfoService(),
     private val supportService: SteamLimitedAccountSupportService =
         SteamLimitedAccountSupportService(),
+    private val purchaseHistoryService: SteamAccountPurchaseHistoryService =
+        SteamAccountPurchaseHistoryService(),
     private val storeService: SteamStoreService = SteamStoreService(),
     private val exchangeService: SteamCurrencyExchangeService = SteamCurrencyExchangeService(),
     private val nowMillis: () -> Long = System::currentTimeMillis
@@ -29,7 +34,13 @@ internal class SteamCommunityEligibilityService(
         coroutineScope {
         val accountInfoRequest = async { accountInfoService.fetch(account) }
         val supportRequest = async(Dispatchers.IO) {
-            runCatching { supportService.fetch(account) }.getOrNull()
+            runCatching { supportService.fetch(account) }
+                .onFailure { error ->
+                    SteamDiagLogger.append(
+                        "community_eligibility support_failed type=${error.javaClass.simpleName}"
+                    )
+                }
+                .getOrNull()
         }
         val countryRequest = async(Dispatchers.IO) {
             runCatching { storeService.accountCountryCode(account) }.getOrNull()
@@ -72,11 +83,33 @@ internal class SteamCommunityEligibilityService(
         }
         val thresholdUsd = trustedSupport?.thresholdUsdCents
             ?: DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS
-        val remainingUsd = when (status) {
-            SteamCommunityRestrictionStatus.UNRESTRICTED -> 0
-            else -> trustedSupport?.remainingUsdCents ?: thresholdUsd
-        }.coerceAtLeast(0)
         val rates = ratesRequest.await()
+        val transactionEstimate = if (
+            status != SteamCommunityRestrictionStatus.UNRESTRICTED &&
+            trustedSupport?.hasExactProgress != true
+        ) {
+            runCatching {
+                purchaseHistoryService.fetch(account, currencyCode)
+            }.onFailure { error ->
+                SteamDiagLogger.append(
+                    "community_eligibility history_failed type=${error.javaClass.simpleName}"
+                )
+            }.getOrNull()?.let { transactions ->
+                estimateCommunitySpend(
+                    transactions = transactions,
+                    unitsPerCny = rates?.unitsPerCny.orEmpty()
+                )
+            }
+        } else {
+            null
+        }
+        val spendProgress = resolveCommunitySpendProgress(
+            status = status,
+            thresholdUsdCents = thresholdUsd,
+            support = trustedSupport,
+            transactionEstimate = transactionEstimate
+        )
+        val remainingUsd = spendProgress.remainingUsdCents
         val localThreshold = rates?.let {
             SteamCommunityUnlockCalculator.localMinorFromUsd(
                 thresholdUsd,
@@ -132,12 +165,14 @@ internal class SteamCommunityEligibilityService(
             accountCountryCode = countryCode,
             accountCurrencyCode = currencyCode,
             thresholdUsdCents = thresholdUsd,
-            spentUsdCents = trustedSupport?.spentUsdCents,
+            spentUsdCents = spendProgress.spentUsdCents,
+            estimatedSpentUpperUsdCents = spendProgress.estimatedSpentUpperUsdCents,
             remainingUsdCents = remainingUsd,
             localThresholdMinor = localThreshold,
             localRemainingMinor = localRemaining,
             exchangeRateFetchedAt = rates?.fetchedAt,
-            exactProgress = trustedSupport?.hasExactProgress == true,
+            exactProgress = spendProgress.exactProgress,
+            progressSource = spendProgress.progressSource,
             evidenceRevision = CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION,
             suggestedGames = suggestions,
             fetchedAt = nowMillis()

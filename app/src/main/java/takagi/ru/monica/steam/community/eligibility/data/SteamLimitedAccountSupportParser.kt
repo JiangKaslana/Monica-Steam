@@ -65,7 +65,9 @@ internal object SteamLimitedAccountSupportParser {
     }
 
     private val SPENT_AMOUNT = Regex(
-        "(?i)(?:your account\\s+has\\s+spent|you(?:'ve| have)\\s+spent|amount\\s+spent)" +
+        "(?i)(?:your account\\s+has\\s+spent|you(?:'ve| have)\\s+spent|amount\\s+spent|" +
+            "(?:your\\s+)?total\\s+spend(?:ing)?\\s*(?:is|:|equals)|" +
+            "qualifying\\s+spend\\s*(?:is|:))" +
             "[^$]{0,80}(?:US)?\\$\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"
     )
     private val THRESHOLD_AMOUNT = Regex(
@@ -74,7 +76,8 @@ internal object SteamLimitedAccountSupportParser {
     )
     private val REMAINING_AMOUNT = Regex(
         "(?i)(?:remaining|left\\s+to\\s+spend|still\\s+need(?:s)?\\s+to\\s+spend|" +
-            "need(?:s)?\\s+to\\s+spend\\s+an?\\s+additional)" +
+            "need(?:s)?\\s+to\\s+spend\\s+an?\\s+additional|" +
+            "must\\s+spend\\s+(?:another|an?\\s+additional)|spend\\s+another)" +
             "[^$]{0,80}(?:US)?\\$\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"
     )
     private val EXPLICIT_LIMITED_STATEMENT = Regex(

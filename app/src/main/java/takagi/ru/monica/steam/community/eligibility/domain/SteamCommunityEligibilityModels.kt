@@ -41,21 +41,39 @@ data class SteamCommunityUnlockProgress(
     val accountCurrencyCode: String = "USD",
     val thresholdUsdCents: Int = DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS,
     val spentUsdCents: Int? = null,
+    val estimatedSpentUpperUsdCents: Int? = null,
     val remainingUsdCents: Int = DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS,
     val localThresholdMinor: Long? = null,
     val localRemainingMinor: Long? = null,
     val exchangeRateFetchedAt: Long? = null,
     val exactProgress: Boolean = false,
+    val progressSource: SteamCommunityProgressSource = SteamCommunityProgressSource.NONE,
     val evidenceRevision: Int = 0,
     val suggestedGames: List<SteamCommunityBudgetGame> = emptyList(),
     val fetchedAt: Long = System.currentTimeMillis()
 ) {
+    val effectiveSpentUsdCents: Int?
+        get() = spentUsdCents ?: if (exactProgress) {
+            (thresholdUsdCents - remainingUsdCents).coerceAtLeast(0)
+        } else {
+            null
+        }
+
+    val hasMeasuredProgress: Boolean
+        get() = effectiveSpentUsdCents != null &&
+            (progressSource != SteamCommunityProgressSource.NONE || exactProgress)
+
+    val mayHaveReachedThreshold: Boolean
+        get() = status != SteamCommunityRestrictionStatus.UNRESTRICTED &&
+            estimatedSpentUpperUsdCents?.let { it >= thresholdUsdCents } == true
+
     val progressFraction: Float
         get() = when {
             status == SteamCommunityRestrictionStatus.UNRESTRICTED -> 1f
             thresholdUsdCents <= 0 -> 0f
-            spentUsdCents == null -> 0f
-            else -> (spentUsdCents.toFloat() / thresholdUsdCents.toFloat()).coerceIn(0f, 1f)
+            effectiveSpentUsdCents == null -> 0f
+            else -> (effectiveSpentUsdCents!!.toFloat() / thresholdUsdCents.toFloat())
+                .coerceIn(0f, 1f)
         }
 }
 
@@ -88,6 +106,21 @@ internal object SteamCommunityUnlockCalculator {
             ?.takeIf { it.isFinite() && it > 0.0 }
             ?: return null
         return (usdCents.toDouble() / usdPerCny * localPerCny).roundToLong()
+    }
+
+    fun usdMinorFromLocal(
+        localMinor: Int,
+        currencyCode: String,
+        unitsPerCny: Map<String, Double>
+    ): Long? {
+        if (localMinor < 0) return null
+        val currency = currencyCode.trim().uppercase()
+        if (currency == "USD") return localMinor.toLong()
+        val usdPerCny = unitsPerCny["USD"]?.takeIf { it.isFinite() && it > 0.0 }
+            ?: return null
+        val localPerCny = unitsPerCny[currency]?.takeIf { it.isFinite() && it > 0.0 }
+            ?: return null
+        return (localMinor.toDouble() / localPerCny * usdPerCny).roundToLong()
     }
 }
 
@@ -144,9 +177,11 @@ internal fun SteamCommunityUnlockProgress?.withSteamLevelEvidence(
         status = SteamCommunityRestrictionStatus.UNRESTRICTED,
         source = SteamCommunityUnlockSource.STEAM_LEVEL,
         spentUsdCents = null,
+        estimatedSpentUpperUsdCents = null,
         remainingUsdCents = 0,
         localRemainingMinor = 0L,
         exactProgress = false,
+        progressSource = SteamCommunityProgressSource.NONE,
         evidenceRevision = CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION,
         suggestedGames = emptyList()
     )

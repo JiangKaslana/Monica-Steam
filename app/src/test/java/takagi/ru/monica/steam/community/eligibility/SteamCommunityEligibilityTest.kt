@@ -81,6 +81,22 @@ class SteamCommunityEligibilityTest {
     }
 
     @Test
+    fun parsesAlternateOfficialSupportProgressWording() {
+        val result = SteamLimitedAccountSupportParser.parse(
+            """
+            <html><body>
+              <p>Qualifying spend: US${'$'}1.25.</p>
+              <p>You must spend another US${'$'}3.75 to remove this restriction.</p>
+            </body></html>
+            """.trimIndent()
+        )
+
+        assertEquals(true, result?.limited)
+        assertEquals(125, result?.spentUsdCents)
+        assertEquals(375, result?.remainingUsdCents)
+    }
+
+    @Test
     fun detectsUnrestrictedAccountWithoutInventingSpendValues() {
         val result = SteamLimitedAccountSupportParser.parse(
             "<html><body>Your account is not limited.</body></html>"

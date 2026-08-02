@@ -6,6 +6,7 @@ import okhttp3.Request
 import takagi.ru.monica.steam.community.eligibility.domain.SteamLimitedAccountSupportProgress
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.network.SteamHttpClientProvider
+import takagi.ru.monica.steam.store.data.encodeSteamCookieValue
 
 internal class SteamLimitedAccountSupportService(
     client: OkHttpClient = SteamHttpClientProvider.client
@@ -29,7 +30,7 @@ internal class SteamLimitedAccountSupportService(
             .header("Accept-Language", "en-US,en;q=0.9")
             .header(
                 "Cookie",
-                "steamLoginSecure=$secure; sessionid=${newSessionId()}; " +
+                "steamLoginSecure=${encodeSteamCookieValue(secure)}; sessionid=${newSessionId()}; " +
                     "mobileClient=android; mobileClientVersion=777777%203.6.4"
             )
             .build()
