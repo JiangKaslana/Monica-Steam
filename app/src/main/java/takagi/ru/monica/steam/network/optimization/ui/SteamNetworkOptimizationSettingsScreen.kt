@@ -1,29 +1,26 @@
 package takagi.ru.monica.steam.network.optimization.ui
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -32,19 +29,27 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.network.optimization.SteamNetworkOptimizationRuntime
-import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRuleError
-import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRuleErrorReason
+import takagi.ru.monica.steam.network.optimization.diagnostics.SteamHostsDiagnosticsRunner
+import takagi.ru.monica.steam.network.optimization.domain.SteamHostProbeResult
+import takagi.ru.monica.steam.network.optimization.domain.SteamHostProbeTarget
+import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRule
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRuleParser
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamHostsAdvancedEditor
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamHostsRulesSection
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkOverviewCard
 import takagi.ru.monica.ui.screens.SettingsItem
-import takagi.ru.monica.ui.screens.SettingsItemWithSwitch
 import takagi.ru.monica.ui.screens.SettingsSection
 
 @Composable
@@ -67,17 +72,101 @@ fun SteamNetworkOptimizationSettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val diagnosticsRunner = remember { SteamHostsDiagnosticsRunner() }
+    val dockClearance = LocalSteamDockContentClearance.current
+
     LaunchedEffect(context) {
         SteamNetworkOptimizationRuntime.initialize(context)
     }
     val settings by SteamNetworkOptimizationRuntime.settings.collectAsState()
-    val dockClearance = LocalSteamDockContentClearance.current
+    val sessionStats by SteamNetworkOptimizationRuntime.sessionStats.collectAsState()
+
     var hostsDraft by rememberSaveable { mutableStateOf(settings.hostsText) }
+    var advancedExpanded by rememberSaveable { mutableStateOf(false) }
+    var probeResults by remember { mutableStateOf<Map<String, SteamHostProbeResult>>(emptyMap()) }
+    var probingKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var isTestingAll by remember { mutableStateOf(false) }
+
     LaunchedEffect(settings.hostsText) {
         hostsDraft = settings.hostsText
     }
+
     val parsedDraft = remember(hostsDraft) { SteamHostsRuleParser.parse(hostsDraft) }
-    val firstError = parsedDraft.errors.firstOrNull()
+    val savedRules = remember(settings.hostsText) {
+        SteamHostsRuleParser.parse(settings.hostsText).rules
+    }
+    val savedTargetKeys = remember(savedRules) {
+        savedRules.flatMap { rule ->
+            rule.addresses.map { address -> SteamHostProbeTarget(rule.hostname, address).key }
+        }.toSet()
+    }
+    val visibleProbeResults = remember(probeResults, savedTargetKeys) {
+        probeResults.filterKeys(savedTargetKeys::contains)
+    }
+    val availableTargetCount = visibleProbeResults.values.count(SteamHostProbeResult::isAvailable)
+
+    fun showMessage(message: String) {
+        scope.launch { snackbarHostState.showSnackbar(message) }
+    }
+
+    fun testTarget(target: SteamHostProbeTarget) {
+        if (isTestingAll || target.key in probingKeys) return
+        scope.launch {
+            probingKeys = probingKeys + target.key
+            probeResults = probeResults - target.key
+            try {
+                diagnosticsRunner.run(
+                    rules = listOf(
+                        SteamHostsRule(
+                            hostname = target.hostname,
+                            addresses = listOf(target.address)
+                        )
+                    )
+                ) { result ->
+                    probeResults = probeResults + (result.target.key to result)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                showMessage(context.getString(R.string.steam_network_optimization_probe_failed))
+            } finally {
+                probingKeys = probingKeys - target.key
+            }
+        }
+    }
+
+    fun testAll() {
+        if (savedRules.isEmpty() || isTestingAll || probingKeys.isNotEmpty()) return
+        scope.launch {
+            isTestingAll = true
+            probingKeys = probingKeys + savedTargetKeys
+            probeResults = probeResults - savedTargetKeys
+            try {
+                val results = diagnosticsRunner.run(savedRules) { result ->
+                    probeResults = probeResults + (result.target.key to result)
+                }
+                val available = results.count(SteamHostProbeResult::isAvailable)
+                snackbarHostState.showSnackbar(
+                    context.getString(
+                        R.string.steam_network_optimization_probe_complete,
+                        available,
+                        results.size
+                    )
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.steam_network_optimization_probe_failed)
+                )
+            } finally {
+                probingKeys = probingKeys - savedTargetKeys
+                isTestingAll = false
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -93,149 +182,121 @@ fun SteamNetworkOptimizationSettingsScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(bottom = dockClearance + 24.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 12.dp,
+                end = 16.dp,
+                bottom = dockClearance + 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                SettingsSection(
-                    title = context.getString(R.string.steam_network_optimization_status_section)
-                ) {
-                    SettingsItemWithSwitch(
-                        icon = Icons.Default.Dns,
-                        title = context.getString(R.string.steam_network_optimization_switch_title),
-                        subtitle = if (settings.hostCount > 0) {
-                            context.getString(
-                                R.string.steam_network_optimization_switch_description,
-                                settings.hostCount
-                            )
-                        } else {
-                            context.getString(R.string.steam_network_optimization_switch_empty)
-                        },
-                        checked = settings.enabled,
-                        enabled = settings.hostCount > 0,
-                        onCheckedChange = { enabled ->
-                            SteamNetworkOptimizationRuntime.setEnabled(context, enabled)
-                        }
-                    )
-                }
+            item(key = "overview") {
+                SteamNetworkOverviewCard(
+                    enabled = settings.enabled,
+                    canEnable = settings.hostCount > 0,
+                    hostCount = settings.hostCount,
+                    targetCount = savedRules.sumOf(SteamHostsRule::targetCount),
+                    sessionHitCount = sessionStats.totalHitCount,
+                    testedTargetCount = visibleProbeResults.size,
+                    availableTargetCount = availableTargetCount,
+                    fallbackToSystemDns = settings.fallbackToSystemDns,
+                    isTestingAll = isTestingAll,
+                    canTestAll = savedRules.isNotEmpty() && probingKeys.isEmpty(),
+                    onEnabledChange = { enabled ->
+                        SteamNetworkOptimizationRuntime.setEnabled(context, enabled)
+                    },
+                    onFallbackChange = { enabled ->
+                        SteamNetworkOptimizationRuntime.setFallbackToSystemDns(context, enabled)
+                    },
+                    onTestAll = ::testAll
+                )
             }
-            item {
-                SettingsSection(
-                    title = context.getString(R.string.steam_network_optimization_rules_section)
-                ) {
-                    CustomHostsEditor(
-                        value = hostsDraft,
-                        onValueChange = { hostsDraft = it },
-                        hostCount = parsedDraft.hostCount,
-                        error = firstError,
-                        hasChanges = hostsDraft != settings.hostsText,
-                        onSave = {
-                            val result = SteamNetworkOptimizationRuntime.saveHosts(
-                                context,
-                                hostsDraft
-                            )
-                            if (result.isValid) {
-                                Toast.makeText(
-                                    context,
-                                    R.string.steam_network_optimization_hosts_saved,
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    )
-                }
+
+            item(key = "rules") {
+                SteamHostsRulesSection(
+                    rules = savedRules,
+                    sessionStats = sessionStats,
+                    probeResults = visibleProbeResults,
+                    probingKeys = probingKeys,
+                    probesLocked = isTestingAll,
+                    onProbeTarget = ::testTarget,
+                    onOpenEditor = { advancedExpanded = true }
+                )
             }
-            item {
-                SettingsSection(
-                    title = context.getString(R.string.steam_network_optimization_scope_section)
-                ) {
-                    SettingsItem(
-                        icon = Icons.Default.Security,
-                        title = context.getString(R.string.steam_network_optimization_scope_title),
-                        subtitle = context.getString(R.string.steam_network_optimization_scope_description),
-                        onClick = {},
-                        trailingContent = {}
-                    )
-                }
+
+            item(key = "advanced_editor") {
+                SteamHostsAdvancedEditor(
+                    expanded = advancedExpanded,
+                    onExpandedChange = { advancedExpanded = it },
+                    value = hostsDraft,
+                    onValueChange = { hostsDraft = it },
+                    hostCount = parsedDraft.hostCount,
+                    error = parsedDraft.errors.firstOrNull(),
+                    hasChanges = hostsDraft != settings.hostsText,
+                    onSave = {
+                        val result = SteamNetworkOptimizationRuntime.saveHosts(context, hostsDraft)
+                        if (result.isValid) {
+                            probeResults = emptyMap()
+                            advancedExpanded = false
+                            showMessage(
+                                context.getString(
+                                    R.string.steam_network_optimization_hosts_saved
+                                )
+                            )
+                        }
+                    }
+                )
+            }
+
+            item(key = "scope") {
+                SteamNetworkScopeNote()
             }
         }
     }
 }
 
 @Composable
-private fun CustomHostsEditor(
-    value: String,
-    onValueChange: (String) -> Unit,
-    hostCount: Int,
-    error: SteamHostsRuleError?,
-    hasChanges: Boolean,
-    onSave: () -> Unit
-) {
-    val context = LocalContext.current
-    val supportingText = error?.let { hostsErrorText(it) }
-        ?: context.getString(R.string.steam_network_optimization_hosts_helper)
-
+private fun SteamNetworkScopeNote() {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(context.getString(R.string.steam_network_optimization_hosts_label)) },
-                placeholder = {
-                    Text(context.getString(R.string.steam_network_optimization_hosts_placeholder))
-                },
-                supportingText = { Text(supportingText) },
-                isError = error != null,
-                minLines = 6,
-                maxLines = 12
+            Icon(
+                imageVector = Icons.Default.Security,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
             )
-            Text(
-                text = if (hostCount > 0 && error == null) {
-                    context.getString(R.string.steam_network_optimization_hosts_ready, hostCount)
-                } else {
-                    context.getString(R.string.steam_network_optimization_hosts_empty)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            FilledTonalButton(
-                onClick = onSave,
-                enabled = hasChanges && error == null,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Save, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(context.getString(R.string.steam_network_optimization_hosts_save))
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    text = LocalContext.current.getString(
+                        R.string.steam_network_optimization_scope_title
+                    ),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                )
+                Text(
+                    text = LocalContext.current.getString(
+                        R.string.steam_network_optimization_scope_description
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
-}
-
-@Composable
-private fun hostsErrorText(error: SteamHostsRuleError): String {
-    val stringId = when (error.reason) {
-        SteamHostsRuleErrorReason.INVALID_FORMAT ->
-            R.string.steam_network_optimization_error_format
-        SteamHostsRuleErrorReason.INVALID_IP ->
-            R.string.steam_network_optimization_error_ip
-        SteamHostsRuleErrorReason.INVALID_HOSTNAME ->
-            R.string.steam_network_optimization_error_hostname
-        SteamHostsRuleErrorReason.UNUSABLE_ADDRESS ->
-            R.string.steam_network_optimization_error_address
-    }
-    return LocalContext.current.getString(stringId, error.lineNumber)
 }

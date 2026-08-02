@@ -29,6 +29,9 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         val optimizationScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/SteamNetworkOptimizationSettingsScreen.kt"
         ).readText()
+        val advancedEditor = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamHostsAdvancedEditor.kt"
+        ).readText()
 
         assertTrue(application.contains("SteamNetworkOptimizationRuntime.initialize(this)"))
         assertTrue(settings.contains("SteamSettingsChild.NETWORK_OPTIMIZATION"))
@@ -38,7 +41,7 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         assertFalse(apiClient.contains("SteamCommunityDns"))
         assertTrue(runtime.contains("KEY_CUSTOM_HOSTS"))
         assertTrue(runtime.contains("saveHosts("))
-        assertTrue(optimizationScreen.contains("OutlinedTextField("))
+        assertTrue(advancedEditor.contains("OutlinedTextField("))
         assertTrue(optimizationScreen.contains("SteamHostsRuleParser.parse("))
         assertTrue(optimizationScreen.contains("SteamNetworkOptimizationRuntime.saveHosts("))
         assertFalse(
@@ -79,6 +82,36 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         assertFalse(provider.contains("DnsOverHttps"))
         assertFalse(provider.contains("dns.alidns.com"))
         assertFalse(provider.contains("doh.pub"))
+    }
+
+    @Test
+    fun v2UsesProgressiveM3eComponentsInsteadOfAButtonWall() {
+        val screen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/SteamNetworkOptimizationSettingsScreen.kt"
+        ).readText()
+        val overview = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamNetworkOverviewCard.kt"
+        )
+        val rules = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamHostsRulesSection.kt"
+        )
+        val advanced = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamHostsAdvancedEditor.kt"
+        )
+
+        assertTrue(overview.exists())
+        assertTrue(rules.exists())
+        assertTrue(advanced.exists())
+        assertTrue(screen.contains("SteamNetworkOverviewCard("))
+        assertTrue(screen.contains("SteamHostsRulesSection("))
+        assertTrue(screen.contains("SteamHostsAdvancedEditor("))
+        assertTrue(screen.contains("SnackbarHost("))
+        assertTrue(screen.contains("SteamHostsDiagnosticsRunner("))
+        assertTrue(overview.readText().contains("LoadingIndicator("))
+        assertTrue(overview.readText().contains("Switch("))
+        assertTrue(rules.readText().contains("FilledTonalIconButton("))
+        assertTrue(advanced.readText().contains("AnimatedVisibility("))
+        assertTrue(advanced.readText().contains("LocalReduceAnimations"))
     }
 
     private fun projectFile(path: String): File {
