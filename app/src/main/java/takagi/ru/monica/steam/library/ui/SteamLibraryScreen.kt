@@ -8,7 +8,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -71,6 +70,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -1085,13 +1085,12 @@ private fun SteamFramedAvatar(
     val frame = rememberSteamRemoteImage(decor?.avatarFrameUrl)
     val frameSize = if (compact) SteamLibraryLayoutTokens.OverviewHeroFrameSize else 82.dp
     val avatarSize = if (compact) SteamLibraryLayoutTokens.OverviewHeroAvatarSize else 68.dp
-    val avatarShape = RoundedCornerShape(8.dp)
+    val avatarShape = RectangleShape
     Box(modifier = Modifier.size(frameSize), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .size(avatarSize)
                 .clip(avatarShape)
-                .border(2.dp, Color.White.copy(alpha = 0.88f), avatarShape)
         ) {
             SteamAvatarImage(
                 account = account,

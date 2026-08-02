@@ -46,7 +46,7 @@ class SteamAccountHeroLayoutGuardTest {
     }
 
     @Test
-    fun accountHeroUsesASquareSteamAvatarWithSmallCorners() {
+    fun accountHeroUsesASharpSquareSteamAvatarWithoutStroke() {
         val screen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/ui/SteamLibraryScreen.kt"
         ).readText()
@@ -54,9 +54,11 @@ class SteamAccountHeroLayoutGuardTest {
             .substringAfter("private fun SteamFramedAvatar(")
             .substringBefore("private fun HeroMetric(")
 
-        assertTrue(framedAvatar.contains("val avatarShape = RoundedCornerShape(8.dp)"))
+        assertTrue(framedAvatar.contains("val avatarShape = RectangleShape"))
         assertTrue(framedAvatar.contains(".clip(avatarShape)"))
         assertTrue(framedAvatar.contains("shape = avatarShape"))
+        assertFalse(framedAvatar.contains(".border("))
+        assertFalse(framedAvatar.contains("RoundedCornerShape"))
         assertFalse(framedAvatar.contains("CircleShape"))
     }
 
