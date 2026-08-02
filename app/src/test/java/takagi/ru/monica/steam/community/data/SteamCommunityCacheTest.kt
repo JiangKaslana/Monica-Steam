@@ -12,6 +12,7 @@ import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockSource
+import takagi.ru.monica.steam.community.eligibility.domain.CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
 
 class SteamCommunityCacheTest {
     @Test
@@ -46,12 +47,13 @@ class SteamCommunityCacheTest {
         val cache = SteamCommunityPreferencesCache(store)
         cache.save(
             snapshot(ACCOUNT_A).copy(
+                steamLevel = 0,
                 unlockProgress = SteamCommunityUnlockProgress(
                     status = SteamCommunityRestrictionStatus.UNRESTRICTED,
                     source = SteamCommunityUnlockSource.STEAM_SUPPORT,
                     remainingUsdCents = 0,
                     exactProgress = true,
-                    evidenceRevision = 1
+                    evidenceRevision = 2
                 )
             )
         )
@@ -61,6 +63,29 @@ class SteamCommunityCacheTest {
         assertEquals(SteamCommunityRestrictionStatus.UNKNOWN, restored?.status)
         assertEquals(500, restored?.remainingUsdCents)
         assertEquals(false, restored?.exactProgress)
+    }
+
+    @Test
+    fun positiveCachedLevelReplacesObsoleteUnlockEvidence() {
+        val store = MemoryStore()
+        val cache = SteamCommunityPreferencesCache(store)
+        cache.save(
+            snapshot(ACCOUNT_A).copy(
+                unlockProgress = SteamCommunityUnlockProgress(
+                    status = SteamCommunityRestrictionStatus.UNRESTRICTED,
+                    source = SteamCommunityUnlockSource.STEAM_SUPPORT,
+                    remainingUsdCents = 0,
+                    exactProgress = true,
+                    evidenceRevision = 2
+                )
+            )
+        )
+
+        val restored = cache.load(ACCOUNT_A)?.unlockProgress
+
+        assertEquals(SteamCommunityRestrictionStatus.UNRESTRICTED, restored?.status)
+        assertEquals(SteamCommunityUnlockSource.STEAM_LEVEL, restored?.source)
+        assertEquals(CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION, restored?.evidenceRevision)
     }
 
     private fun snapshot(steamId: String) = SteamCommunitySnapshot(

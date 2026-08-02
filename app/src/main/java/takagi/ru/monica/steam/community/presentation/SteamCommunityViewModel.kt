@@ -23,6 +23,7 @@ import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityEligibi
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
 import takagi.ru.monica.steam.community.eligibility.domain.CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
+import takagi.ru.monica.steam.community.eligibility.domain.withSteamLevelEvidence
 import takagi.ru.monica.steam.community.domain.SteamCommunityGateway
 import takagi.ru.monica.steam.community.domain.SteamCommunitySection
 import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
@@ -114,11 +115,25 @@ class SteamCommunityViewModel(
                             when (val result = eligibility?.await()) {
                                 null -> base
                                 else -> result.fold(
-                                    onSuccess = { base.copy(unlockProgress = it) },
-                                    onFailure = {
+                                    onSuccess = { progress ->
                                         base.copy(
-                                            unavailableSections = base.unavailableSections +
-                                                SteamCommunitySection.ELIGIBILITY
+                                            unlockProgress = progress.withSteamLevelEvidence(
+                                                base.steamLevel
+                                            )
+                                        )
+                                    },
+                                    onFailure = {
+                                        val levelProgress = null.withSteamLevelEvidence(
+                                            base.steamLevel
+                                        )
+                                        base.copy(
+                                            unlockProgress = levelProgress,
+                                            unavailableSections = if (levelProgress == null) {
+                                                base.unavailableSections +
+                                                    SteamCommunitySection.ELIGIBILITY
+                                            } else {
+                                                base.unavailableSections
+                                            }
                                         )
                                     }
                                 )
@@ -272,35 +287,37 @@ internal fun mergeCommunitySnapshot(
         val use = SteamCommunitySection.ELIGIBILITY in fresh.unavailableSections ||
             freshProgress == null ||
             (
-                !freshProgress.exactProgress &&
-                    cachedProgress.exactProgress &&
+                freshProgress.status == SteamCommunityRestrictionStatus.UNKNOWN &&
                     cachedProgress.isSafeEligibilityFallback()
                 )
         if (use) stale += SteamCommunitySection.ELIGIBILITY
         use
     } == true
 
+    val merged = fresh.copy(
+        profile = if (profileFromCache) safeCache?.profile else fresh.profile,
+        steamLevel = if (levelFromCache) safeCache?.steamLevel else fresh.steamLevel,
+        badges = if (badgesFromCache) safeCache?.badges.orEmpty() else fresh.badges,
+        playerXp = if (badgesFromCache) safeCache?.playerXp else fresh.playerXp,
+        playerXpNeededToLevelUp = if (badgesFromCache) {
+            safeCache?.playerXpNeededToLevelUp
+        } else {
+            fresh.playerXpNeededToLevelUp
+        },
+        recentGames = if (gamesFromCache) {
+            safeCache?.recentGames.orEmpty()
+        } else {
+            fresh.recentGames
+        },
+        unlockProgress = if (eligibilityFromCache) {
+            safeCache?.unlockProgress
+        } else {
+            fresh.unlockProgress
+        }
+    )
     return SteamCommunityMerge(
-        snapshot = fresh.copy(
-            profile = if (profileFromCache) safeCache?.profile else fresh.profile,
-            steamLevel = if (levelFromCache) safeCache?.steamLevel else fresh.steamLevel,
-            badges = if (badgesFromCache) safeCache?.badges.orEmpty() else fresh.badges,
-            playerXp = if (badgesFromCache) safeCache?.playerXp else fresh.playerXp,
-            playerXpNeededToLevelUp = if (badgesFromCache) {
-                safeCache?.playerXpNeededToLevelUp
-            } else {
-                fresh.playerXpNeededToLevelUp
-            },
-            recentGames = if (gamesFromCache) {
-                safeCache?.recentGames.orEmpty()
-            } else {
-                fresh.recentGames
-            },
-            unlockProgress = if (eligibilityFromCache) {
-                safeCache?.unlockProgress
-            } else {
-                fresh.unlockProgress
-            }
+        snapshot = merged.copy(
+            unlockProgress = merged.unlockProgress.withSteamLevelEvidence(merged.steamLevel)
         ),
         staleSections = stale
     )

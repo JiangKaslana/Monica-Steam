@@ -24,6 +24,7 @@ import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityEligibi
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockSource
+import takagi.ru.monica.steam.community.eligibility.domain.CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
@@ -128,7 +129,9 @@ class SteamCommunityViewModelTest {
             )
         }
         val viewModel = SteamCommunityViewModel(
-            gateway = SteamCommunityGateway { account -> snapshot(account.steamId) },
+            gateway = SteamCommunityGateway { account ->
+                snapshot(account.steamId).copy(steamLevel = 0)
+            },
             cache = cache,
             eligibilityGateway = eligibility,
             ioDispatcher = dispatcher
@@ -156,6 +159,7 @@ class SteamCommunityViewModelTest {
             )
         )
         val fresh = snapshot(ACCOUNT_A).copy(
+            steamLevel = 0,
             unlockProgress = SteamCommunityUnlockProgress(
                 status = SteamCommunityRestrictionStatus.UNKNOWN,
                 source = SteamCommunityUnlockSource.ESTIMATE,
@@ -182,11 +186,12 @@ class SteamCommunityViewModelTest {
                 source = SteamCommunityUnlockSource.STEAM_SUPPORT,
                 remainingUsdCents = 0,
                 exactProgress = true,
-                evidenceRevision = 1,
+                evidenceRevision = 2,
                 fetchedAt = 90L
             )
         )
         val fresh = snapshot(ACCOUNT_A).copy(
+            steamLevel = 0,
             unlockProgress = SteamCommunityUnlockProgress(
                 status = SteamCommunityRestrictionStatus.UNKNOWN,
                 source = SteamCommunityUnlockSource.ESTIMATE,
@@ -203,6 +208,134 @@ class SteamCommunityViewModelTest {
             merged.snapshot.unlockProgress?.status
         )
         assertFalse(SteamCommunitySection.ELIGIBILITY in merged.staleSections)
+    }
+
+    @Test
+    fun positiveSteamLevelConfirmsCommunityAccessWhenEligibilityIsUnknown() = runTest(scheduler) {
+        val eligibility = SteamCommunityEligibilityGateway {
+            SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.UNKNOWN,
+                source = SteamCommunityUnlockSource.ESTIMATE,
+                remainingUsdCents = 500,
+                exactProgress = false,
+                fetchedAt = 200L
+            )
+        }
+        val viewModel = SteamCommunityViewModel(
+            gateway = SteamCommunityGateway { account ->
+                snapshot(account.steamId).copy(steamLevel = 12)
+            },
+            cache = MemoryCommunityCache(),
+            eligibilityGateway = eligibility,
+            ioDispatcher = dispatcher
+        )
+
+        viewModel.selectAccount(account())
+        advanceUntilIdle()
+
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNRESTRICTED,
+            viewModel.uiState.value.snapshot?.unlockProgress?.status
+        )
+    }
+
+    @Test
+    fun accountSwitchKeepsLevelEvidenceScopedToSteamId() = runTest(scheduler) {
+        val eligibility = SteamCommunityEligibilityGateway {
+            SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.UNKNOWN,
+                source = SteamCommunityUnlockSource.ESTIMATE,
+                remainingUsdCents = 500,
+                exactProgress = false
+            )
+        }
+        val viewModel = SteamCommunityViewModel(
+            gateway = SteamCommunityGateway { account ->
+                snapshot(account.steamId).copy(
+                    steamLevel = if (account.steamId == ACCOUNT_A) 12 else 0
+                )
+            },
+            cache = MemoryCommunityCache(),
+            eligibilityGateway = eligibility,
+            ioDispatcher = dispatcher
+        )
+
+        viewModel.selectAccount(account(steamId = ACCOUNT_A))
+        advanceUntilIdle()
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNRESTRICTED,
+            viewModel.uiState.value.snapshot?.unlockProgress?.status
+        )
+
+        viewModel.selectAccount(account(steamId = ACCOUNT_B))
+        advanceUntilIdle()
+        assertEquals(ACCOUNT_B, viewModel.uiState.value.snapshot?.accountSteamId)
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNKNOWN,
+            viewModel.uiState.value.snapshot?.unlockProgress?.status
+        )
+    }
+
+    @Test
+    fun cachedPositiveLevelStillConfirmsAccessWhenFreshLevelSectionFails() {
+        val cached = snapshot(ACCOUNT_A).copy(
+            steamLevel = 12,
+            unlockProgress = SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.UNRESTRICTED,
+                source = SteamCommunityUnlockSource.STEAM_LEVEL,
+                evidenceRevision = 3
+            )
+        )
+        val fresh = snapshot(ACCOUNT_A).copy(
+            steamLevel = null,
+            unlockProgress = SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.UNKNOWN,
+                source = SteamCommunityUnlockSource.ESTIMATE
+            ),
+            unavailableSections = setOf(SteamCommunitySection.LEVEL)
+        )
+
+        val merged = mergeCommunitySnapshot(fresh, cached)
+
+        assertEquals(12, merged.snapshot.steamLevel)
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNRESTRICTED,
+            merged.snapshot.unlockProgress?.status
+        )
+        assertEquals(
+            SteamCommunityUnlockSource.STEAM_LEVEL,
+            merged.snapshot.unlockProgress?.source
+        )
+    }
+
+    @Test
+    fun cachedLimitedFlagSurvivesATransientUnknownRefresh() {
+        val cached = snapshot(ACCOUNT_A).copy(
+            steamLevel = 0,
+            unlockProgress = SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.LIMITED,
+                source = SteamCommunityUnlockSource.STEAM_ACCOUNT_FLAGS,
+                exactProgress = false,
+                evidenceRevision = CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
+            )
+        )
+        val fresh = snapshot(ACCOUNT_A).copy(
+            steamLevel = 0,
+            unlockProgress = SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.UNKNOWN,
+                source = SteamCommunityUnlockSource.ESTIMATE,
+                exactProgress = false,
+                evidenceRevision = CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION
+            )
+        )
+
+        val merged = mergeCommunitySnapshot(fresh, cached)
+
+        assertEquals(
+            SteamCommunityRestrictionStatus.LIMITED,
+            merged.snapshot.unlockProgress?.status
+        )
+        assertTrue(SteamCommunitySection.ELIGIBILITY in merged.staleSections)
     }
 
     @Test

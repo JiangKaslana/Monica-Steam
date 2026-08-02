@@ -10,6 +10,9 @@ import takagi.ru.monica.steam.community.eligibility.data.SteamLimitedAccountSupp
 import takagi.ru.monica.steam.community.eligibility.data.resolveCommunityRestrictionStatus
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockCalculator
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockSource
+import takagi.ru.monica.steam.community.eligibility.domain.withSteamLevelEvidence
 import takagi.ru.monica.steam.network.SteamProtoWriter
 
 class SteamCommunityEligibilityTest {
@@ -51,13 +54,13 @@ class SteamCommunityEligibilityTest {
     }
 
     @Test
-    fun accountFlagsWithoutLimitedBitsDoNotProveCommunityAccess() {
+    fun accountFlagsWithoutLimitedBitsRemainAvailableForCorroboration() {
         val body = SteamProtoWriter().apply {
             writeString(2, "CN")
             writeVarint(7, 0L)
         }.toByteArray()
 
-        assertNull(SteamCommunityAccountInfoParser.parse(body).limited)
+        assertEquals(false, SteamCommunityAccountInfoParser.parse(body).limited)
     }
 
     @Test
@@ -131,6 +134,10 @@ class SteamCommunityEligibilityTest {
     fun onlyPositiveAccountFlagsCanConfirmARestriction() {
         assertEquals(
             SteamCommunityRestrictionStatus.LIMITED,
+            resolveCommunityRestrictionStatus(supportLimited = false, accountFlagsLimited = true)
+        )
+        assertEquals(
+            SteamCommunityRestrictionStatus.LIMITED,
             resolveCommunityRestrictionStatus(supportLimited = null, accountFlagsLimited = true)
         )
         assertEquals(
@@ -138,8 +145,45 @@ class SteamCommunityEligibilityTest {
             resolveCommunityRestrictionStatus(supportLimited = null, accountFlagsLimited = false)
         )
         assertEquals(
+            SteamCommunityRestrictionStatus.UNKNOWN,
+            resolveCommunityRestrictionStatus(supportLimited = false, accountFlagsLimited = null)
+        )
+        assertEquals(
             SteamCommunityRestrictionStatus.UNRESTRICTED,
             resolveCommunityRestrictionStatus(supportLimited = false, accountFlagsLimited = false)
+        )
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNRESTRICTED,
+            resolveCommunityRestrictionStatus(
+                supportLimited = false,
+                accountFlagsLimited = null,
+                supportProvesThresholdReached = true
+            )
+        )
+    }
+
+    @Test
+    fun positiveSteamLevelOnlyUpgradesUnknownEligibility() {
+        val unknown = SteamCommunityUnlockProgress(
+            status = SteamCommunityRestrictionStatus.UNKNOWN,
+            source = SteamCommunityUnlockSource.ESTIMATE
+        )
+        val limited = SteamCommunityUnlockProgress(
+            status = SteamCommunityRestrictionStatus.LIMITED,
+            source = SteamCommunityUnlockSource.STEAM_ACCOUNT_FLAGS
+        )
+
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNRESTRICTED,
+            unknown.withSteamLevelEvidence(12)?.status
+        )
+        assertEquals(
+            SteamCommunityUnlockSource.STEAM_LEVEL,
+            unknown.withSteamLevelEvidence(12)?.source
+        )
+        assertEquals(
+            SteamCommunityRestrictionStatus.LIMITED,
+            limited.withSteamLevelEvidence(12)?.status
         )
     }
 

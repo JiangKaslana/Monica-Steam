@@ -51,15 +51,30 @@ internal class SteamCommunityEligibilityService(
         val countryCode = countryRequest.await()?.takeIf(String::isNotBlank)
             ?: accountInfo?.countryCode.orEmpty()
         val currencyCode = steamCurrencyForCountry(countryCode)
+        val supportProvesThresholdReached = support?.let { progress ->
+            val spent = progress.spentUsdCents
+            val threshold = progress.thresholdUsdCents
+            spent != null && threshold != null && spent >= threshold
+        } == true
         val status = resolveCommunityRestrictionStatus(
             supportLimited = support?.limited,
-            accountFlagsLimited = accountInfo?.limited
+            accountFlagsLimited = accountInfo?.limited,
+            supportProvesThresholdReached = supportProvesThresholdReached
         )
-        val thresholdUsd = support?.thresholdUsdCents
+        val trustedSupport = support?.takeIf { progress ->
+            when {
+                accountInfo?.limited == true && progress.limited == false -> false
+                progress.limited == true -> true
+                status == SteamCommunityRestrictionStatus.UNRESTRICTED ->
+                    accountInfo?.limited == false || supportProvesThresholdReached
+                else -> false
+            }
+        }
+        val thresholdUsd = trustedSupport?.thresholdUsdCents
             ?: DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS
         val remainingUsd = when (status) {
             SteamCommunityRestrictionStatus.UNRESTRICTED -> 0
-            else -> support?.remainingUsdCents ?: thresholdUsd
+            else -> trustedSupport?.remainingUsdCents ?: thresholdUsd
         }.coerceAtLeast(0)
         val rates = ratesRequest.await()
         val localThreshold = rates?.let {
@@ -109,7 +124,7 @@ internal class SteamCommunityEligibilityService(
         SteamCommunityUnlockProgress(
             status = status,
             source = when {
-                support?.limited != null || support?.hasExactProgress == true ->
+                trustedSupport != null ->
                     SteamCommunityUnlockSource.STEAM_SUPPORT
                 accountInfo?.limited == true -> SteamCommunityUnlockSource.STEAM_ACCOUNT_FLAGS
                 else -> SteamCommunityUnlockSource.ESTIMATE
@@ -117,12 +132,12 @@ internal class SteamCommunityEligibilityService(
             accountCountryCode = countryCode,
             accountCurrencyCode = currencyCode,
             thresholdUsdCents = thresholdUsd,
-            spentUsdCents = support?.spentUsdCents,
+            spentUsdCents = trustedSupport?.spentUsdCents,
             remainingUsdCents = remainingUsd,
             localThresholdMinor = localThreshold,
             localRemainingMinor = localRemaining,
             exchangeRateFetchedAt = rates?.fetchedAt,
-            exactProgress = support?.hasExactProgress == true,
+            exactProgress = trustedSupport?.hasExactProgress == true,
             evidenceRevision = CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION,
             suggestedGames = suggestions,
             fetchedAt = nowMillis()
@@ -132,10 +147,13 @@ internal class SteamCommunityEligibilityService(
 
 internal fun resolveCommunityRestrictionStatus(
     supportLimited: Boolean?,
-    accountFlagsLimited: Boolean?
+    accountFlagsLimited: Boolean?,
+    supportProvesThresholdReached: Boolean = false
 ): SteamCommunityRestrictionStatus = when {
-    supportLimited == true -> SteamCommunityRestrictionStatus.LIMITED
-    supportLimited == false -> SteamCommunityRestrictionStatus.UNRESTRICTED
     accountFlagsLimited == true -> SteamCommunityRestrictionStatus.LIMITED
+    supportLimited == true -> SteamCommunityRestrictionStatus.LIMITED
+    supportLimited == false &&
+        (accountFlagsLimited == false || supportProvesThresholdReached) ->
+        SteamCommunityRestrictionStatus.UNRESTRICTED
     else -> SteamCommunityRestrictionStatus.UNKNOWN
 }

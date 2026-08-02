@@ -17,6 +17,7 @@ enum class SteamCommunityRestrictionStatus {
 enum class SteamCommunityUnlockSource {
     STEAM_SUPPORT,
     STEAM_ACCOUNT_FLAGS,
+    STEAM_LEVEL,
     ESTIMATE
 }
 
@@ -125,7 +126,31 @@ internal fun steamCurrencyForCountry(countryCode: String): String {
 }
 
 internal const val DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS = 500
-internal const val CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION = 2
+internal const val CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION = 3
+
+internal fun SteamCommunityUnlockProgress?.withSteamLevelEvidence(
+    steamLevel: Int?
+): SteamCommunityUnlockProgress? {
+    if (steamLevel == null || steamLevel <= 0) return this
+    val existing = this
+    if (
+        existing != null &&
+        existing.status != SteamCommunityRestrictionStatus.UNKNOWN
+    ) {
+        return existing
+    }
+    val progress = existing ?: SteamCommunityUnlockProgress()
+    return progress.copy(
+        status = SteamCommunityRestrictionStatus.UNRESTRICTED,
+        source = SteamCommunityUnlockSource.STEAM_LEVEL,
+        spentUsdCents = null,
+        remainingUsdCents = 0,
+        localRemainingMinor = 0L,
+        exactProgress = false,
+        evidenceRevision = CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION,
+        suggestedGames = emptyList()
+    )
+}
 
 fun interface SteamCommunityEligibilityGateway {
     suspend fun fetch(account: SteamAccount): SteamCommunityUnlockProgress
