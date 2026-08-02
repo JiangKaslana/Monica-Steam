@@ -22,6 +22,13 @@ data class SteamHostsParseResult(
 ) {
     val isValid: Boolean get() = errors.isEmpty()
     val hostCount: Int get() = addresses.size
+    val rules: List<SteamHostsRule>
+        get() = addresses.map { (hostname, values) ->
+            SteamHostsRule(
+                hostname = hostname,
+                addresses = values.map(InetAddress::getHostAddress)
+            )
+        }
 }
 
 object SteamHostsRuleParser {

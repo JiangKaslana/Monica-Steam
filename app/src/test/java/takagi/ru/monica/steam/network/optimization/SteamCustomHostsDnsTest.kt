@@ -20,6 +20,7 @@ class SteamCustomHostsDnsTest {
                     emptyList()
                 }
             },
+            fallbackToSystemDns = { false },
             logger = {}
         )
 
@@ -27,6 +28,30 @@ class SteamCustomHostsDnsTest {
 
         assertEquals(listOf("23.45.67.89"), result.map(InetAddress::getHostAddress))
         assertFalse(system.called)
+    }
+
+    @Test
+    fun enabledFallbackAppendsSystemAddressesAndRecordsTheCustomHit() {
+        val system = RecordingDns(listOf(InetAddress.getByName("8.8.8.8")))
+        val hits = mutableListOf<String>()
+        val dns = SteamCustomHostsDns(
+            systemDns = system,
+            customAddresses = {
+                listOf(InetAddress.getByName("23.45.67.89"))
+            },
+            fallbackToSystemDns = { true },
+            onCustomHostsUsed = { hostname -> hits += hostname },
+            logger = {}
+        )
+
+        val result = dns.lookup("store.steampowered.com")
+
+        assertEquals(
+            listOf("23.45.67.89", "8.8.8.8"),
+            result.map(InetAddress::getHostAddress)
+        )
+        assertEquals(listOf("store.steampowered.com"), hits)
+        assertTrue(system.called)
     }
 
     @Test

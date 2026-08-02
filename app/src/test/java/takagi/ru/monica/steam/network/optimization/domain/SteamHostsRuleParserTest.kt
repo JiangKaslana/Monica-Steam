@@ -20,6 +20,13 @@ class SteamHostsRuleParserTest {
         assertTrue(result.errors.toString(), result.isValid)
         assertEquals(3, result.hostCount)
         assertEquals(
+            SteamHostsRule(
+                hostname = "store.steampowered.com",
+                addresses = listOf("23.45.67.89")
+            ),
+            result.rules.first()
+        )
+        assertEquals(
             listOf("23.45.67.89"),
             result.addresses.getValue("store.steampowered.com")
                 .map(InetAddress::getHostAddress)

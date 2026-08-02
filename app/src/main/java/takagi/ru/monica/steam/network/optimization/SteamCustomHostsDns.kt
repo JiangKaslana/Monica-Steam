@@ -9,6 +9,10 @@ internal class SteamCustomHostsDns(
     private val systemDns: Dns = Dns.SYSTEM,
     private val customAddresses: (String) -> List<InetAddress> =
         SteamNetworkOptimizationRuntime::addressesForHost,
+    private val fallbackToSystemDns: () -> Boolean =
+        SteamNetworkOptimizationRuntime::isSystemDnsFallbackEnabled,
+    private val onCustomHostsUsed: (String) -> Unit =
+        SteamNetworkOptimizationRuntime::recordHostHit,
     private val logger: (String) -> Unit = SteamDiagLogger::append
 ) : Dns {
     override fun lookup(hostname: String): List<InetAddress> {
@@ -24,8 +28,26 @@ internal class SteamCustomHostsDns(
             .filter(SteamHostsRuleParser::isUsableAddress)
 
         if (overrides.isNotEmpty()) {
-            logSafely("custom_hosts applied host=$normalized addresses=${overrides.size}")
-            return overrides
+            runCatching { onCustomHostsUsed(normalized) }
+            val fallbackAddresses = if (runCatching(fallbackToSystemDns).getOrDefault(true)) {
+                runCatching { systemDns.lookup(hostname) }
+                    .onFailure { error ->
+                        logSafely(
+                            "custom_hosts fallback_lookup_failed host=$normalized " +
+                                "type=${error::class.java.simpleName}"
+                        )
+                    }
+                    .getOrDefault(emptyList())
+            } else {
+                emptyList()
+            }
+            val resolved = (overrides + fallbackAddresses)
+                .distinctBy(InetAddress::getHostAddress)
+            logSafely(
+                "custom_hosts applied host=$normalized custom=${overrides.size} " +
+                    "fallback=${fallbackAddresses.size}"
+            )
+            return resolved
         }
         return systemDns.lookup(hostname)
     }

@@ -16,9 +16,12 @@ object SteamNetworkOptimizationRuntime {
     private const val PREFERENCES_NAME = "steam_network_optimization"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_CUSTOM_HOSTS = "custom_hosts"
+    private const val KEY_FALLBACK_TO_SYSTEM_DNS = "fallback_to_system_dns"
 
     private val mutableSettings = MutableStateFlow(SteamNetworkOptimizationSettings())
     val settings: StateFlow<SteamNetworkOptimizationSettings> = mutableSettings.asStateFlow()
+    private val sessionStatsTracker = SteamHostSessionStatsTracker()
+    val sessionStats = sessionStatsTracker.stats
 
     @Volatile
     private var initialized = false
@@ -37,6 +40,7 @@ object SteamNetworkOptimizationRuntime {
         val parsed = SteamHostsRuleParser.parse(hostsText)
         hostOverrides = parsed.addresses
         val persistedEnabled = preferences.getBoolean(KEY_ENABLED, false)
+        val fallbackToSystemDns = preferences.getBoolean(KEY_FALLBACK_TO_SYSTEM_DNS, true)
         val enabled = persistedEnabled && parsed.isValid && parsed.addresses.isNotEmpty()
         if (persistedEnabled != enabled) {
             preferences.edit().putBoolean(KEY_ENABLED, enabled).apply()
@@ -44,9 +48,22 @@ object SteamNetworkOptimizationRuntime {
         mutableSettings.value = SteamNetworkOptimizationSettings(
             enabled = enabled,
             hostsText = hostsText,
-            hostCount = parsed.hostCount
+            hostCount = parsed.hostCount,
+            fallbackToSystemDns = fallbackToSystemDns
         )
         initialized = true
+    }
+
+    @Synchronized
+    fun setFallbackToSystemDns(context: Context, enabled: Boolean) {
+        initialize(context)
+        if (mutableSettings.value.fallbackToSystemDns == enabled) return
+        preferences.edit().putBoolean(KEY_FALLBACK_TO_SYSTEM_DNS, enabled).apply()
+        mutableSettings.value = mutableSettings.value.copy(fallbackToSystemDns = enabled)
+        SteamHttpClientProvider.onCustomHostsChanged()
+        runCatching {
+            SteamDiagLogger.append("custom_hosts system_dns_fallback=$enabled")
+        }
     }
 
     @Synchronized
@@ -79,7 +96,8 @@ object SteamNetworkOptimizationRuntime {
         mutableSettings.value = SteamNetworkOptimizationSettings(
             enabled = enabled,
             hostsText = hostsText,
-            hostCount = parsed.hostCount
+            hostCount = parsed.hostCount,
+            fallbackToSystemDns = mutableSettings.value.fallbackToSystemDns
         )
         SteamHttpClientProvider.onCustomHostsChanged()
         runCatching {
@@ -91,5 +109,16 @@ object SteamNetworkOptimizationRuntime {
     internal fun addressesForHost(hostname: String): List<InetAddress> {
         if (!mutableSettings.value.enabled) return emptyList()
         return hostOverrides[SteamHostsRuleParser.normalizeHostname(hostname)].orEmpty()
+    }
+
+    internal fun isSystemDnsFallbackEnabled(): Boolean =
+        mutableSettings.value.fallbackToSystemDns
+
+    internal fun recordHostHit(hostname: String) {
+        sessionStatsTracker.record(SteamHostsRuleParser.normalizeHostname(hostname))
+    }
+
+    fun clearSessionStats() {
+        sessionStatsTracker.clear()
     }
 }
