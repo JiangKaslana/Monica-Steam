@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +49,7 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamHostProbeTarget
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRule
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRuleParser
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamHostsAdvancedEditor
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamHostsActionsMenu
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamHostsRulesSection
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkOverviewCard
 import takagi.ru.monica.ui.screens.SettingsItem
@@ -85,6 +88,7 @@ fun SteamNetworkOptimizationSettingsScreen(
 
     var hostsDraft by rememberSaveable { mutableStateOf(settings.hostsText) }
     var advancedExpanded by rememberSaveable { mutableStateOf(false) }
+    var showClearConfirmation by rememberSaveable { mutableStateOf(false) }
     var probeResults by remember { mutableStateOf<Map<String, SteamHostProbeResult>>(emptyMap()) }
     var probingKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isTestingAll by remember { mutableStateOf(false) }
@@ -110,6 +114,15 @@ fun SteamNetworkOptimizationSettingsScreen(
     fun showMessage(message: String) {
         scope.launch { snackbarHostState.showSnackbar(message) }
     }
+
+    val dataExchange = rememberSteamHostsDataExchange(
+        currentText = hostsDraft,
+        onDraftImported = { importedText ->
+            hostsDraft = importedText
+            advancedExpanded = true
+        },
+        onMessage = ::showMessage
+    )
 
     fun testTarget(target: SteamHostProbeTarget) {
         if (isTestingAll || target.key in probingKeys) return
@@ -168,6 +181,42 @@ fun SteamNetworkOptimizationSettingsScreen(
         }
     }
 
+    if (showClearConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmation = false },
+            title = {
+                Text(context.getString(R.string.steam_network_optimization_clear_draft_title))
+            },
+            text = {
+                Text(context.getString(R.string.steam_network_optimization_clear_draft_message))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirmation = false
+                        hostsDraft = ""
+                        advancedExpanded = true
+                        showMessage(
+                            context.getString(
+                                R.string.steam_network_optimization_draft_cleared
+                            )
+                        )
+                    }
+                ) {
+                    Text(
+                        text = context.getString(R.string.clear),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmation = false }) {
+                    Text(context.getString(R.string.cancel))
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -180,6 +229,16 @@ fun SteamNetworkOptimizationSettingsScreen(
                             context.getString(R.string.back)
                         )
                     }
+                },
+                actions = {
+                    SteamHostsActionsMenu(
+                        hasDraftContent = hostsDraft.isNotEmpty(),
+                        onImport = dataExchange.importFromFile,
+                        onExport = dataExchange.exportToFile,
+                        onCopy = dataExchange.copyToClipboard,
+                        onPaste = dataExchange.pasteFromClipboard,
+                        onClear = { showClearConfirmation = true }
+                    )
                 }
             )
         },

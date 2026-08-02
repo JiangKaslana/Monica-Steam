@@ -5074,4 +5074,21 @@
     <string name="steam_network_optimization_collapse_editor">Collapse advanced editor</string>
     <string name="steam_network_optimization_unsaved">Unsaved</string>
     <string name="steam_network_optimization_saved">Saved</string>
+    <string name="steam_network_optimization_more_actions">Hosts actions</string>
+    <string name="steam_network_optimization_import_file">Import text file</string>
+    <string name="steam_network_optimization_export_file">Export text file</string>
+    <string name="steam_network_optimization_copy">Copy rules</string>
+    <string name="steam_network_optimization_paste">Paste into draft</string>
+    <string name="steam_network_optimization_clear_draft">Clear draft</string>
+    <string name="steam_network_optimization_imported_to_draft">File loaded into the draft. Review it before saving.</string>
+    <string name="steam_network_optimization_exported">Hosts text exported</string>
+    <string name="steam_network_optimization_copied">Hosts text copied</string>
+    <string name="steam_network_optimization_pasted_to_draft">Clipboard text loaded into the draft. Review it before saving.</string>
+    <string name="steam_network_optimization_import_failed">Could not import this file. Use a UTF-8 text file smaller than 512 KB.</string>
+    <string name="steam_network_optimization_export_failed">Could not write the Hosts text to the selected file.</string>
+    <string name="steam_network_optimization_clipboard_empty">The clipboard does not contain text.</string>
+    <string name="steam_network_optimization_clipboard_too_large">Clipboard text is larger than the 512 KB limit.</string>
+    <string name="steam_network_optimization_clear_draft_title">Clear the current draft?</string>
+    <string name="steam_network_optimization_clear_draft_message">This clears the editor only. Saved rules stay active until you save the empty draft.</string>
+    <string name="steam_network_optimization_draft_cleared">Draft cleared. Save to apply the change.</string>
 </resources>

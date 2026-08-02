@@ -4901,4 +4901,21 @@
     <string name="steam_network_optimization_collapse_editor">收起高级编辑器</string>
     <string name="steam_network_optimization_unsaved">未保存</string>
     <string name="steam_network_optimization_saved">已保存</string>
+    <string name="steam_network_optimization_more_actions">Hosts 操作</string>
+    <string name="steam_network_optimization_import_file">导入文本文件</string>
+    <string name="steam_network_optimization_export_file">导出文本文件</string>
+    <string name="steam_network_optimization_copy">复制规则</string>
+    <string name="steam_network_optimization_paste">粘贴到草稿</string>
+    <string name="steam_network_optimization_clear_draft">清空草稿</string>
+    <string name="steam_network_optimization_imported_to_draft">文件已载入草稿，请检查后再保存。</string>
+    <string name="steam_network_optimization_exported">Hosts 文本已导出</string>
+    <string name="steam_network_optimization_copied">Hosts 文本已复制</string>
+    <string name="steam_network_optimization_pasted_to_draft">剪贴板文本已载入草稿，请检查后再保存。</string>
+    <string name="steam_network_optimization_import_failed">无法导入此文件，请使用小于 512 KB 的 UTF-8 文本文件。</string>
+    <string name="steam_network_optimization_export_failed">无法将 Hosts 文本写入所选文件。</string>
+    <string name="steam_network_optimization_clipboard_empty">剪贴板中没有文本内容。</string>
+    <string name="steam_network_optimization_clipboard_too_large">剪贴板文本超过 512 KB 限制。</string>
+    <string name="steam_network_optimization_clear_draft_title">清空当前草稿？</string>
+    <string name="steam_network_optimization_clear_draft_message">只会清空编辑器；已保存规则会继续生效，直到你保存空草稿。</string>
+    <string name="steam_network_optimization_draft_cleared">草稿已清空，保存后才会应用。</string>
 </resources>
