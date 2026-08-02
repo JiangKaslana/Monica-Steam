@@ -42,15 +42,10 @@ internal class SteamCommunityEligibilityService(
         val countryCode = countryRequest.await()?.takeIf(String::isNotBlank)
             ?: accountInfo?.countryCode.orEmpty()
         val currencyCode = steamCurrencyForCountry(countryCode)
-        val status = when (support?.limited) {
-            true -> SteamCommunityRestrictionStatus.LIMITED
-            false -> SteamCommunityRestrictionStatus.UNRESTRICTED
-            null -> when (accountInfo?.limited) {
-                true -> SteamCommunityRestrictionStatus.LIMITED
-                false -> SteamCommunityRestrictionStatus.UNRESTRICTED
-                null -> SteamCommunityRestrictionStatus.UNKNOWN
-            }
-        }
+        val status = resolveCommunityRestrictionStatus(
+            supportLimited = support?.limited,
+            accountFlagsLimited = accountInfo?.limited
+        )
         val thresholdUsd = support?.thresholdUsdCents
             ?: DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS
         val remainingUsd = when (status) {
@@ -102,8 +97,9 @@ internal class SteamCommunityEligibilityService(
         SteamCommunityUnlockProgress(
             status = status,
             source = when {
-                support?.hasExactProgress == true -> SteamCommunityUnlockSource.STEAM_SUPPORT
-                accountInfo != null -> SteamCommunityUnlockSource.STEAM_ACCOUNT_FLAGS
+                support?.limited != null || support?.hasExactProgress == true ->
+                    SteamCommunityUnlockSource.STEAM_SUPPORT
+                accountInfo?.limited == true -> SteamCommunityUnlockSource.STEAM_ACCOUNT_FLAGS
                 else -> SteamCommunityUnlockSource.ESTIMATE
             },
             accountCountryCode = countryCode,
@@ -120,4 +116,14 @@ internal class SteamCommunityEligibilityService(
             fetchedAt = nowMillis()
         )
     }
+}
+
+internal fun resolveCommunityRestrictionStatus(
+    supportLimited: Boolean?,
+    accountFlagsLimited: Boolean?
+): SteamCommunityRestrictionStatus = when {
+    supportLimited == true -> SteamCommunityRestrictionStatus.LIMITED
+    supportLimited == false -> SteamCommunityRestrictionStatus.UNRESTRICTED
+    accountFlagsLimited == true -> SteamCommunityRestrictionStatus.LIMITED
+    else -> SteamCommunityRestrictionStatus.UNKNOWN
 }

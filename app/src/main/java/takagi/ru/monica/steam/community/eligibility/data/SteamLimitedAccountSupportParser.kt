@@ -9,13 +9,15 @@ internal object SteamLimitedAccountSupportParser {
     fun parse(html: String): SteamLimitedAccountSupportProgress? {
         if (html.isBlank()) return null
         val document = Jsoup.parse(html)
-        val text = document.body()?.text()
-            ?.replace('\u00A0', ' ')
-            ?.replace(Regex("\\s+"), " ")
-            ?.trim()
-            .orEmpty()
+        val text = normalizeText(document.body()?.text().orEmpty())
         if (text.isBlank() || isLoginPage(document.location(), html, text)) return null
 
+        val explicitlyLimited = document.allElements.any { element ->
+            normalizeText(element.text()).matches(EXPLICIT_LIMITED_STATEMENT)
+        }
+        val explicitlyUnrestricted = document.allElements.any { element ->
+            normalizeText(element.text()).matches(EXPLICIT_UNRESTRICTED_STATEMENT)
+        }
         val spent = findAmount(SPENT_AMOUNT, text)
         val threshold = findAmount(THRESHOLD_AMOUNT, text)
             ?: if (spent != null) DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS else null
@@ -23,15 +25,14 @@ internal object SteamLimitedAccountSupportParser {
         val remaining = when {
             explicitRemaining != null -> explicitRemaining
             spent != null && threshold != null -> (threshold - spent).coerceAtLeast(0)
-            text.contains("your account is not limited", ignoreCase = true) -> 0
+            explicitlyUnrestricted -> 0
             else -> null
         }
         val limited = when {
             spent != null && threshold != null -> spent < threshold
-            text.contains("your account is limited", ignoreCase = true) -> true
-            text.contains("your account is a limited", ignoreCase = true) -> true
-            text.contains("limited user account", ignoreCase = true) -> true
-            text.contains("your account is not limited", ignoreCase = true) -> false
+            explicitRemaining != null -> explicitRemaining > 0
+            explicitlyLimited -> true
+            explicitlyUnrestricted -> false
             else -> null
         }
         if (limited == null && spent == null && remaining == null) return null
@@ -50,6 +51,11 @@ internal object SteamLimitedAccountSupportParser {
         ?.toDoubleOrNull()
         ?.times(100.0)
         ?.roundToInt()
+
+    private fun normalizeText(value: String): String = value
+        .replace('\u00A0', ' ')
+        .replace(Regex("\\s+"), " ")
+        .trim()
 
     private fun isLoginPage(location: String, html: String, text: String): Boolean {
         val normalizedHtml = html.lowercase()
@@ -70,5 +76,13 @@ internal object SteamLimitedAccountSupportParser {
         "(?i)(?:remaining|left\\s+to\\s+spend|still\\s+need(?:s)?\\s+to\\s+spend|" +
             "need(?:s)?\\s+to\\s+spend\\s+an?\\s+additional)" +
             "[^$]{0,80}(?:US)?\\$\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"
+    )
+    private val EXPLICIT_LIMITED_STATEMENT = Regex(
+        "(?i)^your(?: steam)? account is (?:currently )?" +
+            "(?:(?:a )?limited(?: user)? account|limited)[.!]?$"
+    )
+    private val EXPLICIT_UNRESTRICTED_STATEMENT = Regex(
+        "(?i)^your(?: steam)? account is " +
+            "(?:(?:currently )?not limited|not currently limited)[.!]?$"
     )
 }

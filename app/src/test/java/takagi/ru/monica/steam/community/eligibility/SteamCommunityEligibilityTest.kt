@@ -7,6 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.community.eligibility.data.SteamCommunityAccountInfoParser
 import takagi.ru.monica.steam.community.eligibility.data.SteamLimitedAccountSupportParser
+import takagi.ru.monica.steam.community.eligibility.data.resolveCommunityRestrictionStatus
+import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockCalculator
 import takagi.ru.monica.steam.network.SteamProtoWriter
 
@@ -46,6 +48,16 @@ class SteamCommunityEligibilityTest {
         val info = SteamCommunityAccountInfoParser.parse(body)
 
         assertNull(info.limited)
+    }
+
+    @Test
+    fun accountFlagsWithoutLimitedBitsDoNotProveCommunityAccess() {
+        val body = SteamProtoWriter().apply {
+            writeString(2, "CN")
+            writeVarint(7, 0L)
+        }.toByteArray()
+
+        assertNull(SteamCommunityAccountInfoParser.parse(body).limited)
     }
 
     @Test
@@ -99,6 +111,36 @@ class SteamCommunityEligibilityTest {
         )
 
         assertNull(result)
+    }
+
+    @Test
+    fun conditionalUnrestrictedHelpCopyDoesNotUnlockTheAccount() {
+        val result = SteamLimitedAccountSupportParser.parse(
+            """
+            <html><body>
+              <p>If your account is not limited, these restrictions do not apply.</p>
+              <p>Accounts must spend at least ${'$'}5.00 USD.</p>
+            </body></html>
+            """.trimIndent()
+        )
+
+        assertNull(result)
+    }
+
+    @Test
+    fun onlyPositiveAccountFlagsCanConfirmARestriction() {
+        assertEquals(
+            SteamCommunityRestrictionStatus.LIMITED,
+            resolveCommunityRestrictionStatus(supportLimited = null, accountFlagsLimited = true)
+        )
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNKNOWN,
+            resolveCommunityRestrictionStatus(supportLimited = null, accountFlagsLimited = false)
+        )
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNRESTRICTED,
+            resolveCommunityRestrictionStatus(supportLimited = false, accountFlagsLimited = false)
+        )
     }
 
     @Test

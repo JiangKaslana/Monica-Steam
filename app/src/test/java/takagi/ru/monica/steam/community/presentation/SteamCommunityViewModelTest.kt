@@ -175,6 +175,37 @@ class SteamCommunityViewModelTest {
     }
 
     @Test
+    fun obsoleteExactUnlockEvidenceCannotReplaceFreshUnknownState() {
+        val cached = snapshot(ACCOUNT_A).copy(
+            unlockProgress = SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.UNRESTRICTED,
+                source = SteamCommunityUnlockSource.STEAM_SUPPORT,
+                remainingUsdCents = 0,
+                exactProgress = true,
+                evidenceRevision = 1,
+                fetchedAt = 90L
+            )
+        )
+        val fresh = snapshot(ACCOUNT_A).copy(
+            unlockProgress = SteamCommunityUnlockProgress(
+                status = SteamCommunityRestrictionStatus.UNKNOWN,
+                source = SteamCommunityUnlockSource.ESTIMATE,
+                remainingUsdCents = 500,
+                exactProgress = false,
+                fetchedAt = 200L
+            )
+        )
+
+        val merged = mergeCommunitySnapshot(fresh, cached)
+
+        assertEquals(
+            SteamCommunityRestrictionStatus.UNKNOWN,
+            merged.snapshot.unlockProgress?.status
+        )
+        assertFalse(SteamCommunitySection.ELIGIBILITY in merged.staleSections)
+    }
+
+    @Test
     fun sameLocalIdWithDifferentSteamIdCannotPublishTheOldAccount() = runTest(scheduler) {
         val fetchedSteamIds = mutableListOf<String>()
         val gateway = SteamCommunityGateway { account ->

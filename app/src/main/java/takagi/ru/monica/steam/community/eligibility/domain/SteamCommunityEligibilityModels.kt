@@ -124,7 +124,7 @@ internal fun steamCurrencyForCountry(countryCode: String): String {
 }
 
 internal const val DEFAULT_STEAM_UNLOCK_THRESHOLD_USD_CENTS = 500
-internal const val CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION = 1
+internal const val CURRENT_STEAM_COMMUNITY_EVIDENCE_REVISION = 2
 
 fun interface SteamCommunityEligibilityGateway {
     suspend fun fetch(account: SteamAccount): SteamCommunityUnlockProgress

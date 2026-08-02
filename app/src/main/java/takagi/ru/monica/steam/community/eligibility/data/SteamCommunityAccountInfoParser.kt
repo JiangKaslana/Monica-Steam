@@ -14,8 +14,9 @@ internal object SteamCommunityAccountInfoParser {
         return SteamCommunityAccountInfo(
             countryCode = fields[2]?.asString.orEmpty().trim().uppercase(),
             accountFlags = flags,
-            limited = flagsField?.let {
-                flags and (LIMITED_USER_FLAG or FORCED_LIMITED_USER_FLAG) != 0L
+            limited = true.takeIf {
+                flagsField != null &&
+                    flags and (LIMITED_USER_FLAG or FORCED_LIMITED_USER_FLAG) != 0L
             }
         )
     }

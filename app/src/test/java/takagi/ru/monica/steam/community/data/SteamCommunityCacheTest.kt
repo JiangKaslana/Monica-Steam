@@ -51,7 +51,7 @@ class SteamCommunityCacheTest {
                     source = SteamCommunityUnlockSource.STEAM_SUPPORT,
                     remainingUsdCents = 0,
                     exactProgress = true,
-                    evidenceRevision = 0
+                    evidenceRevision = 1
                 )
             )
         )
