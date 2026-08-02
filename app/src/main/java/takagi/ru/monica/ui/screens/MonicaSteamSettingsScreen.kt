@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -133,6 +134,7 @@ fun MonicaSteamSettingsScreen(
     modifier: Modifier = Modifier
 ) {
     var child by remember { mutableStateOf<SteamSettingsChild?>(null) }
+    val settingsScrollState = rememberScrollState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -159,6 +161,7 @@ fun MonicaSteamSettingsScreen(
                 settings = settings,
                 settingsManager = settingsManager,
                 settingsViewModel = settingsViewModel,
+                scrollState = settingsScrollState,
                 onNavigateBack = onNavigateBack,
                 onOpenMaFileTransfer = onOpenMaFileTransfer,
                 onOpenWebDavBackup = onOpenWebDavBackup,

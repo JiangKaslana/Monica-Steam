@@ -1,5 +1,6 @@
 package takagi.ru.monica.ui.screens
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -137,6 +138,7 @@ fun SettingsScreen(
     additionalAppearanceContent: (@Composable () -> Unit)? = null,
     additionalAppearanceSearchTexts: List<String> = emptyList(),
     contentBottomPadding: Dp = 0.dp,
+    scrollState: ScrollState = rememberScrollState(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -160,7 +162,6 @@ fun SettingsScreen(
     val batchDeleteProgress by PasswordBatchDeleteProgressTracker.progress.collectAsState()
     val batchTransferProgress by PasswordBatchTransferProgressTracker.progress.collectAsState()
     val totpItems by viewModel.totpItems.collectAsState()
-    val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
     var showClearDataDialog by remember { mutableStateOf(false) }
     var clearDataPasswordInput by remember { mutableStateOf("") }

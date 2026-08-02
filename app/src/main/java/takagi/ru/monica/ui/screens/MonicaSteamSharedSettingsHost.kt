@@ -2,6 +2,7 @@ package takagi.ru.monica.ui.screens
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.ViewList
@@ -38,6 +39,7 @@ internal fun MonicaSteamSharedSettingsHost(
     settings: AppSettings,
     settingsManager: SettingsManager,
     settingsViewModel: SettingsViewModel,
+    scrollState: ScrollState,
     onNavigateBack: () -> Unit,
     onOpenMaFileTransfer: () -> Unit,
     onOpenWebDavBackup: () -> Unit,
@@ -64,6 +66,7 @@ internal fun MonicaSteamSharedSettingsHost(
 
     SettingsScreen(
         viewModel = settingsViewModel,
+        scrollState = scrollState,
         onNavigateBack = onNavigateBack,
         onResetPassword = {},
         onSecurityQuestions = {},
