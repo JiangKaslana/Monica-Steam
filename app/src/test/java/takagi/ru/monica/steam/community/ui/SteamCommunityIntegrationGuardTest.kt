@@ -105,14 +105,33 @@ class SteamCommunityIntegrationGuardTest {
         val actions = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityUnlockActions.kt"
         ).readText()
+        val budgetSheet = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityBudgetGamesSheet.kt"
+        ).readText()
 
         assertTrue(screen.contains("compact = true"))
         assertTrue(profile.contains("BoxWithConstraints"))
         assertTrue(profile.contains("fontScale > 1.15f"))
         assertFalse(profile.contains("private fun CommunityMetric("))
-        assertTrue(unlock.contains("steam_community_unlock_unknown_headline"))
+        assertTrue(unlock.contains("steam_community_unlock_estimated_remaining"))
         assertTrue(actions.contains("stackActions"))
         assertTrue(actions.contains("fontScale > 1.10f"))
+        assertTrue(budgetSheet.contains("MonicaModalBottomSheet("))
+        assertTrue(budgetSheet.contains("navigationBarsPadding()"))
+        assertTrue(budgetSheet.contains("heightIn(min = 88.dp)"))
+        assertTrue(budgetSheet.contains("game.inWishlist"))
+        assertTrue(budgetSheet.contains("steam_community_unlock_overage"))
+    }
+
+    @Test
+    fun unknownRestrictionStillShowsRegionalSpendEstimate() {
+        val unlock = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityUnlockContent.kt"
+        ).readText()
+
+        assertTrue(unlock.contains("steam_community_unlock_estimated_remaining"))
+        assertTrue(unlock.contains("remainingAmount(progress)"))
+        assertTrue(unlock.contains("shouldShowCommunitySpendEstimate(progress.status)"))
     }
 
     private fun projectFile(path: String): File {

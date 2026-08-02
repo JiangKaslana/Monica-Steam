@@ -28,7 +28,8 @@ data class SteamCommunityBudgetGame(
     val currency: String,
     val finalPriceMinor: Int,
     val originalPriceMinor: Int? = null,
-    val discountPercent: Int = 0
+    val discountPercent: Int = 0,
+    val inWishlist: Boolean = false
 )
 
 @Serializable

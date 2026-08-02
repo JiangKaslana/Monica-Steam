@@ -37,6 +37,15 @@ internal class SteamCommunityEligibilityService(
         val ratesRequest = async(Dispatchers.IO) {
             runCatching { exchangeService.fetchCnyRates() }.getOrNull()
         }
+        val wishlistRequest = async(Dispatchers.IO) {
+            runCatching {
+                storeService.wishlist(
+                    steamId = account.steamId,
+                    steamLoginSecure = account.steamLoginSecure,
+                    accessToken = account.accessToken
+                ).mapTo(linkedSetOf()) { it.appId }
+            }.getOrDefault(emptySet())
+        }
         val accountInfo = accountInfoRequest.await()
         val support = supportRequest.await()
         val countryCode = countryRequest.await()?.takeIf(String::isNotBlank)
@@ -67,6 +76,7 @@ internal class SteamCommunityEligibilityService(
                 it.unitsPerCny
             )
         }
+        val wishlistAppIds = wishlistRequest.await()
         val suggestions = if (
             status != SteamCommunityRestrictionStatus.UNRESTRICTED &&
             !countryCode.isBlank() &&
@@ -77,7 +87,8 @@ internal class SteamCommunityEligibilityService(
                 storeService.budgetSuggestions(
                     targetMinor = localRemaining.toInt(),
                     countryCode = countryCode,
-                    steamLoginSecure = account.steamLoginSecure
+                    steamLoginSecure = account.steamLoginSecure,
+                    wishlistAppIds = wishlistAppIds
                 ).mapNotNull { item ->
                     val price = item.finalPriceCents ?: return@mapNotNull null
                     SteamCommunityBudgetGame(
@@ -87,7 +98,8 @@ internal class SteamCommunityEligibilityService(
                         currency = item.currency,
                         finalPriceMinor = price,
                         originalPriceMinor = item.initialPriceCents,
-                        discountPercent = item.discountPercent
+                        discountPercent = item.discountPercent,
+                        inWishlist = item.appId in wishlistAppIds
                     )
                 }
             }.getOrDefault(emptyList())

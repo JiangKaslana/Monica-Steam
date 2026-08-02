@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.Card
@@ -19,16 +21,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import takagi.ru.monica.R
-import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityBudgetGame
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityRestrictionStatus
 import takagi.ru.monica.steam.community.eligibility.domain.SteamCommunityUnlockProgress
 import takagi.ru.monica.steam.store.domain.formatSteamPrice
@@ -44,6 +47,7 @@ internal fun CommunityUnlockSection(
 ) {
     val status = progress.status
     val unlocked = status == SteamCommunityRestrictionStatus.UNRESTRICTED
+    var showBudgetGames by rememberSaveable { mutableStateOf(false) }
     val containerColor = when (progress.status) {
         SteamCommunityRestrictionStatus.LIMITED -> MaterialTheme.colorScheme.secondaryContainer
         SteamCommunityRestrictionStatus.UNRESTRICTED -> MaterialTheme.colorScheme.primaryContainer
@@ -98,26 +102,23 @@ internal fun CommunityUnlockSection(
                 }
             }
 
-            Text(
-                text = when (status) {
-                    SteamCommunityRestrictionStatus.UNRESTRICTED ->
-                        stringResource(R.string.steam_community_unlock_complete)
-                    SteamCommunityRestrictionStatus.LIMITED -> stringResource(
-                        R.string.steam_community_unlock_remaining,
-                        remainingAmount(progress)
-                    )
-                    SteamCommunityRestrictionStatus.UNKNOWN ->
-                        stringResource(R.string.steam_community_unlock_unknown_headline)
-                },
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontFamily = GoogleSansFlexFontFamily
-                ),
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (shouldShowCommunitySpendEstimate(progress.status)) {
+                CommunitySpendEstimateButton(
+                    progress = progress,
+                    contentColor = contentColor,
+                    onClick = { showBudgetGames = true }
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.steam_community_unlock_complete),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontFamily = GoogleSansFlexFontFamily
+                    ),
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
-            if (status != SteamCommunityRestrictionStatus.UNKNOWN) {
+            if (shouldShowCommunitySpendEstimate(progress.status)) {
                 LinearProgressIndicator(
                     progress = { progress.progressFraction },
                     modifier = Modifier.fillMaxWidth(),
@@ -149,77 +150,64 @@ internal fun CommunityUnlockSection(
         }
     }
 
-    if (
-        progress.status == SteamCommunityRestrictionStatus.LIMITED &&
-        progress.suggestedGames.isNotEmpty()
-    ) {
-        CommunitySectionHeader(
-            title = stringResource(R.string.steam_community_unlock_games_title),
-            supporting = stringResource(R.string.steam_community_unlock_games_summary)
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            progress.suggestedGames.forEach { game ->
-                CommunityBudgetGameCard(game = game, onClick = { onOpenGame(game.appId) })
+    if (showBudgetGames) {
+        CommunityBudgetGamesSheet(
+            progress = progress,
+            onDismissRequest = { showBudgetGames = false },
+            onOpenGame = { appId ->
+                showBudgetGames = false
+                onOpenGame(appId)
             }
-        }
+        )
     }
 }
 
 @Composable
-private fun CommunityBudgetGameCard(game: SteamCommunityBudgetGame, onClick: () -> Unit) {
-    Card(
+private fun CommunitySpendEstimateButton(
+    progress: SteamCommunityUnlockProgress,
+    contentColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit
+) {
+    Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        color = contentColor.copy(alpha = 0.10f),
+        contentColor = contentColor
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            CommunityGameIcon(game.imageUrl, Modifier.size(width = 96.dp, height = 54.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = game.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    text = stringResource(
+                        if (progress.exactProgress) {
+                            R.string.steam_community_unlock_remaining
+                        } else {
+                            R.string.steam_community_unlock_estimated_remaining
+                        },
+                        remainingAmount(progress)
+                    ),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontFamily = GoogleSansFlexFontFamily
+                    ),
+                    fontWeight = FontWeight.Bold
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (game.discountPercent > 0 && game.originalPriceMinor != null) {
-                        Text(
-                            text = formatSteamPrice(game.originalPriceMinor, game.currency),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textDecoration = TextDecoration.LineThrough
-                        )
-                        Spacer(Modifier.width(7.dp))
-                    }
-                    Text(
-                        text = formatSteamPrice(game.finalPriceMinor, game.currency),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.steam_community_unlock_games_action),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = contentColor.copy(alpha = 0.76f)
+                )
             }
-            if (game.discountPercent > 0) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                ) {
-                    Text(
-                        text = "-${game.discountPercent}%",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = stringResource(
+                    R.string.steam_community_unlock_games_action
+                ),
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
@@ -232,6 +220,10 @@ private fun unlockStatusText(status: SteamCommunityRestrictionStatus): String = 
         SteamCommunityRestrictionStatus.UNKNOWN -> R.string.steam_community_unlock_unknown
     }
 )
+
+internal fun shouldShowCommunitySpendEstimate(
+    status: SteamCommunityRestrictionStatus
+): Boolean = status != SteamCommunityRestrictionStatus.UNRESTRICTED
 
 private fun remainingAmount(progress: SteamCommunityUnlockProgress): String {
     val local = progress.localRemainingMinor

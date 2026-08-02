@@ -33,24 +33,27 @@ class SteamCommunityBudgetSuggestionsTest {
             countryCode = "CN",
             steamLoginSecure = "secure",
             language = "schinese",
-            limit = 4
+            wishlistAppIds = setOf(3),
+            limit = 6
         )
 
-        assertEquals(listOf(2, 3, 4), games.map { it.appId })
+        assertEquals(listOf(3, 2, 4), games.map { it.appId })
         assertTrue(games.all { (it.finalPriceCents ?: 0) >= 3_600 })
+        assertTrue(games.all { (it.finalPriceCents ?: Int.MAX_VALUE) <= 3_960 })
         assertTrue(requestedUrl.get().contains("cc=CN"))
-        assertTrue(requestedUrl.get().contains("maxprice=58"))
+        assertTrue(requestedUrl.get().contains("maxprice=40"))
         assertTrue(requestedUrl.get().contains("sort_by=Price_DESC"))
     }
 
     private fun payload(): String {
         val rows = listOf(
-            row(1, "Too cheap", "¥ 30.00"),
-            row(4, "Far", "¥ 50.00"),
+            row(1, "Too cheap", "¥ 35.99"),
+            row(5, "Over ten percent", "¥ 39.61"),
+            row(4, "Ten percent", "¥ 39.60"),
             row(2, "Exact", "¥ 36.00"),
-            row(3, "Close", "¥ 40.00")
+            row(3, "Wishlist", "¥ 39.00")
         ).joinToString("")
-        return """{"success":1,"start":0,"total_count":4,"results_html":${json(rows)}}"""
+        return """{"success":1,"start":0,"total_count":5,"results_html":${json(rows)}}"""
     }
 
     private fun row(appId: Int, name: String, price: String): String =

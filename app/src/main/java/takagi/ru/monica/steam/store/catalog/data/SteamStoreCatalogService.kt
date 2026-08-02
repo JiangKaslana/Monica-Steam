@@ -1,8 +1,6 @@
 package takagi.ru.monica.steam.store.catalog.data
 
-import kotlin.math.abs
 import kotlin.math.ceil
-import kotlin.math.max
 import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.store.data.buildSteamStoreRequest
 import takagi.ru.monica.steam.store.domain.SteamStoreBrowseFilter
@@ -40,13 +38,11 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
         countryCode: String,
         steamLoginSecure: String?,
         language: String,
+        wishlistAppIds: Set<Int> = emptySet(),
         limit: Int = 6
     ): List<SteamStoreItem> {
         if (targetMinor <= 0 || countryCode.isBlank() || limit <= 0) return emptyList()
-        val upperMinor = max(
-            targetMinor + MINIMUM_BUDGET_WINDOW_MINOR,
-            (targetMinor * BUDGET_WINDOW_MULTIPLIER).toInt()
-        )
+        val upperMinor = maximumCommunityBudgetMinor(targetMinor)
         val request = buildSteamStoreRequest(
             path = "/search/results/",
             query = buildBudgetQuery(
@@ -62,21 +58,15 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
             }
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 预算目录返回空数据")
-            return SteamStoreCatalogParser.parse(body, SteamStoreBrowseFilter.TOP_SELLERS)
-                .items
-                .asSequence()
-                .filter { item ->
-                    val price = item.finalPriceCents ?: return@filter false
-                    price in targetMinor..upperMinor
-                }
-                .sortedWith(
-                    compareBy<SteamStoreItem> {
-                        abs((it.finalPriceCents ?: Int.MAX_VALUE) - targetMinor)
-                    }.thenByDescending(SteamStoreItem::discountPercent)
-                        .thenBy(SteamStoreItem::name)
-                )
-                .take(limit)
-                .toList()
+            return selectCommunityBudgetSuggestions(
+                items = SteamStoreCatalogParser.parse(
+                    body,
+                    SteamStoreBrowseFilter.TOP_SELLERS
+                ).items,
+                targetMinor = targetMinor,
+                wishlistAppIds = wishlistAppIds,
+                limit = limit
+            )
         }
     }
 
@@ -117,9 +107,32 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
         "maxprice" to ceil(upperMinor / 100.0).toInt().toString(),
         "sort_by" to "Price_DESC"
     )
+}
 
-    private companion object {
-        const val MINIMUM_BUDGET_WINDOW_MINOR = 500
-        const val BUDGET_WINDOW_MULTIPLIER = 1.6
-    }
+internal fun maximumCommunityBudgetMinor(targetMinor: Int): Int =
+    ((targetMinor.toLong() * 110L) / 100L)
+        .coerceAtMost(Int.MAX_VALUE.toLong())
+        .toInt()
+
+internal fun selectCommunityBudgetSuggestions(
+    items: List<SteamStoreItem>,
+    targetMinor: Int,
+    wishlistAppIds: Set<Int>,
+    limit: Int
+): List<SteamStoreItem> {
+    if (targetMinor <= 0 || limit <= 0) return emptyList()
+    val upperMinor = maximumCommunityBudgetMinor(targetMinor)
+    return items.asSequence()
+        .filter { item ->
+            val price = item.finalPriceCents ?: return@filter false
+            price in targetMinor..upperMinor
+        }
+        .sortedWith(
+            compareByDescending<SteamStoreItem> { it.appId in wishlistAppIds }
+                .thenBy { (it.finalPriceCents ?: Int.MAX_VALUE) - targetMinor }
+                .thenByDescending(SteamStoreItem::discountPercent)
+                .thenBy(SteamStoreItem::name)
+        )
+        .take(limit)
+        .toList()
 }

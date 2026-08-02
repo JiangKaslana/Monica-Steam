@@ -71,12 +71,14 @@ class SteamStoreService(
         countryCode: String,
         steamLoginSecure: String?,
         language: String = "schinese",
+        wishlistAppIds: Set<Int> = emptySet(),
         limit: Int = 6
     ): List<SteamStoreItem> = catalogService.budgetSuggestions(
         targetMinor = targetMinor,
         countryCode = countryCode,
         steamLoginSecure = steamLoginSecure,
         language = language,
+        wishlistAppIds = wishlistAppIds,
         limit = limit
     )
 
