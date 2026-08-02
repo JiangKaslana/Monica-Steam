@@ -47,7 +47,8 @@ fun MasterPasswordLockingSettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
     onResetPassword: () -> Unit,
-    onSecurityQuestions: () -> Unit
+    onSecurityQuestions: () -> Unit,
+    showSteamTokenPageLockOption: Boolean = false
 ) {
     val context = LocalContext.current
     val activity = context as? FragmentActivity
@@ -169,6 +170,16 @@ fun MasterPasswordLockingSettingsScreen(
                     }
                 }
             )
+
+            if (showSteamTokenPageLockOption) {
+                SettingsItemWithSwitch(
+                    icon = Icons.Default.Security,
+                    title = stringResource(R.string.steam_lock_token_page_only),
+                    subtitle = stringResource(R.string.steam_lock_token_page_only_description),
+                    checked = settings.steamLockTokenPageOnly,
+                    onCheckedChange = viewModel::updateSteamLockTokenPageOnly
+                )
+            }
 
             SettingsItemWithSwitch(
                 icon = Icons.Default.LockOpen,

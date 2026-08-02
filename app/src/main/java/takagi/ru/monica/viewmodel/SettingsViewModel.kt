@@ -171,6 +171,12 @@ class SettingsViewModel(
         }
     }
 
+    fun updateSteamLockTokenPageOnly(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.updateSteamLockTokenPageOnly(enabled)
+        }
+    }
+
     fun updatePasskeyHyperOsBiometricBypassEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsManager.updatePasskeyHyperOsBiometricBypassEnabled(enabled)

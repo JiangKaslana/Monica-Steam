@@ -218,7 +218,8 @@ fun MonicaSteamSettingsScreen(
                         },
                         onSecurityQuestions = {
                             child = SteamSettingsChild.SECURITY_QUESTIONS
-                        }
+                        },
+                        showSteamTokenPageLockOption = true
                     )
                 SteamSettingsChild.RESET_PASSWORD -> ResetPasswordScreen(
                     securityManager = securityManager,

@@ -50,16 +50,25 @@ private enum class SteamAppRecoveryRoute {
  */
 @Composable
 fun SteamAppLockGate(
+    enabled: Boolean = true,
+    allowStartupVerificationBypass: Boolean = true,
     settings: AppSettings,
     settingsViewModel: SettingsViewModel,
     passwordViewModel: PasswordViewModel,
     securityManager: SecurityManager,
     content: @Composable () -> Unit
 ) {
+    if (!enabled) {
+        content()
+        return
+    }
+
     val context = LocalContext.current
     val reduceAnimations = LocalReduceAnimations.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isAuthenticated by passwordViewModel.isAuthenticated.collectAsState()
+    val disablePasswordVerification =
+        allowStartupVerificationBypass && settings.disablePasswordVerification
     var accessState by remember { mutableStateOf<MainAppAccessState?>(null) }
     var recoveryRoute by rememberSaveable { mutableStateOf(SteamAppRecoveryRoute.LOGIN) }
 
@@ -85,7 +94,7 @@ fun SteamAppLockGate(
         passwordViewModel,
         securityManager,
         settings.autoLockMinutes,
-        settings.disablePasswordVerification
+        disablePasswordVerification
     ) {
         SessionManager.updateAutoLockTimeout(settings.autoLockMinutes)
         val loadedState = withContext(Dispatchers.IO) {
@@ -93,7 +102,7 @@ fun SteamAppLockGate(
                 securityManager = securityManager,
                 context = context.applicationContext,
                 autoLockMinutes = settings.autoLockMinutes,
-                disablePasswordVerification = settings.disablePasswordVerification
+                disablePasswordVerification = disablePasswordVerification
             )
         }
         applyAccessState(loadedState, isAuthenticated)
@@ -101,6 +110,9 @@ fun SteamAppLockGate(
 
     val currentIsAuthenticated by rememberUpdatedState(isAuthenticated)
     val currentSettings by rememberUpdatedState(settings)
+    val currentAllowStartupVerificationBypass by rememberUpdatedState(
+        allowStartupVerificationBypass
+    )
     DisposableEffect(lifecycleOwner, passwordViewModel, securityManager) {
         val observer = LifecycleEventObserver { _, event ->
             if (event != Lifecycle.Event.ON_START) return@LifecycleEventObserver
@@ -110,7 +122,8 @@ fun SteamAppLockGate(
                 securityManager = securityManager,
                 context = context.applicationContext,
                 autoLockMinutes = currentSettings.autoLockMinutes,
-                disablePasswordVerification = currentSettings.disablePasswordVerification
+                disablePasswordVerification = currentAllowStartupVerificationBypass &&
+                    currentSettings.disablePasswordVerification
             )
             applyAccessState(resumedState, currentIsAuthenticated)
         }

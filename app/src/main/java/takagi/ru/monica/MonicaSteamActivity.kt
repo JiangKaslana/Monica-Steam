@@ -319,6 +319,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                     LocalReduceAnimations provides settings.reduceAnimations
                 ) {
                     SteamAppLockGate(
+                        enabled = !settings.steamLockTokenPageOnly,
                         settings = settings,
                         settingsViewModel = steamSettingsViewModel,
                         passwordViewModel = passwordViewModel,
@@ -594,42 +595,51 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                         }
 
                         MonicaSteamPage.STEAM -> {
-                            SteamScreen(
-                                showStandaloneSettingsEntry = true,
-                                onOpenStandaloneSettings = {
-                                    navigateTo(MonicaSteamPage.SETTINGS)
-                                },
-                                onOpenBackup = {
-                                    navigateTo(MonicaSteamPage.MAFILE_TRANSFER)
-                                },
-                                onOpenCommunity = { steamId ->
-                                    pendingCommunitySteamId = steamId
-                                    navigateTo(MonicaSteamPage.COMMUNITY)
-                                },
-                                openNotificationsOnEntry = pendingSteamNotifications,
-                                onNotificationsEntryConsumed = {
-                                    pendingSteamNotifications = false
-                                },
-                                onOpenStoreApp = { appId ->
-                                    pendingStoreAppId = appId
-                                    navigateTo(MonicaSteamPage.STORE)
-                                },
-                                onOpenChat = { partnerSteamId ->
-                                    pendingChatPartnerSteamId = partnerSteamId
-                                    navigateTo(MonicaSteamPage.CHAT)
-                                },
-                                pendingSteamQrResult = pendingQrResult,
-                                pendingSteamQrAccountId = pendingQrAccountId,
-                                onConsumePendingSteamQrResult = {
-                                    pendingQrResult = null
-                                    pendingQrAccountId = null
-                                },
-                                onScanSteamQrCode = { accountId ->
-                                    scannerAccountId = accountId
-                                    navigateTo(MonicaSteamPage.SCANNER)
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
+                            SteamAppLockGate(
+                                enabled = settings.steamLockTokenPageOnly,
+                                allowStartupVerificationBypass = false,
+                                settings = settings,
+                                settingsViewModel = steamSettingsViewModel,
+                                passwordViewModel = passwordViewModel,
+                                securityManager = securityManager
+                            ) {
+                                SteamScreen(
+                                    showStandaloneSettingsEntry = true,
+                                    onOpenStandaloneSettings = {
+                                        navigateTo(MonicaSteamPage.SETTINGS)
+                                    },
+                                    onOpenBackup = {
+                                        navigateTo(MonicaSteamPage.MAFILE_TRANSFER)
+                                    },
+                                    onOpenCommunity = { steamId ->
+                                        pendingCommunitySteamId = steamId
+                                        navigateTo(MonicaSteamPage.COMMUNITY)
+                                    },
+                                    openNotificationsOnEntry = pendingSteamNotifications,
+                                    onNotificationsEntryConsumed = {
+                                        pendingSteamNotifications = false
+                                    },
+                                    onOpenStoreApp = { appId ->
+                                        pendingStoreAppId = appId
+                                        navigateTo(MonicaSteamPage.STORE)
+                                    },
+                                    onOpenChat = { partnerSteamId ->
+                                        pendingChatPartnerSteamId = partnerSteamId
+                                        navigateTo(MonicaSteamPage.CHAT)
+                                    },
+                                    pendingSteamQrResult = pendingQrResult,
+                                    pendingSteamQrAccountId = pendingQrAccountId,
+                                    onConsumePendingSteamQrResult = {
+                                        pendingQrResult = null
+                                        pendingQrAccountId = null
+                                    },
+                                    onScanSteamQrCode = { accountId ->
+                                        scannerAccountId = accountId
+                                        navigateTo(MonicaSteamPage.SCANNER)
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                                             }
                                         }

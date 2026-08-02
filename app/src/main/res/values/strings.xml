@@ -736,6 +736,8 @@
     <string name="security">Security</string>
     <string name="master_password_and_locking">Master Password &amp; Locking</string>
     <string name="master_password_and_locking_description">Manage fingerprint unlock, auto lock, security questions, and master password reset.</string>
+    <string name="steam_lock_token_page_only">Only lock the Token page</string>
+    <string name="steam_lock_token_page_only_description">When enabled, Monica Steam opens without authentication and asks for the master password or biometrics only when you enter the Token page.</string>
     <string name="auto_lock">Auto Lock</string>
     <string name="auto_lock_summary">Lock app after inactivity</string>
     <string name="about">About</string>
