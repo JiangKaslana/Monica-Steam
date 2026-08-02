@@ -27,7 +27,8 @@ class MonicaSteamMotionParityTest {
         assertTrue(source.contains("ExitTransition.None"))
         assertTrue(source.contains("initialState.isDockPage(dockStyle)"))
         assertTrue(source.contains("targetState.isDockPage(dockStyle)"))
-        assertTrue(source.contains("easyNotesScreenEnter().togetherWith(easyNotesScreenExit())"))
+        assertTrue(source.contains("easyNotesScreenEnter(settings.reduceAnimations)"))
+        assertTrue(source.contains("easyNotesScreenExit(settings.reduceAnimations)"))
         assertTrue(source.contains("var pageHistory by rememberSaveable"))
         assertTrue(source.contains("fun navigateTo(page: MonicaSteamPage)"))
         assertTrue(source.contains("fun navigateBack()"))
@@ -48,8 +49,11 @@ class MonicaSteamMotionParityTest {
         assertTrue(settings.contains("targetState = child"))
         assertTrue(library.contains("targetState = libraryDestination"))
         assertTrue(store.contains("targetState = storeDestination"))
-        listOf(settings, library, store).forEach { source ->
-            assertTrue(source.contains("easyNotesScreenEnter().togetherWith(easyNotesScreenExit())"))
+        assertTrue(settings.contains("easyNotesScreenEnter(settings.reduceAnimations)"))
+        assertTrue(settings.contains("easyNotesScreenExit(settings.reduceAnimations)"))
+        listOf(library, store).forEach { source ->
+            assertTrue(source.contains("easyNotesScreenEnter(reduceAnimations)"))
+            assertTrue(source.contains("easyNotesScreenExit(reduceAnimations)"))
         }
         assertTrue(settings.contains("targetState = child"))
     }
@@ -62,7 +66,8 @@ class MonicaSteamMotionParityTest {
         assertTrue(source.contains("initialState.isDockPage(dockStyle)"))
         assertTrue(source.contains("targetState.isDockPage(dockStyle)"))
         assertTrue(source.contains("EnterTransition.None togetherWith ExitTransition.None"))
-        assertTrue(source.contains("easyNotesScreenEnter().togetherWith(easyNotesScreenExit())"))
+        assertTrue(source.contains("easyNotesScreenEnter(settings.reduceAnimations)"))
+        assertTrue(source.contains("easyNotesScreenExit(settings.reduceAnimations)"))
     }
 
     private fun projectFile(path: String): File {

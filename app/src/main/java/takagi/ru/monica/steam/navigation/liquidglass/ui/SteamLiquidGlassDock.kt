@@ -92,6 +92,7 @@ import takagi.ru.monica.steam.navigation.liquidglass.render.isSteamLiquidGlassRu
 import takagi.ru.monica.steam.navigation.liquidglass.render.liquidGlassInnerShadow
 import takagi.ru.monica.steam.navigation.liquidglass.render.liquidGlassLens
 import takagi.ru.monica.steam.navigation.liquidglass.render.rememberSteamCombinedBackdrop
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.ui.haptic.rememberHapticFeedback
 import top.yukonga.miuix.kmp.blur.BackdropEffectScope
 import top.yukonga.miuix.kmp.blur.blur
@@ -140,6 +141,8 @@ private const val VELOCITY_SCALE_X_MULTIPLIER = 0.75f
 private const val VELOCITY_SCALE_Y_MULTIPLIER = 0.25f
 private const val VELOCITY_SCALE_CLAMP = 0.2f
 private const val LIQUID_GLASS_CAPTURE_ALPHA = 0.001f
+private const val REDUCED_MOTION_DURATION_MILLIS = 120
+private const val REDUCED_MOTION_FADE_OUT_DURATION_MILLIS = 90
 
 @Composable
 internal fun SteamLiquidGlassDockVisibility(
@@ -147,35 +150,44 @@ internal fun SteamLiquidGlassDockVisibility(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val reduceAnimations = LocalReduceAnimations.current
     val enterEasing = remember { CubicBezierEasing(0.22f, 1f, 0.36f, 1f) }
     val exitEasing = remember { CubicBezierEasing(0.32f, 0f, 0.67f, 0f) }
     AnimatedVisibility(
         visible = visible,
         modifier = modifier,
-        enter = slideInVertically(
-            animationSpec = spring(
-                dampingRatio = 0.86f,
-                stiffness = Spring.StiffnessMediumLow
-            ),
-            initialOffsetY = { it }
-        ) + fadeIn(tween(durationMillis = 255, easing = enterEasing)) +
-            scaleIn(
+        enter = if (reduceAnimations) fadeIn(
+            animationSpec = tween(durationMillis = REDUCED_MOTION_DURATION_MILLIS)
+        ) else {
+            slideInVertically(
                 animationSpec = spring(
                     dampingRatio = 0.86f,
                     stiffness = Spring.StiffnessMediumLow
                 ),
-                initialScale = 0.96f,
-                transformOrigin = TransformOrigin(0.5f, 1f)
-            ),
-        exit = slideOutVertically(
-            animationSpec = tween(durationMillis = 160, easing = exitEasing),
-            targetOffsetY = { it }
-        ) + fadeOut(tween(durationMillis = 160, easing = exitEasing)) +
-            scaleOut(
+                initialOffsetY = { it }
+            ) + fadeIn(tween(durationMillis = 255, easing = enterEasing)) +
+                scaleIn(
+                    animationSpec = spring(
+                        dampingRatio = 0.86f,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    initialScale = 0.96f,
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                )
+        },
+        exit = if (reduceAnimations) fadeOut(
+            animationSpec = tween(durationMillis = REDUCED_MOTION_FADE_OUT_DURATION_MILLIS)
+        ) else {
+            slideOutVertically(
                 animationSpec = tween(durationMillis = 160, easing = exitEasing),
-                targetScale = 0.92f,
-                transformOrigin = TransformOrigin(0.5f, 1f)
-            )
+                targetOffsetY = { it }
+            ) + fadeOut(tween(durationMillis = 160, easing = exitEasing)) +
+                scaleOut(
+                    animationSpec = tween(durationMillis = 160, easing = exitEasing),
+                    targetScale = 0.92f,
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                )
+        }
     ) {
         content()
     }
@@ -189,6 +201,7 @@ internal fun SteamLiquidGlassDock(
     onSelected: (SteamDockTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val reduceAnimations = LocalReduceAnimations.current
     val tabs = remember(order) { SteamDockTab.completeLiquidGlassOrder(order) }
     if (tabs.isEmpty()) return
 
@@ -197,6 +210,7 @@ internal fun SteamLiquidGlassDock(
     val motionState = rememberLiquidGlassDockMotionState(
         initialIndex = selectedIndex.coerceAtLeast(0),
         itemCount = tabs.size,
+        reduceMotion = reduceAnimations,
         onIndexChanged = { index ->
             tabs.getOrNull(index)?.let { tab ->
                 haptic.performLightClick()
@@ -260,7 +274,10 @@ internal fun SteamLiquidGlassDock(
             base = SteamLiquidGlassIndicatorHighlight,
             extraDegrees = 90f
         )
-        val dragScaleProgress = rememberIndicatorDragScaleProgress(motionState.isDragging)
+        val dragScaleProgress = rememberIndicatorDragScaleProgress(
+            isDragging = motionState.isDragging,
+            reduceAnimations = reduceAnimations
+        )
         val indicatorScaleProgress = maxOf(dragScaleProgress, motionState.pressProgress)
         val indicatorTransform = resolveIndicatorTransform(
             scaleProgress = indicatorScaleProgress,
@@ -585,13 +602,22 @@ private fun resolveIndicatorTransform(
 }
 
 @Composable
-private fun rememberIndicatorDragScaleProgress(isDragging: Boolean): Float {
+private fun rememberIndicatorDragScaleProgress(
+    isDragging: Boolean,
+    reduceAnimations: Boolean
+): Float {
     val progress = remember { Animatable(0f) }
-    LaunchedEffect(isDragging) {
+    LaunchedEffect(isDragging, reduceAnimations) {
         progress.animateTo(
             targetValue = if (isDragging) 1f else 0f,
             animationSpec = tween(
-                durationMillis = if (isDragging) 90 else 220,
+                durationMillis = if (reduceAnimations) {
+                    REDUCED_MOTION_FADE_OUT_DURATION_MILLIS
+                } else if (isDragging) {
+                    90
+                } else {
+                    220
+                },
                 easing = if (isDragging) EaseOut else FastOutSlowInEasing
             )
         )

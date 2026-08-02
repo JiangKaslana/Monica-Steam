@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.data.AppSettings
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.security.SessionManager
 import takagi.ru.monica.security.lock.MainAppAccessState
@@ -56,6 +57,7 @@ fun SteamAppLockGate(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    val reduceAnimations = LocalReduceAnimations.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isAuthenticated by passwordViewModel.isAuthenticated.collectAsState()
     var accessState by remember { mutableStateOf<MainAppAccessState?>(null) }
@@ -147,7 +149,8 @@ fun SteamAppLockGate(
                 targetState = recoveryRoute,
                 modifier = Modifier.fillMaxSize(),
                 transitionSpec = {
-                    easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+                    easyNotesScreenEnter(reduceAnimations)
+                        .togetherWith(easyNotesScreenExit(reduceAnimations))
                 },
                 label = "MonicaSteamAuthentication"
             ) { route ->

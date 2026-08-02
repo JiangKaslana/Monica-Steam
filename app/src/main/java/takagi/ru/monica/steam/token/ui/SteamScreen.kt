@@ -150,6 +150,7 @@ import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.R
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.data.AppSettings
 import takagi.ru.monica.data.ItemType
 import takagi.ru.monica.data.LocalMdbxDatabase
@@ -381,6 +382,7 @@ fun SteamScreen(
     onThreadVisibilityChange: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val reduceAnimations = LocalReduceAnimations.current
     val focusManager = LocalFocusManager.current
     val activity = context as? FragmentActivity
     val securityManager = remember(context) { SecurityManager(context.applicationContext) }
@@ -1714,7 +1716,8 @@ fun SteamScreen(
                     else -> SteamTopBarMode.Root
                 },
                 transitionSpec = {
-                    easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+                    easyNotesScreenEnter(reduceAnimations)
+                        .togetherWith(easyNotesScreenExit(reduceAnimations))
                 },
                 label = "SteamTopBarNavigation"
             ) { topBarMode ->
@@ -1881,7 +1884,8 @@ fun SteamScreen(
                     .fillMaxSize()
                     .padding(contentPadding),
                 transitionSpec = {
-                    easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+                    easyNotesScreenEnter(reduceAnimations)
+                        .togetherWith(easyNotesScreenExit(reduceAnimations))
                 },
                 label = "SteamDetailNavigation"
             ) { animatedDetailAccountId ->

@@ -43,7 +43,7 @@ class SteamFriendsIntegrationGuardTest {
         assertFalse(friendsScreen.contains("Scaffold("))
         assertFalse(friendsScreen.contains("onNavigateBack: () -> Unit"))
         assertTrue(friendsScreen.contains("BackHandler"))
-        assertTrue(friendsScreen.contains("easyNotesScreenEnter()"))
+        assertTrue(friendsScreen.contains("easyNotesScreenEnter(reduceAnimations)"))
         assertTrue(friendsList.contains("FlowRow("))
         assertFalse(friendsList.contains("horizontalScroll("))
         assertFalse(friendsList.contains("friends-summary"))

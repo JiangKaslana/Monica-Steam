@@ -95,6 +95,7 @@ import takagi.ru.monica.ui.screens.MdbxWebDavCreateScreen
 import takagi.ru.monica.ui.screens.MdbxWebDavOpenScreen
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.ui.theme.MonicaTheme
 import takagi.ru.monica.viewmodel.MdbxViewModel
 import takagi.ru.monica.viewmodel.PasswordViewModel
@@ -314,12 +315,15 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                     scannerAccountId = null
                 }
 
-                SteamAppLockGate(
-                    settings = settings,
-                    settingsViewModel = steamSettingsViewModel,
-                    passwordViewModel = passwordViewModel,
-                    securityManager = securityManager
+                CompositionLocalProvider(
+                    LocalReduceAnimations provides settings.reduceAnimations
                 ) {
+                    SteamAppLockGate(
+                        settings = settings,
+                        settingsViewModel = steamSettingsViewModel,
+                        passwordViewModel = passwordViewModel,
+                        securityManager = securityManager
+                    ) {
                     BackHandler(enabled = true) {
                         if (pageHistory.isNotEmpty()) {
                             navigateBack()
@@ -398,7 +402,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                                 } else {
                                                     // Every secondary route in Monica Android uses the
                                                     // EasyNotes scale/fade transition for both push and pop.
-                                                    easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+                                                    easyNotesScreenEnter(settings.reduceAnimations)
+                                                        .togetherWith(
+                                                            easyNotesScreenExit(settings.reduceAnimations)
+                                                        )
                                                 }
                                             }
                                         ) { page ->
@@ -662,7 +669,8 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             }
                 }
             }
-        }
+                    }
+                }
     }
 
 }

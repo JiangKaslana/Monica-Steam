@@ -81,7 +81,7 @@ internal fun MonicaSteamSharedSettingsHost(
         onNavigateToPageCustomization = {},
         onNavigateToMdbx = onOpenMdbx,
         showTopBar = showNavigationBack,
-        showReduceAnimations = false,
+        showReduceAnimations = true,
         showSyncBackupSurface = false,
         showAutofillSurface = false,
         showMdbxSurface = true,

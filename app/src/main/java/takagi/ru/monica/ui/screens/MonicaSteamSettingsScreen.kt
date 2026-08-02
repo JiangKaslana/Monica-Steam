@@ -147,7 +147,8 @@ fun MonicaSteamSettingsScreen(
         targetState = child,
         modifier = modifier,
         transitionSpec = {
-            easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+            easyNotesScreenEnter(settings.reduceAnimations)
+                .togetherWith(easyNotesScreenExit(settings.reduceAnimations))
         },
         label = "MonicaSteamSettingsNavigation"
     ) { animatedChild ->

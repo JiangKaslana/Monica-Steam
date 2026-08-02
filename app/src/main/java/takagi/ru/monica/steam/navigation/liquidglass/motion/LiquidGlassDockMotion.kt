@@ -6,7 +6,9 @@
 package takagi.ru.monica.steam.navigation.liquidglass.motion
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.MutatorMutex
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -77,14 +79,41 @@ internal class LiquidGlassDockMotionState internal constructor(
     private val itemCount: Int,
     private val scope: CoroutineScope,
     private val onIndexChanged: (Int) -> Unit,
+    reduceMotion: Boolean,
     private val dragSpec: LiquidGlassDockDragSpec = LiquidGlassDockDragSpec()
 ) {
-    private val valueAnimationSpec = spring(1f, 1000f, 0.001f)
-    private val velocityAnimationSpec = spring(0.5f, 300f, 0.01f)
-    private val pressProgressAnimationSpec = spring(1f, 1000f, 0.001f)
-    private val scaleXAnimationSpec = spring(0.6f, 250f, 0.001f)
-    private val scaleYAnimationSpec = spring(0.7f, 250f, 0.001f)
-    private val offsetSnapAnimationSpec = spring(1f, 300f, 0.5f)
+    private val reducedMotionAnimationSpec: AnimationSpec<Float> =
+        tween<Float>(durationMillis = REDUCED_MOTION_DURATION_MILLIS)
+    private val valueAnimationSpec = if (reduceMotion) {
+        reducedMotionAnimationSpec
+    } else {
+        spring(1f, 1000f, 0.001f)
+    }
+    private val velocityAnimationSpec = if (reduceMotion) {
+        reducedMotionAnimationSpec
+    } else {
+        spring(0.5f, 300f, 0.01f)
+    }
+    private val pressProgressAnimationSpec = if (reduceMotion) {
+        reducedMotionAnimationSpec
+    } else {
+        spring(1f, 1000f, 0.001f)
+    }
+    private val scaleXAnimationSpec = if (reduceMotion) {
+        reducedMotionAnimationSpec
+    } else {
+        spring(0.6f, 250f, 0.001f)
+    }
+    private val scaleYAnimationSpec = if (reduceMotion) {
+        reducedMotionAnimationSpec
+    } else {
+        spring(0.7f, 250f, 0.001f)
+    }
+    private val offsetSnapAnimationSpec = if (reduceMotion) {
+        reducedMotionAnimationSpec
+    } else {
+        spring(1f, 300f, 0.5f)
+    }
 
     private val valueAnimation = Animatable(initialIndex.toFloat(), 0.001f)
     private val velocityAnimation = Animatable(0f, 5f)
@@ -280,21 +309,24 @@ internal class LiquidGlassDockMotionState internal constructor(
 }
 
 private const val KERNEL_SU_PRESSED_SCALE = 78f / 56f
+private const val REDUCED_MOTION_DURATION_MILLIS = 120
 
 @Composable
 internal fun rememberLiquidGlassDockMotionState(
     initialIndex: Int,
     itemCount: Int,
+    reduceMotion: Boolean,
     onIndexChanged: (Int) -> Unit
 ): LiquidGlassDockMotionState {
     val scope = rememberCoroutineScope()
     val currentOnIndexChanged by rememberUpdatedState(onIndexChanged)
-    return remember(itemCount) {
+    return remember(itemCount, reduceMotion) {
         LiquidGlassDockMotionState(
             initialIndex = initialIndex,
             itemCount = itemCount,
             scope = scope,
-            onIndexChanged = { currentOnIndexChanged(it) }
+            onIndexChanged = { currentOnIndexChanged(it) },
+            reduceMotion = reduceMotion
         )
     }
 }

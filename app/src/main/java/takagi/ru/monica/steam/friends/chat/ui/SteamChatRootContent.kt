@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import takagi.ru.monica.R
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.steam.data.SteamAccountSourceState
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
@@ -56,6 +57,7 @@ internal fun SteamChatRootContent(
     onSelectVoiceAudioRoute: (SteamVoiceAudioRoute) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val reduceAnimations = LocalReduceAnimations.current
     if (standalone) {
         Scaffold(
             modifier = modifier.fillMaxSize(),
@@ -102,7 +104,10 @@ internal fun SteamChatRootContent(
             AnimatedContent(
                 targetState = if (showFriends) 1 else 0,
                 modifier = Modifier.fillMaxSize().padding(padding),
-                transitionSpec = { easyNotesScreenEnter().togetherWith(easyNotesScreenExit()) },
+                transitionSpec = {
+                    easyNotesScreenEnter(reduceAnimations)
+                        .togetherWith(easyNotesScreenExit(reduceAnimations))
+                },
                 label = "SteamChatRootMode"
             ) { rootMode ->
                 if (rootMode == 1) {

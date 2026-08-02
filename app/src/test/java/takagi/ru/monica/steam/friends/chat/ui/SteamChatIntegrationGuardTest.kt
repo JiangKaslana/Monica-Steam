@@ -42,7 +42,7 @@ class SteamChatIntegrationGuardTest {
         assertTrue(chatRoot.contains("Scaffold("))
         assertTrue(chatRoot.contains("SteamChatFriendPicker("))
         assertTrue(backHandlers.contains("BackHandler"))
-        assertTrue(chatScreen.contains("easyNotesScreenEnter()"))
+        assertTrue(chatScreen.contains("easyNotesScreenEnter(reduceAnimations)"))
     }
 
     @Test

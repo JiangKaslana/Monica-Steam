@@ -42,7 +42,8 @@ class SteamDockColdSwitchPerformanceGuardTest {
         assertTrue(keyPolicy.contains("MONICA_STEAM_DOCK_CONTENT_KEY"))
         assertTrue(keyPolicy.contains("if (isDockPage(style))"))
         assertTrue(keyPolicy.contains("else this"))
-        assertTrue(pageHost.contains("easyNotesScreenEnter().togetherWith(easyNotesScreenExit())"))
+        assertTrue(pageHost.contains("easyNotesScreenEnter(settings.reduceAnimations)"))
+        assertTrue(pageHost.contains("easyNotesScreenExit(settings.reduceAnimations)"))
     }
 
     private fun projectFile(path: String): File {

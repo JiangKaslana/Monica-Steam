@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.navigation.ui
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.dockSwipeTarget
+import takagi.ru.monica.ui.LocalReduceAnimations
 import kotlin.math.abs
 
 /**
@@ -52,6 +54,8 @@ internal val SteamDockContentClearance = 104.dp
 
 /** Zero outside Dock pages and while the full-screen chat thread is open. */
 internal val LocalSteamDockContentClearance = staticCompositionLocalOf { 0.dp }
+
+private const val REDUCED_MOTION_DURATION_MILLIS = 120
 
 /** Moves only floating/fixed actions above the Dock without shrinking the page. */
 @Composable
@@ -136,6 +140,7 @@ internal fun SteamEssentialsFloatingToolbar(
     scrollBehavior: FloatingToolbarScrollBehavior? = null,
     expanded: Boolean = true
 ) {
+    val reduceAnimations = LocalReduceAnimations.current
     val configuration = LocalConfiguration.current
     val fontScale = LocalDensity.current.fontScale
     val screenWidth = configuration.screenWidthDp
@@ -159,26 +164,38 @@ internal fun SteamEssentialsFloatingToolbar(
             val isSelected = selectedIndex == index
             val itemWidth by animateDpAsState(
                 targetValue = if (expanded || isSelected) 48.dp else 0.dp,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
+                animationSpec = if (reduceAnimations) {
+                    tween<Dp>(durationMillis = REDUCED_MOTION_DURATION_MILLIS)
+                } else {
+                    spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                },
                 label = "steam_toolbar_item_width_$index"
             )
             val labelWidth by animateDpAsState(
                 targetValue = if (isSelected && !shouldHideLabel) 80.dp else 0.dp,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
+                animationSpec = if (reduceAnimations) {
+                    tween<Dp>(durationMillis = REDUCED_MOTION_DURATION_MILLIS)
+                } else {
+                    spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                },
                 label = "steam_toolbar_label_width_$index"
             )
             val spacerWidth by animateDpAsState(
                 targetValue = if (index < items.lastIndex) 8.dp else 0.dp,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
+                animationSpec = if (reduceAnimations) {
+                    tween<Dp>(durationMillis = REDUCED_MOTION_DURATION_MILLIS)
+                } else {
+                    spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                },
                 label = "steam_toolbar_spacer_width_$index"
             )
 

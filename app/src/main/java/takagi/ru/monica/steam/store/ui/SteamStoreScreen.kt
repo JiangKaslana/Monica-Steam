@@ -87,6 +87,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.foundation.ui.SteamPageOverflowMenu
@@ -135,6 +136,7 @@ fun SteamStoreScreen(
     viewModel: SteamStoreViewModel = viewModel(factory = SteamStoreViewModel.factory(LocalContext.current))
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val reduceAnimations = LocalReduceAnimations.current
     val dockContentClearance = LocalSteamDockContentClearance.current
     val storeRefreshing = state.loadingHome || state.loadingCatalog
     val refreshStore = {
@@ -186,7 +188,8 @@ fun SteamStoreScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         transitionSpec = {
-            easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+            easyNotesScreenEnter(reduceAnimations)
+                .togetherWith(easyNotesScreenExit(reduceAnimations))
         },
         label = "SteamStoreNavigation"
     ) { destination ->

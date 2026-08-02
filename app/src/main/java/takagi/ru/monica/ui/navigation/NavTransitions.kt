@@ -27,6 +27,8 @@ private const val DURATION_BACK = 280
 private const val EASY_NOTES_FADE_DURATION = 300
 private const val EASY_NOTES_SCALE_DURATION = 400
 private const val EASY_NOTES_INITIAL_SCALE = 0.9f
+private const val REDUCED_MOTION_FADE_IN_DURATION = 120
+private const val REDUCED_MOTION_FADE_OUT_DURATION = 90
 
 private val navEasing = CubicBezierEasing(0.6f, 0.0f, 0.4f, 1.0f)
 
@@ -77,3 +79,19 @@ fun easyNotesScreenExit(): ExitTransition =
             targetScale = EASY_NOTES_INITIAL_SCALE,
             animationSpec = tween(EASY_NOTES_SCALE_DURATION)
         )
+
+/** Reduced-motion variant keeps state feedback without scale or spatial movement. */
+fun easyNotesScreenEnter(reduceAnimations: Boolean): EnterTransition =
+    if (reduceAnimations) {
+        fadeIn(animationSpec = tween(REDUCED_MOTION_FADE_IN_DURATION))
+    } else {
+        easyNotesScreenEnter()
+    }
+
+/** Reduced-motion exits finish slightly faster than entries. */
+fun easyNotesScreenExit(reduceAnimations: Boolean): ExitTransition =
+    if (reduceAnimations) {
+        fadeOut(animationSpec = tween(REDUCED_MOTION_FADE_OUT_DURATION))
+    } else {
+        easyNotesScreenExit()
+    }

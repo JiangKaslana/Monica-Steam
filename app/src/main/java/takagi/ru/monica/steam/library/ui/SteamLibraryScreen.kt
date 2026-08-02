@@ -87,6 +87,7 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import takagi.ru.monica.R
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.data.AppSettings
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.library.SteamAchievement
@@ -134,6 +135,7 @@ fun SteamLibraryScreen(
     onOpenStoreApp: (Int) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val reduceAnimations = LocalReduceAnimations.current
     val viewModel: SteamLibraryViewModel = viewModel(
         factory = remember(context) { SteamLibraryViewModel.factory(context) }
     )
@@ -159,7 +161,8 @@ fun SteamLibraryScreen(
         targetState = libraryDestination,
         modifier = modifier,
         transitionSpec = {
-            easyNotesScreenEnter().togetherWith(easyNotesScreenExit())
+            easyNotesScreenEnter(reduceAnimations)
+                .togetherWith(easyNotesScreenExit(reduceAnimations))
         },
         label = "SteamLibraryNavigation"
     ) { destination ->

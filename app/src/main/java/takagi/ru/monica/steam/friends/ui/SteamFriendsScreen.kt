@@ -27,6 +27,7 @@ import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.token.presentation.SteamViewModel
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 
@@ -40,6 +41,7 @@ fun SteamFriendsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val reduceAnimations = LocalReduceAnimations.current
     val steamViewModel: SteamViewModel = viewModel(
         factory = remember(context) { SteamViewModel.factory(context) }
     )
@@ -99,7 +101,10 @@ fun SteamFriendsScreen(
         AnimatedContent(
             targetState = selectedFriendId,
             modifier = Modifier.fillMaxSize(),
-            transitionSpec = { easyNotesScreenEnter().togetherWith(easyNotesScreenExit()) },
+            transitionSpec = {
+                easyNotesScreenEnter(reduceAnimations)
+                    .togetherWith(easyNotesScreenExit(reduceAnimations))
+            },
             label = "SteamFriendsNavigation"
         ) { detailSteamId ->
             val animatedFriend = detailSteamId?.let(friendsById::get)

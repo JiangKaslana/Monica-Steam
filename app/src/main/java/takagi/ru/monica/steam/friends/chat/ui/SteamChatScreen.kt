@@ -25,6 +25,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
+import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatViewModel
 import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionResult
@@ -53,6 +54,7 @@ fun SteamChatScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val reduceAnimations = LocalReduceAnimations.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val accountSourceRepository = remember(context) {
         SteamAccountSourceRepository.get(context)
@@ -293,7 +295,10 @@ fun SteamChatScreen(
     AnimatedContent(
         targetState = Triple(chatState.selectedPartnerSteamId, groupChatState.selectedChatId, subpage),
         modifier = modifier.fillMaxSize(),
-        transitionSpec = { easyNotesScreenEnter().togetherWith(easyNotesScreenExit()) },
+        transitionSpec = {
+            easyNotesScreenEnter(reduceAnimations)
+                .togetherWith(easyNotesScreenExit(reduceAnimations))
+        },
         label = "SteamChatNavigation"
     ) { (partnerSteamId, groupRoomId, currentSubpage) ->
         if (partnerSteamId == null && groupRoomId == null) {
