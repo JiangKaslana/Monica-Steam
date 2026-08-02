@@ -1085,17 +1085,19 @@ private fun SteamFramedAvatar(
     val frame = rememberSteamRemoteImage(decor?.avatarFrameUrl)
     val frameSize = if (compact) SteamLibraryLayoutTokens.OverviewHeroFrameSize else 82.dp
     val avatarSize = if (compact) SteamLibraryLayoutTokens.OverviewHeroAvatarSize else 68.dp
+    val avatarShape = RoundedCornerShape(8.dp)
     Box(modifier = Modifier.size(frameSize), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .size(avatarSize)
-                .clip(CircleShape)
-                .border(2.dp, Color.White.copy(alpha = 0.88f), CircleShape)
+                .clip(avatarShape)
+                .border(2.dp, Color.White.copy(alpha = 0.88f), avatarShape)
         ) {
             SteamAvatarImage(
                 account = account,
                 size = avatarSize,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                shape = avatarShape
             )
         }
         frame?.let { image ->

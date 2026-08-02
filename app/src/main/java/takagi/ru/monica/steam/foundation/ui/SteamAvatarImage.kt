@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -42,7 +43,8 @@ private const val STEAM_AVATAR_CACHE_TTL_MS = 3L * 24L * 60L * 60L * 1000L
 internal fun SteamAvatarImage(
     account: SteamAccount,
     size: Dp,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shape: Shape = CircleShape
 ) {
     val context = LocalContext.current
     var avatar by remember(account.steamId) { mutableStateOf<ImageBitmap?>(null) }
@@ -65,7 +67,7 @@ internal fun SteamAvatarImage(
 
     Surface(
         modifier = modifier.size(size),
-        shape = CircleShape,
+        shape = shape,
         color = MaterialTheme.colorScheme.primary,
         tonalElevation = 2.dp
     ) {
