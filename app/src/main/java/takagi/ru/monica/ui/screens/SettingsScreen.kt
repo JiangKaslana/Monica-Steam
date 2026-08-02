@@ -181,6 +181,10 @@ fun SettingsScreen(
     var developerPasswordError by remember { mutableStateOf(false) }
     var showWeakBiometricWarning by remember { mutableStateOf(false) }
     var settingsSearchQuery by rememberSaveable { mutableStateOf("") }
+    val settingsVersionNumber = context.getString(
+        R.string.settings_version_number,
+        BuildConfig.VERSION_NAME.ifBlank { BuildConfig.FULL_VERSION_NAME }
+    )
 
     val startUpdateCheck: () -> Unit = {
         if (!isCheckingUpdate) {
@@ -758,7 +762,7 @@ fun SettingsScreen(
     val showVersionItem = matchesSettingsItem(
         aboutTitle,
         context.getString(R.string.version),
-        context.getString(R.string.settings_version_number)
+        settingsVersionNumber
     )
     val showUpdateCheckItem = surfacePolicy.showUpdateCheck && matchesSettingsItem(
         aboutTitle,
@@ -1106,7 +1110,7 @@ fun SettingsScreen(
                         SettingsItem(
                             icon = Icons.Default.Info,
                             title = context.getString(R.string.version),
-                            subtitle = context.getString(R.string.settings_version_number),
+                            subtitle = settingsVersionNumber,
                             onClick = { showVersionInfoDialog = true }
                         )
                     }
