@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.library.analytics.ui
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -10,7 +11,7 @@ class SteamGameDistributionUiGuardTest {
         val card = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/analytics/ui/" +
                 "SteamGameDistributionCard.kt"
-        ).readText()
+        ).readText().replace("\r\n", "\n")
         val sheet = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/analytics/ui/" +
                 "SteamGameDistributionDetailSheet.kt"
@@ -26,6 +27,35 @@ class SteamGameDistributionUiGuardTest {
         assertTrue(sheet.contains("LazyColumn("))
         assertTrue(sheet.contains("SteamDistributionGameIcon("))
         assertTrue(sheet.contains("bucket.games"))
+    }
+
+    @Test
+    fun longPressIndicationIsScopedToTheRenderedBar() {
+        val card = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/library/analytics/ui/" +
+                "SteamGameDistributionCard.kt"
+        ).readText().replace("\r\n", "\n")
+
+        // The interaction must live on the bar itself; putting it on the full-height
+        // column paints the pressed indication over the labels and empty chart space.
+        assertFalse(card.contains(".fillMaxHeight()\n                    .clip(RoundedCornerShape(14.dp))"))
+        assertTrue(
+            card.contains(
+                ".height(barHeight)\n" +
+                    "                        .clip(CircleShape)\n" +
+                    "                        .background("
+            )
+        )
+        assertTrue(
+            card.contains(
+                ".background(\n" +
+                    "                            if (isHighest) MaterialTheme.colorScheme.primary\n" +
+                    "                            else MaterialTheme.colorScheme.secondaryContainer\n" +
+                    "                        )\n" +
+                    "                        .semantics { contentDescription = accessibilityLabel }\n" +
+                    "                        .combinedClickable("
+            )
+        )
     }
 
     @Test

@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material3.MaterialTheme
@@ -150,15 +149,6 @@ private fun DistributionBars(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(14.dp))
-                    .semantics { contentDescription = accessibilityLabel }
-                    .combinedClickable(
-                        onClick = { onBucketOpen(bucket) },
-                        onLongClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onBucketOpen(bucket)
-                        }
-                    )
                     .padding(horizontal = 1.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.Bottom)
@@ -181,6 +171,14 @@ private fun DistributionBars(
                         .background(
                             if (isHighest) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.secondaryContainer
+                        )
+                        .semantics { contentDescription = accessibilityLabel }
+                        .combinedClickable(
+                            onClick = { onBucketOpen(bucket) },
+                            onLongClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onBucketOpen(bucket)
+                            }
                         )
                 )
                 Text(
