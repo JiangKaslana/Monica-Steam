@@ -90,6 +90,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.market.SteamInventoryGame
 import takagi.ru.monica.steam.market.SteamInventoryItemStack
 import takagi.ru.monica.steam.market.steamInventoryGameLazyKey
@@ -201,7 +202,7 @@ internal fun SteamInventoryContent(
         }
 
         when {
-            account == null || !account.hasSteamCommunitySession -> {
+            account == null || !account.hasAuthenticatedSession -> {
                 SteamMarketEmptyGestureState(
                     text = stringResource(R.string.steam_market_session_required),
                     pullToSearch = pullToSearch
@@ -372,7 +373,7 @@ internal fun SteamMarketListingsContent(
         )
 
         when {
-            account == null || !account.hasSteamCommunitySession -> {
+            account == null || !account.hasAuthenticatedSession -> {
                 SteamMarketEmptyGestureState(
                     text = stringResource(R.string.steam_market_session_required),
                     pullToSearch = pullToSearch
@@ -503,6 +504,7 @@ internal fun SteamSellItemSheet(
     stack: SteamInventoryItemStack,
     wallet: SteamWalletInfo,
     marketState: SteamInventoryMarketUiState,
+    canAutoConfirm: Boolean,
     onDismissRequest: () -> Unit,
     onLoadQuote: () -> Unit,
     onSell: (priceReceive: Int, quantity: Int, autoConfirm: Boolean) -> Unit,
@@ -710,35 +712,37 @@ internal fun SteamSellItemSheet(
                 }
             }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !marketState.actionLoading) {
-                        autoConfirm = !autoConfirm
-                    },
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (canAutoConfirm) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !marketState.actionLoading) {
+                            autoConfirm = !autoConfirm
+                        },
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.steam_market_auto_confirm),
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Text(
-                            text = stringResource(R.string.steam_market_auto_confirm_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.steam_market_auto_confirm),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                text = stringResource(R.string.steam_market_auto_confirm_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = autoConfirm,
+                            enabled = !marketState.actionLoading,
+                            onCheckedChange = { autoConfirm = it }
                         )
                     }
-                    Switch(
-                        checked = autoConfirm,
-                        enabled = !marketState.actionLoading,
-                        onCheckedChange = { autoConfirm = it }
-                    )
                 }
             }
 
@@ -757,7 +761,11 @@ internal fun SteamSellItemSheet(
                 enabled = !marketState.actionLoading && toMinorUnits(receiveText) > 0,
                 onClick = {
                     localError = null
-                    onSell(toMinorUnits(receiveText), quantity, autoConfirm)
+                    onSell(
+                        toMinorUnits(receiveText),
+                        quantity,
+                        autoConfirm && canAutoConfirm
+                    )
                 }
             ) {
                 if (marketState.actionLoading) {
@@ -1175,13 +1183,6 @@ private fun SteamMarketEmptyGestureState(
         EmptyState(text)
     }
 }
-
-private val SteamAccount.hasSteamCommunitySession: Boolean
-    get() = hasRealSteamId && (
-        !accessToken.isNullOrBlank() ||
-            !refreshToken.isNullOrBlank() ||
-            !steamLoginSecure.isNullOrBlank()
-        )
 
 internal fun minorUnitsText(value: Int): String {
     return String.format(Locale.US, "%.2f", value / 100.0)

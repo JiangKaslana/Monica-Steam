@@ -1303,6 +1303,7 @@ fun SteamScreen(
             stack = stack,
             wallet = uiState.inventoryMarket.overview?.wallet ?: SteamWalletInfo.Fallback,
             marketState = uiState.inventoryMarket,
+            canAutoConfirm = selectedAccount?.canUseConfirmations == true,
             onDismissRequest = {
                 sellItemStack = null
                 viewModel.clearMarketQuote()
@@ -1402,6 +1403,7 @@ fun SteamScreen(
             stacks = batchSellStacks,
             wallet = uiState.inventoryMarket.overview?.wallet ?: SteamWalletInfo.Fallback,
             marketState = uiState.inventoryMarket,
+            canAutoConfirm = selectedAccount?.canUseConfirmations == true,
             onDismissRequest = {
                 batchSellStacks = emptyList()
                 viewModel.clearBatchMarketQuotes()

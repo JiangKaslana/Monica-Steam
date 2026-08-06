@@ -1757,6 +1757,7 @@ class SteamViewModel(
         autoConfirm: Boolean
     ) {
         val account = selectedAccount() ?: return
+        val shouldAutoConfirm = autoConfirm && account.canUseConfirmations
         val generation = accountRequestGeneration
         val validEntries = entries.filter {
             it.stack.item.marketable &&
@@ -1773,7 +1774,7 @@ class SteamViewModel(
                 val freshAccount = ensureSteamSession(account)
                     ?: throw IllegalStateException("Steam community session unavailable")
                 withContext(Dispatchers.IO) {
-                    val preExistingMarketIds = if (autoConfirm) {
+                    val preExistingMarketIds = if (shouldAutoConfirm) {
                         runCatching {
                             confirmationService.fetch(freshAccount)
                                 .filter { it.isMarketListingConfirmation() }
@@ -1820,7 +1821,7 @@ class SteamViewModel(
                     if (
                         listedByStackKey.isNotEmpty() &&
                         requiresConfirmation &&
-                        autoConfirm &&
+                        shouldAutoConfirm &&
                         preExistingMarketIds != null
                     ) {
                         var newConfirmations: List<SteamConfirmation> = emptyList()

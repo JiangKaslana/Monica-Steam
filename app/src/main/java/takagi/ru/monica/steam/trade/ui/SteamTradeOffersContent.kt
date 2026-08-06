@@ -62,6 +62,7 @@ import java.text.DateFormat
 import java.util.Date
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.trade.SteamTradeOffer
 import takagi.ru.monica.steam.trade.SteamTradeOfferAction
 import takagi.ru.monica.steam.trade.SteamTradeOfferDirection
@@ -182,7 +183,7 @@ internal fun SteamTradeOffersContent(
 
         when {
             account == null -> TradeOfferMessage(stringResource(R.string.steam_trade_no_accounts))
-            account.accessToken.isNullOrBlank() -> TradeOfferMessage(
+            !account.hasAuthenticatedSession -> TradeOfferMessage(
                 stringResource(R.string.steam_trade_offers_session_required)
             )
             state.loading && state.snapshot == null -> Box(

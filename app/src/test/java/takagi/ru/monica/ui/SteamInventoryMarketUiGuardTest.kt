@@ -47,7 +47,7 @@ class SteamInventoryMarketUiGuardTest {
         assertTrue(uiSource.contains("SteamSellItemSheet("))
         assertTrue(uiSource.contains("SteamMarketPriceTrend("))
         assertTrue(uiSource.contains("onRequestCancelListings"))
-        assertTrue(uiSource.contains("hasSteamCommunitySession"))
+        assertTrue(uiSource.contains("hasAuthenticatedSession"))
         assertFalse(uiSource.contains("WebView"))
         assertTrue(stateSource.contains("preExistingMarketIds"))
         assertTrue(stateSource.contains("findNewSteamMarketConfirmations("))

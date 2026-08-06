@@ -72,6 +72,7 @@ internal fun SteamBatchSellSheet(
     stacks: List<SteamInventoryItemStack>,
     wallet: SteamWalletInfo,
     marketState: SteamInventoryMarketUiState,
+    canAutoConfirm: Boolean,
     onDismissRequest: () -> Unit,
     onLoadQuotes: () -> Unit,
     onSell: (entries: List<SteamBatchSellEntry>, autoConfirm: Boolean) -> Unit,
@@ -433,37 +434,39 @@ internal fun SteamBatchSellSheet(
                 }
             }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clickable(enabled = !marketState.actionLoading) {
-                        autoConfirm = !autoConfirm
-                    },
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (canAutoConfirm) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .clickable(enabled = !marketState.actionLoading) {
+                            autoConfirm = !autoConfirm
+                        },
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.steam_market_auto_confirm),
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Text(
-                            text = stringResource(R.string.steam_market_auto_confirm_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.steam_market_auto_confirm),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                text = stringResource(R.string.steam_market_auto_confirm_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = autoConfirm,
+                            enabled = !marketState.actionLoading,
+                            onCheckedChange = { autoConfirm = it }
                         )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(
-                        checked = autoConfirm,
-                        enabled = !marketState.actionLoading,
-                        onCheckedChange = { autoConfirm = it }
-                    )
                 }
             }
 
@@ -486,7 +489,7 @@ internal fun SteamBatchSellSheet(
                     canSubmit,
                 onClick = {
                     localError = null
-                    onSell(entries, autoConfirm)
+                    onSell(entries, autoConfirm && canAutoConfirm)
                 }
             ) {
                 if (marketState.actionLoading) {
