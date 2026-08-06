@@ -88,6 +88,7 @@ import takagi.ru.monica.steam.library.SteamLibrarySnapshot
 import takagi.ru.monica.steam.library.SteamLibraryViewModel
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
+import takagi.ru.monica.steam.library.resolvedSteamLibraryCurrency
 import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityHistory
 import takagi.ru.monica.steam.library.analytics.ui.SteamGameDistributionCard
 import takagi.ru.monica.steam.library.analytics.ui.SteamPlayHeatMapCard
@@ -581,7 +582,10 @@ private fun SteamAccountHeroCard(
                     HeroMetric(
                         label = stringResource(R.string.steam_library_estimated_value),
                         value = snapshot?.takeIf { it.pricedGameCount > 0 }?.let {
-                            formatAccountHeroPrice(it.currency, it.estimatedReplacementValueMinor)
+                            formatAccountHeroPrice(
+                                resolvedSteamLibraryCurrency(it),
+                                it.estimatedReplacementValueMinor
+                            )
                         } ?: "—",
                         modifier = Modifier.weight(1.2f)
                     )
@@ -665,7 +669,7 @@ private fun SteamAccountDetail(
                     label = stringResource(R.string.steam_library_estimated_value),
                     value = if (snapshot.pricedGameCount > 0) {
                         formatPrice(
-                            snapshot.currency,
+                            resolvedSteamLibraryCurrency(snapshot),
                             snapshot.estimatedReplacementValueMinor
                         )
                     } else {
@@ -1284,7 +1288,10 @@ private fun LibrarySummary(snapshot: SteamLibrarySnapshot) {
             SummaryCell(
                 label = stringResource(R.string.steam_library_estimated_value),
                 value = if (snapshot.pricedGameCount == 0) "-" else {
-                    formatPrice(snapshot.currency, snapshot.estimatedReplacementValueMinor)
+                    formatPrice(
+                        resolvedSteamLibraryCurrency(snapshot),
+                        snapshot.estimatedReplacementValueMinor
+                    )
                 },
                 modifier = Modifier.weight(1f)
             )

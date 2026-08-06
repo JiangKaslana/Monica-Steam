@@ -11,6 +11,7 @@ import takagi.ru.monica.steam.data.SteamDatabase
 import takagi.ru.monica.steam.data.SteamLibraryCacheRepository
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamLibrarySnapshot
+import takagi.ru.monica.steam.library.resolvedSteamLibraryCurrency
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
@@ -95,7 +96,7 @@ internal object SteamWidgetDataLoader {
             totalPlaytimeMinutes = library?.totalPlaytimeMinutes ?: 0L,
             inventoryCount = library?.inventoryItemCount ?: 0,
             valueMinor = library?.estimatedReplacementValueMinor ?: 0L,
-            currency = library?.currency?.ifBlank { "CNY" } ?: "CNY",
+            currency = resolvedSteamLibraryCurrency(library),
             games = ordered,
             currentGame = current
         )

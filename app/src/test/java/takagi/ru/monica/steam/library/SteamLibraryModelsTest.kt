@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.library
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,6 +17,63 @@ import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoWriter
 
 class SteamLibraryModelsTest {
+    @Test
+    fun accountRegionResolutionPrefersSteamThenCacheThenDevice() {
+        assertEquals("DE", resolveSteamLibraryCountryCode("de", "CN", "US"))
+        assertEquals("JP", resolveSteamLibraryCountryCode(null, "jp", "US"))
+        assertEquals("GB", resolveSteamLibraryCountryCode("invalid", null, "gb"))
+        assertEquals("US", resolveSteamLibraryCountryCode(null, null, ""))
+        assertEquals("EUR", SteamGameLibraryService.currencyForCountry("DE"))
+        assertEquals("GBP", SteamGameLibraryService.currencyForCountry("GB"))
+        assertEquals("USD", SteamGameLibraryService.currencyForCountry("PK"))
+    }
+
+    @Test
+    fun cachedReplacementValueCurrencyUsesPriceThenRegionWithoutCnyDefault() {
+        val priced = SteamLibrarySnapshot(
+            accountId = 1L,
+            games = listOf(
+                SteamGame(
+                    appId = 10,
+                    name = "Euro game",
+                    playtimeForeverMinutes = 0,
+                    playtimeRecentMinutes = 0,
+                    price = SteamGamePrice("EUR", 999L, isAvailable = true)
+                )
+            ),
+            fetchedAt = 1L,
+            region = "DE",
+            currency = ""
+        )
+        val regionOnly = SteamLibrarySnapshot(
+            accountId = 2L,
+            games = emptyList(),
+            fetchedAt = 1L,
+            region = "GB",
+            currency = ""
+        )
+
+        assertEquals("EUR", resolvedSteamLibraryCurrency(priced))
+        assertEquals("GBP", resolvedSteamLibraryCurrency(regionOnly))
+        assertEquals("USD", resolvedSteamLibraryCurrency(null))
+    }
+
+    @Test
+    fun replacementValueRequestsAndWidgetCurrencyAreNotFixedToChina() {
+        val viewModel = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/library/SteamLibraryViewModel.kt"
+        ).readText()
+        val widget = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/quickaccess/SteamWidgetData.kt"
+        ).readText()
+
+        assertTrue(viewModel.contains("storeService.accountCountryCode(account)"))
+        assertFalse(viewModel.contains("fetchLibrary(prepared, countryCode = \"CN\""))
+        assertFalse(viewModel.contains("fetchLibrary(refreshed, countryCode = \"CN\""))
+        assertTrue(widget.contains("resolvedSteamLibraryCurrency(library)"))
+        assertFalse(widget.contains("ifBlank { \"CNY\" }"))
+    }
+
     @Test
     fun southAsiaPricingCountriesShareOneDisplayRegion() {
         listOf("PK", "BD", "BT", "NP", "LK").forEach { countryCode ->

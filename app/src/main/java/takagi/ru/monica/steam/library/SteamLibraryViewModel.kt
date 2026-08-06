@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import takagi.ru.monica.data.LocalMdbxDatabase
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.data.SteamAccount
@@ -33,6 +34,7 @@ import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.quickaccess.SteamWidgetUpdater
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 import takagi.ru.monica.steam.session.domain.resolveOrKeep
+import takagi.ru.monica.steam.store.data.SteamStoreService
 
 data class SteamLibraryUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -63,6 +65,7 @@ class SteamLibraryViewModel(
     private val accountSourceRepository: SteamAccountSourceRepository,
     private val cacheRepository: SteamLibraryCacheRepository,
     private val service: SteamGameLibraryService = SteamGameLibraryService(),
+    private val storeService: SteamStoreService = SteamStoreService(),
     private val inventoryService: SteamInventoryService = SteamInventoryService(),
     /** Shared single-flight resolver; null is only the unauthenticated test/read-only mode. */
     private val sessionResolver: SteamAccountSessionResolver? = null,
@@ -401,9 +404,11 @@ class SteamLibraryViewModel(
         generation: Long,
         readCache: Boolean
     ) {
-        val countryCode = _uiState.value.snapshot?.region
-            ?.takeIf(String::isNotBlank)
-            ?: DEFAULT_STORE_COUNTRY_CODE
+        val countryCode = resolveSteamLibraryCountryCode(
+            accountCountry = null,
+            cachedCountry = _uiState.value.snapshot?.region,
+            deviceCountry = Locale.getDefault().country
+        )
         viewModelScope.launch {
             val cached = if (readCache) {
                 runSteamLibraryCatching {
@@ -551,7 +556,12 @@ class SteamLibraryViewModel(
         account: SteamAccount
     ): SteamLibraryResult<SteamLibrarySnapshot> {
         val prepared = refreshAccountSession(account, force = false)
-        val first = service.fetchLibrary(prepared, countryCode = "CN", language = "schinese")
+        val countryCode = resolveAccountCountryCode(prepared)
+        val first = service.fetchLibrary(
+            prepared,
+            countryCode = countryCode,
+            language = "schinese"
+        )
         if (first !is SteamLibraryResult.Failure ||
             first.reason != SteamLibraryFailureReason.SESSION_REQUIRED
         ) {
@@ -559,10 +569,32 @@ class SteamLibraryViewModel(
         }
         val refreshed = refreshAccountSession(prepared, force = true)
         return if (refreshed.accessToken != prepared.accessToken) {
-            service.fetchLibrary(refreshed, countryCode = "CN", language = "schinese")
+            service.fetchLibrary(
+                refreshed,
+                countryCode = resolveAccountCountryCode(refreshed, countryCode),
+                language = "schinese"
+            )
         } else {
             first
         }
+    }
+
+    private fun resolveAccountCountryCode(
+        account: SteamAccount,
+        fallbackCountry: String? = null
+    ): String {
+        val steamCountry = runCatching { storeService.accountCountryCode(account) }
+            .onFailure { error ->
+                SteamDiagLogger.append(
+                    "library_account_region failed type=${error::class.java.simpleName}"
+                )
+            }
+            .getOrNull()
+        return resolveSteamLibraryCountryCode(
+            accountCountry = steamCountry,
+            cachedCountry = fallbackCountry ?: _uiState.value.snapshot?.region,
+            deviceCountry = Locale.getDefault().country
+        )
     }
 
     private suspend fun fetchAchievementsWithSessionRetry(
@@ -710,8 +742,6 @@ class SteamLibraryViewModel(
         internal val REGIONAL_PRICE_COUNTRY_CODES =
             listOf("CN", "US", "JP", "KR", "HK", "TW", "UA", "IN", "ID", "PK")
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
-        private const val DEFAULT_STORE_COUNTRY_CODE = "CN"
-
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             val accountSourceRepository = SteamAccountSourceRepository.get(appContext)

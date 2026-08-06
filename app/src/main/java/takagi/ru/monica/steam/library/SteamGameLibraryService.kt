@@ -318,18 +318,7 @@ class SteamGameLibraryService(
         }
 
         internal fun currencyForCountry(countryCode: String): String {
-            return when (countryCode.uppercase()) {
-                "CN" -> "CNY"
-                "US" -> "USD"
-                "JP" -> "JPY"
-                "KR" -> "KRW"
-                "HK" -> "HKD"
-                "TW" -> "TWD"
-                "UA" -> "UAH"
-                "IN" -> "INR"
-                "ID" -> "IDR"
-                else -> "USD"
-            }
+            return steamCurrencyForCountry(countryCode)
         }
 
         fun parseOwnedGames(response: ByteArray): List<SteamGame> {
