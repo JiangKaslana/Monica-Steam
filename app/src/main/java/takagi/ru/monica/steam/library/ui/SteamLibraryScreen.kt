@@ -3,9 +3,6 @@ package takagi.ru.monica.steam.library.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,11 +15,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Public
@@ -35,9 +29,7 @@ import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
@@ -50,8 +42,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SplitButtonDefaults
-import androidx.compose.material3.SplitButtonLayout
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -73,13 +63,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -103,6 +91,10 @@ import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityHistory
 import takagi.ru.monica.steam.library.analytics.ui.SteamGameDistributionCard
 import takagi.ru.monica.steam.library.analytics.ui.SteamPlayHeatMapCard
+import takagi.ru.monica.steam.library.filter.domain.SteamLibraryFilterSelection
+import takagi.ru.monica.steam.library.filter.domain.filterSteamLibraryGames
+import takagi.ru.monica.steam.library.filter.ui.SteamLibraryFilterEntry
+import takagi.ru.monica.steam.library.filter.ui.SteamLibraryFilterSheet
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
@@ -325,14 +317,15 @@ private fun SteamLibraryOverview(
     val filterPreferences = remember(context) {
         SteamLibraryFilterPreferences(context.applicationContext)
     }
-    var filterName by rememberSaveable { mutableStateOf(filterPreferences.load().name) }
-    val filter = SteamLibraryGameFilter.entries
-        .firstOrNull { it.name == filterName }
-        ?: SteamLibraryGameFilter.ALL
-    val snapshot = state.snapshot
-    val sections = remember(snapshot, query, filter) {
-        buildSteamLibrarySections(snapshot?.games.orEmpty(), query, filter)
+    var filterSelection by remember(state.selectedAccountId) {
+        mutableStateOf(filterPreferences.load(state.selectedAccountId))
     }
+    var showFilterSheet by rememberSaveable(state.selectedAccountId) { mutableStateOf(false) }
+    val snapshot = state.snapshot
+    val sections = remember(snapshot, query, filterSelection) {
+        buildSteamLibrarySections(snapshot?.games.orEmpty(), query, filterSelection)
+    }
+    val filteredCount = remember(sections) { sections.sumOf { it.games.size } }
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(bottom = dockContentClearance + 16.dp)
@@ -365,12 +358,11 @@ private fun SteamLibraryOverview(
             return@LazyColumn
         }
         item {
-            SteamLibraryFilterSplitButton(
-                selectedFilter = filter,
-                onSelectFilter = {
-                    filterName = it.name
-                    filterPreferences.save(it)
-                },
+            SteamLibraryFilterEntry(
+                selection = filterSelection,
+                filteredCount = filteredCount,
+                totalCount = snapshot.games.distinctBy(SteamGame::appId).size,
+                onClick = { showFilterSheet = true },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
@@ -396,123 +388,21 @@ private fun SteamLibraryOverview(
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun SteamLibraryFilterSplitButton(
-    selectedFilter: SteamLibraryGameFilter,
-    onSelectFilter: (SteamLibraryGameFilter) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    val rotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-        label = "steam_library_filter_rotation"
-    )
-    Box(modifier = modifier.wrapContentSize(Alignment.TopStart)) {
-        SplitButtonLayout(
-            leadingButton = {
-                SplitButtonDefaults.TonalLeadingButton(onClick = { expanded = true }) {
-                    Icon(
-                        imageVector = Icons.Default.FilterList,
-                        contentDescription = null,
-                        modifier = Modifier.size(SplitButtonDefaults.LeadingIconSize)
-                    )
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(steamLibraryFilterLabel(selectedFilter))
-                }
+    val sheetSnapshot = snapshot
+    if (showFilterSheet && sheetSnapshot != null) {
+        SteamLibraryFilterSheet(
+            selection = filterSelection,
+            totalCount = sheetSnapshot.games.distinctBy(SteamGame::appId).size,
+            filteredCount = { pending ->
+                filterSteamLibraryGames(sheetSnapshot.games, query, pending).size
             },
-            trailingButton = {
-                SplitButtonDefaults.TonalTrailingButton(
-                    checked = expanded,
-                    onCheckedChange = { expanded = it }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ExpandMore,
-                        contentDescription = stringResource(R.string.steam_library_change_filter),
-                        modifier = Modifier
-                            .size(SplitButtonDefaults.TrailingIconSize)
-                            .graphicsLayer { rotationZ = rotation }
-                    )
-                }
-            }
+            onApply = { applied ->
+                filterSelection = applied
+                filterPreferences.save(state.selectedAccountId, applied)
+                showFilterSheet = false
+            },
+            onDismiss = { showFilterSheet = false }
         )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.width(220.dp),
-            offset = DpOffset(x = 0.dp, y = 10.dp),
-            shape = RoundedCornerShape(24.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 8.dp,
-            shadowElevation = 12.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                SteamLibraryGameFilter.entries.forEach { option ->
-                    SteamLibraryFilterMenuItem(
-                        filter = option,
-                        selected = option == selectedFilter,
-                        onClick = {
-                            expanded = false
-                            onSelectFilter(option)
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SteamLibraryFilterMenuItem(
-    filter: SteamLibraryGameFilter,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .padding(horizontal = 8.dp)
-            .heightIn(min = 48.dp),
-        shape = RoundedCornerShape(18.dp),
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
-        } else {
-            Color.Transparent
-        },
-        tonalElevation = if (selected) 2.dp else 0.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            } else {
-                Spacer(modifier = Modifier.size(20.dp))
-            }
-            Text(
-                text = steamLibraryFilterLabel(filter),
-                style = MaterialTheme.typography.labelLarge,
-                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
     }
 }
 
@@ -1306,21 +1196,6 @@ private fun SteamLibraryEmptySearch(modifier: Modifier = Modifier) {
             )
         }
     }
-}
-
-@Composable
-private fun steamLibraryFilterLabel(filter: SteamLibraryGameFilter): String {
-    return stringResource(
-        when (filter) {
-            SteamLibraryGameFilter.ALL -> R.string.steam_library_filter_all
-            SteamLibraryGameFilter.UNPLAYED -> R.string.steam_library_filter_unplayed
-            SteamLibraryGameFilter.RECENT -> R.string.steam_library_filter_recent
-            SteamLibraryGameFilter.LONG_PLAYED -> R.string.steam_library_filter_long_played
-            SteamLibraryGameFilter.PERFECT -> R.string.steam_library_filter_perfect
-            SteamLibraryGameFilter.FAMILY_SHARED -> R.string.steam_library_filter_family_shared
-            SteamLibraryGameFilter.STEAM_CLOUD -> R.string.steam_library_filter_steam_cloud
-        }
-    )
 }
 
 @Composable

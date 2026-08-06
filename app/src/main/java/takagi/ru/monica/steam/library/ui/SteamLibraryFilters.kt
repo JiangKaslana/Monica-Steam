@@ -2,6 +2,8 @@ package takagi.ru.monica.steam.library.ui
 
 import java.util.Locale
 import takagi.ru.monica.steam.library.SteamGame
+import takagi.ru.monica.steam.library.filter.domain.SteamLibraryFilterSelection
+import takagi.ru.monica.steam.library.filter.domain.filterSteamLibraryGames
 
 internal enum class SteamLibraryGameFilter {
     ALL,
@@ -62,6 +64,42 @@ internal fun buildSteamLibrarySections(
                         .thenByDescending { it.playtimeForeverMinutes }
                         .thenBy { it.name.lowercase(Locale.ROOT) }
                 )
+            )
+        )
+    }
+    return listOf(
+        SteamLibraryGameSection(
+            type = SteamLibraryGameSectionType.RECENT,
+            games = scoped.filter { it.playtimeRecentMinutes > 0 }
+                .sortedByDescending { it.playtimeRecentMinutes }
+        ),
+        SteamLibraryGameSection(
+            type = SteamLibraryGameSectionType.PLAYED,
+            games = scoped.filter {
+                it.playtimeForeverMinutes > 0 && it.playtimeRecentMinutes == 0
+            }.sortedByDescending { it.playtimeForeverMinutes }
+        ),
+        SteamLibraryGameSection(
+            type = SteamLibraryGameSectionType.UNPLAYED,
+            games = scoped.filter { it.playtimeForeverMinutes == 0 }
+                .sortedBy { it.name.lowercase(Locale.ROOT) }
+        )
+    )
+}
+
+internal fun buildSteamLibrarySections(
+    games: List<SteamGame>,
+    query: String,
+    selection: SteamLibraryFilterSelection
+): List<SteamLibraryGameSection> {
+    val scoped = filterSteamLibraryGames(games, query, selection)
+    if (selection.hasActiveFilters ||
+        selection.sortOrder != takagi.ru.monica.steam.library.filter.domain.SteamLibrarySortOrder.SMART
+    ) {
+        return listOf(
+            SteamLibraryGameSection(
+                type = SteamLibraryGameSectionType.RESULTS,
+                games = scoped
             )
         )
     }
