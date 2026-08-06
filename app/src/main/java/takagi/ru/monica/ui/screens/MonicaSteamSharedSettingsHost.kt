@@ -27,6 +27,7 @@ import takagi.ru.monica.steam.foundation.ui.SteamUiScaleOption
 import takagi.ru.monica.steam.foundation.ui.SteamUiScalePreferences
 import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSettingsEntry
 import takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationSettingsEntry
+import takagi.ru.monica.steam.store.hints.ui.SteamStoreHintSettingsEntry
 import takagi.ru.monica.utils.SettingsManager
 import takagi.ru.monica.viewmodel.SettingsViewModel
 
@@ -53,6 +54,7 @@ internal fun MonicaSteamSharedSettingsHost(
     onOpenExtensions: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenNetworkOptimization: () -> Unit,
+    onOpenStoreHints: () -> Unit,
     showNavigationBack: Boolean,
     modifier: Modifier,
     context: Context
@@ -109,6 +111,7 @@ internal fun MonicaSteamSharedSettingsHost(
             showDeveloperSettings = true
         ),
         additionalSettingsContent = {
+            SteamStoreHintSettingsEntry(onClick = onOpenStoreHints)
             SteamNotificationSettingsEntry(onClick = onOpenNotifications)
             SteamNetworkOptimizationSettingsEntry(onClick = onOpenNetworkOptimization)
         },

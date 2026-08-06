@@ -41,11 +41,13 @@ import takagi.ru.monica.steam.store.domain.SteamStoreEvent
 import takagi.ru.monica.steam.store.domain.SteamStoreHome
 import takagi.ru.monica.steam.store.domain.SteamStoreItem
 import takagi.ru.monica.steam.store.domain.visibleStoreCollections
+import takagi.ru.monica.steam.store.hints.domain.SteamStoreHintKind
 
 @Composable
 internal fun SteamStoreDiscoveryContent(
     home: SteamStoreHome,
     selectedFilter: SteamStoreBrowseFilter,
+    itemHints: (Int) -> List<SteamStoreHintKind> = { emptyList() },
     onOpenGame: (SteamStoreItem) -> Unit,
     onOpenEvent: (String) -> Unit
 ) {
@@ -55,7 +57,11 @@ internal fun SteamStoreDiscoveryContent(
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         if (selectedFilter == SteamStoreBrowseFilter.ALL) {
             home.specials.firstOrNull()?.let { featured ->
-                StoreFeaturedHero(featured) { onOpenGame(featured) }
+                StoreFeaturedHero(
+                    game = featured,
+                    hints = itemHints(featured.appId),
+                    onClick = { onOpenGame(featured) }
+                )
             }
             if (home.events.isNotEmpty()) {
                 SteamStoreEventSection(home.events, onOpenEvent)
@@ -65,6 +71,7 @@ internal fun SteamStoreDiscoveryContent(
             StoreSection(
                 title = storeBrowseFilterLabel(collection.filter),
                 games = collection.items,
+                itemHints = itemHints,
                 onOpen = { appId ->
                     collection.items.firstOrNull { it.appId == appId }?.let(onOpenGame)
                 }

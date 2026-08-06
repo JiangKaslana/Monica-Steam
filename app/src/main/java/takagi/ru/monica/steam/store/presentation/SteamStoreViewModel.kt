@@ -17,8 +17,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.data.LocalMdbxDatabase
+import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
+import takagi.ru.monica.steam.data.SteamDatabase
+import takagi.ru.monica.steam.data.SteamLibraryCacheRepository
 import takagi.ru.monica.steam.data.SteamStorageSource
 import takagi.ru.monica.steam.library.SteamCurrencyExchangeService
 import takagi.ru.monica.steam.library.SteamGameLibraryService
@@ -85,6 +88,8 @@ data class SteamStoreUiState(
     val loadingWishlist: Boolean = false,
     val wishlistError: String? = null,
     val wishlistMutatingAppIds: Set<Int> = emptySet(),
+    val ownedAppIds: Set<Int> = emptySet(),
+    val familySharedAppIds: Set<Int> = emptySet(),
     val regionalPrices: List<SteamRegionalPrice> = emptyList(),
     val regionalPricesAppId: Int? = null,
     val regionalPricesFromCache: Boolean = false,
@@ -105,7 +110,8 @@ class SteamStoreViewModel(
         SteamCurrencyExchangeService(),
     private val purchaseContextGateway: SteamStorePurchaseContextGateway =
         SteamStorePurchaseContextService(),
-    private val purchaseContextCache: SteamStorePurchaseContextCache? = null
+    private val purchaseContextCache: SteamStorePurchaseContextCache? = null,
+    private val libraryCacheRepository: SteamLibraryCacheRepository? = null
 ) : ViewModel() {
     private var searchDebounceJob: Job? = null
     private var searchRequestJob: Job? = null
@@ -114,6 +120,7 @@ class SteamStoreViewModel(
     private var detailRequestGeneration: Long = 0L
     private val detailHistory = SteamStoreDetailHistory()
     private var regionalPriceRequestGeneration: Long = 0L
+    private var libraryHintRequestGeneration: Long = 0L
     private val _uiState = MutableStateFlow(SteamStoreUiState())
     val uiState: StateFlow<SteamStoreUiState> = _uiState.asStateFlow()
 
@@ -139,6 +146,7 @@ class SteamStoreViewModel(
                     _uiState.value.home == null
                 ) {
                     resetStoreForAccount(selected?.id)
+                    loadLibraryHints(selected?.id, sourceState.storageSource)
                     loadCart(selected?.id)
                     loadWishlistCache(selected?.id)
                     loadHome(force = true)
@@ -778,6 +786,12 @@ class SteamStoreViewModel(
         accountSourceRepository.refreshCurrentSource()
     }
 
+    fun refreshHintSources() {
+        val state = _uiState.value
+        loadLibraryHints(state.selectedAccountId, state.storageSource)
+        loadWishlist(force = true)
+    }
+
     fun selectBrowseFilter(filter: SteamStoreBrowseFilter) {
         if (_uiState.value.browseFilter == filter) return
         catalogRequestJob?.cancel()
@@ -880,6 +894,7 @@ class SteamStoreViewModel(
         catalogRequestGeneration++
         detailRequestGeneration++
         regionalPriceRequestGeneration++
+        libraryHintRequestGeneration++
         _uiState.value = _uiState.value.copy(
             selectedAccountId = accountId,
             home = null,
@@ -916,6 +931,8 @@ class SteamStoreViewModel(
             loadingWishlist = false,
             wishlistError = null,
             wishlistMutatingAppIds = emptySet(),
+            ownedAppIds = emptySet(),
+            familySharedAppIds = emptySet(),
             regionalPrices = emptyList(),
             regionalPricesAppId = null,
             regionalPricesFromCache = false,
@@ -924,6 +941,38 @@ class SteamStoreViewModel(
             regionalPriceSheetOpen = false,
             checkoutPackageIds = emptyList()
         )
+    }
+
+    private fun loadLibraryHints(accountId: Long?, source: SteamStorageSource) {
+        val generation = ++libraryHintRequestGeneration
+        if (accountId == null || source !is SteamStorageSource.Local) {
+            _uiState.value = _uiState.value.copy(
+                ownedAppIds = emptySet(),
+                familySharedAppIds = emptySet()
+            )
+            return
+        }
+        viewModelScope.launch {
+            val snapshot = withContext(Dispatchers.IO) {
+                libraryCacheRepository?.getLibrary(accountId)
+            }
+            val state = _uiState.value
+            if (
+                generation != libraryHintRequestGeneration ||
+                state.selectedAccountId != accountId ||
+                state.storageSource !is SteamStorageSource.Local
+            ) {
+                return@launch
+            }
+            _uiState.value = state.copy(
+                ownedAppIds = snapshot?.ownedGames
+                    ?.mapTo(linkedSetOf()) { it.appId }
+                    .orEmpty(),
+                familySharedAppIds = snapshot?.sharedGames
+                    ?.mapTo(linkedSetOf()) { it.appId }
+                    .orEmpty()
+            )
+        }
     }
 
     fun openStoreWeb(url: String) {
@@ -1148,11 +1197,17 @@ class SteamStoreViewModel(
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    val database = SteamDatabase.getDatabase(appContext)
+                    val securityManager = SecurityManager(appContext)
                     return SteamStoreViewModel(
                         accountSourceRepository = accountSourceRepository,
                         cache = SteamStoreCache(appContext),
                         sessionResolver = accountSourceRepository.sessionResolver(),
-                        purchaseContextCache = SteamStorePurchasePreferencesCache(appContext)
+                        purchaseContextCache = SteamStorePurchasePreferencesCache(appContext),
+                        libraryCacheRepository = SteamLibraryCacheRepository(
+                            database.steamLibraryCacheDao(),
+                            securityManager
+                        )
                     ) as T
                 }
             }
