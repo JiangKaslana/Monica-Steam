@@ -50,7 +50,7 @@ feature/
 
 Small features may keep files at the feature root when adding layers would only create shallow pass-through modules. Large features must use the internal layout to preserve Locality.
 
-Large features may also contain named independent slices at their root. The Store feature currently owns `catalog`, `points` and `purchase`; each slice keeps its own domain, data or UI implementation separate from the Store shell.
+Large features may also contain named independent slices at their root. The Store feature currently owns `bundle`, `catalog`, `freebie`, `navigation`, `points`, `purchase`, `related` and `requirements`; each slice keeps its own domain, data, presentation or UI implementation separate from the Store shell.
 
 ## Shared Modules
 
@@ -69,6 +69,7 @@ The following roots provide shared Steam infrastructure and may be imported by f
 | `importer` | maFile parsing and transfer codecs shared by token and backup flows |
 | `session` | Account-source-aware session resolution, refresh and identity handles |
 | `outbox` | Durable ordered outgoing operations and delivery reconciliation |
+| `ownership` | Shared ownership and license-state resolution used by Store and Library |
 
 Shared modules cannot contain user-facing feature screens.
 

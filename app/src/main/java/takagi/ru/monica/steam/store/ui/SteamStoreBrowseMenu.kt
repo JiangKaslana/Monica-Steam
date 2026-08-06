@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,6 +30,7 @@ import takagi.ru.monica.ui.password.MonicaTopActionsDropdownMenu
 internal fun SteamStoreBrowseMenu(
     selectedFilter: SteamStoreBrowseFilter,
     onSelectFilter: (SteamStoreBrowseFilter) -> Unit,
+    onOpenFreebies: () -> Unit,
     onOpenPointsShop: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -67,6 +69,16 @@ internal fun SteamStoreBrowseMenu(
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 12.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.steam_store_freebies)) },
+                leadingIcon = {
+                    Icon(Icons.Default.Redeem, contentDescription = null)
+                },
+                onClick = {
+                    expanded = false
+                    onOpenFreebies()
+                }
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.steam_store_points_shop)) },

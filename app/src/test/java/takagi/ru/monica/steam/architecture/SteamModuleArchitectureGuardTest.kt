@@ -41,6 +41,7 @@ class SteamModuleArchitectureGuardTest {
             "notifications",
             "organization",
             "outbox",
+            "ownership",
             "profile",
             "quickaccess",
             "scanner",
@@ -153,7 +154,20 @@ class SteamModuleArchitectureGuardTest {
             .toSet()
 
         assertEquals(
-            setOf("catalog", "data", "domain", "points", "presentation", "purchase", "ui"),
+            setOf(
+                "bundle",
+                "catalog",
+                "data",
+                "domain",
+                "freebie",
+                "navigation",
+                "points",
+                "presentation",
+                "purchase",
+                "related",
+                "requirements",
+                "ui"
+            ),
             layers
         )
         assertTrue(store.listFiles().orEmpty().none { it.extension == "kt" })
@@ -176,7 +190,7 @@ class SteamModuleArchitectureGuardTest {
     @Test
     fun notificationsGiftsAndAlertsKeepSeparateLayeredRoots() {
         val expectedLayers = mapOf(
-            "notifications" to setOf("data", "domain", "ui"),
+            "notifications" to setOf("data", "domain", "settings", "ui"),
             "gifts" to setOf("data", "domain"),
             "alerts" to setOf("data", "domain")
         )

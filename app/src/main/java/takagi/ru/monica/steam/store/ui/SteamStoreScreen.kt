@@ -95,6 +95,7 @@ import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
 import takagi.ru.monica.steam.store.domain.*
+import takagi.ru.monica.steam.store.freebie.ui.SteamFreebieScreen
 import takagi.ru.monica.steam.store.presentation.SteamStoreViewModel
 import takagi.ru.monica.steam.store.points.ui.SteamPointsShopScreen
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreOwnershipStatus
@@ -119,6 +120,7 @@ private sealed interface SteamStoreDestination {
     data object Home : SteamStoreDestination
     data object Cart : SteamStoreDestination
     data object PointsShop : SteamStoreDestination
+    data object Freebies : SteamStoreDestination
     data class Detail(val appId: Int) : SteamStoreDestination
     data class Web(val url: String) : SteamStoreDestination
 }
@@ -148,6 +150,7 @@ fun SteamStoreScreen(
     }
     var showAccounts by remember { mutableStateOf(false) }
     var searchExpanded by remember { mutableStateOf(false) }
+    var freebiesOpen by rememberSaveable { mutableStateOf(false) }
     var lastDetail by remember { mutableStateOf<SteamStoreDetail?>(null) }
     LaunchedEffect(state.detail) {
         state.detail?.let { lastDetail = it }
@@ -166,12 +169,14 @@ fun SteamStoreScreen(
         detailAppId != null -> SteamStoreDestination.Detail(detailAppId)
         state.cartOpen -> SteamStoreDestination.Cart
         state.pointsShopOpen -> SteamStoreDestination.PointsShop
+        freebiesOpen -> SteamStoreDestination.Freebies
         else -> SteamStoreDestination.Home
     }
 
     BackHandler(
         enabled = state.regionalPriceSheetOpen ||
-            state.webUrl != null || state.cartOpen || state.detailAppId != null || state.pointsShopOpen
+            state.webUrl != null || state.cartOpen || state.detailAppId != null ||
+            state.pointsShopOpen || freebiesOpen
     ) {
         when {
             state.regionalPriceSheetOpen -> viewModel.closeRegionalPrices()
@@ -179,6 +184,7 @@ fun SteamStoreScreen(
             state.detailAppId != null -> viewModel.closeDetail()
             state.cartOpen -> viewModel.closeCart()
             state.pointsShopOpen -> viewModel.closePointsShop()
+            freebiesOpen -> freebiesOpen = false
         }
     }
 
@@ -225,6 +231,12 @@ fun SteamStoreScreen(
             SteamStoreDestination.PointsShop -> SteamPointsShopScreen(
                 account = viewModel.selectedAccount(),
                 onBack = viewModel::closePointsShop,
+                onOpenOfficial = viewModel::openStoreWeb,
+                modifier = Modifier.fillMaxSize()
+            )
+            SteamStoreDestination.Freebies -> SteamFreebieScreen(
+                onBack = { freebiesOpen = false },
+                onOpenDetail = viewModel::openDetail,
                 onOpenOfficial = viewModel::openStoreWeb,
                 modifier = Modifier.fillMaxSize()
             )
@@ -312,6 +324,7 @@ fun SteamStoreScreen(
                             SteamStoreBrowseMenu(
                                 selectedFilter = state.browseFilter,
                                 onSelectFilter = viewModel::selectBrowseFilter,
+                                onOpenFreebies = { freebiesOpen = true },
                                 onOpenPointsShop = viewModel::openPointsShop
                             )
                             IconButton(
