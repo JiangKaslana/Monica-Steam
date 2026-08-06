@@ -93,7 +93,7 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(viewModelSource.contains("displayName: String = \"\""))
         assertFalse(viewModelSource.contains("fun submitSteamLoginCode(code: String, displayName"))
 
-        assertTrue(loginDialogSource.contains("onBeginLogin: (String, String, String) -> Unit"))
+        assertTrue(loginDialogSource.contains("onBeginLogin: (String, String, String, Boolean) -> Unit"))
         assertTrue(loginDialogSource.contains("onSubmitLoginCode: (String) -> Unit"))
         assertTrue(loginDialogSource.contains("pendingChallenge.canPoll"))
         assertFalse(loginDialogSource.contains("PasswordEntryPickerBottomSheet("))
@@ -109,7 +109,7 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(loginDialogSource.contains("R.string.steam_remark_optional_label"))
         assertTrue(
             loginDialogSource.contains(
-                "onBeginLogin(loginName, loginPassword, loginDisplayName)"
+                "onBeginLogin(loginName, loginPassword, loginDisplayName, sessionOnly)"
             )
         )
         assertFalse(loginDialogSource.contains("steam_display_name_label"))
@@ -282,7 +282,7 @@ class SteamLoginImportServiceGuardTest {
         val defaultStrings = projectFile("app/src/main/res/values/strings.xml").readText()
         val zhStrings = projectFile("app/src/main/res/values-zh/strings.xml").readText()
 
-        assertTrue(serviceSource.contains("fun beginQrLogin(): QrLoginResult"))
+        assertTrue(serviceSource.contains("fun beginQrLogin(sessionOnly: Boolean = false): QrLoginResult"))
         assertTrue(serviceSource.contains("method = \"BeginAuthSessionViaQR\""))
         assertTrue(serviceSource.contains("writeString(1, DEVICE_FRIENDLY_NAME)"))
         assertTrue(serviceSource.contains("writeVarint(2, 3L)"))
@@ -294,13 +294,14 @@ class SteamLoginImportServiceGuardTest {
         assertTrue(serviceSource.contains("QrLoginResult.LoginChallengeRequired"))
 
         assertTrue(viewModelSource.contains("pendingQrLoginChallenge"))
-        assertTrue(viewModelSource.contains("fun beginSteamQrLogin(displayName: String = \"\")"))
+        assertTrue(viewModelSource.contains("fun beginSteamQrLogin("))
+        assertTrue(viewModelSource.contains("sessionOnly: Boolean = false"))
         assertTrue(viewModelSource.contains("startPendingQrLoginPolling"))
         assertTrue(viewModelSource.contains("loginImportService.pollQrLoginSession"))
         assertTrue(viewModelSource.contains("handleLoginChallenge(result.challenge)"))
 
         assertTrue(screenSource.contains("SteamAddAccountMethod.QR_LOGIN"))
-        assertTrue(screenSource.contains("viewModel.beginSteamQrLogin()"))
+        assertTrue(screenSource.contains("viewModel.beginSteamQrLogin(sessionOnly = sessionOnly)"))
         assertTrue(screenSource.contains("SteamQrLoginImportDialog("))
         assertTrue(screenSource.contains("QRCodeWriter().encode(content, BarcodeFormat.QR_CODE"))
         assertTrue(screenSource.contains("R.string.steam_add_method_qr_login"))

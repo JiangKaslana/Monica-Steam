@@ -1036,11 +1036,19 @@
     <string name="steam_qr_login_import_waiting">正在等待二维码批准</string>
     <string name="steam_qr_login_import_starting">正在生成二维码</string>
     <string name="steam_qr_login_import_refresh">重新生成二维码</string>
+    <string name="steam_qr_login_generate">生成二维码</string>
+    <string name="steam_qr_login_select_mode_hint">请选择 Monica 保存这个 Steam 账号的方式。</string>
     <string name="steam_qr_login_import_image_description">Steam 登录二维码</string>
     <string name="steam_qr_login_import_failed">无法生成二维码</string>
     <string name="steam_login_account_label">账号</string>
     <string name="steam_login_password_label">密码</string>
     <string name="steam_login_button">登录</string>
+    <string name="steam_login_session_only_button">仅登录账号</string>
+    <string name="steam_login_mode_label">账号模式</string>
+    <string name="steam_login_mode_migrate">迁移令牌</string>
+    <string name="steam_login_mode_session_only">仅登录账号</string>
+    <string name="steam_login_mode_migrate_description">登录并将 Steam Guard 令牌迁移到 Monica，Steam 可能会要求确认验证器转移。</string>
+    <string name="steam_login_mode_session_only_description">只登录 Steam，不导入或迁移手机令牌。此账号不会显示在令牌验证码页面。</string>
     <string name="steam_login_waiting_approval">正在等待 Steam 手机端批准</string>
     <string name="steam_login_code_or_approve_message">你可以输入 Steam 令牌验证码，也可以在 Steam 手机 App 中批准本次登录。</string>
     <string name="steam_login_approval_timeout">等待 Steam 登录批准超时，请重新登录并更快批准。</string>
@@ -1058,6 +1066,7 @@
     <string name="steam_authenticator_code_picker_empty">Monica 中没有 Steam 验证器</string>
     <string name="steam_submit_code_button">提交</string>
     <string name="steam_account_imported">已导入 Steam 账号</string>
+    <string name="steam_account_logged_in_session_only">Steam 账号已登录（未迁移令牌）</string>
     <string name="steam_account_imported_code_only">已导入仅验证码 Steam 验证器</string>
     <string name="steam_import_failed">Steam 导入失败</string>
     <string name="steam_verification_required">需要 Steam 验证</string>

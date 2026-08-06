@@ -89,6 +89,8 @@ import takagi.ru.monica.steam.organization.SteamAccountOrganizationRules
 import takagi.ru.monica.steam.scanner.data.readSteamStorageSource
 import takagi.ru.monica.steam.scanner.data.saveSteamStorageSource
 import takagi.ru.monica.steam.token.data.SteamLoginImportService
+import takagi.ru.monica.steam.token.data.toLoginOnlyAccountPayload
+import takagi.ru.monica.steam.token.data.withLoginOnlyAccountPayload
 import takagi.ru.monica.steam.trade.SteamTradeOffer
 import takagi.ru.monica.steam.trade.SteamTradeOfferAction
 import takagi.ru.monica.steam.trade.SteamTradeOfferActionResult
@@ -578,7 +580,8 @@ class SteamViewModel(
     fun beginSteamLogin(
         userName: String,
         password: String,
-        displayName: String = ""
+        displayName: String = "",
+        sessionOnly: Boolean = false
     ) {
         viewModelScope.launch {
             pendingLoginPollJob?.cancel()
@@ -587,7 +590,11 @@ class SteamViewModel(
             setLoading(true)
             _uiState.value = _uiState.value.copy(pendingQrLoginChallenge = null)
             when (val result = withContext(Dispatchers.IO) {
-                loginImportService.beginLogin(userName, password)
+                if (sessionOnly) {
+                    loginImportService.beginSessionLogin(userName, password)
+                } else {
+                    loginImportService.beginLogin(userName, password)
+                }
             }) {
                 is SteamLoginImportService.LoginResult.ChallengeRequired -> {
                     val challenge = result.toChallengeUi()
@@ -699,7 +706,10 @@ class SteamViewModel(
         }
     }
 
-    fun beginSteamQrLogin(displayName: String = "") {
+    fun beginSteamQrLogin(
+        sessionOnly: Boolean = false,
+        displayName: String = ""
+    ) {
         viewModelScope.launch {
             pendingLoginPollJob?.cancel()
             clearPendingLoginTarget()
@@ -710,7 +720,7 @@ class SteamViewModel(
                 pendingQrLoginChallenge = null
             )
             when (val result = withContext(Dispatchers.IO) {
-                loginImportService.beginQrLogin()
+                loginImportService.beginQrLogin(sessionOnly = sessionOnly)
             }) {
                 is SteamLoginImportService.QrLoginResult.ChallengeRequired -> {
                     _uiState.value = _uiState.value.copy(
@@ -2187,6 +2197,17 @@ class SteamViewModel(
                 R.string.steam_steamid_completion_done
             }
         }
+        if (result.payload.sessionOnly) {
+            val existingAccount = _uiState.value.accounts.firstOrNull {
+                it.steamId == result.steamId
+            }
+            val payload = result.toLoginOnlyAccountPayload(
+                displayNameOverride = displayNameOverride,
+                existingAccount = existingAccount
+            )
+            saveMaFilePayload(payload, existingAccount = existingAccount)
+            return R.string.steam_account_logged_in_session_only
+        }
         val payload = parser.parseSteamGuardJson(
             steamId = result.steamId,
             deviceId = result.payload.deviceId,
@@ -2572,7 +2593,10 @@ class SteamViewModel(
         return markSteamNotificationsRead(snapshot, locallyReadNotificationIds)
     }
 
-    private suspend fun saveMaFilePayload(payload: SteamMaFilePayload) {
+    private suspend fun saveMaFilePayload(
+        payload: SteamMaFilePayload,
+        existingAccount: SteamAccount? = null
+    ) {
         when (val source = _uiState.value.storageSource) {
             SteamStorageSource.Local -> withContext(Dispatchers.IO) {
                 repository.upsertFromMaFile(payload)
@@ -2581,7 +2605,18 @@ class SteamViewModel(
                 val store = mdbxAccountStore
                     ?: throw IllegalStateException(appContext.getString(R.string.steam_cannot_load_mdbx_accounts))
                 withContext(Dispatchers.IO) {
-                    store.upsertPayload(source.databaseId, payload)
+                    val existingRecord = existingAccount?.let { account ->
+                        mdbxAccountRecords.firstOrNull { it.account.id == account.id }
+                    }
+                    if (existingRecord == null) {
+                        store.upsertPayload(source.databaseId, payload)
+                    } else {
+                        store.upsertAccount(
+                            databaseId = source.databaseId,
+                            entryId = existingRecord.entryId,
+                            account = existingAccount.withLoginOnlyAccountPayload(payload)
+                        )
+                    }
                 }
                 reloadMdbxAccounts(source)
             }

@@ -640,7 +640,7 @@ class SteamLoginImportService(
         }
     }
 
-    suspend fun beginQrLogin(): QrLoginResult = withContext(Dispatchers.IO) {
+    suspend fun beginQrLogin(sessionOnly: Boolean = false): QrLoginResult = withContext(Dispatchers.IO) {
         runCatching {
             logDiag("begin qr login start")
             val qrSession = beginAuthSessionViaQrWithProtobuf()
@@ -648,6 +648,7 @@ class SteamLoginImportService(
             val pendingSessionId = UUID.randomUUID().toString()
             pendingSessions[pendingSessionId] = PendingAuthSession(
                 flow = AuthFlow.AUTH_API_QR,
+                purpose = if (sessionOnly) LoginPurpose.SESSION_ONLY else LoginPurpose.IMPORT_AUTHENTICATOR,
                 userName = "",
                 clientId = qrSession.clientId,
                 requestId = qrSession.requestId,
@@ -1196,11 +1197,12 @@ class SteamLoginImportService(
             val accountName = fields[6]?.asString?.takeIf { it.isNotBlank() } ?: resolvedSteamId
             pendingSessions.remove(pendingSessionId)
             return when (
-                val loginResult = resolveGuardPayloadAfterLogin(
+                val loginResult = resolveLoginPayloadAfterToken(
                     steamId = resolvedSteamId,
                     userName = accountName,
                     accessToken = finalAccessToken,
-                    refreshToken = finalRefreshToken
+                    refreshToken = finalRefreshToken,
+                    purpose = currentSession.purpose
                 )
             ) {
                 is LoginResult.ReadyForImport -> QrLoginResult.ReadyForImport(loginResult)

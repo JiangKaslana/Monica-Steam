@@ -1043,11 +1043,19 @@
     <string name="steam_qr_login_import_waiting">Waiting for QR approval</string>
     <string name="steam_qr_login_import_starting">Generating QR code</string>
     <string name="steam_qr_login_import_refresh">Regenerate QR</string>
+    <string name="steam_qr_login_generate">Generate QR</string>
+    <string name="steam_qr_login_select_mode_hint">Choose how Monica should store this Steam account.</string>
     <string name="steam_qr_login_import_image_description">Steam login QR code</string>
     <string name="steam_qr_login_import_failed">Could not generate QR code</string>
     <string name="steam_login_account_label">Account</string>
     <string name="steam_login_password_label">Password</string>
     <string name="steam_login_button">Login</string>
+    <string name="steam_login_session_only_button">Sign in only</string>
+    <string name="steam_login_mode_label">Account mode</string>
+    <string name="steam_login_mode_migrate">Migrate authenticator</string>
+    <string name="steam_login_mode_session_only">Sign in only</string>
+    <string name="steam_login_mode_migrate_description">Sign in and migrate Steam Guard to Monica. Steam may ask for authenticator transfer approval.</string>
+    <string name="steam_login_mode_session_only_description">Sign in without importing or migrating the mobile authenticator. This account will not appear in the token code page.</string>
     <string name="steam_login_waiting_approval">Waiting for approval in Steam</string>
     <string name="steam_login_code_or_approve_message">Enter a Steam Guard code, or approve this login in the Steam mobile app.</string>
     <string name="steam_login_approval_timeout">Steam login approval timed out. Try again after approving faster.</string>
@@ -1065,6 +1073,7 @@
     <string name="steam_authenticator_code_picker_empty">No Steam authenticators in Monica</string>
     <string name="steam_submit_code_button">Submit</string>
     <string name="steam_account_imported">Steam account imported</string>
+    <string name="steam_account_logged_in_session_only">Steam account signed in (authenticator not migrated)</string>
     <string name="steam_account_imported_code_only">Steam code-only authenticator imported</string>
     <string name="steam_import_failed">Steam import failed</string>
     <string name="steam_verification_required">Steam verification required</string>
