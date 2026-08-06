@@ -26,10 +26,18 @@ import takagi.ru.monica.steam.friends.domain.SteamFriendsFilter
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
+import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerTarget
+import takagi.ru.monica.steam.profile.viewer.ui.SteamProfileViewerScreen
 import takagi.ru.monica.steam.token.presentation.SteamViewModel
 import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
+
+private sealed interface SteamFriendsDestination {
+    data object List : SteamFriendsDestination
+    data class Detail(val steamId: String) : SteamFriendsDestination
+    data class Profile(val steamId: String) : SteamFriendsDestination
+}
 
 @Composable
 fun SteamFriendsScreen(
@@ -57,6 +65,7 @@ fun SteamFriendsScreen(
         state.snapshot?.friends.orEmpty().associateBy { it.steamId }
     }
     var filterName by rememberSaveable { mutableStateOf(SteamFriendsFilter.ALL.name) }
+    var profileSteamId by rememberSaveable { mutableStateOf<String?>(null) }
     val filter = SteamFriendsFilter.entries.firstOrNull { it.name == filterName }
         ?: SteamFriendsFilter.ALL
     val snackbarHostState = remember { SnackbarHostState() }
@@ -67,6 +76,7 @@ fun SteamFriendsScreen(
         selectedAccount?.steamLoginSecure
     ) {
         onSelectedFriendIdChange(null)
+        profileSteamId = null
         friendsViewModel.selectAccount(selectedAccount)
     }
 
@@ -93,47 +103,79 @@ fun SteamFriendsScreen(
         }
     }
 
-    BackHandler(enabled = selectedFriendId != null) {
+    BackHandler(enabled = profileSteamId != null) {
+        profileSteamId = null
+    }
+
+    BackHandler(enabled = profileSteamId == null && selectedFriendId != null) {
         onSelectedFriendIdChange(null)
+    }
+
+    val destination: SteamFriendsDestination = when {
+        profileSteamId != null -> SteamFriendsDestination.Profile(requireNotNull(profileSteamId))
+        selectedFriendId != null -> SteamFriendsDestination.Detail(selectedFriendId)
+        else -> SteamFriendsDestination.List
     }
 
     Box(modifier = modifier.fillMaxSize()) {
         AnimatedContent(
-            targetState = selectedFriendId,
+            targetState = destination,
             modifier = Modifier.fillMaxSize(),
             transitionSpec = {
                 easyNotesScreenEnter(reduceAnimations)
                     .togetherWith(easyNotesScreenExit(reduceAnimations))
             },
             label = "SteamFriendsNavigation"
-        ) { detailSteamId ->
-            val animatedFriend = detailSteamId?.let(friendsById::get)
-            if (animatedFriend != null) {
-                SteamFriendDetailScreen(
-                    friend = animatedFriend,
-                    actionInProgress = state.actionSteamId == animatedFriend.steamId,
-                    onStartChat = { onStartChat(animatedFriend.steamId) },
-                    onChangeRelationship = { action: SteamFriendRelationshipAction ->
-                        friendsViewModel.changeRelationship(animatedFriend, action)
-                    }
-                )
-            } else {
-                SteamExpressivePullToRefresh(
-                    refreshing = state.loading || state.refreshing,
-                    onRefresh = friendsViewModel::refresh,
-                    enabled = selectedAccount?.hasRealSteamId == true,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    SteamFriendsListContent(
-                        state = state,
-                        query = searchQuery,
-                        filter = filter,
-                        onFilterChange = { filterName = it.name },
-                        onOpenFriend = { onSelectedFriendIdChange(it.steamId) },
-                        onRespondToInvite = friendsViewModel::respondToInvite,
-                        onRetry = friendsViewModel::refresh,
+        ) { animatedDestination ->
+            when (animatedDestination) {
+                SteamFriendsDestination.List -> {
+                    SteamExpressivePullToRefresh(
+                        refreshing = state.loading || state.refreshing,
+                        onRefresh = friendsViewModel::refresh,
+                        enabled = selectedAccount?.hasRealSteamId == true,
                         modifier = Modifier.fillMaxSize()
-                    )
+                    ) {
+                        SteamFriendsListContent(
+                            state = state,
+                            query = searchQuery,
+                            filter = filter,
+                            onFilterChange = { filterName = it.name },
+                            onOpenFriend = { onSelectedFriendIdChange(it.steamId) },
+                            onRespondToInvite = friendsViewModel::respondToInvite,
+                            onRetry = friendsViewModel::refresh,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+                is SteamFriendsDestination.Detail -> {
+                    val animatedFriend = friendsById[animatedDestination.steamId]
+                    if (animatedFriend != null) {
+                        SteamFriendDetailScreen(
+                            friend = animatedFriend,
+                            actionInProgress = state.actionSteamId == animatedFriend.steamId,
+                            onStartChat = { onStartChat(animatedFriend.steamId) },
+                            onOpenProfile = { profileSteamId = animatedFriend.steamId },
+                            onChangeRelationship = { action: SteamFriendRelationshipAction ->
+                                friendsViewModel.changeRelationship(animatedFriend, action)
+                            }
+                        )
+                    }
+                }
+                is SteamFriendsDestination.Profile -> {
+                    val animatedFriend = friendsById[animatedDestination.steamId]
+                    if (selectedAccount != null) {
+                        SteamProfileViewerScreen(
+                            viewerAccount = selectedAccount,
+                            target = SteamProfileViewerTarget(
+                                steamId = animatedDestination.steamId,
+                                fallbackName = animatedFriend?.displayName.orEmpty(),
+                                fallbackAvatarUrl = animatedFriend?.avatarUrl.orEmpty(),
+                                fallbackProfileUrl = animatedFriend?.profileUrl.orEmpty()
+                            ),
+                            onNavigateBack = { profileSteamId = null },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }

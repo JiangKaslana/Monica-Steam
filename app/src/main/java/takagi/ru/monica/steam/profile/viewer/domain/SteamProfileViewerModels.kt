@@ -1,0 +1,218 @@
+package takagi.ru.monica.steam.profile.viewer.domain
+
+import java.util.Locale
+import kotlinx.serialization.Serializable
+import takagi.ru.monica.steam.friends.domain.SteamPersonaState
+import takagi.ru.monica.steam.library.SteamAchievement
+import takagi.ru.monica.steam.library.SteamGame
+import takagi.ru.monica.steam.library.SteamGameAchievements
+
+@Serializable
+data class SteamProfileViewerTarget(
+    val steamId: String,
+    val fallbackName: String = "",
+    val fallbackAvatarUrl: String = "",
+    val fallbackProfileUrl: String = ""
+) {
+    init {
+        require(steamId.matches(Regex("7656119\\d{10}"))) { "valid SteamID64 required" }
+    }
+}
+
+@Serializable
+data class SteamProfileSummary(
+    val steamId: String,
+    val personaName: String,
+    val realName: String = "",
+    val avatarUrl: String = "",
+    val profileUrl: String = "",
+    val personaState: SteamPersonaState = SteamPersonaState.OFFLINE,
+    val lastLogoff: Long = 0L,
+    val timeCreated: Long = 0L,
+    val currentGameId: String = "",
+    val currentGameName: String = "",
+    val countryCode: String = "",
+    val steamLevel: Int? = null,
+    val communityVisibilityState: Int = 0
+) {
+    val displayName: String get() = personaName.ifBlank { steamId }
+    val isPlaying: Boolean get() = currentGameId.isNotBlank() || currentGameName.isNotBlank()
+    val isPublic: Boolean get() = communityVisibilityState >= 3
+}
+
+@Serializable
+enum class SteamProfileGameDataVisibility {
+    AVAILABLE,
+    PRIVATE,
+    UNAVAILABLE
+}
+
+@Serializable
+data class SteamProfileViewerSnapshot(
+    val viewerAccountId: Long,
+    val viewerSteamId: String,
+    val target: SteamProfileSummary,
+    val targetGames: List<SteamGame>,
+    val viewerGames: List<SteamGame>,
+    val gameDataVisibility: SteamProfileGameDataVisibility,
+    val fetchedAt: Long
+) {
+    val isSelf: Boolean get() = viewerSteamId == target.steamId
+    val targetGameCount: Int get() = targetGames.distinctBy(SteamGame::appId).size
+    val targetPlaytimeMinutes: Long
+        get() = targetGames.sumOf { it.playtimeForeverMinutes.toLong() }
+    val commonAppIds: Set<Int>
+        get() {
+            val viewerIds = viewerGames.mapTo(hashSetOf(), SteamGame::appId)
+            return targetGames.asSequence()
+                .map(SteamGame::appId)
+                .filterTo(linkedSetOf()) { it in viewerIds }
+        }
+    val commonGameCount: Int get() = commonAppIds.size
+}
+
+enum class SteamProfileGameScope {
+    ALL,
+    COMMON,
+    TARGET_ONLY
+}
+
+internal fun SteamProfileViewerSnapshot.gamesForScope(
+    scope: SteamProfileGameScope
+): List<SteamGame> {
+    val common = commonAppIds
+    val scoped = when (scope) {
+        SteamProfileGameScope.ALL -> targetGames
+        SteamProfileGameScope.COMMON -> targetGames.filter { it.appId in common }
+        SteamProfileGameScope.TARGET_ONLY -> targetGames.filterNot { it.appId in common }
+    }
+    return scoped.distinctBy(SteamGame::appId).sortedWith(
+        compareByDescending<SteamGame> { it.playtimeRecentMinutes }
+            .thenByDescending { it.playtimeForeverMinutes }
+            .thenBy { it.name.lowercase(Locale.ROOT) }
+    )
+}
+
+@Serializable
+enum class SteamAchievementComparisonState {
+    BOTH,
+    VIEWER_ONLY,
+    TARGET_ONLY,
+    NEITHER
+}
+
+@Serializable
+data class SteamAchievementComparisonEntry(
+    val apiName: String,
+    val displayName: String,
+    val description: String,
+    val iconUrl: String?,
+    val lockedIconUrl: String?,
+    val viewerAchieved: Boolean,
+    val targetAchieved: Boolean,
+    val viewerUnlockTimeSeconds: Long?,
+    val targetUnlockTimeSeconds: Long?
+) {
+    val state: SteamAchievementComparisonState
+        get() = when {
+            viewerAchieved && targetAchieved -> SteamAchievementComparisonState.BOTH
+            viewerAchieved -> SteamAchievementComparisonState.VIEWER_ONLY
+            targetAchieved -> SteamAchievementComparisonState.TARGET_ONLY
+            else -> SteamAchievementComparisonState.NEITHER
+        }
+}
+
+@Serializable
+data class SteamAchievementComparison(
+    val viewerSteamId: String,
+    val targetSteamId: String,
+    val appId: Int,
+    val gameName: String,
+    val achievements: List<SteamAchievementComparisonEntry>,
+    val fetchedAt: Long
+) {
+    val viewerCompleted: Int get() = achievements.count(SteamAchievementComparisonEntry::viewerAchieved)
+    val targetCompleted: Int get() = achievements.count(SteamAchievementComparisonEntry::targetAchieved)
+    val total: Int get() = achievements.size
+}
+
+enum class SteamAchievementComparisonFilter {
+    ALL,
+    BOTH,
+    VIEWER_ONLY,
+    TARGET_ONLY,
+    NEITHER
+}
+
+internal fun SteamAchievementComparison.filtered(
+    filter: SteamAchievementComparisonFilter
+): List<SteamAchievementComparisonEntry> = when (filter) {
+    SteamAchievementComparisonFilter.ALL -> achievements
+    SteamAchievementComparisonFilter.BOTH -> achievements.filter {
+        it.state == SteamAchievementComparisonState.BOTH
+    }
+    SteamAchievementComparisonFilter.VIEWER_ONLY -> achievements.filter {
+        it.state == SteamAchievementComparisonState.VIEWER_ONLY
+    }
+    SteamAchievementComparisonFilter.TARGET_ONLY -> achievements.filter {
+        it.state == SteamAchievementComparisonState.TARGET_ONLY
+    }
+    SteamAchievementComparisonFilter.NEITHER -> achievements.filter {
+        it.state == SteamAchievementComparisonState.NEITHER
+    }
+}
+
+internal fun buildSteamAchievementComparison(
+    viewerSteamId: String,
+    targetSteamId: String,
+    viewer: SteamGameAchievements,
+    target: SteamGameAchievements,
+    fetchedAt: Long = System.currentTimeMillis()
+): SteamAchievementComparison {
+    val viewerByName = viewer.achievements.associateBy(SteamAchievement::apiName)
+    val targetByName = target.achievements.associateBy(SteamAchievement::apiName)
+    val orderedNames = linkedSetOf<String>().apply {
+        addAll(target.achievements.map(SteamAchievement::apiName))
+        addAll(viewer.achievements.map(SteamAchievement::apiName))
+    }
+    val entries = orderedNames.map { apiName ->
+        val viewerAchievement = viewerByName[apiName]
+        val targetAchievement = targetByName[apiName]
+        val definition = targetAchievement ?: viewerAchievement
+        SteamAchievementComparisonEntry(
+            apiName = apiName,
+            displayName = definition?.displayName.orEmpty().ifBlank { apiName },
+            description = definition?.description.orEmpty(),
+            iconUrl = definition?.iconUrl,
+            lockedIconUrl = definition?.lockedIconUrl,
+            viewerAchieved = viewerAchievement?.achieved == true,
+            targetAchieved = targetAchievement?.achieved == true,
+            viewerUnlockTimeSeconds = viewerAchievement?.unlockTimeSeconds,
+            targetUnlockTimeSeconds = targetAchievement?.unlockTimeSeconds
+        )
+    }
+    return SteamAchievementComparison(
+        viewerSteamId = viewerSteamId,
+        targetSteamId = targetSteamId,
+        appId = target.appId,
+        gameName = target.gameName.ifBlank { viewer.gameName },
+        achievements = entries,
+        fetchedAt = fetchedAt
+    )
+}
+
+enum class SteamProfileViewerFailureReason {
+    ACCOUNT_REQUIRED,
+    SESSION_REQUIRED,
+    PRIVATE_PROFILE,
+    GAME_DATA_PRIVATE,
+    RATE_LIMITED,
+    NETWORK,
+    INVALID_RESPONSE
+}
+
+sealed interface SteamProfileViewerResult<out T> {
+    data class Success<T>(val value: T) : SteamProfileViewerResult<T>
+    data class Failure(val reason: SteamProfileViewerFailureReason) :
+        SteamProfileViewerResult<Nothing>
+}

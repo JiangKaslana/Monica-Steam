@@ -55,6 +55,7 @@ internal fun SteamFriendDetailScreen(
     friend: SteamFriend,
     actionInProgress: Boolean,
     onStartChat: () -> Unit,
+    onOpenProfile: (() -> Unit)? = null,
     onChangeRelationship: (SteamFriendRelationshipAction) -> Unit
 ) {
     val context = LocalContext.current
@@ -155,6 +156,18 @@ internal fun SteamFriendDetailScreen(
                 Icon(Icons.Default.ChatBubble, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.steam_chat_send_message))
+            }
+        }
+        if (onOpenProfile != null) {
+            item(key = "friend-detail-game-profile") {
+                FilledTonalButton(
+                    onClick = onOpenProfile,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                ) {
+                    Icon(Icons.Default.SportsEsports, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.steam_profile_open_game_profile))
+                }
             }
         }
         item(key = "friend-detail-open-profile") {

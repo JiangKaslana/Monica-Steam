@@ -73,8 +73,16 @@ class SteamFriendsIntegrationGuardTest {
         assertTrue(friendsScreen.contains("selectedFriendId: String?"))
         assertTrue(friendsScreen.contains("onSelectedFriendIdChange: (String?) -> Unit"))
         assertFalse(friendsScreen.contains("var selectedFriendId by rememberSaveable"))
-        assertTrue(friendsScreen.contains("val animatedFriend = detailSteamId?.let(friendsById::get)"))
+        assertTrue(friendsScreen.contains("SteamFriendsDestination.Detail"))
+        assertTrue(friendsScreen.contains("SteamFriendsDestination.Profile"))
+        assertTrue(
+            friendsScreen.contains(
+                "val animatedFriend = friendsById[animatedDestination.steamId]"
+            )
+        )
         assertTrue(friendsScreen.contains("friend = animatedFriend"))
+        assertTrue(friendsScreen.contains("BackHandler(enabled = profileSteamId != null)"))
+        assertTrue(friendsScreen.contains("onNavigateBack = { profileSteamId = null }"))
         assertFalse(friendDetail.contains("onNavigateBack: () -> Unit"))
         assertFalse(friendDetail.contains("Icons.AutoMirrored.Filled.ArrowBack"))
     }

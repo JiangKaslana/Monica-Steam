@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Schedule
@@ -104,6 +105,8 @@ import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.foundation.ui.SteamPageOverflowMenu
 import takagi.ru.monica.steam.profile.ui.SteamMiniProfileBackgroundLayer
+import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerTarget
+import takagi.ru.monica.steam.profile.viewer.ui.SteamProfileViewerScreen
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
@@ -113,6 +116,7 @@ import takagi.ru.monica.utils.SettingsManager
 private sealed interface SteamLibraryDestination {
     data object Overview : SteamLibraryDestination
     data object Account : SteamLibraryDestination
+    data class Profile(val steamId: String) : SteamLibraryDestination
     data class Game(val appId: Int) : SteamLibraryDestination
 }
 
@@ -137,17 +141,24 @@ fun SteamLibraryScreen(
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var showAccountSheet by rememberSaveable { mutableStateOf(false) }
     var showAccountDetails by rememberSaveable { mutableStateOf(false) }
+    var showSteamProfile by rememberSaveable { mutableStateOf(false) }
     var showRegionalPriceSheet by rememberSaveable { mutableStateOf(false) }
     val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
         ?: state.accounts.firstOrNull()
     val accountDetailsVisible = showAccountDetails && selectedAccount != null
     val libraryDestination = when {
         selectedGame != null -> SteamLibraryDestination.Game(selectedGame.appId)
+        showSteamProfile && selectedAccount?.hasRealSteamId == true ->
+            SteamLibraryDestination.Profile(selectedAccount.steamId)
         accountDetailsVisible -> SteamLibraryDestination.Account
         else -> SteamLibraryDestination.Overview
     }
-    BackHandler(enabled = selectedGame != null || accountDetailsVisible) {
-        if (selectedGame != null) viewModel.closeGame() else showAccountDetails = false
+    BackHandler(enabled = selectedGame != null || showSteamProfile || accountDetailsVisible) {
+        when {
+            selectedGame != null -> viewModel.closeGame()
+            showSteamProfile -> showSteamProfile = false
+            else -> showAccountDetails = false
+        }
     }
     AnimatedContent(
         targetState = libraryDestination,
@@ -249,10 +260,24 @@ fun SteamLibraryScreen(
                             failure = state.libraryFailure,
                             appSettings = appSettings,
                             onNavigateBack = { showAccountDetails = false },
+                            onOpenSteamProfile = { showSteamProfile = true },
                             onRefresh = viewModel::refreshLibrary,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(padding)
+                        )
+                    }
+                }
+                is SteamLibraryDestination.Profile -> {
+                    selectedAccount?.let { account ->
+                        SteamProfileViewerScreen(
+                            viewerAccount = account,
+                            target = SteamProfileViewerTarget(
+                                steamId = destination.steamId,
+                                fallbackName = account.displayName.ifBlank { account.accountName }
+                            ),
+                            onNavigateBack = { showSteamProfile = false },
+                            modifier = Modifier.fillMaxSize().padding(padding)
                         )
                     }
                 }
@@ -577,6 +602,7 @@ private fun SteamAccountDetail(
     failure: SteamLibraryFailureReason?,
     appSettings: AppSettings,
     onNavigateBack: () -> Unit,
+    onOpenSteamProfile: () -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -594,6 +620,20 @@ private fun SteamAccountDetail(
                 onNavigateBack = onNavigateBack,
                 onRefresh = onRefresh
             )
+        }
+        item {
+            FilledTonalButton(
+                onClick = onOpenSteamProfile,
+                enabled = account.hasRealSteamId,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .heightIn(min = 52.dp)
+            ) {
+                Icon(Icons.Default.Person, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.steam_profile_open_game_profile))
+            }
         }
         if (snapshot == null) {
             item {
