@@ -4924,6 +4924,13 @@
     <string name="steam_store_reviews_title">Player reviews</string>
     <string name="steam_store_reviews_overall">Overall</string>
     <string name="steam_store_reviews_recent">Recent 30 days</string>
+    <string name="steam_store_reviews_filter_sentiment">Review type</string>
+    <string name="steam_store_reviews_filter_time">Time range</string>
+    <string name="steam_store_reviews_filter_all">All</string>
+    <string name="steam_store_reviews_filter_positive">Positive</string>
+    <string name="steam_store_reviews_filter_negative">Negative</string>
+    <string name="steam_store_reviews_filter_all_time">All time</string>
+    <string name="steam_store_reviews_filter_recent">Recent 30 days</string>
     <string name="steam_store_reviews_show_more">More reviews</string>
     <string name="steam_store_reviews_load_more">Load more reviews</string>
     <string name="steam_store_reviews_loading_more">Loading reviews</string>

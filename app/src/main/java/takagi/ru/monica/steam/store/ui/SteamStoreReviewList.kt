@@ -19,8 +19,12 @@ import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +42,9 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.store.domain.SteamReviewFilterSelection
+import takagi.ru.monica.steam.store.domain.SteamReviewSentimentFilter
+import takagi.ru.monica.steam.store.domain.SteamReviewTimeFilter
 import takagi.ru.monica.steam.store.domain.SteamStoreReviews
 import takagi.ru.monica.steam.store.domain.SteamUserReview
 
@@ -45,8 +52,10 @@ import takagi.ru.monica.steam.store.domain.SteamUserReview
 internal fun SteamStoreReviewsSection(
     appId: Int,
     reviews: SteamStoreReviews,
+    filters: SteamReviewFilterSelection,
     loadingMore: Boolean,
     loadError: String?,
+    onFiltersChanged: (SteamReviewFilterSelection) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -58,6 +67,14 @@ internal fun SteamStoreReviewsSection(
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SteamStoreReviewSummarySection(reviews = reviews)
+        SteamStoreReviewFilters(
+            filters = filters,
+            enabled = !loadingMore,
+            onFiltersChanged = onFiltersChanged
+        )
+        if (loadingMore && reviews.items.isEmpty()) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
         visibleReviews.forEach { review ->
             SteamStoreReviewCard(review = review, showFullBody = expanded)
         }
@@ -108,6 +125,80 @@ internal fun SteamStoreReviewsSection(
                         }
                     )
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SteamStoreReviewFilters(
+    filters: SteamReviewFilterSelection,
+    enabled: Boolean,
+    onFiltersChanged: (SteamReviewFilterSelection) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.steam_store_reviews_filter_sentiment),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SteamReviewSentimentFilter.entries.forEachIndexed { index, filter ->
+                SegmentedButton(
+                    selected = filters.sentiment == filter,
+                    onClick = { onFiltersChanged(filters.copy(sentiment = filter)) },
+                    enabled = enabled,
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index,
+                        SteamReviewSentimentFilter.entries.size
+                    ),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                ) {
+                    Text(
+                        text = stringResource(
+                            when (filter) {
+                                SteamReviewSentimentFilter.ALL ->
+                                    R.string.steam_store_reviews_filter_all
+                                SteamReviewSentimentFilter.POSITIVE ->
+                                    R.string.steam_store_reviews_filter_positive
+                                SteamReviewSentimentFilter.NEGATIVE ->
+                                    R.string.steam_store_reviews_filter_negative
+                            }
+                        ),
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+        Text(
+            text = stringResource(R.string.steam_store_reviews_filter_time),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SteamReviewTimeFilter.entries.forEachIndexed { index, filter ->
+                SegmentedButton(
+                    selected = filters.time == filter,
+                    onClick = { onFiltersChanged(filters.copy(time = filter)) },
+                    enabled = enabled,
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index,
+                        SteamReviewTimeFilter.entries.size
+                    ),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                ) {
+                    Text(
+                        text = stringResource(
+                            when (filter) {
+                                SteamReviewTimeFilter.ALL_TIME ->
+                                    R.string.steam_store_reviews_filter_all_time
+                                SteamReviewTimeFilter.RECENT_30_DAYS ->
+                                    R.string.steam_store_reviews_filter_recent
+                            }
+                        ),
+                        maxLines = 1
+                    )
+                }
             }
         }
     }

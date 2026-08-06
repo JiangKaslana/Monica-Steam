@@ -7,8 +7,12 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import takagi.ru.monica.steam.store.data.SteamStoreReviewService
+import takagi.ru.monica.steam.store.domain.SteamReviewFilterSelection
+import takagi.ru.monica.steam.store.domain.SteamReviewSentimentFilter
+import takagi.ru.monica.steam.store.domain.SteamReviewTimeFilter
 
 class SteamStoreReviewServiceTest {
     @Test
@@ -38,10 +42,44 @@ class SteamStoreReviewServiceTest {
         )
 
         assertEquals("/appreviews/570", captured.url.encodedPath)
-        assertEquals("recent", captured.url.queryParameter("filter"))
+        assertEquals("all", captured.url.queryParameter("filter"))
+        assertEquals("all", captured.url.queryParameter("review_type"))
+        assertNull(captured.url.queryParameter("day_range"))
         assertEquals("20", captured.url.queryParameter("num_per_page"))
         assertEquals("page-token", captured.url.queryParameter("cursor"))
         assertEquals("Great", page.items.single().body)
         assertEquals("next", page.nextCursor)
+    }
+
+    @Test
+    fun reviewPageAppliesSentimentAndTimeFiltersToSteamRequest() {
+        lateinit var captured: Request
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                captured = chain.request()
+                Response.Builder()
+                    .request(captured)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(
+                        """{"query_summary":{},"reviews":[],"cursor":""}"""
+                            .toResponseBody("application/json".toMediaType())
+                    )
+                    .build()
+            }
+            .build()
+
+        SteamStoreReviewService(client).fetchPage(
+            appId = 620,
+            filters = SteamReviewFilterSelection(
+                sentiment = SteamReviewSentimentFilter.NEGATIVE,
+                time = SteamReviewTimeFilter.RECENT_30_DAYS
+            )
+        )
+
+        assertEquals("negative", captured.url.queryParameter("review_type"))
+        assertEquals("recent", captured.url.queryParameter("filter"))
+        assertEquals("30", captured.url.queryParameter("day_range"))
     }
 }

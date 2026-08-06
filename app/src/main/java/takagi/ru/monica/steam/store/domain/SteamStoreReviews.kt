@@ -2,6 +2,29 @@ package takagi.ru.monica.steam.store.domain
 
 import kotlinx.serialization.Serializable
 
+enum class SteamReviewSentimentFilter(val apiValue: String) {
+    ALL("all"),
+    POSITIVE("positive"),
+    NEGATIVE("negative")
+}
+
+enum class SteamReviewTimeFilter(
+    val apiFilter: String,
+    val dayRangeDays: Int? = null
+) {
+    ALL_TIME("all"),
+    RECENT_30_DAYS("recent", dayRangeDays = 30)
+}
+
+data class SteamReviewFilterSelection(
+    val sentiment: SteamReviewSentimentFilter = SteamReviewSentimentFilter.ALL,
+    val time: SteamReviewTimeFilter = SteamReviewTimeFilter.ALL_TIME
+) {
+    val isDefault: Boolean
+        get() = sentiment == SteamReviewSentimentFilter.ALL &&
+            time == SteamReviewTimeFilter.ALL_TIME
+}
+
 @Serializable
 data class SteamReviewSummary(
     val score: Int = 0,
@@ -88,7 +111,7 @@ internal fun SteamStoreDetail.preserveCachedReviews(cached: SteamStoreDetail?): 
 }
 
 internal fun SteamStoreReviews.mergePage(page: SteamReviewPage): SteamStoreReviews = copy(
-    overall = page.summary ?: overall,
+    overall = overall ?: page.summary,
     items = (items + page.items).distinctBy(SteamUserReview::recommendationId),
     nextCursor = page.nextCursor,
     fetchedAt = System.currentTimeMillis()

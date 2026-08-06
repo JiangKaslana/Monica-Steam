@@ -161,6 +161,26 @@ class SteamStoreReviewTest {
         assertFalse(detailUi.contains("openStoreWeb(detail.reviewsUrl)"))
     }
 
+    @Test
+    fun storeWebsiteAndReviewFiltersExposeRealClickActions() {
+        val detailUi = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
+        ).readText()
+        val reviewUi = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreReviewList.kt"
+        ).readText()
+        val viewModel = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/presentation/SteamStoreViewModel.kt"
+        ).readText()
+
+        assertTrue(detailUi.contains("onOpenWebsite = viewModel::openStoreWeb"))
+        assertTrue(detailUi.contains("onClick = { onOpenWebsite(detail.website) }"))
+        assertTrue(detailUi.contains("heightIn(min = 48.dp)"))
+        assertTrue(reviewUi.contains("SingleChoiceSegmentedButtonRow"))
+        assertTrue(reviewUi.contains("onFiltersChanged"))
+        assertTrue(viewModel.contains("fun updateReviewFilters("))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (

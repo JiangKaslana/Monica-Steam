@@ -5,6 +5,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.store.domain.SteamReviewPage
+import takagi.ru.monica.steam.store.domain.SteamReviewFilterSelection
 import takagi.ru.monica.steam.store.domain.SteamStoreReviews
 
 class SteamStoreReviewService(
@@ -39,20 +40,21 @@ class SteamStoreReviewService(
         appId: Int,
         cursor: String = "*",
         language: String = "schinese",
-        pageSize: Int = DEFAULT_PAGE_SIZE
+        pageSize: Int = DEFAULT_PAGE_SIZE,
+        filters: SteamReviewFilterSelection = SteamReviewFilterSelection()
     ): SteamReviewPage = SteamStoreReviewParser.parsePage(
         get(
             pathSegments = listOf("appreviews", appId.toString()),
-            query = mapOf(
-                "json" to "1",
-                "language" to language,
-                "purchase_type" to "all",
-                "review_type" to "all",
-                "filter" to "recent",
-                "day_range" to "30",
-                "num_per_page" to pageSize.coerceIn(1, MAX_PAGE_SIZE).toString(),
-                "cursor" to cursor
-            )
+            query = buildMap {
+                put("json", "1")
+                put("language", language)
+                put("purchase_type", "all")
+                put("review_type", filters.sentiment.apiValue)
+                put("filter", filters.time.apiFilter)
+                filters.time.dayRangeDays?.let { put("day_range", it.toString()) }
+                put("num_per_page", pageSize.coerceIn(1, MAX_PAGE_SIZE).toString())
+                put("cursor", cursor)
+            }
         )
     )
 

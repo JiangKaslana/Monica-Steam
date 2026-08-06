@@ -4747,6 +4747,13 @@
     <string name="steam_store_reviews_title">玩家评价</string>
     <string name="steam_store_reviews_overall">总体评价</string>
     <string name="steam_store_reviews_recent">最近 30 天</string>
+    <string name="steam_store_reviews_filter_sentiment">评价类型</string>
+    <string name="steam_store_reviews_filter_time">时间范围</string>
+    <string name="steam_store_reviews_filter_all">全部</string>
+    <string name="steam_store_reviews_filter_positive">好评</string>
+    <string name="steam_store_reviews_filter_negative">差评</string>
+    <string name="steam_store_reviews_filter_all_time">全部时间</string>
+    <string name="steam_store_reviews_filter_recent">最近 30 天</string>
     <string name="steam_store_reviews_show_more">查看更多</string>
     <string name="steam_store_reviews_load_more">加载更多评价</string>
     <string name="steam_store_reviews_loading_more">正在加载评价</string>

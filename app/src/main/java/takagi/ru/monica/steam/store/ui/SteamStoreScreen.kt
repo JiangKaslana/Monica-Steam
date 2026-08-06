@@ -33,6 +33,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -321,8 +322,11 @@ fun SteamStoreScreen(
                         purchaseContextFailure = state.purchaseContextFailure,
                         onBack = viewModel::closeDetail,
                         onOpenOfficial = { viewModel.openStoreWeb(detail.storeUrl) },
+                        onOpenWebsite = viewModel::openStoreWeb,
+                        reviewFilters = state.reviewFilters,
                         loadingMoreReviews = state.loadingMoreReviews,
                         reviewLoadError = state.reviewLoadError,
+                        onReviewFiltersChanged = viewModel::updateReviewFilters,
                         onLoadMoreReviews = viewModel::loadMoreReviews,
                         inCart = state.cart.any { it.appId == detail.appId },
                         inWishlist = state.wishlist.any { it.appId == detail.appId },
@@ -932,8 +936,11 @@ private fun SteamStoreDetailContent(
     purchaseContextFailure: SteamStorePurchaseContextFailure?,
     onBack: () -> Unit,
     onOpenOfficial: () -> Unit,
+    onOpenWebsite: (String) -> Unit,
+    reviewFilters: SteamReviewFilterSelection,
     loadingMoreReviews: Boolean,
     reviewLoadError: String?,
+    onReviewFiltersChanged: (SteamReviewFilterSelection) -> Unit,
     onLoadMoreReviews: () -> Unit,
     inCart: Boolean,
     inWishlist: Boolean,
@@ -1324,7 +1331,11 @@ private fun SteamStoreDetailContent(
                         DetailLine(stringResource(R.string.steam_store_achievements), it.toString())
                     }
                     if (detail.website.isNotBlank()) {
-                        DetailLine(stringResource(R.string.steam_store_website), detail.website)
+                        DetailLine(
+                            label = stringResource(R.string.steam_store_website),
+                            value = detail.website,
+                            onClick = { onOpenWebsite(detail.website) }
+                        )
                     }
                 }
             }
@@ -1335,8 +1346,10 @@ private fun SteamStoreDetailContent(
                     SteamStoreReviewsSection(
                         appId = detail.appId,
                         reviews = reviews,
+                        filters = reviewFilters,
                         loadingMore = loadingMoreReviews,
                         loadError = reviewLoadError,
+                        onFiltersChanged = onReviewFiltersChanged,
                         onLoadMore = onLoadMoreReviews,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
@@ -1779,16 +1792,51 @@ private fun DetailTextSection(title: String, text: String) {
 }
 
 @Composable
-private fun DetailLine(label: String, value: String) {
+private fun DetailLine(
+    label: String,
+    value: String,
+    onClick: (() -> Unit)? = null
+) {
     if (value.isNotBlank()) {
-        Row(Modifier.fillMaxWidth()) {
-            Text(
-                text = label,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(92.dp)
-            )
-            SelectionContainer(modifier = Modifier.weight(1f)) {
-                Text(value)
+        if (onClick == null) {
+            Row(Modifier.fillMaxWidth()) {
+                Text(
+                    text = label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(92.dp)
+                )
+                SelectionContainer(modifier = Modifier.weight(1f)) {
+                    Text(value)
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(84.dp)
+                )
+                Text(
+                    text = value,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    modifier = Modifier.padding(start = 8.dp).size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

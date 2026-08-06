@@ -338,11 +338,13 @@ class SteamStoreService(
     fun reviewPage(
         appId: Int,
         cursor: String,
-        language: String = "schinese"
+        language: String = "schinese",
+        filters: SteamReviewFilterSelection = SteamReviewFilterSelection()
     ): SteamReviewPage = reviewService.fetchPage(
         appId = appId,
         cursor = cursor,
-        language = language
+        language = language,
+        filters = filters
     )
 
     private fun requestDetail(

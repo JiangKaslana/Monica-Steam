@@ -81,6 +81,7 @@ data class SteamStoreUiState(
     val purchaseContextFromCache: Boolean = false,
     val loadingPurchaseContext: Boolean = false,
     val purchaseContextFailure: SteamStorePurchaseContextFailure? = null,
+    val reviewFilters: SteamReviewFilterSelection = SteamReviewFilterSelection(),
     val loadingMoreReviews: Boolean = false,
     val reviewLoadError: String? = null,
     val error: String? = null,
@@ -384,6 +385,7 @@ class SteamStoreViewModel(
             purchaseContextFromCache = false,
             loadingPurchaseContext = false,
             purchaseContextFailure = null,
+            reviewFilters = SteamReviewFilterSelection(),
             loadingMoreReviews = false,
             reviewLoadError = null,
             regionalPrices = emptyList(),
@@ -491,6 +493,7 @@ class SteamStoreViewModel(
             purchaseContextFromCache = false,
             loadingPurchaseContext = false,
             purchaseContextFailure = null,
+            reviewFilters = SteamReviewFilterSelection(),
             loadingMoreReviews = false,
             reviewLoadError = null,
             regionalPrices = emptyList(),
@@ -503,6 +506,64 @@ class SteamStoreViewModel(
         )
     }
 
+    fun updateReviewFilters(filters: SteamReviewFilterSelection) {
+        val initialState = _uiState.value
+        if (initialState.reviewFilters == filters) return
+        val detail = initialState.detail ?: return
+        val previousReviews = detail.reviews ?: return
+        val accountId = initialState.selectedAccountId
+        val appId = detail.appId
+        val generation = detailRequestGeneration
+        _uiState.value = initialState.copy(
+            reviewFilters = filters,
+            loadingMoreReviews = true,
+            reviewLoadError = null,
+            detail = detail.copy(
+                reviews = previousReviews.copy(items = emptyList(), nextCursor = null)
+            )
+        )
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    service.reviewPage(
+                        appId = appId,
+                        cursor = "*",
+                        filters = filters
+                    )
+                }
+            }.onSuccess { page ->
+                if (!reviewRequestIsCurrent(accountId, appId, generation, filters)) {
+                    return@onSuccess
+                }
+                val currentDetail = _uiState.value.detail ?: return@onSuccess
+                val currentReviews = currentDetail.reviews ?: previousReviews
+                val filteredReviews = currentReviews.copy(
+                    overall = previousReviews.overall ?: if (filters.isDefault) page.summary else null,
+                    recent = previousReviews.recent,
+                    items = page.items,
+                    nextCursor = page.nextCursor,
+                    fetchedAt = System.currentTimeMillis()
+                )
+                _uiState.value = _uiState.value.copy(
+                    detail = currentDetail.copy(reviews = filteredReviews),
+                    loadingMoreReviews = false,
+                    reviewLoadError = null
+                )
+            }.onFailure { error ->
+                if (!reviewRequestIsCurrent(accountId, appId, generation, filters)) {
+                    return@onFailure
+                }
+                val currentDetail = _uiState.value.detail ?: return@onFailure
+                _uiState.value = _uiState.value.copy(
+                    detail = currentDetail.copy(reviews = previousReviews),
+                    reviewFilters = initialState.reviewFilters,
+                    loadingMoreReviews = false,
+                    reviewLoadError = error.message ?: "Steam 评价筛选失败"
+                )
+            }
+        }
+    }
+
     fun loadMoreReviews() {
         val initialState = _uiState.value
         if (initialState.loadingMoreReviews) return
@@ -511,6 +572,7 @@ class SteamStoreViewModel(
         val accountId = initialState.selectedAccountId
         val appId = detail.appId
         val generation = detailRequestGeneration
+        val filters = initialState.reviewFilters
         _uiState.value = initialState.copy(
             loadingMoreReviews = true,
             reviewLoadError = null
@@ -518,10 +580,10 @@ class SteamStoreViewModel(
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    service.reviewPage(appId = appId, cursor = cursor)
+                    service.reviewPage(appId = appId, cursor = cursor, filters = filters)
                 }
             }.onSuccess { page ->
-                if (!reviewRequestIsCurrent(accountId, appId, generation)) return@onSuccess
+                if (!reviewRequestIsCurrent(accountId, appId, generation, filters)) return@onSuccess
                 val currentDetail = _uiState.value.detail ?: return@onSuccess
                 val terminalPage = if (page.items.isEmpty() || page.nextCursor == cursor) {
                     page.copy(nextCursor = null)
@@ -537,17 +599,19 @@ class SteamStoreViewModel(
                             nextCursor = terminalPage.nextCursor
                         )
                 )
-                withContext(Dispatchers.IO) {
-                    cache.writeDetail(accountId, updatedDetail)
+                if (filters.isDefault) {
+                    withContext(Dispatchers.IO) {
+                        cache.writeDetail(accountId, updatedDetail)
+                    }
                 }
-                if (!reviewRequestIsCurrent(accountId, appId, generation)) return@onSuccess
+                if (!reviewRequestIsCurrent(accountId, appId, generation, filters)) return@onSuccess
                 _uiState.value = _uiState.value.copy(
                     detail = updatedDetail,
                     loadingMoreReviews = false,
                     reviewLoadError = null
                 )
             }.onFailure { error ->
-                if (!reviewRequestIsCurrent(accountId, appId, generation)) return@onFailure
+                if (!reviewRequestIsCurrent(accountId, appId, generation, filters)) return@onFailure
                 _uiState.value = _uiState.value.copy(
                     loadingMoreReviews = false,
                     reviewLoadError = error.message ?: "Steam 评价加载失败"
@@ -1035,6 +1099,7 @@ class SteamStoreViewModel(
             purchaseContextFromCache = false,
             loadingPurchaseContext = false,
             purchaseContextFailure = null,
+            reviewFilters = SteamReviewFilterSelection(),
             loadingMoreReviews = false,
             reviewLoadError = null,
             error = null,
@@ -1119,13 +1184,15 @@ class SteamStoreViewModel(
     private fun reviewRequestIsCurrent(
         accountId: Long?,
         appId: Int,
-        generation: Long
+        generation: Long,
+        filters: SteamReviewFilterSelection
     ): Boolean {
         val state = _uiState.value
         return generation == detailRequestGeneration &&
             state.selectedAccountId == accountId &&
             state.detailAppId == appId &&
-            state.detail?.appId == appId
+            state.detail?.appId == appId &&
+            state.reviewFilters == filters
     }
 
     private fun loadPurchaseContext(
