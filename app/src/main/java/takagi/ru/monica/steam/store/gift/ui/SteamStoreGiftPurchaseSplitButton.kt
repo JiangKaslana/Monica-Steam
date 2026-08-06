@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.store.domain.SteamCartItem
 
+private val PurchaseActionHeight = 52.dp
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SteamStoreGiftPurchaseSplitButton(
@@ -77,7 +79,7 @@ internal fun SteamStoreGiftPurchaseSplitButton(
                     enabled = interactive,
                     modifier = Modifier
                         .widthIn(min = 220.dp, max = 320.dp)
-                        .heightIn(min = 52.dp)
+                        .heightIn(min = PurchaseActionHeight)
                 ) {
                     Icon(
                         imageVector = when {
@@ -108,7 +110,8 @@ internal fun SteamStoreGiftPurchaseSplitButton(
                 SplitButtonDefaults.TonalTrailingButton(
                     checked = expanded,
                     onCheckedChange = { expanded = it },
-                    enabled = interactive
+                    enabled = interactive,
+                    modifier = Modifier.heightIn(min = PurchaseActionHeight)
                 ) {
                     Icon(
                         imageVector = Icons.Default.ExpandMore,

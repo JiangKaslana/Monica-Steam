@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.store.gift
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -30,6 +31,22 @@ class SteamStoreGiftUiGuardTest {
         assertTrue(picker.contains("heightIn(min = 72.dp)"))
         assertTrue(store.contains("SteamStoreGiftPurchaseSplitButton("))
         assertTrue(store.contains("SteamStoreGiftRecipientSheet("))
+    }
+
+    @Test
+    fun purchaseSplitButtonsUseTheSameActionHeight() {
+        val splitButton = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/gift/ui/" +
+                "SteamStoreGiftPurchaseSplitButton.kt"
+        ).readText()
+
+        assertTrue(splitButton.contains("private val PurchaseActionHeight = 52.dp"))
+        assertEquals(
+            2,
+            Regex("heightIn\\(min = PurchaseActionHeight\\)")
+                .findAll(splitButton)
+                .count()
+        )
     }
 
     @Test
