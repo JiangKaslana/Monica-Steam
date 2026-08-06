@@ -263,6 +263,7 @@ fun SteamLibraryScreen(
                             appSettings = appSettings,
                             onNavigateBack = { showAccountDetails = false },
                             onOpenSteamProfile = { showSteamProfile = true },
+                            onOpenStoreApp = onOpenStoreApp,
                             onRefresh = viewModel::refreshLibrary,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -609,6 +610,7 @@ private fun SteamAccountDetail(
     appSettings: AppSettings,
     onNavigateBack: () -> Unit,
     onOpenSteamProfile: () -> Unit,
+    onOpenStoreApp: (Int) -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -768,7 +770,10 @@ private fun SteamAccountDetail(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SteamGameDistributionCard(snapshot = snapshot)
+                SteamGameDistributionCard(
+                    snapshot = snapshot,
+                    onOpenGame = onOpenStoreApp
+                )
                 SteamPlayHeatMapCard(history = playActivity)
             }
         }

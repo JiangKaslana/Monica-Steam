@@ -37,6 +37,31 @@ class SteamGameDistributionTest {
         assertEquals(1, counts[SteamGameDistributionRange.PRICE_UNKNOWN])
     }
 
+    @Test
+    fun bucketsRetainTheirMatchingGamesForDrillDown() {
+        val games = listOf(
+            game(1, minutes = 0),
+            game(2, minutes = 60),
+            game(3, minutes = 179),
+            game(4, minutes = 600)
+        )
+
+        val buckets = steamGameDistribution(games, SteamGameDistributionMode.PLAYTIME)
+
+        assertEquals(
+            listOf(2, 3),
+            buckets.single { it.range == SteamGameDistributionRange.ONE_TO_THREE_HOURS }
+                .games
+                .map(SteamGame::appId)
+        )
+        assertEquals(
+            listOf(4),
+            buckets.single { it.range == SteamGameDistributionRange.TEN_TO_THIRTY_HOURS }
+                .games
+                .map(SteamGame::appId)
+        )
+    }
+
     private fun game(appId: Int, minutes: Int = 0, priceMinor: Long? = null) = SteamGame(
         appId = appId,
         name = "Game $appId",

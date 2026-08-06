@@ -4304,6 +4304,12 @@
     <string name="steam_distribution_price_200_400">200–400</string>
     <string name="steam_distribution_price_over_400">400+</string>
     <string name="steam_distribution_price_unknown">Unknown</string>
+    <string name="steam_distribution_bar_accessibility">%1$s, %2$d games. Tap or long press for details.</string>
+    <string name="steam_distribution_no_games">No games in this range.</string>
+    <string name="steam_distribution_app_id">AppID %1$d</string>
+    <string name="steam_distribution_playtime_minutes">%1$d min</string>
+    <string name="steam_distribution_playtime_hours">%1$d h</string>
+    <string name="steam_distribution_playtime_hours_minutes">%1$d h %2$d min</string>
     <string name="steam_library_played_games">Played games</string>
     <string name="steam_library_unplayed_games">Unplayed games</string>
     <string name="steam_library_syncing">Syncing with Steam…</string>

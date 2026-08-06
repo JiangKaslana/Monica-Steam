@@ -4134,6 +4134,12 @@
     <string name="steam_distribution_price_200_400">200–400</string>
     <string name="steam_distribution_price_over_400">400+</string>
     <string name="steam_distribution_price_unknown">未知</string>
+    <string name="steam_distribution_bar_accessibility">%1$s，%2$d 款游戏。轻触或长按查看详情。</string>
+    <string name="steam_distribution_no_games">该区间暂无游戏。</string>
+    <string name="steam_distribution_app_id">AppID %1$d</string>
+    <string name="steam_distribution_playtime_minutes">%1$d 分钟</string>
+    <string name="steam_distribution_playtime_hours">%1$d 小时</string>
+    <string name="steam_distribution_playtime_hours_minutes">%1$d 小时 %2$d 分钟</string>
     <string name="steam_library_played_games">已玩游戏</string>
     <string name="steam_library_unplayed_games">未开始游戏</string>
     <string name="steam_library_syncing">正在与 Steam 同步…</string>

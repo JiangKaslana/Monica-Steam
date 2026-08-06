@@ -8,15 +8,18 @@ package takagi.ru.monica.steam.library.analytics.ui
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +36,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,10 +56,21 @@ import takagi.ru.monica.ui.theme.GoogleSansFlexFontFamily
 @Composable
 fun SteamGameDistributionCard(
     snapshot: SteamLibrarySnapshot,
+    onOpenGame: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var mode by rememberSaveable { mutableStateOf(SteamGameDistributionMode.PLAYTIME) }
+    var selectedBucket by remember(mode, snapshot.accountId) {
+        mutableStateOf<SteamGameDistributionBucket?>(null)
+    }
     val buckets = remember(snapshot.games, mode) { steamGameDistribution(snapshot.games, mode) }
+    val currency = remember(snapshot.currency, snapshot.games) {
+        snapshot.currency.ifBlank {
+            snapshot.games.firstNotNullOfOrNull { game ->
+                game.price?.currency?.takeIf(String::isNotBlank)
+            }.orEmpty()
+        }
+    }
 
     SteamAnalyticsCard(
         title = stringResource(R.string.steam_analytics_game_distribution),
@@ -84,7 +102,19 @@ fun SteamGameDistributionCard(
         }
         DistributionBars(
             buckets = buckets,
+            currency = currency,
+            onBucketOpen = { selectedBucket = it },
             modifier = Modifier.padding(start = 12.dp, top = 18.dp, end = 12.dp, bottom = 16.dp)
+        )
+    }
+
+    selectedBucket?.let { bucket ->
+        SteamGameDistributionDetailSheet(
+            bucket = bucket,
+            mode = mode,
+            currency = currency,
+            onOpenGame = onOpenGame,
+            onDismiss = { selectedBucket = null }
         )
     }
 }
@@ -92,9 +122,12 @@ fun SteamGameDistributionCard(
 @Composable
 private fun DistributionBars(
     buckets: List<SteamGameDistributionBucket>,
+    currency: String,
+    onBucketOpen: (SteamGameDistributionBucket) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val max = buckets.maxOfOrNull(SteamGameDistributionBucket::gameCount)?.coerceAtLeast(1) ?: 1
+    val haptics = LocalHapticFeedback.current
     Row(
         modifier = modifier.fillMaxWidth().height(220.dp),
         verticalAlignment = Alignment.Bottom,
@@ -107,10 +140,28 @@ private fun DistributionBars(
                 label = "distribution-bar"
             )
             val isHighest = bucket.gameCount == max && bucket.gameCount > 0
+            val rangeLabel = distributionRangeLabel(bucket.range, currency)
+            val accessibilityLabel = stringResource(
+                R.string.steam_distribution_bar_accessibility,
+                rangeLabel,
+                bucket.gameCount
+            )
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(14.dp))
+                    .semantics { contentDescription = accessibilityLabel }
+                    .combinedClickable(
+                        onClick = { onBucketOpen(bucket) },
+                        onLongClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onBucketOpen(bucket)
+                        }
+                    )
+                    .padding(horizontal = 1.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp)
+                verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.Bottom)
             ) {
                 Text(
                     text = bucket.gameCount.toString(),

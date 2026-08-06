@@ -27,8 +27,10 @@ enum class SteamGameDistributionRange {
 
 data class SteamGameDistributionBucket(
     val range: SteamGameDistributionRange,
-    val gameCount: Int
-)
+    val games: List<SteamGame>
+) {
+    val gameCount: Int get() = games.size
+}
 
 fun steamGameDistribution(
     games: List<SteamGame>,
@@ -55,8 +57,10 @@ fun steamGameDistribution(
             SteamGameDistributionRange.PRICE_UNKNOWN
         )
     }
-    val counts = games.groupingBy { game -> rangeFor(game, mode) }.eachCount()
-    return ranges.map { range -> SteamGameDistributionBucket(range, counts[range] ?: 0) }
+    val gamesByRange = games.groupBy { game -> rangeFor(game, mode) }
+    return ranges.map { range ->
+        SteamGameDistributionBucket(range = range, games = gamesByRange[range].orEmpty())
+    }
 }
 
 private fun rangeFor(game: SteamGame, mode: SteamGameDistributionMode): SteamGameDistributionRange {
