@@ -93,7 +93,7 @@ import takagi.ru.monica.steam.library.analytics.domain.SteamPlayActivityHistory
 import takagi.ru.monica.steam.library.analytics.ui.SteamGameDistributionCard
 import takagi.ru.monica.steam.library.analytics.ui.SteamPlayHeatMapCard
 import takagi.ru.monica.steam.library.filter.domain.SteamLibraryFilterSelection
-import takagi.ru.monica.steam.library.filter.domain.filterSteamLibraryGames
+import takagi.ru.monica.steam.library.filter.domain.countSteamLibraryGames
 import takagi.ru.monica.steam.library.filter.ui.SteamLibraryFilterEntry
 import takagi.ru.monica.steam.library.filter.ui.SteamLibraryFilterSheet
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
@@ -422,7 +422,7 @@ private fun SteamLibraryOverview(
             selection = filterSelection,
             totalCount = sheetSnapshot.games.distinctBy(SteamGame::appId).size,
             filteredCount = { pending ->
-                filterSteamLibraryGames(sheetSnapshot.games, query, pending).size
+                countSteamLibraryGames(sheetSnapshot.games, query, pending)
             },
             onApply = { applied ->
                 filterSelection = applied

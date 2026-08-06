@@ -5,13 +5,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.FlowRowScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,7 +25,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,7 +46,9 @@ import takagi.ru.monica.steam.library.filter.domain.SteamLibraryOwnershipFilter
 import takagi.ru.monica.steam.library.filter.domain.SteamLibraryPlayStatusFilter
 import takagi.ru.monica.steam.library.filter.domain.SteamLibraryPlaytimeFilter
 import takagi.ru.monica.steam.library.filter.domain.SteamLibrarySortOrder
+import takagi.ru.monica.ui.components.MonicaModalBottomSheet
 
+/** A compact entry control matching the former library split button density. */
 @Composable
 internal fun SteamLibraryFilterEntry(
     selection: SteamLibraryFilterSelection,
@@ -54,70 +57,55 @@ internal fun SteamLibraryFilterEntry(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val active = selection.activeChoiceCount > 0
     Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().heightIn(min = 72.dp),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+        modifier = modifier
+            .wrapContentWidth()
+            .heightIn(min = 48.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = if (active) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        contentColor = if (active) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = if (selection.activeChoiceCount > 0) {
-                    MaterialTheme.colorScheme.primaryContainer
+            Icon(
+                imageVector = Icons.Default.FilterList,
+                contentDescription = stringResource(R.string.steam_library_filter_and_sort),
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = stringResource(R.string.steam_library_filter_and_sort),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = stringResource(
+                    R.string.steam_library_filter_result_count,
+                    filteredCount,
+                    totalCount
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (active) {
+                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
                 } else {
-                    MaterialTheme.colorScheme.surfaceContainerHighest
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                contentColor = MaterialTheme.colorScheme.primary
-            ) {
-                androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.FilterList, contentDescription = null)
-                }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.steam_library_filter_and_sort),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = if (selection.activeChoiceCount == 0) {
-                        stringResource(R.string.steam_library_filter_summary_default)
-                    } else {
-                        stringResource(
-                            R.string.steam_library_filter_summary_active,
-                            selection.activeChoiceCount
-                        )
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ) {
-                Text(
-                    text = stringResource(
-                        R.string.steam_library_filter_result_count,
-                        filteredCount,
-                        totalCount
-                    ),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
+                maxLines = 1
+            )
         }
     }
 }
@@ -132,29 +120,40 @@ internal fun SteamLibraryFilterSheet(
     onDismiss: () -> Unit
 ) {
     var pending by remember(selection) { mutableStateOf(selection) }
-    ModalBottomSheet(
+    // The count is preview-only. Memoizing it keeps a tap from performing the
+    // same expensive work once for the title and again for the apply button.
+    val previewCount = remember(pending, totalCount) { filteredCount.invoke(pending) }
+
+    MonicaModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.86f)
+                .navigationBarsPadding()
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = stringResource(R.string.steam_library_filter_title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = stringResource(
                             R.string.steam_library_filter_result_count,
-                            filteredCount(pending),
+                            previewCount,
                             totalCount
                         ),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -168,14 +167,11 @@ internal fun SteamLibraryFilterSheet(
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 16.dp,
-                    bottom = 20.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 item(key = "ownership") {
                     SteamLibraryChoiceGroup(
@@ -260,20 +256,20 @@ internal fun SteamLibraryFilterSheet(
             }
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
-                tonalElevation = 3.dp
+                tonalElevation = 2.dp
             ) {
                 Button(
                     onClick = { onApply(pending) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 14.dp)
-                        .heightIn(min = 52.dp),
-                    shape = RoundedCornerShape(18.dp)
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Text(
                         stringResource(
                             R.string.steam_library_filter_apply,
-                            filteredCount(pending)
+                            previewCount
                         )
                     )
                 }
@@ -288,26 +284,23 @@ private fun SteamLibraryChoiceGroup(
     title: String,
     content: @Composable FlowRowScope.() -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                content = content
-            )
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            content = content
+        )
     }
 }
 
@@ -320,7 +313,7 @@ private fun SteamLibraryChoiceChip(
     FilterChip(
         selected = selected,
         onClick = onClick,
-        label = { Text(label, maxLines = 1) },
+        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = if (selected) {
             {
                 Icon(
@@ -329,8 +322,7 @@ private fun SteamLibraryChoiceChip(
                     modifier = Modifier.size(FilterChipDefaults.IconSize)
                 )
             }
-        } else null,
-        modifier = Modifier.heightIn(min = 48.dp)
+        } else null
     )
 }
 

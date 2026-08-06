@@ -30,6 +30,30 @@ class SteamLibraryFilterUiGuardTest {
         assertTrue(preferences.contains("account_${'$'}{accountId ?: 0L}_"))
     }
 
+    @Test
+    fun filterEntryAndSheetStayCompactAndUseStableInteractionBoundary() {
+        val sheet = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/library/filter/ui/SteamLibraryFilterSheet.kt"
+        ).readText()
+
+        // The entry must remain a compact control rather than a full-width hero card.
+        assertTrue(sheet.contains("wrapContentWidth"))
+        assertTrue(sheet.contains("heightIn(min = 48.dp)"))
+
+        // Reuse Monica's stable sheet boundary: it disables partial expansion and
+        // removes overscroll/gesture competition from nested filter content.
+        assertTrue(sheet.contains("MonicaModalBottomSheet("))
+        assertTrue(sheet.contains("fillMaxHeight(0.86f)"))
+
+        // Preview count should be memoized once per pending selection, instead of
+        // running a full sort separately from the header and apply button.
+        assertTrue(sheet.contains("remember(pending, totalCount)"))
+        assertTrue(!sheet.contains("filteredCount(pending)"))
+
+        // Large nested cards were the source of the oversized visual hierarchy.
+        assertTrue(!sheet.contains("surfaceContainerHigh"))
+    }
+
     private fun projectFile(path: String): File {
         var dir = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (

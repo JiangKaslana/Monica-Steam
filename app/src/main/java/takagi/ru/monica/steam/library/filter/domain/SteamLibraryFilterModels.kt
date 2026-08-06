@@ -69,7 +69,26 @@ internal fun filterSteamLibraryGames(
     games: List<SteamGame>,
     query: String,
     selection: SteamLibraryFilterSelection
-): List<SteamGame> {
+): List<SteamGame> = steamLibraryFilterSequence(games, query, selection)
+    .sortedWith(selection.sortOrder.comparator())
+    .toList()
+
+/**
+ * Counts matches without sorting them.  The filter sheet asks for this value
+ * on every pending selection; sorting here made each tap do unnecessary work
+ * on the main thread and made the sheet feel unresponsive on larger libraries.
+ */
+internal fun countSteamLibraryGames(
+    games: List<SteamGame>,
+    query: String,
+    selection: SteamLibraryFilterSelection
+): Int = steamLibraryFilterSequence(games, query, selection).count()
+
+private fun steamLibraryFilterSequence(
+    games: List<SteamGame>,
+    query: String,
+    selection: SteamLibraryFilterSelection
+): Sequence<SteamGame> {
     val normalizedQuery = query.trim()
     return games.asSequence()
         .distinctBy(SteamGame::appId)
@@ -81,8 +100,6 @@ internal fun filterSteamLibraryGames(
         .filter { game -> selection.achievementStatus.matches(game) }
         .filter { game -> selection.playtime.matches(game) }
         .filter { game -> !selection.requiresSteamCloud || game.supportsSteamCloud == true }
-        .sortedWith(selection.sortOrder.comparator())
-        .toList()
 }
 
 private fun SteamLibraryOwnershipFilter.matches(game: SteamGame): Boolean = when (this) {

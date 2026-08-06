@@ -110,6 +110,20 @@ class SteamLibraryMultiFilterTest {
     }
 
     @Test
+    fun previewCountMatchesFilteredResultsWithoutDependingOnSortOrder() {
+        val selection = SteamLibraryFilterSelection(
+            ownership = SteamLibraryOwnershipFilter.OWNED,
+            playStatus = SteamLibraryPlayStatusFilter.PLAYED,
+            sortOrder = SteamLibrarySortOrder.NAME_DESCENDING
+        )
+
+        assertEquals(
+            filterSteamLibraryGames(games, "", selection).size,
+            countSteamLibraryGames(games, "", selection)
+        )
+    }
+
+    @Test
     fun activeChoiceCountIncludesSortAndFeatureToggle() {
         val selection = SteamLibraryFilterSelection(
             ownership = SteamLibraryOwnershipFilter.OWNED,
