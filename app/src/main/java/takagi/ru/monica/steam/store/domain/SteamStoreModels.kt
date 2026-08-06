@@ -8,6 +8,8 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 import takagi.ru.monica.steam.store.requirements.domain.SteamStoreSystemRequirements
 import takagi.ru.monica.steam.store.related.domain.SteamStoreRelatedApp
 import takagi.ru.monica.steam.store.bundle.domain.SteamStoreBundle
+import takagi.ru.monica.steam.store.gift.domain.SteamStoreCheckoutLine
+import takagi.ru.monica.steam.store.gift.domain.SteamStoreGiftRecipient
 
 @Serializable
 data class SteamStoreItem(
@@ -163,6 +165,7 @@ data class SteamCartItem(
     val initialPriceCents: Int? = null,
     val finalPriceCents: Int? = null,
     val discountPercent: Int = 0,
+    val giftRecipient: SteamStoreGiftRecipient? = null,
     val addedAt: Long = System.currentTimeMillis()
 ) {
     val formattedPrice: String get() = formatSteamPrice(finalPriceCents, currency)
@@ -229,7 +232,17 @@ internal fun SteamStoreDetail.toCartItem(
 }
 
 internal fun steamCartCheckoutPackageIds(items: List<SteamCartItem>): List<Int> =
-    items.mapNotNull { it.packageId }.distinct()
+    steamCartCheckoutLines(items).map(SteamStoreCheckoutLine::packageId).distinct()
+
+internal fun steamCartCheckoutLines(items: List<SteamCartItem>): List<SteamStoreCheckoutLine> =
+    items.mapNotNull { item ->
+        item.packageId?.let { packageId ->
+            SteamStoreCheckoutLine(
+                packageId = packageId,
+                gifteeAccountId = item.giftRecipient?.accountId
+            )
+        }
+    }.distinct()
 
 internal fun steamCartTotalCents(items: List<SteamCartItem>): Int =
     items.mapNotNull { it.finalPriceCents }.sum()

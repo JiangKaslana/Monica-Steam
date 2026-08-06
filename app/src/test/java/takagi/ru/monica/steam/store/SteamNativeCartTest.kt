@@ -15,6 +15,7 @@ class SteamNativeCartTest {
             SteamCartItem(3, null, "C", finalPriceCents = null)
         )
         assertEquals(listOf(100), steamCartCheckoutPackageIds(items))
+        assertEquals(listOf(100), steamCartCheckoutLines(items).map { it.packageId })
         assertEquals(2000, steamCartTotalCents(items))
     }
 
