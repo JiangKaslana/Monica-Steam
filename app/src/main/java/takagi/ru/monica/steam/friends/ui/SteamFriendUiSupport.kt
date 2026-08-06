@@ -48,6 +48,7 @@ import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
 import takagi.ru.monica.steam.friends.domain.SteamFriendsFilter
 import takagi.ru.monica.steam.friends.domain.SteamPersonaState
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsFailureReason
+import takagi.ru.monica.steam.foundation.ui.LocalSteamAvatarShape
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,7 +107,7 @@ private fun FriendAccountRow(account: SteamAccount, selected: Boolean, onClick: 
         leadingContent = {
             Surface(
                 modifier = Modifier.size(44.dp),
-                shape = CircleShape,
+                shape = LocalSteamAvatarShape.current,
                 color = if (selected) {
                     MaterialTheme.colorScheme.primaryContainer
                 } else {
@@ -143,7 +144,7 @@ internal fun FriendAvatar(friend: SteamFriend, size: Int) {
     Box(modifier = Modifier.size(size.dp)) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            shape = CircleShape,
+            shape = LocalSteamAvatarShape.current,
             color = MaterialTheme.colorScheme.surfaceContainerHighest
         ) {
             if (avatar != null) {

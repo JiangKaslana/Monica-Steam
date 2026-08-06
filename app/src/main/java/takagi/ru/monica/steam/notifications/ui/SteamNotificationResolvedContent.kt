@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -29,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.foundation.ui.LocalSteamAvatarShape
 import takagi.ru.monica.steam.notifications.domain.SteamNotificationActorContent
 import takagi.ru.monica.steam.notifications.domain.SteamNotificationInventoryReference
 import takagi.ru.monica.steam.notifications.domain.SteamNotificationItemContent
@@ -54,13 +54,13 @@ internal fun SteamNotificationActorCard(
                 SteamStoreImage(
                     url = actor.avatarUrl,
                     contentDescription = actor.displayName,
-                    modifier = Modifier.size(56.dp).clip(CircleShape),
+                    modifier = Modifier.size(56.dp).clip(LocalSteamAvatarShape.current),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Surface(
                     modifier = Modifier.size(56.dp),
-                    shape = CircleShape,
+                    shape = LocalSteamAvatarShape.current,
                     color = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ) {

@@ -4528,6 +4528,13 @@
     <string name="steam_ui_scale_default">Default</string>
     <string name="steam_ui_scale_large">Larger</string>
     <string name="steam_ui_scale_reset">Reset</string>
+    <string name="steam_avatar_shape_title">User avatar shape</string>
+    <string name="steam_avatar_shape_current">Current · %1$s</string>
+    <string name="steam_avatar_shape_description">Choose one consistent shape for Steam account, friend, profile, and notification avatars.</string>
+    <string name="steam_avatar_shape_square">Square</string>
+    <string name="steam_avatar_shape_rounded">Rounded square</string>
+    <string name="steam_avatar_shape_circle">Circle</string>
+    <string name="steam_avatar_shape_reset">Use square</string>
     <string name="steam_store_title">Store</string>
     <string name="steam_store_hint_settings_section">Store experience</string>
     <string name="steam_store_hint_settings_title">Store and game hints</string>

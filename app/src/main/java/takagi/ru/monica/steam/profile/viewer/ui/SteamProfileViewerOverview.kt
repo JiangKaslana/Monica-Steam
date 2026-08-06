@@ -58,6 +58,7 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.foundation.ui.LocalSteamAvatarShape
 import takagi.ru.monica.steam.friends.domain.SteamPersonaState
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
@@ -272,7 +273,7 @@ private fun SteamProfileViewerHero(
             ) {
                 Surface(
                     modifier = Modifier.size(82.dp),
-                    shape = CircleShape,
+                    shape = LocalSteamAvatarShape.current,
                     color = MaterialTheme.colorScheme.surfaceContainerHighest
                 ) {
                     if (avatar != null) {

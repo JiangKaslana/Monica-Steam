@@ -6,7 +6,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,7 +43,7 @@ internal fun SteamAvatarImage(
     account: SteamAccount,
     size: Dp,
     modifier: Modifier = Modifier,
-    shape: Shape = CircleShape
+    shape: Shape = LocalSteamAvatarShape.current
 ) {
     val context = LocalContext.current
     var avatar by remember(account.steamId) { mutableStateOf<ImageBitmap?>(null) }

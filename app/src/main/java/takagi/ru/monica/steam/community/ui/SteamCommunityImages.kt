@@ -3,7 +3,6 @@ package takagi.ru.monica.steam.community.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SportsEsports
@@ -23,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.foundation.ui.LocalSteamAvatarShape
 import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteImage
 
 @Composable
@@ -34,7 +34,7 @@ internal fun CommunityAvatar(
     val bitmap = rememberCommunityImage(imageUrl)
     Surface(
         modifier = modifier,
-        shape = CircleShape,
+        shape = LocalSteamAvatarShape.current,
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary
     ) {

@@ -4358,6 +4358,13 @@
     <string name="steam_ui_scale_default">默认</string>
     <string name="steam_ui_scale_large">较大</string>
     <string name="steam_ui_scale_reset">恢复默认</string>
+    <string name="steam_avatar_shape_title">用户头像形状</string>
+    <string name="steam_avatar_shape_current">当前 · %1$s</string>
+    <string name="steam_avatar_shape_description">统一设置 Steam 账号、好友、个人资料与通知中的用户头像形状。</string>
+    <string name="steam_avatar_shape_square">直角方形</string>
+    <string name="steam_avatar_shape_rounded">圆角方形</string>
+    <string name="steam_avatar_shape_circle">圆形</string>
+    <string name="steam_avatar_shape_reset">使用直角方形</string>
     <string name="steam_store_title">商店</string>
     <string name="steam_store_hint_settings_section">商店体验</string>
     <string name="steam_store_hint_settings_title">商店与游戏提示</string>

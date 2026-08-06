@@ -39,7 +39,7 @@ internal fun ProvideSteamUiScale(content: @Composable () -> Unit) {
         LocalDensity provides appDensity,
         LocalSteamUiScale provides scale
     ) {
-        content()
+        ProvideSteamAvatarShape(content)
     }
 }
 

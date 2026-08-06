@@ -61,7 +61,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -101,6 +100,7 @@ import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarImage
+import takagi.ru.monica.steam.foundation.ui.LocalSteamAvatarShape
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.foundation.ui.SteamPageOverflowMenu
@@ -1015,7 +1015,7 @@ private fun SteamFramedAvatar(
     val frame = rememberSteamRemoteImage(decor?.avatarFrameUrl)
     val frameSize = if (compact) SteamLibraryLayoutTokens.OverviewHeroFrameSize else 82.dp
     val avatarSize = if (compact) SteamLibraryLayoutTokens.OverviewHeroAvatarSize else 68.dp
-    val avatarShape = RectangleShape
+    val avatarShape = LocalSteamAvatarShape.current
     Box(modifier = Modifier.size(frameSize), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
