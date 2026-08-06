@@ -144,6 +144,38 @@ class SteamStoreSessionPolicyTest {
     }
 
     @Test
+    fun defaultModeNormalizesAndroidWebViewUaForResponsiveStore() {
+        val defaultUserAgent =
+            "Mozilla/5.0 (Linux; Android 15; Pixel 8 Build/AP3A; wv) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 " +
+                "Chrome/138.0.7204.157 Mobile Safari/537.36"
+
+        val userAgent = SteamWebClientPolicy.userAgent(
+            mode = SteamWebClientMode.DEFAULT,
+            defaultUserAgent = defaultUserAgent
+        )
+
+        assertTrue(userAgent.contains("Android 15"))
+        assertTrue(userAgent.contains("Mobile"))
+        assertTrue(userAgent.contains("Chrome/138.0.7204.157"))
+        assertFalse(userAgent.contains("; wv"))
+        assertFalse(userAgent.contains("Version/4.0"))
+    }
+
+    @Test
+    fun responsiveStoreDisplayUsesViewportWithoutOverviewAndFixedTextZoom() {
+        val responsive = SteamWebClientPolicy.displayPolicy(SteamWebClientMode.DEFAULT)
+        assertTrue(responsive.useWideViewPort)
+        assertFalse(responsive.loadWithOverviewMode)
+        assertEquals(100, responsive.textZoomPercent)
+
+        val desktop = SteamWebClientPolicy.displayPolicy(SteamWebClientMode.COMMUNITY_DESKTOP)
+        assertTrue(desktop.useWideViewPort)
+        assertTrue(desktop.loadWithOverviewMode)
+        assertEquals(100, desktop.textZoomPercent)
+    }
+
+    @Test
     fun keepsPreviouslyEncodedSteamLoginSecureAtSingleEncodingLevel() {
         val raw = SteamStoreSessionPolicy.cookies(
             steamLoginSecure = "76561198000000000%7C%7Ctoken%2Fvalue",

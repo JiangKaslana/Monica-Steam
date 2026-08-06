@@ -192,8 +192,10 @@ fun SteamStoreWebScreen(
                                 mode = clientMode,
                                 defaultUserAgent = settings.userAgentString
                             )
-                            settings.useWideViewPort = SteamWebClientPolicy.usesDesktopLayout(clientMode)
-                            settings.loadWithOverviewMode = SteamWebClientPolicy.usesDesktopLayout(clientMode)
+                            val displayPolicy = SteamWebClientPolicy.displayPolicy(clientMode)
+                            settings.useWideViewPort = displayPolicy.useWideViewPort
+                            settings.loadWithOverviewMode = displayPolicy.loadWithOverviewMode
+                            settings.textZoom = displayPolicy.textZoomPercent
                             settings.databaseEnabled = false
                             settings.allowFileAccess = false
                             settings.allowContentAccess = false

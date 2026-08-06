@@ -26,6 +26,8 @@ class SteamStoreWebSecurityGuardTest {
         assertTrue(source.contains("setAcceptThirdPartyCookies(this, false)"))
         assertTrue(source.contains("SteamStoreNavigationPolicy.isAllowed(target)"))
         assertTrue(source.contains("SteamWebAccountSessionPolicy.decide("))
+        assertTrue(source.contains("SteamWebClientPolicy.displayPolicy(clientMode)"))
+        assertTrue(source.contains("settings.textZoom = displayPolicy.textZoomPercent"))
         assertTrue(source.contains("clearSteamCookies()"))
         assertTrue(source.contains("replaceSteamCookies("))
         assertTrue(installer.contains("removeAllCookies"))

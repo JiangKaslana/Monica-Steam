@@ -104,11 +104,20 @@ enum class SteamWebClientMode {
     COMMUNITY_DESKTOP
 }
 
+data class SteamWebDisplayPolicy(
+    val useWideViewPort: Boolean,
+    val loadWithOverviewMode: Boolean,
+    val textZoomPercent: Int,
+)
+
 object SteamWebClientPolicy {
     private val chromeVersionPattern = Regex("Chrome/[0-9.]+")
+    private val webViewMarkerPattern = Regex("\\s*;\\s*wv(?=\\s|\\))")
+    private val webViewVersionPattern = Regex("\\s+Version/4\\.0(?=\\s)")
+    private const val defaultTextZoomPercent = 100
 
     fun userAgent(mode: SteamWebClientMode, defaultUserAgent: String): String = when (mode) {
-        SteamWebClientMode.DEFAULT -> defaultUserAgent
+        SteamWebClientMode.DEFAULT -> normalizeMobileUserAgent(defaultUserAgent)
         SteamWebClientMode.COMMUNITY_DESKTOP -> {
             val chromeVersion = chromeVersionPattern.find(defaultUserAgent)?.value
                 ?: "Chrome/120.0.0.0"
@@ -117,8 +126,34 @@ object SteamWebClientPolicy {
         }
     }
 
+    fun displayPolicy(mode: SteamWebClientMode): SteamWebDisplayPolicy = when (mode) {
+        SteamWebClientMode.DEFAULT -> SteamWebDisplayPolicy(
+            useWideViewPort = true,
+            loadWithOverviewMode = false,
+            textZoomPercent = defaultTextZoomPercent,
+        )
+
+        SteamWebClientMode.COMMUNITY_DESKTOP -> SteamWebDisplayPolicy(
+            useWideViewPort = true,
+            loadWithOverviewMode = true,
+            textZoomPercent = defaultTextZoomPercent,
+        )
+    }
+
     fun usesDesktopLayout(mode: SteamWebClientMode): Boolean =
         mode == SteamWebClientMode.COMMUNITY_DESKTOP
+
+    private fun normalizeMobileUserAgent(defaultUserAgent: String): String {
+        val source = defaultUserAgent.trim().ifEmpty {
+            "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        }
+        return source
+            .replace(webViewMarkerPattern, "")
+            .replace(webViewVersionPattern, "")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
+    }
 }
 
 object SteamStoreSessionPolicy {
