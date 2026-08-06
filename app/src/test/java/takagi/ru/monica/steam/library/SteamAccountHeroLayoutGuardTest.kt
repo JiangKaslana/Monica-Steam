@@ -46,20 +46,26 @@ class SteamAccountHeroLayoutGuardTest {
     }
 
     @Test
-    fun accountHeroUsesASharpSquareSteamAvatarWithoutStroke() {
+    fun accountHeroUsesTheSharedAvatarShapeWithoutStrokeAndDefaultsToSquare() {
         val screen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/ui/SteamLibraryScreen.kt"
+        ).readText()
+        val provider = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/foundation/ui/" +
+                "SteamAvatarShapeProvider.kt"
         ).readText()
         val framedAvatar = screen
             .substringAfter("private fun SteamFramedAvatar(")
             .substringBefore("private fun HeroMetric(")
 
-        assertTrue(framedAvatar.contains("val avatarShape = RectangleShape"))
+        assertTrue(framedAvatar.contains("val avatarShape = LocalSteamAvatarShape.current"))
         assertTrue(framedAvatar.contains(".clip(avatarShape)"))
         assertTrue(framedAvatar.contains("shape = avatarShape"))
         assertFalse(framedAvatar.contains(".border("))
         assertFalse(framedAvatar.contains("RoundedCornerShape"))
         assertFalse(framedAvatar.contains("CircleShape"))
+        assertTrue(provider.contains("initial = SteamAvatarShapeOption.SQUARE"))
+        assertTrue(provider.contains("SteamAvatarShapeOption.SQUARE -> RectangleShape"))
     }
 
     @Test
