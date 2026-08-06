@@ -1067,6 +1067,9 @@
     <string name="steam_submit_code_button">提交</string>
     <string name="steam_account_imported">已导入 Steam 账号</string>
     <string name="steam_account_logged_in_session_only">Steam 账号已登录（未迁移令牌）</string>
+    <string name="steam_token_page_login_only_hidden">仅登录账号没有手机令牌，因此不会显示在令牌验证码页面。</string>
+    <string name="steam_confirmation_authenticator_required">交易确认需要已绑定 Steam 手机令牌的账号。</string>
+    <string name="steam_authenticated_session_required">此 Steam 页面需要已登录会话，请先添加或登录 Steam 账号。</string>
     <string name="steam_account_imported_code_only">已导入仅验证码 Steam 验证器</string>
     <string name="steam_import_failed">Steam 导入失败</string>
     <string name="steam_verification_required">需要 Steam 验证</string>

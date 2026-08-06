@@ -170,6 +170,8 @@ import takagi.ru.monica.steam.confirmations.SteamConfirmationRiskLevel
 import takagi.ru.monica.steam.confirmations.SteamConfirmationKind
 import takagi.ru.monica.steam.confirmations.SteamConfirmationKindClassifier
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
+import takagi.ru.monica.steam.data.hasAuthenticatorCode
 import takagi.ru.monica.steam.data.SteamSecurityEvent
 import takagi.ru.monica.steam.data.SteamSecurityEventSeverity
 import takagi.ru.monica.steam.data.SteamMaFileTransferAction
@@ -415,8 +417,25 @@ fun SteamScreen(
     val appSettings by settingsManager.settingsFlow.collectAsState(initial = AppSettings())
     val uiState by viewModel.uiState.collectAsState()
     val chatUiState by chatViewModel.uiState.collectAsState()
-    val selectedAccount = uiState.accounts.firstOrNull { it.id == uiState.selectedAccountId }
-        ?: uiState.accounts.firstOrNull()
+    var selectedSection by rememberSaveable { mutableStateOf(SteamSection.CODE) }
+    val storedSelectedAccount = uiState.accounts.firstOrNull { it.id == uiState.selectedAccountId }
+    val tokenAccounts = remember(uiState.accounts) {
+        uiState.accounts.filter { it.hasAuthenticatorCode }
+    }
+    val sessionAccounts = remember(uiState.accounts) {
+        uiState.accounts.filter { it.hasAuthenticatedSession }
+    }
+    val confirmationAccounts = remember(uiState.accounts) {
+        uiState.accounts.filter { it.canUseConfirmations }
+    }
+    val selectedAccount = when (selectedSection) {
+        SteamSection.CODE -> tokenAccounts.firstOrNull { it.id == storedSelectedAccount?.id }
+            ?: tokenAccounts.firstOrNull()
+        SteamSection.CONFIRMATIONS -> confirmationAccounts.firstOrNull { it.id == storedSelectedAccount?.id }
+            ?: confirmationAccounts.firstOrNull()
+        else -> sessionAccounts.firstOrNull { it.id == storedSelectedAccount?.id }
+            ?: sessionAccounts.firstOrNull()
+    }
     LaunchedEffect(
         selectedAccount?.id,
         selectedAccount?.steamId,
@@ -427,7 +446,6 @@ fun SteamScreen(
     }
     var detailAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
     val detailAccount = uiState.accounts.firstOrNull { it.id == detailAccountId }
-    var selectedSection by rememberSaveable { mutableStateOf(SteamSection.CODE) }
     var isChatThreadOpen by rememberSaveable { mutableStateOf(false) }
     var selectedFriendId by rememberSaveable { mutableStateOf<String?>(null) }
     var steamSearchQuery by rememberSaveable { mutableStateOf("") }
@@ -507,13 +525,13 @@ fun SteamScreen(
         pinnedOnly = organizationPinnedOnly
     )
     val filteredSteamAccounts = remember(
-        uiState.accounts,
+        tokenAccounts,
         steamSearchQuery,
         organizationGroupFilter,
         organizationTagFilter,
         organizationPinnedOnly
     ) {
-        val queryFilteredAccounts = filterSteamAccounts(uiState.accounts, steamSearchQuery)
+        val queryFilteredAccounts = filterSteamAccounts(tokenAccounts, steamSearchQuery)
         SteamAccountOrganizer.filter(queryFilteredAccounts, "", organizationFilter)
     }
     val filteredSteamConfirmations = remember(uiState.confirmations, steamSearchQuery) {
@@ -610,6 +628,12 @@ fun SteamScreen(
         viewModel.clearBatchMarketQuotes()
     }
 
+    LaunchedEffect(selectedSection, uiState.selectedAccountId, selectedAccount?.id) {
+        if (selectedAccount != null && selectedAccount.id != uiState.selectedAccountId) {
+            viewModel.selectAccount(selectedAccount.id)
+        }
+    }
+
     LaunchedEffect(steamIdCompletionAccount?.id, steamIdCompletionAccount?.hasRealSteamId) {
         if (steamIdCompletionAccount?.hasRealSteamId == true || steamIdCompletionAccount == null) {
             steamIdCompletionAccountId = null
@@ -670,16 +694,18 @@ fun SteamScreen(
     }
 
     LaunchedEffect(detailAccountId, uiState.accounts) {
-        if (detailAccountId != null && detailAccount == null) {
+        if (detailAccountId != null && (detailAccount == null || !detailAccount.hasAuthenticatorCode)) {
             detailAccountId = null
         }
     }
 
     LaunchedEffect(uiState.accounts) {
         val existingIds = uiState.accounts.map { it.id }.toSet()
+        val tokenIds = tokenAccounts.map { it.id }.toSet()
         val prunedSelection = selectedTokenAccountIds.filter { it in existingIds }
-        if (prunedSelection != selectedTokenAccountIds) {
-            selectedTokenAccountIds = prunedSelection
+        val tokenSelection = prunedSelection.filter { it in tokenIds }
+        if (tokenSelection != selectedTokenAccountIds) {
+            selectedTokenAccountIds = tokenSelection
         }
         if (uiState.accounts.isNotEmpty() && lastSteamQrAccountId != null && lastSteamQrAccountId !in existingIds) {
             rememberLastSteamQrAccount(null)
@@ -1932,7 +1958,7 @@ fun SteamScreen(
                             onRespondPending = viewModel::respondPendingLogin,
                             onRespondQr = viewModel::respondQr
                         )
-                    } else if (selectedAccount == null) {
+                    } else if (selectedAccount == null && uiState.accounts.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -1951,11 +1977,41 @@ fun SteamScreen(
                                 onAddAccount = { showAddAccountDialog = true }
                             )
                         }
+                    } else if (selectedAccount == null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .offset { IntOffset(0, pullToSearch.currentOffset.toInt()) }
+                                .pointerInput(selectedSection) {
+                                    detectVerticalDragGestures(
+                                        onVerticalDrag = { _, dragAmount ->
+                                            pullToSearch.onVerticalDrag(dragAmount)
+                                        },
+                                        onDragEnd = pullToSearch.onDragEnd,
+                                        onDragCancel = pullToSearch.onDragCancel
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            EmptyState(
+                                when (selectedSection) {
+                                    SteamSection.CODE -> stringResource(
+                                        R.string.steam_token_page_login_only_hidden
+                                    )
+                                    SteamSection.CONFIRMATIONS -> stringResource(
+                                        R.string.steam_confirmation_authenticator_required
+                                    )
+                                    else -> stringResource(
+                                        R.string.steam_authenticated_session_required
+                                    )
+                                }
+                            )
+                        }
                     } else {
                         when (selectedSection) {
                             SteamSection.CODE -> SteamCodeContent(
                                 accounts = filteredSteamAccounts,
-                                organizationAccounts = uiState.accounts,
+                                organizationAccounts = tokenAccounts,
                                 organizationFilter = organizationFilter,
                                 onOrganizationFilterChange = { filter ->
                                     organizationGroupFilter = filter.groupName
@@ -2008,7 +2064,7 @@ fun SteamScreen(
                             )
                             SteamSection.CONFIRMATIONS -> SteamConfirmationsContent(
                                 account = selectedAccount,
-                                accounts = uiState.accounts,
+                                accounts = confirmationAccounts,
                                 confirmations = filteredSteamConfirmations,
                                 history = uiState.confirmationHistory,
                                 hasSearchQuery = steamSearchQuery.isNotBlank(),
@@ -2073,7 +2129,7 @@ fun SteamScreen(
                             )
                             SteamSection.TRADE_OFFERS -> SteamTradeOffersContent(
                                 account = selectedAccount,
-                                accounts = uiState.accounts,
+                                accounts = sessionAccounts,
                                 state = uiState.tradeOffers,
                                 visibleOffers = filteredTradeOffers,
                                 hasSearchQuery = steamSearchQuery.isNotBlank(),
@@ -2087,7 +2143,7 @@ fun SteamScreen(
                             )
                             SteamSection.INVENTORY -> SteamInventoryContent(
                                 account = selectedAccount,
-                                accounts = uiState.accounts,
+                                accounts = sessionAccounts,
                                 state = uiState.inventoryMarket,
                                 visibleStacks = filteredInventoryStacks,
                                 hasSearchQuery = steamSearchQuery.isNotBlank(),
@@ -2126,7 +2182,7 @@ fun SteamScreen(
                             )
                             SteamSection.MARKET -> SteamMarketListingsContent(
                                 account = selectedAccount,
-                                accounts = uiState.accounts,
+                                accounts = sessionAccounts,
                                 state = uiState.inventoryMarket,
                                 visibleListings = filteredMarketListings,
                                 hasSearchQuery = steamSearchQuery.isNotBlank(),

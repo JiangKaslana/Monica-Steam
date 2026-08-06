@@ -1074,6 +1074,9 @@
     <string name="steam_submit_code_button">Submit</string>
     <string name="steam_account_imported">Steam account imported</string>
     <string name="steam_account_logged_in_session_only">Steam account signed in (authenticator not migrated)</string>
+    <string name="steam_token_page_login_only_hidden">Only-login accounts are hidden from the token code page because they have no mobile authenticator.</string>
+    <string name="steam_confirmation_authenticator_required">Transaction confirmations require an account with a Steam mobile authenticator.</string>
+    <string name="steam_authenticated_session_required">This Steam page requires an authenticated session. Add or sign in to a Steam account first.</string>
     <string name="steam_account_imported_code_only">Steam code-only authenticator imported</string>
     <string name="steam_import_failed">Steam import failed</string>
     <string name="steam_verification_required">Steam verification required</string>

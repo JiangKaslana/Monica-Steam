@@ -854,7 +854,7 @@ class SteamViewModel(
         viewModelScope.launch {
             val storedAccount = accountById(accountId) ?: return@launch
             val account = ensureSteamSession(storedAccount)
-            if (account == null || account.accessToken.isNullOrBlank()) {
+            if (account == null || !account.canApproveLogins) {
                 setMessage(R.string.steam_remove_authenticator_missing_access_token)
                 return@launch
             }
@@ -886,6 +886,13 @@ class SteamViewModel(
 
     fun refreshConfirmations(silent: Boolean = false) {
         val account = selectedAccount() ?: return
+        if (!account.canUseConfirmations) {
+            _uiState.value = _uiState.value.copy(
+                confirmations = emptyList(),
+                selectedConfirmationIds = emptySet()
+            )
+            return
+        }
         val generation = accountRequestGeneration
         viewModelScope.launch {
             if (!silent) setLoading(true)
@@ -1088,12 +1095,14 @@ class SteamViewModel(
     }
 
     fun toggleConfirmation(id: String) {
+        if (selectedAccount()?.canUseConfirmations != true) return
         val selected = _uiState.value.selectedConfirmationIds.toMutableSet()
         if (!selected.add(id)) selected.remove(id)
         _uiState.value = _uiState.value.copy(selectedConfirmationIds = selected)
     }
 
     fun selectAllConfirmations() {
+        if (selectedAccount()?.canUseConfirmations != true) return
         val ids = _uiState.value.confirmations.map { it.id }.toSet()
         if (ids.isNotEmpty()) {
             _uiState.value = _uiState.value.copy(selectedConfirmationIds = ids)
@@ -1101,6 +1110,7 @@ class SteamViewModel(
     }
 
     fun selectConfirmations(ids: Set<String>) {
+        if (selectedAccount()?.canUseConfirmations != true) return
         val visibleIds = ids.intersect(_uiState.value.confirmations.map { it.id }.toSet())
         _uiState.value = _uiState.value.copy(selectedConfirmationIds = visibleIds)
     }
@@ -1118,6 +1128,7 @@ class SteamViewModel(
 
     fun respondConfirmations(confirmations: List<SteamConfirmation>, accept: Boolean) {
         val account = selectedAccount() ?: return
+        if (!account.canUseConfirmations) return
         val generation = accountRequestGeneration
         if (confirmations.isEmpty()) return
         viewModelScope.launch {
@@ -1162,6 +1173,7 @@ class SteamViewModel(
 
     fun respondConfirmation(confirmation: SteamConfirmation, accept: Boolean) {
         val account = selectedAccount() ?: return
+        if (!account.canUseConfirmations) return
         val generation = accountRequestGeneration
         viewModelScope.launch {
             setLoading(true)
@@ -1975,6 +1987,10 @@ class SteamViewModel(
 
     fun refreshPendingLogins(silent: Boolean = false) {
         val account = selectedAccount() ?: return
+        if (!account.canApproveLogins) {
+            _uiState.value = _uiState.value.copy(pendingLogins = emptyList())
+            return
+        }
         val generation = accountRequestGeneration
         viewModelScope.launch {
             if (!silent) setLoading(true)
@@ -2009,6 +2025,10 @@ class SteamViewModel(
         val generation = ++authorizedDevicesLoadGeneration
         viewModelScope.launch {
             val storedAccount = accountById(accountId) ?: return@launch
+            if (!storedAccount.canApproveLogins) {
+                _uiState.value = _uiState.value.copy(authorizedDevices = emptyList())
+                return@launch
+            }
             val account = ensureSteamSession(storedAccount)
             if (generation != authorizedDevicesLoadGeneration) return@launch
             if (account == null || account.accessToken.isNullOrBlank()) {
@@ -2043,6 +2063,7 @@ class SteamViewModel(
     ) {
         viewModelScope.launch {
             val account = accountById(accountId) ?: return@launch
+            if (!account.canApproveLogins) return@launch
             setLoading(true)
             try {
                 val result = withContext(Dispatchers.IO) {
@@ -2091,6 +2112,7 @@ class SteamViewModel(
 
     fun respondPendingLogin(login: SteamPendingLogin, approve: Boolean) {
         val account = selectedAccount() ?: return
+        if (!account.canApproveLogins) return
         val generation = accountRequestGeneration
         viewModelScope.launch {
             setLoading(true)
@@ -2117,6 +2139,7 @@ class SteamViewModel(
 
     fun respondQr(rawQr: String, approve: Boolean) {
         val account = selectedAccount() ?: return
+        if (!account.canApproveLogins) return
         val generation = accountRequestGeneration
         val challenge = SteamQrChallenge.parse(rawQr)
         if (challenge == null) {
