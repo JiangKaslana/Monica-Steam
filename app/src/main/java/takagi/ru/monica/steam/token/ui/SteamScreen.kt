@@ -2142,6 +2142,17 @@ fun SteamScreen(
                                     }
                                 },
                                 onClearSelection = { selectedMarketListingIds = emptyList() },
+                                onSelectAll = {
+                                    val visibleIds = filteredMarketListings.map { it.listingId }
+                                    selectedMarketListingIds = if (
+                                        visibleIds.isNotEmpty() &&
+                                        visibleIds.all { it in selectedMarketListingIds }
+                                    ) {
+                                        selectedMarketListingIds - visibleIds.toSet()
+                                    } else {
+                                        (selectedMarketListingIds + visibleIds).distinct()
+                                    }
+                                },
                                 onRequestCancelListings = { listings ->
                                     if (listings.isNotEmpty()) {
                                         requestProtectedMarketAction(

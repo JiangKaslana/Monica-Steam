@@ -93,10 +93,16 @@ class SteamInventoryMarketUiGuardTest {
         val uiSource = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/inventory/ui/SteamInventoryMarketContent.kt"
         ).readText()
+        val screenSource = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/token/ui/SteamScreen.kt"
+        ).readText()
         val stateSource = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/token/presentation/SteamViewModel.kt"
         ).readText()
 
+        val listingsContent = uiSource
+            .substringAfter("internal fun SteamMarketListingsContent(")
+            .substringBefore("internal fun SteamSellItemSheet(")
         val listingCard = uiSource
             .substringAfter("private fun SteamMarketListingCard(")
             .substringBefore("private fun SteamMarketInfoBlock(")
@@ -106,7 +112,13 @@ class SteamInventoryMarketUiGuardTest {
         assertTrue(listingCard.contains("onLongClick = onLongClick"))
         assertTrue(listingCard.contains("this.selected = selected"))
         assertTrue(uiSource.contains("selectedListingIds"))
-        assertTrue(uiSource.contains("steam_market_batch_cancel"))
+        assertTrue(listingsContent.contains("SelectionActionBar("))
+        assertTrue(listingsContent.contains("onSelectAll = onSelectAll"))
+        assertTrue(listingsContent.contains("FloatingActionButton("))
+        assertTrue(listingsContent.contains("state.actionLoading"))
+        assertTrue(listingsContent.contains("disabled()"))
+        assertTrue(listingsContent.contains("steam_market_batch_cancel"))
+        assertTrue(screenSource.contains("filteredMarketListings.map { it.listingId }"))
         assertTrue(stateSource.contains("fun cancelMarketListings("))
         assertTrue(stateSource.contains("distinctBy { it.listingId }"))
         assertTrue(stateSource.contains("removeCancelledSteamMarketListings("))
