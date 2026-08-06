@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
@@ -43,16 +42,26 @@ import takagi.ru.monica.steam.community.domain.SteamCommunityProfile
 import takagi.ru.monica.steam.community.domain.SteamCommunityRecentGame
 
 @Composable
-internal fun CommunityBadges(badges: List<SteamCommunityBadge>, unavailable: Boolean) {
+internal fun CommunityBadges(
+    badges: List<SteamCommunityBadge>,
+    unavailable: Boolean,
+    onBadgeClick: (SteamCommunityBadge) -> Unit
+) {
     val fontScale = LocalDensity.current.fontScale
-    val badgeWidth = if (fontScale > 1.15f) 176.dp else 142.dp
+    val badgeWidth = if (fontScale > 1.15f) 184.dp else 154.dp
     when {
         badges.isNotEmpty() -> LazyRow(
             contentPadding = PaddingValues(horizontal = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(badges, key = { "${it.badgeId}-${it.completionTime}" }) { badge ->
+            items(badges, key = {
+                "${it.appId}-${it.badgeId}-${it.borderColor}-${it.completionTime}"
+            }) { badge ->
+                val badgeTitle = badge.name.ifBlank {
+                    stringResource(R.string.steam_community_badge_number, badge.badgeId)
+                }
                 Card(
+                    onClick = { onBadgeClick(badge) },
                     modifier = Modifier.width(badgeWidth),
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
@@ -61,16 +70,31 @@ internal fun CommunityBadges(badges: List<SteamCommunityBadge>, unavailable: Boo
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        Icon(Icons.Default.Badge, contentDescription = null)
+                        CommunityBadgeIcon(
+                            imageUrl = badge.iconUrl,
+                            contentDescription = badgeTitle,
+                            modifier = Modifier.size(64.dp)
+                        )
                         Text(
-                            stringResource(R.string.steam_community_badge_number, badge.badgeId),
+                            badgeTitle,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
+                        badge.gameName.takeIf { it.isNotBlank() && it != badgeTitle }?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(
+                                    alpha = 0.78f
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                         Text(
                             stringResource(R.string.steam_community_badge_level, badge.level),
                             style = MaterialTheme.typography.bodySmall

@@ -5072,6 +5072,11 @@
     <string name="steam_community_badge_number">Badge #%1$d</string>
     <string name="steam_community_badge_level">Level %1$d</string>
     <string name="steam_community_badge_xp">%1$d XP</string>
+    <string name="steam_community_badge_xp_label">XP</string>
+    <string name="steam_community_badge_id">Badge ID</string>
+    <string name="steam_community_badge_scarcity">Steam scarcity</string>
+    <string name="steam_community_badge_unlocked">Unlocked</string>
+    <string name="steam_community_badge_view_on_steam">View on Steam</string>
     <string name="steam_community_no_badges">No public badges</string>
     <string name="steam_community_no_badges_summary">This account has no public badge data.</string>
     <string name="steam_community_recent_games">Recent games</string>

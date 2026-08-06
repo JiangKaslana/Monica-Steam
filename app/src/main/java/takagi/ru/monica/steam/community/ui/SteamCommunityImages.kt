@@ -3,8 +3,10 @@ package takagi.ru.monica.steam.community.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -75,6 +77,38 @@ internal fun CommunityGameIcon(imageUrl: String, modifier: Modifier = Modifier) 
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.SportsEsports, contentDescription = null)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun CommunityBadgeIcon(
+    imageUrl: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier
+) {
+    val bitmap = rememberCommunityImage(imageUrl)
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize().padding(6.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Badge,
+                    contentDescription = contentDescription,
+                    modifier = Modifier.padding(12.dp)
+                )
             }
         }
     }

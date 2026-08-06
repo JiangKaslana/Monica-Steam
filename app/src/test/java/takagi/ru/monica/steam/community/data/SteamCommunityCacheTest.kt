@@ -25,8 +25,34 @@ class SteamCommunityCacheTest {
 
         assertEquals(original, restored)
         assertEquals("Portal 2", restored?.recentGames?.single()?.name)
+        assertEquals("Aperture Science", restored?.badges?.single()?.name)
         assertEquals(265, restored?.unlockProgress?.remainingUsdCents)
         assertTrue(SteamCommunitySection.BADGES in restored!!.unavailableSections)
+    }
+
+    @Test
+    fun legacyBadgeCacheWithoutLiveMetadataUsesSafeDefaults() {
+        val restored = SteamCommunityCacheCodec.decode(
+            """
+            {
+              "accountSteamId":"$ACCOUNT_A",
+              "badges":[{
+                "badgeId":1,
+                "level":3,
+                "xp":300,
+                "completionTime":50,
+                "scarcity":7
+              }],
+              "fetchedAt":99
+            }
+            """
+        )?.badges?.single()
+
+        assertEquals(0, restored?.appId)
+        assertEquals(0, restored?.borderColor)
+        assertEquals("", restored?.name)
+        assertEquals("", restored?.iconUrl)
+        assertEquals("", restored?.detailUrl)
     }
 
     @Test
@@ -101,7 +127,14 @@ class SteamCommunityCacheTest {
                 level = 3,
                 xp = 300,
                 completionTime = 50L,
-                scarcity = 7
+                scarcity = 7,
+                appId = 620,
+                borderColor = 1,
+                name = "Aperture Science",
+                gameName = "Portal 2",
+                iconUrl = "https://community.cloudflare.steamstatic.com/badge.png",
+                detailUrl = "https://steamcommunity.com/profiles/$steamId/gamecards/620/",
+                unlockedAt = "Unlocked 4 Aug @ 12:16pm"
             )
         ),
         playerXp = 4200,

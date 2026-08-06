@@ -4899,6 +4899,11 @@
     <string name="steam_community_badge_number">徽章 #%1$d</string>
     <string name="steam_community_badge_level">等级 %1$d</string>
     <string name="steam_community_badge_xp">%1$d 经验值</string>
+    <string name="steam_community_badge_xp_label">经验值</string>
+    <string name="steam_community_badge_id">徽章编号</string>
+    <string name="steam_community_badge_scarcity">Steam 稀有度</string>
+    <string name="steam_community_badge_unlocked">解锁时间</string>
+    <string name="steam_community_badge_view_on_steam">在 Steam 中查看</string>
     <string name="steam_community_no_badges">没有公开徽章</string>
     <string name="steam_community_no_badges_summary">该账号没有可公开显示的徽章数据。</string>
     <string name="steam_community_recent_games">最近游玩</string>

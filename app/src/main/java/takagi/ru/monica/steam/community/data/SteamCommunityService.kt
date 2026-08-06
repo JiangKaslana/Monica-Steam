@@ -1,5 +1,7 @@
 package takagi.ru.monica.steam.community.data
 
+import java.security.SecureRandom
+import java.util.Locale
 import takagi.ru.monica.steam.community.domain.SteamCommunityGateway
 import takagi.ru.monica.steam.community.domain.SteamCommunitySection
 import takagi.ru.monica.steam.community.domain.SteamCommunitySnapshot
@@ -12,6 +14,8 @@ class SteamCommunityService(
     private val api: SteamApiClient = SteamApiClient(),
     private val nowMillis: () -> Long = System::currentTimeMillis
 ) : SteamCommunityGateway {
+    private val secureRandom = SecureRandom()
+
     override fun fetch(account: SteamAccount): SteamCommunitySnapshot {
         require(account.hasRealSteamId) { "real Steam ID required" }
         val token = account.accessToken?.takeIf(String::isNotBlank)
@@ -74,6 +78,22 @@ class SteamCommunityService(
                 )
             )
         }
+        val liveBadges = if (badges.badges.isEmpty()) {
+            badges.badges
+        } else {
+            val details = runCatching {
+                SteamCommunityParser.badgeDetails(
+                    html = api.communityGetText(
+                        path = "/profiles/${account.steamId}/badges/",
+                        query = mapOf("l" to communityLanguage()),
+                        cookies = communityCookies(account),
+                        referer = "https://steamcommunity.com/profiles/${account.steamId}/"
+                    ),
+                    steamId = account.steamId
+                )
+            }.getOrDefault(emptyList())
+            SteamCommunityParser.mergeBadgeDetails(badges.badges, details)
+        }
 
         if (
             failures.containsAll(STEAM_COMMUNITY_CORE_SECTIONS) &&
@@ -86,13 +106,35 @@ class SteamCommunityService(
             accountSteamId = account.steamId,
             profile = profile,
             steamLevel = level,
-            badges = badges.badges,
+            badges = liveBadges,
             playerXp = badges.playerXp,
             playerXpNeededToLevelUp = badges.playerXpNeededToLevelUp,
             recentGames = recentGames,
             unavailableSections = failures,
             fetchedAt = nowMillis()
         )
+    }
+
+    private fun communityCookies(account: SteamAccount): Map<String, String> {
+        val loginSecure = account.steamLoginSecure?.takeIf(String::isNotBlank)
+            ?: "${account.steamId}||${account.accessToken.orEmpty()}"
+        val sessionBytes = ByteArray(12).also(secureRandom::nextBytes)
+        val sessionId = sessionBytes.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        return mapOf(
+            "steamLoginSecure" to loginSecure,
+            "sessionid" to sessionId,
+            "mobileClient" to "android",
+            "mobileClientVersion" to "777777 3.6.4"
+        )
+    }
+
+    private fun communityLanguage(): String = when (Locale.getDefault().toLanguageTag().lowercase()) {
+        "zh", "zh-cn", "zh-hans" -> "schinese"
+        "zh-tw", "zh-hk", "zh-hant" -> "tchinese"
+        "ja", "ja-jp" -> "japanese"
+        "ru", "ru-ru" -> "russian"
+        "vi", "vi-vn" -> "vietnamese"
+        else -> "english"
     }
 }
 

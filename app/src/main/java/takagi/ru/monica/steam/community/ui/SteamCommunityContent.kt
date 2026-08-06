@@ -12,11 +12,16 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.community.domain.SteamCommunityBadge
 import takagi.ru.monica.steam.community.domain.SteamCommunitySection
 import takagi.ru.monica.steam.community.presentation.SteamCommunityUiState
 import takagi.ru.monica.steam.data.SteamAccount
@@ -34,6 +39,9 @@ internal fun SteamCommunityContent(
 ) {
     val dockClearance = LocalSteamDockContentClearance.current
     val snapshot = state.snapshot
+    var selectedBadge by remember(account?.steamId) {
+        mutableStateOf<SteamCommunityBadge?>(null)
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -112,7 +120,8 @@ internal fun SteamCommunityContent(
                 item(key = "community-badges") {
                     CommunityBadges(
                         badges = snapshot.badges,
-                        unavailable = SteamCommunitySection.BADGES in snapshot.unavailableSections
+                        unavailable = SteamCommunitySection.BADGES in snapshot.unavailableSections,
+                        onBadgeClick = { selectedBadge = it }
                     )
                 }
                 item(key = "community-recent-title") {
@@ -154,5 +163,12 @@ internal fun SteamCommunityContent(
                 }
             }
         }
+    }
+    selectedBadge?.let { badge ->
+        SteamCommunityBadgeDetailSheet(
+            badge = badge,
+            onOpenUrl = onOpenUrl,
+            onDismiss = { selectedBadge = null }
+        )
     }
 }

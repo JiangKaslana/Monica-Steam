@@ -25,7 +25,14 @@ data class SteamCommunityBadge(
     val level: Int,
     val xp: Int,
     val completionTime: Long,
-    val scarcity: Int
+    val scarcity: Int,
+    val appId: Int = 0,
+    val borderColor: Int = 0,
+    val name: String = "",
+    val gameName: String = "",
+    val iconUrl: String = "",
+    val detailUrl: String = "",
+    val unlockedAt: String = ""
 )
 
 @Serializable

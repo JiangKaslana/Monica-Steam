@@ -33,15 +33,23 @@ class SteamCommunityServiceTest {
         assertEquals("Alyx", snapshot.profile?.displayName)
         assertEquals(42, snapshot.steamLevel)
         assertEquals("Portal 2", snapshot.recentGames.single().name)
+        assertEquals("Community Ambassador", snapshot.badges.single().name)
+        assertEquals("https://cdn.example/community.png", snapshot.badges.single().iconUrl)
         assertTrue(snapshot.unavailableSections.isEmpty())
-        assertEquals(4, requests.size)
-        assertTrue(requests.all { it.url.queryParameter("access_token") == "access-token" })
+        assertEquals(5, requests.size)
         val profileRequest = requests.single {
             it.url.encodedPath.contains("GetUserSummaries")
         }
+        val badgePageRequest = requests.single {
+            it.url.encodedPath.endsWith("/badges/")
+        }
+        assertTrue(badgePageRequest.header("Cookie").orEmpty().contains("steamLoginSecure="))
+        assertTrue(requests.filterNot { it === badgePageRequest }.all {
+            it.url.queryParameter("access_token") == "access-token"
+        })
         assertEquals(ACCOUNT_ID, profileRequest.url.queryParameter("steamids"))
         assertEquals(null, profileRequest.url.queryParameter("steamid"))
-        requests.filterNot { it === profileRequest }.forEach { request ->
+        requests.filterNot { it === profileRequest || it === badgePageRequest }.forEach { request ->
             assertEquals(ACCOUNT_ID, request.url.queryParameter("steamid"))
         }
     }
@@ -101,6 +109,18 @@ class SteamCommunityServiceTest {
                 """{"response":{"player_level":42}}"""
             request.url.encodedPath.contains("GetBadges") ->
                 """{"response":{"badges":[{"badgeid":1,"level":2,"xp":200}],"player_xp":4200,"player_xp_needed_to_level_up":800}}"""
+            request.url.encodedPath.endsWith("/badges/") ->
+                """
+                <div id="badge_badge_1" class="badge_row is_link">
+                  <a class="badge_row_overlay" href="https://steamcommunity.com/profiles/$ACCOUNT_ID/badges/1"></a>
+                  <div class="badge_title">Community Ambassador</div>
+                  <div class="badge_info">
+                    <img class="badge_icon" data-delayed-image="https://cdn.example/community.png">
+                    <div class="badge_info_title">Community Ambassador</div>
+                    <div>200 XP</div>
+                  </div>
+                </div>
+                """
             request.url.encodedPath.contains("GetRecentlyPlayedGames") ->
                 """{"response":{"games":[{"appid":620,"name":"Portal 2"}]}}"""
             else -> error("Unexpected request: ${request.url}")

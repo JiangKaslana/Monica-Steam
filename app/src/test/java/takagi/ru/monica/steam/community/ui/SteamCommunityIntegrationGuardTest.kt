@@ -134,6 +134,32 @@ class SteamCommunityIntegrationGuardTest {
         assertTrue(unlock.contains("shouldShowCommunitySpendEstimate(progress.status)"))
     }
 
+    @Test
+    fun badgesUseLiveArtworkAndOpenAnInAppDetailSheet() {
+        val activityContent = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityActivityContent.kt"
+        ).readText()
+        val content = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityContent.kt"
+        ).readText()
+        val images = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/ui/SteamCommunityImages.kt"
+        ).readText()
+        val service = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/community/data/SteamCommunityService.kt"
+        ).readText()
+
+        assertTrue(activityContent.contains("onBadgeClick"))
+        assertTrue(activityContent.contains("Card("))
+        assertTrue(activityContent.contains("onClick = { onBadgeClick(badge) }"))
+        assertTrue(activityContent.contains("CommunityBadgeIcon("))
+        assertTrue(content.contains("SteamCommunityBadgeDetailSheet("))
+        assertTrue(content.contains("selectedBadge"))
+        assertTrue(images.contains("internal fun CommunityBadgeIcon"))
+        assertTrue(service.contains("/profiles/${'$'}{account.steamId}/badges/"))
+        assertTrue(service.contains("mergeBadgeDetails"))
+    }
+
     private fun projectFile(path: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (
