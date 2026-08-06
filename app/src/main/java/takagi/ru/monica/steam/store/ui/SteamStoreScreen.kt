@@ -147,6 +147,7 @@ fun SteamStoreScreen(
     onAddSteamAccount: () -> Unit = {},
     initialAppId: Int? = null,
     onInitialAppIdConsumed: () -> Unit = {},
+    onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SteamStoreViewModel = viewModel(factory = SteamStoreViewModel.factory(LocalContext.current))
 ) {
@@ -257,6 +258,7 @@ fun SteamStoreScreen(
                 expectedSteamId = selectedStoreAccount?.steamId,
                 checkoutPackageIds = state.checkoutPackageIds,
                 requireAuthenticatedSession = state.checkoutPackageIds.isNotEmpty(),
+                onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                 onClose = viewModel::closeStoreWeb,
                 modifier = Modifier.fillMaxSize()
             )

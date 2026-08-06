@@ -44,6 +44,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
@@ -64,6 +66,7 @@ fun SteamStoreWebScreen(
     checkoutPackageIds: List<Int> = emptyList(),
     requireAuthenticatedSession: Boolean = false,
     clientMode: SteamWebClientMode = SteamWebClientMode.DEFAULT,
+    onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -84,9 +87,32 @@ fun SteamStoreWebScreen(
     }
     var webView by remember(sessionScopeKey) { mutableStateOf<WebView?>(null) }
     var progress by remember(sessionScopeKey) { mutableIntStateOf(0) }
+    var platformViewReady by remember(sessionScopeKey) { mutableStateOf(false) }
+    var platformViewSignaled by remember(sessionScopeKey) { mutableStateOf(false) }
     val sessionId = remember(sessionScopeKey) { randomSessionId() }
     val checkoutQueue = remember(sessionScopeKey, checkoutPackageIds) {
         checkoutPackageIds.toMutableList()
+    }
+    val platformViewVisibilityCallback by rememberUpdatedState(
+        onPlatformViewVisibilityChanged
+    )
+
+    LaunchedEffect(sessionScopeKey, sessionDecision.canLoad) {
+        platformViewReady = false
+        if (sessionDecision.canLoad) {
+            platformViewVisibilityCallback(true)
+            platformViewSignaled = true
+            withFrameNanos { }
+            platformViewReady = true
+        }
+    }
+
+    DisposableEffect(sessionScopeKey, sessionDecision.canLoad) {
+        onDispose {
+            if (sessionDecision.canLoad && platformViewSignaled) {
+                platformViewVisibilityCallback(false)
+            }
+        }
     }
 
     LaunchedEffect(sessionScopeKey, sessionDecision.canLoad) {
@@ -146,6 +172,11 @@ fun SteamStoreWebScreen(
         }
         if (!sessionDecision.canLoad) {
             SteamWebSessionError(problem = sessionDecision.problem)
+        } else if (!platformViewReady) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {}
         } else {
             key(sessionScopeKey) {
                 AndroidView(

@@ -199,6 +199,7 @@ internal fun SteamLiquidGlassDock(
     selected: SteamDockTab,
     backdrop: SteamLiquidGlassBackdrop,
     onSelected: (SteamDockTab) -> Unit,
+    runtimeEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val reduceAnimations = LocalReduceAnimations.current
@@ -252,7 +253,9 @@ internal fun SteamLiquidGlassDock(
         }
         val indicatorTranslationPx = itemWidthPx * indicatorPosition
         val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-        val runtimeSupported = remember { isSteamLiquidGlassRuntimeSupported() }
+        val runtimeSupported = remember(runtimeEffectsEnabled) {
+            runtimeEffectsEnabled && isSteamLiquidGlassRuntimeSupported()
+        }
         val shellShape = CircleShape
         val shellContainerColor = if (runtimeSupported) {
             (if (isDarkTheme) Color(0xFF242424) else Color.White).copy(alpha = 0.4f)

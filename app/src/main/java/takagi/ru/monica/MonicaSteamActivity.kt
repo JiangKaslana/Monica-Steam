@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +54,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import takagi.ru.monica.steam.navigation.SteamDockPreferences
 import takagi.ru.monica.steam.navigation.SteamDockStyle
 import takagi.ru.monica.steam.navigation.SteamDockTab
+import takagi.ru.monica.steam.navigation.shouldEnableSteamLiquidGlassRuntimeEffects
 import takagi.ru.monica.steam.navigation.liquidglass.render.rememberSteamLiquidGlassBackdrop
 import takagi.ru.monica.steam.navigation.liquidglass.render.steamLiquidGlassBackdropSource
 import takagi.ru.monica.steam.navigation.liquidglass.ui.SteamLiquidGlassDock
@@ -233,6 +235,13 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 var pendingSteamNotifications by rememberSaveable { mutableStateOf(false) }
                 var pendingAddSteamAccount by rememberSaveable { mutableStateOf(false) }
                 var isSteamChatThreadOpen by rememberSaveable { mutableStateOf(false) }
+                var activePlatformViewCount by remember { mutableIntStateOf(0) }
+                val isPlatformViewActive = activePlatformViewCount > 0
+                val onPlatformViewVisibilityChanged: (Boolean) -> Unit = { active ->
+                    activePlatformViewCount = (
+                        activePlatformViewCount + if (active) 1 else -1
+                    ).coerceAtLeast(0)
+                }
                 var backPressedOnce by remember { mutableStateOf(false) }
                 val composeScope = rememberCoroutineScope()
                 val dockPreferences = remember {
@@ -252,6 +261,14 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 val liquidGlassBackdrop = rememberSteamLiquidGlassBackdrop()
                 val dockBlurHeightPx = with(LocalDensity.current) { 130.dp.toPx() }
                 val homePage = activeDockOrder.firstOrNull()?.toPage() ?: MonicaSteamPage.STEAM
+                val dockVisible = dockConfiguration != null &&
+                    currentPage.isDockPage(dockStyle) &&
+                    !isSteamChatThreadOpen
+                val liquidGlassEffectsEnabled = shouldEnableSteamLiquidGlassRuntimeEffects(
+                    dockStyle = dockStyle,
+                    dockVisible = dockVisible,
+                    platformViewActive = isPlatformViewActive
+                )
                 var appliedInitialDockPage by rememberSaveable { mutableStateOf(false) }
                 LaunchedEffect(dockConfiguration, homePage) {
                     if (!appliedInitialDockPage && dockConfiguration != null) {
@@ -392,9 +409,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                                 )
                                                 .steamLiquidGlassBackdropSource(
                                                     backdrop = liquidGlassBackdrop,
-                                                    enabled = dockStyle == SteamDockStyle.LIQUID_GLASS &&
-                                                        currentPage.isDockPage(dockStyle) &&
-                                                        !isSteamChatThreadOpen
+                                                    enabled = liquidGlassEffectsEnabled
                                                 ),
                                             targetState = currentPage,
                                             label = "monica_steam_page_transition",
@@ -519,6 +534,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onAddSteamAccount = ::openSteamAccountAddition,
                                 initialAppId = pendingStoreAppId,
                                 onInitialAppIdConsumed = { pendingStoreAppId = null },
+                                onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -656,6 +672,8 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                         scannerAccountId = accountId
                                         navigateTo(MonicaSteamPage.SCANNER)
                                     },
+                                    onPlatformViewVisibilityChanged =
+                                        onPlatformViewVisibilityChanged,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
@@ -666,9 +684,6 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 }
                     }
 
-                            val dockVisible = dockConfiguration != null &&
-                                currentPage.isDockPage(dockStyle) &&
-                                !isSteamChatThreadOpen
                             if (dockStyle == SteamDockStyle.M3E && dockVisible) {
                                 SteamStandaloneDock(
                                     modifier = Modifier.align(Alignment.BottomCenter),
@@ -690,6 +705,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     order = liquidGlassDockOrder,
                                     selected = currentPage.toDockTab(),
                                     backdrop = liquidGlassBackdrop,
+                                    runtimeEffectsEnabled = liquidGlassEffectsEnabled,
                                     onSelected = { tab ->
                                         pageHistory = emptyList()
                                         currentPage = tab.toPage()

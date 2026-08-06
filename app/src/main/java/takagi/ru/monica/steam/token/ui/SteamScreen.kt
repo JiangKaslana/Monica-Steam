@@ -387,7 +387,8 @@ fun SteamScreen(
     pendingSteamQrAccountId: Long? = null,
     onConsumePendingSteamQrResult: () -> Unit = {},
     onScanSteamQrCode: ((Long?) -> Unit)? = null,
-    onThreadVisibilityChange: (Boolean) -> Unit = {}
+    onThreadVisibilityChange: (Boolean) -> Unit = {},
+    onPlatformViewVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val reduceAnimations = LocalReduceAnimations.current
@@ -1675,6 +1676,7 @@ fun SteamScreen(
                     securityNote = stringResource(R.string.steam_gift_inbox_security_note),
                     requireAuthenticatedSession = true,
                     clientMode = SteamWebClientMode.COMMUNITY_DESKTOP,
+                    onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                     onClose = { showGiftInbox = false },
                     modifier = Modifier.fillMaxSize()
                 )
