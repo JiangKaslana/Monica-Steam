@@ -27,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatViewModel
 import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionResult
 import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionViewModel
@@ -98,9 +99,15 @@ fun SteamChatScreen(
             microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
-    val selectedAccount = accountSourceState.accounts.firstOrNull {
+    val sessionAccounts = remember(accountSourceState.accounts) {
+        accountSourceState.accounts.filter { it.hasAuthenticatedSession }
+    }
+    val storedSelectedAccount = accountSourceState.accounts.firstOrNull {
         it.id == accountSourceState.selectedAccountId
-    } ?: accountSourceState.accounts.firstOrNull()
+    }
+    val selectedAccount = sessionAccounts.firstOrNull {
+        it.id == storedSelectedAccount?.id
+    } ?: sessionAccounts.firstOrNull()
     val selectedFriend = friendsState.snapshot?.friends?.firstOrNull {
         it.steamId == chatState.selectedPartnerSteamId
     }
@@ -155,6 +162,11 @@ fun SteamChatScreen(
         }.toSet()
     }
     val effectiveSearchQuery = if (standalone) standaloneSearchQuery else searchQuery
+    LaunchedEffect(accountSourceState.selectedAccountId, selectedAccount?.id) {
+        if (selectedAccount != null && selectedAccount.id != accountSourceState.selectedAccountId) {
+            accountSourceRepository.selectAccount(selectedAccount.id)
+        }
+    }
     LaunchedEffect(
         accountSourceState.loading,
         selectedAccount?.id,

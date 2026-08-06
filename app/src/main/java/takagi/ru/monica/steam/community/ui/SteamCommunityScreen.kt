@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.community.presentation.SteamCommunityViewModel
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.ui.components.ExpressiveTopBar
@@ -55,10 +56,22 @@ fun SteamCommunityScreen(
         factory = remember(context) { SteamCommunityViewModel.factory(context) }
     )
     val state by viewModel.uiState.collectAsState()
-    val selectedAccount = accountState.accounts.firstOrNull {
+    val sessionAccounts = remember(accountState.accounts) {
+        accountState.accounts.filter { it.hasAuthenticatedSession }
+    }
+    val storedSelectedAccount = accountState.accounts.firstOrNull {
         it.id == accountState.selectedAccountId
-    } ?: accountState.accounts.firstOrNull()
+    }
+    val selectedAccount = sessionAccounts.firstOrNull {
+        it.id == storedSelectedAccount?.id
+    } ?: sessionAccounts.firstOrNull()
     var showAccountSheet by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(accountState.selectedAccountId, selectedAccount?.id) {
+        if (selectedAccount != null && selectedAccount.id != accountState.selectedAccountId) {
+            accountSource.selectAccount(selectedAccount.id)
+        }
+    }
 
     LaunchedEffect(
         initialSteamId,
@@ -66,7 +79,7 @@ fun SteamCommunityScreen(
         accountState.accounts.map { it.steamId }
     ) {
         val requestedSteamId = initialSteamId ?: return@LaunchedEffect
-        val requestedAccount = accountState.accounts.firstOrNull {
+        val requestedAccount = sessionAccounts.firstOrNull {
             it.steamId == requestedSteamId
         } ?: return@LaunchedEffect
         accountSource.selectAccount(requestedAccount.id)
@@ -84,8 +97,8 @@ fun SteamCommunityScreen(
 
     if (showAccountSheet) {
         SteamAccountSwitcherSheet(
-            accounts = accountState.accounts,
-            selectedAccountId = accountState.selectedAccountId,
+            accounts = sessionAccounts,
+            selectedAccountId = selectedAccount?.id,
             storageSource = accountState.storageSource,
             mdbxDatabases = accountState.mdbxDatabases,
             loading = accountState.loading,

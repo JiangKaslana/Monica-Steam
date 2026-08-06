@@ -16,6 +16,7 @@ import takagi.ru.monica.data.LocalMdbxDatabase
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.data.SteamStorageSource
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.store.data.SteamStoreSessionException
 import takagi.ru.monica.steam.store.freebie.data.SteamFreebieCache
 import takagi.ru.monica.steam.store.freebie.data.SteamFreebieRateLimitException
@@ -58,11 +59,12 @@ internal class SteamFreebieViewModel(
         viewModelScope.launch {
             accountSourceRepository.state.collect { sourceState ->
                 val previousAccountId = _uiState.value.selectedAccountId
-                val selected = sourceState.accounts
+                val accounts = sourceState.accounts.filter { it.hasAuthenticatedSession }
+                val selected = accounts
                     .firstOrNull { it.id == sourceState.selectedAccountId }
-                    ?: sourceState.accounts.firstOrNull()
+                    ?: accounts.firstOrNull()
                 _uiState.value = _uiState.value.copy(
-                    accounts = sourceState.accounts,
+                    accounts = accounts,
                     selectedAccountId = selected?.id,
                     storageSource = sourceState.storageSource,
                     mdbxDatabases = sourceState.mdbxDatabases,

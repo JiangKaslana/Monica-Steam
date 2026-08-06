@@ -335,5 +335,39 @@ class SteamMaFileParserTest {
         assertFalse(account.canApproveLogins)
     }
 
+    @Test
+    fun encodesAndRestoresSessionOnlyAccountWithoutAuthenticatorSecrets() {
+        val account = SteamAccount(
+            id = 10L,
+            steamId = "76561198000000007",
+            accountName = "session_only_user",
+            displayName = "Session Only",
+            deviceId = "",
+            sharedSecret = "",
+            identitySecret = null,
+            revocationCode = null,
+            tokenGid = null,
+            accessToken = "access-token",
+            refreshToken = "refresh-token",
+            steamLoginSecure = "76561198000000007||access-token",
+            rawSteamGuardJson = "{}",
+            selected = true,
+            sortOrder = 0,
+            createdAt = 1L,
+            updatedAt = 2L
+        )
+
+        val maFile = SteamMaFileBackupCodec.encode(account)
+        val payload = SteamMaFileParser().parse(maFile)
+
+        assertTrue(maFile.contains("monica_session_only_login"))
+        assertEquals(account.steamId, payload.steamId)
+        assertEquals("", payload.sharedSecret)
+        assertNull(payload.identitySecret)
+        assertEquals("access-token", payload.accessToken)
+        assertEquals("refresh-token", payload.refreshToken)
+        assertEquals(account.steamLoginSecure, payload.steamLoginSecure)
+    }
+
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 }

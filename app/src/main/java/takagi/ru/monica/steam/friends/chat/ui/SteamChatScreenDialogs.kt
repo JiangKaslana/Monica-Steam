@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.data.SteamAccountSourceState
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatViewModel
@@ -65,9 +66,10 @@ internal fun SteamChatScreenDialogs(
     }
 
     if (standalone && showAccounts) {
+        val sessionAccounts = accountSourceState.accounts.filter { it.hasAuthenticatedSession }
         SteamAccountSwitcherSheet(
-            accounts = accountSourceState.accounts,
-            selectedAccountId = accountSourceState.selectedAccountId,
+            accounts = sessionAccounts,
+            selectedAccountId = selectedAccount?.id,
             storageSource = accountSourceState.storageSource,
             mdbxDatabases = accountSourceState.mdbxDatabases,
             loading = accountSourceState.loading,

@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.friends.domain.SteamFriendsFilter
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
@@ -58,9 +59,12 @@ fun SteamFriendsScreen(
     )
     val steamState by steamViewModel.uiState.collectAsState()
     val state by friendsViewModel.uiState.collectAsState()
-    val selectedAccount = steamState.accounts.firstOrNull {
+    val sessionAccounts = remember(steamState.accounts) {
+        steamState.accounts.filter { it.hasAuthenticatedSession }
+    }
+    val selectedAccount = sessionAccounts.firstOrNull {
         it.id == steamState.selectedAccountId
-    } ?: steamState.accounts.firstOrNull()
+    } ?: sessionAccounts.firstOrNull()
     val friendsById = remember(state.snapshot?.friends) {
         state.snapshot?.friends.orEmpty().associateBy { it.steamId }
     }

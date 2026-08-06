@@ -112,9 +112,36 @@ class SteamMaFileParser(
             ?: fileName?.substringBeforeLast('.')
                 ?.takeIf { it.isNotBlank() && it != fileName }
             ?: "Steam"
-        val (rawSharedSecret, sharedSecretSource) = root.preferredSharedSecret()
-            ?: error("maFile missing shared_secret")
-        val sharedSecret = normalizeSteamSharedSecret(rawSharedSecret, sharedSecretSource)
+        val preferredSharedSecret = root.preferredSharedSecret()
+        val sessionOnlyMarker = root.boolAny(
+            "monica_session_only_login",
+            "monicaSessionOnlyLogin"
+        ) == true
+        val hasSessionFields = root.stringAny(
+            "access_token",
+            "accessToken",
+            "oauth_token",
+            "OAuthToken",
+            "refresh_token",
+            "refreshToken",
+            "steamLoginSecure",
+            "steam_login_secure"
+        ) != null || session?.stringAny(
+            "AccessToken",
+            "access_token",
+            "OAuthToken",
+            "oauth_token",
+            "RefreshToken",
+            "refresh_token",
+            "SteamLoginSecure",
+            "steamLoginSecure"
+        ) != null
+        if (preferredSharedSecret == null && !(sessionOnlyMarker && hasSessionFields)) {
+            error("maFile missing shared_secret")
+        }
+        val sharedSecret = preferredSharedSecret?.let { (raw, source) ->
+            normalizeSteamSharedSecret(raw, source)
+        }.orEmpty()
         val steamId = steamIdOverride.normalizedSteamIdOverride()
             ?: embeddedSteamId
             ?: root.localSteamIdAny()
@@ -129,6 +156,9 @@ class SteamMaFileParser(
             } else {
                 error("maFile missing steamid")
             }
+        if (preferredSharedSecret == null && !steamId.isSteamId64Value()) {
+            error("session-only maFile missing SteamID64")
+        }
         val deviceId = root.stringAny("device_id", "deviceId")
             ?: session?.stringAny("DeviceID", "device_id", "deviceId")
             ?: ""

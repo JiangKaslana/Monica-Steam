@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.data.isLoginOnlyAccount
 
 object SteamMaFileBackupCodec {
     private val json = Json { ignoreUnknownKeys = true }
@@ -45,6 +46,12 @@ object SteamMaFileBackupCodec {
         putString("identity_secret", account.identitySecret)
         putString("revocation_code", account.revocationCode)
         putString("token_gid", account.tokenGid)
+        if (account.isLoginOnlyAccount) {
+            root["monica_session_only_login"] = JsonPrimitive(true)
+        } else {
+            root.remove("monica_session_only_login")
+            root.remove("monicaSessionOnlyLogin")
+        }
         if (account.hasRealSteamId) {
             putString("access_token", account.accessToken)
             putString("refresh_token", account.refreshToken)

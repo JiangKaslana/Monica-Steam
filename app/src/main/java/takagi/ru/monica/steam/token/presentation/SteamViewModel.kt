@@ -2695,13 +2695,19 @@ class SteamViewModel(
     }
 
     private fun SteamAccount.toCompleteMaFilePayload(): SteamMaFilePayload {
-        val maFileJson = SteamMaFileBackupCodec.encode(this)
-        return parser.parse(
-            maFileContent = maFileJson,
-            fileName = SteamMaFileBackupCodec.fileName(this),
-            displayNameOverride = displayName.takeIf { it.isNotBlank() },
-            steamIdOverride = visibleSteamId.takeIf { it.isNotBlank() },
-            allowMissingSteamId = !hasRealSteamId
+        return SteamMaFilePayload(
+            steamId = steamId,
+            accountName = accountName,
+            displayName = displayName,
+            deviceId = deviceId,
+            sharedSecret = sharedSecret,
+            identitySecret = identitySecret,
+            revocationCode = revocationCode,
+            tokenGid = tokenGid,
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            steamLoginSecure = steamLoginSecure,
+            rawJson = rawSteamGuardJson
         )
     }
 

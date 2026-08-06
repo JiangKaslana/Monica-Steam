@@ -15,6 +15,7 @@ import java.util.Locale
 import takagi.ru.monica.data.LocalMdbxDatabase
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.data.SteamDatabase
 import takagi.ru.monica.steam.data.SteamLibraryCacheRepository
@@ -88,7 +89,7 @@ class SteamLibraryViewModel(
     init {
         viewModelScope.launch {
             accountSourceRepository.state.collect { sourceState ->
-                val accounts = sourceState.accounts
+                val accounts = sourceState.accounts.filter { it.hasAuthenticatedSession }
                 val selected = accounts.firstOrNull { it.id == sourceState.selectedAccountId }
                     ?: accounts.firstOrNull()
                 val sourceChanged = sourceState.storageSource != _uiState.value.storageSource
