@@ -210,6 +210,7 @@ import takagi.ru.monica.steam.trade.SteamTradeOffer
 import takagi.ru.monica.steam.trade.SteamTradeOfferAction
 import takagi.ru.monica.steam.trade.ui.SteamTradeOffersContent
 import takagi.ru.monica.steam.token.domain.*
+import takagi.ru.monica.steam.token.identity.ui.SteamIdentityInfoCard
 import takagi.ru.monica.steam.token.presentation.*
 import takagi.ru.monica.steam.token.loginchallenge.ui.SteamLoginCaptchaContent
 import takagi.ru.monica.ui.common.selection.SelectionActionBar
@@ -3028,6 +3029,9 @@ private fun SteamAccountDetailContent(
                 )
             }
             item {
+                SteamIdentityInfoCard(steamId64 = account.steamId)
+            }
+            item {
                 SteamLoginApprovalSection(
                     account = account,
                     pendingLogins = pendingLogins,
@@ -3144,12 +3148,6 @@ private fun SteamAccountCredentialCard(
             SteamDetailInfoRow(
                 label = stringResource(R.string.steam_account_label),
                 value = account.accountName.ifBlank { account.visibleSteamId }.ifBlank { "Steam" },
-                context = context,
-                clipboard = clipboard
-            )
-            SteamDetailInfoRow(
-                label = stringResource(R.string.steam_id_label),
-                value = account.visibleSteamId.ifBlank { stringResource(R.string.steam_status_code_only) },
                 context = context,
                 clipboard = clipboard
             )

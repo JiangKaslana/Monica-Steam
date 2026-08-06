@@ -52,6 +52,8 @@ Small features may keep files at the feature root when adding layers would only 
 
 Large features may also contain named independent slices at their root. The Store feature currently owns `bundle`, `catalog`, `freebie`, `navigation`, `points`, `purchase`, `related` and `requirements`; each slice keeps its own domain, data, presentation or UI implementation separate from the Store shell.
 
+The Token feature keeps Steam identifier conversion and its account-detail card in the `identity` slice so the large token screen only hosts the component.
+
 ## Shared Modules
 
 The following roots provide shared Steam infrastructure and may be imported by feature modules:

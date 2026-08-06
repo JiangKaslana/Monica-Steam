@@ -917,6 +917,15 @@
     <string name="steam_empty_message">Add a local Steam account to view codes and confirmations.</string>
     <string name="steam_seconds_remaining">%1$d s</string>
     <string name="steam_id_label">Steam ID</string>
+    <string name="steam_identity_title">Steam identity</string>
+    <string name="steam_identity_subtitle">Converted locally from SteamID64 without a third-party service.</string>
+    <string name="steam_identity_steamid64">SteamID64</string>
+    <string name="steam_identity_steamid3">SteamID3</string>
+    <string name="steam_identity_steamid2">SteamID2</string>
+    <string name="steam_identity_account_id">Account ID</string>
+    <string name="steam_identity_profile_url">Community profile</string>
+    <string name="steam_identity_open_profile">Open Steam profile</string>
+    <string name="steam_identity_open_failed">No app can open this Steam profile.</string>
     <string name="steam_account_label">Account</string>
     <string name="steam_device_label">Device</string>
     <string name="steam_revocation_code_label">Recovery code</string>
