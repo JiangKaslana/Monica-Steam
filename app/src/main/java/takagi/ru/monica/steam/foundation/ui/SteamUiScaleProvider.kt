@@ -16,6 +16,10 @@ private val LocalSteamUiScale = staticCompositionLocalOf {
     SteamUiScaleOption.DEFAULT
 }
 
+internal val LocalSteamUiChromeDensity = staticCompositionLocalOf<Density?> {
+    null
+}
+
 internal fun ComponentActivity.setSteamUiScaledContent(content: @Composable () -> Unit) {
     setContent {
         ProvideSteamUiScale(content)
@@ -37,7 +41,8 @@ internal fun ProvideSteamUiScale(content: @Composable () -> Unit) {
 
     CompositionLocalProvider(
         LocalDensity provides appDensity,
-        LocalSteamUiScale provides scale
+        LocalSteamUiScale provides scale,
+        LocalSteamUiChromeDensity provides appDensity
     ) {
         ProvideSteamAvatarShape(content)
     }

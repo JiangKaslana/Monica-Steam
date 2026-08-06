@@ -59,6 +59,21 @@ class SteamUiScaleSettingsTest {
     }
 
     @Test
+    fun popupMenusUseRootScaledDensityInsteadOfCappedPageDensity() {
+        val provider = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/foundation/ui/SteamUiScaleProvider.kt"
+        ).readText()
+        val menu = projectFile(
+            "app/src/main/java/takagi/ru/monica/ui/password/PasswordTopActionsMenu.kt"
+        ).readText()
+
+        assertTrue(provider.contains("LocalSteamUiChromeDensity provides appDensity"))
+        assertTrue(menu.contains("LocalSteamUiChromeDensity.current ?: LocalDensity.current"))
+        assertTrue(menu.contains("LocalDensity provides menuDensity"))
+        assertTrue(menu.contains("CompositionLocalProvider("))
+    }
+
+    @Test
     fun supportedScaleValuesAreSanitizedAndAppliedPredictably() {
         assertEquals(
             listOf(85, 90, 100, 110),
