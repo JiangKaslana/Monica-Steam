@@ -20,10 +20,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.data.AppSettings
+import takagi.ru.monica.data.InterfaceScale
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
-import takagi.ru.monica.steam.foundation.ui.SteamUiScaleOption
 import takagi.ru.monica.steam.foundation.ui.SteamUiScalePreferences
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarShapeOption
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarShapePreferences
@@ -63,7 +63,7 @@ internal fun MonicaSteamSharedSettingsHost(
 ) {
     val uiScalePreferences = remember(context) { SteamUiScalePreferences(context) }
     val currentUiScale by uiScalePreferences.scale.collectAsState(
-        initial = SteamUiScaleOption.DEFAULT
+        initial = InterfaceScale.DEFAULT_PERCENT
     )
     val avatarShapePreferences = remember(context) { SteamAvatarShapePreferences(context) }
     val currentAvatarShape by avatarShapePreferences.shape.collectAsState(
@@ -123,8 +123,8 @@ internal fun MonicaSteamSharedSettingsHost(
             SteamNetworkOptimizationSettingsEntry(onClick = onOpenNetworkOptimization)
         },
         additionalAppearanceContent = {
-            SteamUiScaleSettingsItem(
-                currentScale = currentUiScale,
+            InterfaceScaleSettingsItem(
+                scalePercent = currentUiScale,
                 onClick = { showUiScaleSheet = true }
             )
             SteamAvatarShapeSettingsItem(
@@ -151,8 +151,8 @@ internal fun MonicaSteamSharedSettingsHost(
             )
         },
         additionalAppearanceSearchTexts = listOf(
-            context.getString(R.string.steam_ui_scale_title),
-            context.getString(R.string.steam_ui_scale_description),
+            context.getString(R.string.interface_scale_title),
+            context.getString(R.string.interface_scale_description),
             context.getString(R.string.steam_avatar_shape_title),
             context.getString(R.string.steam_avatar_shape_description),
             context.getString(R.string.steam_guard_code_grouping_title),
@@ -166,11 +166,11 @@ internal fun MonicaSteamSharedSettingsHost(
     )
 
     if (showUiScaleSheet) {
-        SteamUiScaleSelectionSheet(
-            currentScale = currentUiScale,
-            onScaleSelected = { scale ->
+        InterfaceScaleSelectionSheet(
+            currentPercent = currentUiScale,
+            onPercentChanged = { scalePercent ->
                 coroutineScope.launch {
-                    uiScalePreferences.updateScale(scale)
+                    uiScalePreferences.updateScale(scalePercent)
                 }
             },
             onDismiss = { showUiScaleSheet = false }

@@ -10,29 +10,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-
-enum class SteamUiScaleOption(val percent: Int) {
-    COMPACT(85),
-    SMALL(90),
-    DEFAULT(100),
-    LARGE(110);
-
-    val factor: Float
-        get() = percent / 100f
-
-    companion object {
-        internal val supportedPercentages = listOf(85, 90, 100, 110)
-
-        fun fromPercent(percent: Int?): SteamUiScaleOption {
-            return entries.firstOrNull { it.percent == percent } ?: DEFAULT
-        }
-    }
-}
+import takagi.ru.monica.data.InterfaceScale
 
 internal fun calculateSteamUiDensity(
     baseDensity: Float,
-    scale: SteamUiScaleOption
-): Float = (baseDensity * scale.factor).coerceAtLeast(0.1f)
+    scalePercent: Int
+): Float = InterfaceScale.calculateDensity(baseDensity, scalePercent)
 
 private val Context.steamUiScaleDataStore by preferencesDataStore(
     name = "monica_steam_ui_scale"
@@ -41,18 +24,18 @@ private val Context.steamUiScaleDataStore by preferencesDataStore(
 class SteamUiScalePreferences(context: Context) {
     private val dataStore = context.applicationContext.steamUiScaleDataStore
 
-    val scale: Flow<SteamUiScaleOption> = dataStore.data
+    val scale: Flow<Int> = dataStore.data
         .catch { error ->
             if (error is IOException) emit(emptyPreferences()) else throw error
         }
         .map { preferences ->
-            SteamUiScaleOption.fromPercent(preferences[SCALE_PERCENT_KEY])
+            InterfaceScale.normalizePercent(preferences[SCALE_PERCENT_KEY])
         }
         .distinctUntilChanged()
 
-    suspend fun updateScale(scale: SteamUiScaleOption) {
+    suspend fun updateScale(scalePercent: Int) {
         dataStore.edit { preferences ->
-            preferences[SCALE_PERCENT_KEY] = scale.percent
+            preferences[SCALE_PERCENT_KEY] = InterfaceScale.normalizePercent(scalePercent)
         }
     }
 

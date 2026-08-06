@@ -11,9 +11,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import takagi.ru.monica.data.InterfaceScale
 
 private val LocalSteamUiScale = staticCompositionLocalOf {
-    SteamUiScaleOption.DEFAULT
+    InterfaceScale.DEFAULT_PERCENT
 }
 
 internal val LocalSteamUiChromeDensity = staticCompositionLocalOf<Density?> {
@@ -30,18 +31,20 @@ internal fun ComponentActivity.setSteamUiScaledContent(content: @Composable () -
 internal fun ProvideSteamUiScale(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val preferences = remember(context) { SteamUiScalePreferences(context) }
-    val scale by preferences.scale.collectAsState(initial = SteamUiScaleOption.DEFAULT)
+    val scalePercent by preferences.scale.collectAsState(
+        initial = InterfaceScale.DEFAULT_PERCENT
+    )
     val baseDensity = LocalDensity.current
-    val appDensity = remember(baseDensity.density, baseDensity.fontScale, scale) {
+    val appDensity = remember(baseDensity.density, baseDensity.fontScale, scalePercent) {
         Density(
-            density = calculateSteamUiDensity(baseDensity.density, scale),
+            density = InterfaceScale.calculateDensity(baseDensity.density, scalePercent),
             fontScale = baseDensity.fontScale
         )
     }
 
     CompositionLocalProvider(
         LocalDensity provides appDensity,
-        LocalSteamUiScale provides scale,
+        LocalSteamUiScale provides scalePercent,
         LocalSteamUiChromeDensity provides appDensity
     ) {
         ProvideSteamAvatarShape(content)
@@ -55,11 +58,11 @@ internal fun ProvideSteamUiScale(content: @Composable () -> Unit) {
  */
 @Composable
 internal fun ProvideSteamContentDensity(content: @Composable () -> Unit) {
-    val scale = LocalSteamUiScale.current
+    val scalePercent = LocalSteamUiScale.current
     val appDensity = LocalDensity.current
-    val contentDensity = remember(appDensity.density, appDensity.fontScale, scale) {
+    val contentDensity = remember(appDensity.density, appDensity.fontScale, scalePercent) {
         Density(
-            density = calculateSteamContentDensity(appDensity.density, scale),
+            density = calculateSteamContentDensity(appDensity.density, scalePercent),
             fontScale = appDensity.fontScale
         )
     }
@@ -71,8 +74,10 @@ internal fun ProvideSteamContentDensity(content: @Composable () -> Unit) {
 
 internal fun calculateSteamContentDensity(
     scaledDensity: Float,
-    scale: SteamUiScaleOption
+    scalePercent: Int
 ): Float {
-    val contentFactor = scale.factor.coerceAtMost(1f)
-    return (scaledDensity / scale.factor * contentFactor).coerceAtLeast(0.1f)
+    val normalizedPercent = InterfaceScale.normalizePercent(scalePercent)
+    val scaleFactor = normalizedPercent / InterfaceScale.DEFAULT_PERCENT.toFloat()
+    val contentFactor = scaleFactor.coerceAtMost(1f)
+    return (scaledDensity / scaleFactor * contentFactor).coerceAtLeast(0.1f)
 }

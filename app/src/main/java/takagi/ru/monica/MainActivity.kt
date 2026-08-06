@@ -138,7 +138,7 @@ import takagi.ru.monica.ui.screens.KeePassKdbxViewModel
 import takagi.ru.monica.ui.theme.MonicaTheme
 import takagi.ru.monica.utils.LocaleHelper
 import takagi.ru.monica.steam.scanner.ui.SteamQrScannerScreen
-import takagi.ru.monica.steam.foundation.ui.SteamUiScaleOption
+import takagi.ru.monica.data.InterfaceScale
 import takagi.ru.monica.steam.foundation.ui.SteamUiScalePreferences
 import takagi.ru.monica.steam.foundation.ui.calculateSteamUiDensity
 import takagi.ru.monica.viewmodel.BankCardViewModel
@@ -660,7 +660,9 @@ fun MonicaApp(
 
     val settings by settingsViewModel.settings.collectAsState()
     val uiScalePreferences = remember(context) { SteamUiScalePreferences(context) }
-    val uiScale by uiScalePreferences.scale.collectAsState(initial = SteamUiScaleOption.DEFAULT)
+    val uiScale by uiScalePreferences.scale.collectAsState(
+        initial = InterfaceScale.DEFAULT_PERCENT
+    )
     val baseDensity = LocalDensity.current
     val appDensity = remember(baseDensity.density, baseDensity.fontScale, uiScale) {
         Density(
