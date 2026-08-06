@@ -11,7 +11,6 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import takagi.ru.monica.steam.store.data.*
-import java.net.URLEncoder
 import java.net.URI
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
@@ -54,6 +53,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import java.security.SecureRandom
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.store.gift.data.SteamStoreGiftCheckoutProtocol
+import takagi.ru.monica.steam.store.gift.domain.SteamStoreCheckoutLine
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -63,7 +64,7 @@ fun SteamStoreWebScreen(
     expectedSteamId: String? = null,
     title: String? = null,
     securityNote: String? = null,
-    checkoutPackageIds: List<Int> = emptyList(),
+    checkoutLines: List<SteamStoreCheckoutLine> = emptyList(),
     requireAuthenticatedSession: Boolean = false,
     clientMode: SteamWebClientMode = SteamWebClientMode.DEFAULT,
     onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
@@ -90,8 +91,8 @@ fun SteamStoreWebScreen(
     var platformViewReady by remember(sessionScopeKey) { mutableStateOf(false) }
     var platformViewSignaled by remember(sessionScopeKey) { mutableStateOf(false) }
     val sessionId = remember(sessionScopeKey) { randomSessionId() }
-    val checkoutQueue = remember(sessionScopeKey, checkoutPackageIds) {
-        checkoutPackageIds.toMutableList()
+    val checkoutQueue = remember(sessionScopeKey, checkoutLines) {
+        checkoutLines.toMutableList()
     }
     val platformViewVisibilityCallback by rememberUpdatedState(
         onPlatformViewVisibilityChanged
@@ -215,12 +216,15 @@ fun SteamStoreWebScreen(
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     val next = checkoutQueue.removeFirstOrNull()
                                     if (next != null) {
-                                        val body = "action=add_to_cart&sessionid=${encodeForm(sessionId)}&subid=$next"
+                                        val body = SteamStoreGiftCheckoutProtocol.addToCartBody(
+                                            sessionId = sessionId,
+                                            line = next
+                                        )
                                         view?.postUrl(
                                             "https://store.steampowered.com/cart/addtocart/",
                                             body.toByteArray(Charsets.UTF_8)
                                         )
-                                    } else if (checkoutPackageIds.isNotEmpty() && !isSteamCartPage(url)) {
+                                    } else if (checkoutLines.isNotEmpty() && !isSteamCartPage(url)) {
                                         view?.loadUrl("https://store.steampowered.com/cart/")
                                     }
                                 }
@@ -308,8 +312,6 @@ private fun SteamWebSessionError(problem: SteamWebSessionProblem?) {
         )
     }
 }
-
-private fun encodeForm(value: String): String = URLEncoder.encode(value, "UTF-8")
 
 internal fun isSteamCartPage(url: String?): Boolean = runCatching {
     val uri = URI(url.orEmpty())

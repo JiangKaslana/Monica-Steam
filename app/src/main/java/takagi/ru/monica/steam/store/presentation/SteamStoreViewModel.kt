@@ -48,6 +48,14 @@ import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailHistory
 import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailRoute
 import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterMetadata
 import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterSelection
+import takagi.ru.monica.steam.friends.data.SteamFriendsPreferencesCache
+import takagi.ru.monica.steam.friends.data.SteamFriendsService
+import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.store.gift.data.SteamStoreGiftFriendRepository
+import takagi.ru.monica.steam.store.gift.domain.SteamStoreCheckoutLine
+import takagi.ru.monica.steam.store.gift.domain.SteamStoreGiftFailure
+import takagi.ru.monica.steam.store.gift.domain.toSteamStoreGiftRecipient
+import takagi.ru.monica.steam.store.gift.presentation.SteamStoreGiftUiState
 
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -105,7 +113,8 @@ data class SteamStoreUiState(
     val loadingRegionalPrices: Boolean = false,
     val regionalPriceFailure: SteamLibraryFailureReason? = null,
     val regionalPriceSheetOpen: Boolean = false,
-    val checkoutPackageIds: List<Int> = emptyList()
+    val gift: SteamStoreGiftUiState = SteamStoreGiftUiState(),
+    val checkoutLines: List<SteamStoreCheckoutLine> = emptyList()
 )
 
 class SteamStoreViewModel(
@@ -120,7 +129,8 @@ class SteamStoreViewModel(
     private val purchaseContextGateway: SteamStorePurchaseContextGateway =
         SteamStorePurchaseContextService(),
     private val purchaseContextCache: SteamStorePurchaseContextCache? = null,
-    private val libraryCacheRepository: SteamLibraryCacheRepository? = null
+    private val libraryCacheRepository: SteamLibraryCacheRepository? = null,
+    private val giftFriendRepository: SteamStoreGiftFriendRepository? = null
 ) : ViewModel() {
     private var searchDebounceJob: Job? = null
     private var searchRequestJob: Job? = null
@@ -131,6 +141,7 @@ class SteamStoreViewModel(
     private val detailHistory = SteamStoreDetailHistory()
     private var regionalPriceRequestGeneration: Long = 0L
     private var libraryHintRequestGeneration: Long = 0L
+    private var giftFriendsRequestGeneration: Long = 0L
     private val _uiState = MutableStateFlow(SteamStoreUiState())
     val uiState: StateFlow<SteamStoreUiState> = _uiState.asStateFlow()
 
@@ -740,9 +751,59 @@ class SteamStoreViewModel(
             _uiState.value = _uiState.value.copy(error = "当前账号地区不售卖该商品")
             return
         }
-        val item = detail.toCartItem(packageOption)
+        val item = detail.toCartItem(packageOption).copy(giftRecipient = null)
         updateCart((_uiState.value.cart.filterNot { it.appId == item.appId } + item))
     }
+
+    fun beginGiftPurchase(
+        detail: SteamStoreDetail,
+        packageOption: SteamStorePackageOption? = detail.packageOptions.firstOrNull()
+    ) {
+        if (detail.availableInAccountRegion == false) {
+            _uiState.value = _uiState.value.copy(error = "当前账号地区不售卖该商品")
+            return
+        }
+        openGiftRecipientPicker(detail.toCartItem(packageOption))
+    }
+
+    fun editGiftRecipient(item: SteamCartItem) {
+        openGiftRecipientPicker(item)
+    }
+
+    fun dismissGiftRecipientPicker() {
+        _uiState.value = _uiState.value.copy(
+            gift = _uiState.value.gift.copy(
+                pickerOpen = false,
+                pendingItem = null,
+                failure = null
+            )
+        )
+    }
+
+    fun selectGiftRecipient(friend: SteamFriend) {
+        val state = _uiState.value
+        val pending = state.gift.pendingItem ?: return
+        val recipient = friend.toSteamStoreGiftRecipient()
+        if (recipient == null) {
+            _uiState.value = state.copy(
+                gift = state.gift.copy(failure = SteamStoreGiftFailure.INVALID_RECIPIENT)
+            )
+            return
+        }
+        updateCart(
+            state.cart.filterNot { it.appId == pending.appId } +
+                pending.copy(giftRecipient = recipient)
+        )
+        _uiState.value = _uiState.value.copy(
+            gift = _uiState.value.gift.copy(
+                pickerOpen = false,
+                pendingItem = null,
+                failure = null
+            )
+        )
+    }
+
+    fun refreshGiftFriends() = loadGiftFriends(force = true)
 
     fun removeFromCart(appId: Int) = updateCart(_uiState.value.cart.filterNot { it.appId == appId })
     fun clearCart() = updateCart(emptyList())
@@ -874,13 +935,13 @@ class SteamStoreViewModel(
     }
 
     fun checkout() {
-        val ids = steamCartCheckoutPackageIds(_uiState.value.cart)
-        if (ids.isEmpty()) {
+        val lines = steamCartCheckoutLines(_uiState.value.cart)
+        if (lines.isEmpty()) {
             _uiState.value = _uiState.value.copy(error = "购物车中的商品暂时无法自动同步，请从商品详情进入 Steam 购买")
             return
         }
         _uiState.value = _uiState.value.copy(
-            checkoutPackageIds = ids,
+            checkoutLines = lines,
             webUrl = "https://store.steampowered.com/cart/",
             cartOpen = false
         )
@@ -1071,6 +1132,7 @@ class SteamStoreViewModel(
         detailRequestGeneration++
         regionalPriceRequestGeneration++
         libraryHintRequestGeneration++
+        giftFriendsRequestGeneration++
         _uiState.value = _uiState.value.copy(
             selectedAccountId = accountId,
             home = null,
@@ -1121,7 +1183,8 @@ class SteamStoreViewModel(
             loadingRegionalPrices = false,
             regionalPriceFailure = null,
             regionalPriceSheetOpen = false,
-            checkoutPackageIds = emptyList()
+            gift = SteamStoreGiftUiState(),
+            checkoutLines = emptyList()
         )
     }
 
@@ -1164,8 +1227,127 @@ class SteamStoreViewModel(
     }
 
     fun closeStoreWeb() {
-        _uiState.value = _uiState.value.copy(webUrl = null, checkoutPackageIds = emptyList())
+        _uiState.value = _uiState.value.copy(webUrl = null, checkoutLines = emptyList())
     }
+
+    private fun openGiftRecipientPicker(item: SteamCartItem) {
+        val account = selectedAccount()
+        _uiState.value = _uiState.value.copy(
+            gift = _uiState.value.gift.copy(
+                pickerOpen = true,
+                pendingItem = item,
+                failure = if (account == null) {
+                    SteamStoreGiftFailure.ACCOUNT_REQUIRED
+                } else {
+                    null
+                }
+            )
+        )
+        if (account != null) loadGiftFriends()
+    }
+
+    private fun loadGiftFriends(force: Boolean = false) {
+        val account = selectedAccount()
+        if (account == null) {
+            _uiState.value = _uiState.value.copy(
+                gift = _uiState.value.gift.copy(
+                    loading = false,
+                    refreshing = false,
+                    failure = SteamStoreGiftFailure.ACCOUNT_REQUIRED
+                )
+            )
+            return
+        }
+        val repository = giftFriendRepository
+        if (repository == null) {
+            _uiState.value = _uiState.value.copy(
+                gift = _uiState.value.gift.copy(
+                    failure = SteamStoreGiftFailure.UNAVAILABLE
+                )
+            )
+            return
+        }
+        val giftState = _uiState.value.gift
+        if (giftState.loading || giftState.refreshing) return
+        if (!force && giftState.friends.isNotEmpty() && !giftState.fromCache) return
+        val accountId = account.id
+        val generation = ++giftFriendsRequestGeneration
+        viewModelScope.launch {
+            val cached = if (giftState.friends.isEmpty()) {
+                withContext(Dispatchers.IO) { repository.loadCached(account) }
+            } else {
+                null
+            }
+            if (!giftFriendsRequestIsCurrent(accountId, generation)) return@launch
+            val cachedFriends = cached?.acceptedFriends.orEmpty()
+            if (cachedFriends.isNotEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    gift = _uiState.value.gift.copy(
+                        friends = cachedFriends,
+                        loading = false,
+                        refreshing = true,
+                        fromCache = true,
+                        failure = null
+                    )
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    gift = _uiState.value.gift.copy(
+                        loading = giftState.friends.isEmpty(),
+                        refreshing = giftState.friends.isNotEmpty(),
+                        failure = null
+                    )
+                )
+            }
+            val cacheFresh = cached != null &&
+                System.currentTimeMillis() - cached.fetchedAt < GIFT_FRIENDS_CACHE_TTL_MILLIS
+            if (!force && cacheFresh) {
+                _uiState.value = _uiState.value.copy(
+                    gift = _uiState.value.gift.copy(refreshing = false)
+                )
+                return@launch
+            }
+            val result = runCatching {
+                withContext(Dispatchers.IO) { fetchGiftFriendsWithSessionRetry(account, repository) }
+            }
+            if (!giftFriendsRequestIsCurrent(accountId, generation)) return@launch
+            result.onSuccess { snapshot ->
+                _uiState.value = _uiState.value.copy(
+                    gift = _uiState.value.gift.copy(
+                        friends = snapshot.acceptedFriends,
+                        loading = false,
+                        refreshing = false,
+                        fromCache = false,
+                        failure = null
+                    )
+                )
+            }.onFailure { error ->
+                SteamDiagLogger.append(
+                    "store_gift_friends failed type=${error.javaClass.simpleName}"
+                )
+                _uiState.value = _uiState.value.copy(
+                    gift = _uiState.value.gift.copy(
+                        loading = false,
+                        refreshing = false,
+                        failure = error.toGiftFailure()
+                    )
+                )
+            }
+        }
+    }
+
+    private suspend fun fetchGiftFriendsWithSessionRetry(
+        account: SteamAccount,
+        repository: SteamStoreGiftFriendRepository
+    ) = try {
+        repository.refresh(refreshAccountSession(account, force = false))
+    } catch (error: Throwable) {
+        if (!error.requiresGiftSessionRefresh()) throw error
+        repository.refresh(refreshAccountSession(account, force = true))
+    }
+
+    private fun giftFriendsRequestIsCurrent(accountId: Long, generation: Long): Boolean =
+        generation == giftFriendsRequestGeneration && _uiState.value.selectedAccountId == accountId
 
     fun selectedAccount(): SteamAccount? = _uiState.value.accounts
         .firstOrNull { it.id == _uiState.value.selectedAccountId }
@@ -1375,6 +1557,7 @@ class SteamStoreViewModel(
             )
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
         private const val FILTER_METADATA_CACHE_TTL_MILLIS = 24L * 60L * 60L * 1_000L
+        private const val GIFT_FRIENDS_CACHE_TTL_MILLIS = 15L * 60L * 1_000L
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
@@ -1392,6 +1575,10 @@ class SteamStoreViewModel(
                         libraryCacheRepository = SteamLibraryCacheRepository(
                             database.steamLibraryCacheDao(),
                             securityManager
+                        ),
+                        giftFriendRepository = SteamStoreGiftFriendRepository(
+                            gateway = SteamFriendsService(),
+                            cache = SteamFriendsPreferencesCache(appContext)
                         )
                     ) as T
                 }
@@ -1450,6 +1637,24 @@ private fun Throwable.toPurchaseContextFailure(): SteamStorePurchaseContextFailu
     is IllegalStateException,
     is IndexOutOfBoundsException -> SteamStorePurchaseContextFailure.INVALID_RESPONSE
     else -> SteamStorePurchaseContextFailure.NETWORK
+}
+
+private fun Throwable.requiresGiftSessionRefresh(): Boolean = when (this) {
+    is SteamApiException -> eResult?.let { it == 5 || it == 15 || it == 401 || it == 403 } == true ||
+        httpStatusCode?.let { it == 401 || it == 403 } == true
+    else -> false
+}
+
+private fun Throwable.toGiftFailure(): SteamStoreGiftFailure = when (this) {
+    is SteamApiException -> if (requiresGiftSessionRefresh()) {
+        SteamStoreGiftFailure.SESSION_REQUIRED
+    } else {
+        SteamStoreGiftFailure.NETWORK
+    }
+    is IOException -> SteamStoreGiftFailure.NETWORK
+    is IllegalArgumentException,
+    is IllegalStateException -> SteamStoreGiftFailure.SESSION_REQUIRED
+    else -> SteamStoreGiftFailure.UNAVAILABLE
 }
 
 private suspend fun <T> runSteamStorePurchaseContextCatching(

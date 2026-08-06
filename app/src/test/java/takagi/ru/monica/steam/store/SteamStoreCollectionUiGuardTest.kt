@@ -92,17 +92,22 @@ class SteamStoreCollectionUiGuardTest {
         val actions = store
             .substringAfter("private fun SteamStorePurchaseActions(")
             .substringBefore("private fun SteamStoreRegionalPriceSheet(")
+        val splitButton = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/gift/ui/" +
+                "SteamStoreGiftPurchaseSplitButton.kt"
+        ).readText()
 
-        assertTrue(Regex("(?m)^\\s*Button\\(").containsMatchIn(actions))
+        assertTrue(actions.contains("SteamStoreGiftPurchaseSplitButton("))
+        assertTrue(splitButton.contains("SplitButtonLayout("))
         assertTrue(Regex("(?m)^\\s*OutlinedButton\\(").containsMatchIn(actions))
         assertTrue(actions.contains("FilledTonalButton("))
         assertFalse(actions.contains("FilledTonalIconButton("))
-        assertTrue(Regex("fillMaxWidth\\(\\)").findAll(actions).count() >= 3)
+        assertTrue(Regex("fillMaxWidth\\(\\)").findAll(actions).count() >= 2)
         assertTrue(
-            Regex("heightIn\\(min = 52\\.dp\\)").findAll(actions).count() >= 3
+            Regex("heightIn\\(min = 52\\.dp\\)").findAll(actions).count() >= 2
         )
         assertTrue(
-            Regex("RoundedCornerShape\\(18\\.dp\\)").findAll(actions).count() >= 3
+            Regex("RoundedCornerShape\\(18\\.dp\\)").findAll(actions).count() >= 2
         )
         assertTrue(actions.contains("MaterialTheme.colorScheme.errorContainer"))
         assertTrue(actions.contains("MaterialTheme.colorScheme.onErrorContainer"))

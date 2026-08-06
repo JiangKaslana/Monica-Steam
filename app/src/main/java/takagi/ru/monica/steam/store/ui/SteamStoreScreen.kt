@@ -108,6 +108,8 @@ import takagi.ru.monica.steam.store.hints.domain.SteamStoreHintSettings
 import takagi.ru.monica.steam.store.hints.domain.resolveSteamStoreDetailHints
 import takagi.ru.monica.steam.store.hints.domain.resolveSteamStoreItemHints
 import takagi.ru.monica.steam.store.hints.ui.SteamStoreHintBadges
+import takagi.ru.monica.steam.store.gift.ui.SteamStoreGiftPurchaseSplitButton
+import takagi.ru.monica.steam.store.gift.ui.SteamStoreGiftRecipientSheet
 import takagi.ru.monica.steam.store.presentation.SteamStoreViewModel
 import takagi.ru.monica.steam.store.points.ui.SteamPointsShopScreen
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreOwnershipStatus
@@ -256,8 +258,8 @@ fun SteamStoreScreen(
                         "${selectedStoreAccount.steamId}||$token"
                     },
                 expectedSteamId = selectedStoreAccount?.steamId,
-                checkoutPackageIds = state.checkoutPackageIds,
-                requireAuthenticatedSession = state.checkoutPackageIds.isNotEmpty(),
+                checkoutLines = state.checkoutLines,
+                requireAuthenticatedSession = state.checkoutLines.isNotEmpty(),
                 onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                 onClose = viewModel::closeStoreWeb,
                 modifier = Modifier.fillMaxSize()
@@ -272,6 +274,7 @@ fun SteamStoreScreen(
                 onTabSelected = viewModel::selectCollectionTab,
                 onBack = viewModel::closeCart,
                 onRemove = viewModel::removeFromCart,
+                onEditGiftRecipient = viewModel::editGiftRecipient,
                 onClear = viewModel::clearCart,
                 onCheckout = viewModel::checkout,
                 onRefreshWishlist = { viewModel.loadWishlist(force = true) },
@@ -332,7 +335,7 @@ fun SteamStoreScreen(
                         reviewLoadError = state.reviewLoadError,
                         onReviewFiltersChanged = viewModel::updateReviewFilters,
                         onLoadMoreReviews = viewModel::loadMoreReviews,
-                        inCart = state.cart.any { it.appId == detail.appId },
+                        cartItem = state.cart.firstOrNull { it.appId == detail.appId },
                         inWishlist = state.wishlist.any { it.appId == detail.appId },
                         wishlistAvailable = viewModel.selectedAccount()?.hasRealSteamId == true,
                         wishlistMutating = detail.appId in state.wishlistMutatingAppIds,
@@ -342,10 +345,14 @@ fun SteamStoreScreen(
                         loadingRegionalPrices = state.loadingRegionalPrices,
                         regionalPriceFailure = state.regionalPriceFailure,
                         showRegionalPrices = state.regionalPriceSheetOpen,
-                        onToggleCart = { packageOption ->
-                            if (state.cart.any { it.appId == detail.appId }) viewModel.removeFromCart(detail.appId)
-                            else viewModel.addDetailToCart(detail, packageOption)
+                        onAddToCart = { packageOption ->
+                            viewModel.addDetailToCart(detail, packageOption)
                         },
+                        onAddAsGift = { packageOption ->
+                            viewModel.beginGiftPurchase(detail, packageOption)
+                        },
+                        onRemoveFromCart = { viewModel.removeFromCart(detail.appId) },
+                        onOpenCart = viewModel::openCart,
                         onToggleWishlist = { viewModel.toggleWishlist(detail) },
                         onOpenRegionalPrices = { viewModel.openRegionalPrices(detail.appId) },
                         onCloseRegionalPrices = viewModel::closeRegionalPrices,
@@ -598,6 +605,14 @@ fun SteamStoreScreen(
                 showAdvancedFilters = false
             },
             onDismiss = { showAdvancedFilters = false }
+        )
+    }
+    if (state.gift.pickerOpen) {
+        SteamStoreGiftRecipientSheet(
+            state = state.gift,
+            onSelect = viewModel::selectGiftRecipient,
+            onRefresh = viewModel::refreshGiftFriends,
+            onDismiss = viewModel::dismissGiftRecipientPicker
         )
     }
 }
@@ -947,7 +962,7 @@ private fun SteamStoreDetailContent(
     reviewLoadError: String?,
     onReviewFiltersChanged: (SteamReviewFilterSelection) -> Unit,
     onLoadMoreReviews: () -> Unit,
-    inCart: Boolean,
+    cartItem: SteamCartItem?,
     inWishlist: Boolean,
     wishlistAvailable: Boolean,
     wishlistMutating: Boolean,
@@ -957,7 +972,10 @@ private fun SteamStoreDetailContent(
     loadingRegionalPrices: Boolean,
     regionalPriceFailure: SteamLibraryFailureReason?,
     showRegionalPrices: Boolean,
-    onToggleCart: (SteamStorePackageOption?) -> Unit,
+    onAddToCart: (SteamStorePackageOption?) -> Unit,
+    onAddAsGift: (SteamStorePackageOption?) -> Unit,
+    onRemoveFromCart: () -> Unit,
+    onOpenCart: () -> Unit,
     onToggleWishlist: () -> Unit,
     onOpenRegionalPrices: () -> Unit,
     onCloseRegionalPrices: () -> Unit,
@@ -1160,7 +1178,7 @@ private fun SteamStoreDetailContent(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 SteamStorePurchaseActions(
-                    inCart = inCart,
+                    cartItem = cartItem,
                     inWishlist = inWishlist,
                     purchaseAvailable = detail.availableInAccountRegion != false,
                     alreadyOwned = purchaseContext?.ownership == SteamStoreOwnershipStatus.OWNED,
@@ -1169,7 +1187,10 @@ private fun SteamStoreDetailContent(
                     wishlistAvailable = wishlistAvailable,
                     wishlistMutating = wishlistMutating,
                     wishlistError = wishlistError,
-                    onToggleCart = { onToggleCart(selectedPackage) },
+                    onAddForSelf = { onAddToCart(selectedPackage) },
+                    onAddAsGift = { onAddAsGift(selectedPackage) },
+                    onRemoveFromCart = onRemoveFromCart,
+                    onOpenCart = onOpenCart,
                     onToggleWishlist = onToggleWishlist,
                     onOpenOfficial = onOpenOfficial,
                     modifier = Modifier.fillMaxWidth()
@@ -1393,7 +1414,7 @@ private fun SteamStoreDetailContent(
 
 @Composable
 private fun SteamStorePurchaseActions(
-    inCart: Boolean,
+    cartItem: SteamCartItem?,
     inWishlist: Boolean,
     purchaseAvailable: Boolean,
     alreadyOwned: Boolean,
@@ -1401,7 +1422,10 @@ private fun SteamStorePurchaseActions(
     wishlistAvailable: Boolean,
     wishlistMutating: Boolean,
     wishlistError: String?,
-    onToggleCart: () -> Unit,
+    onAddForSelf: () -> Unit,
+    onAddAsGift: () -> Unit,
+    onRemoveFromCart: () -> Unit,
+    onOpenCart: () -> Unit,
     onToggleWishlist: () -> Unit,
     onOpenOfficial: () -> Unit,
     modifier: Modifier = Modifier
@@ -1431,24 +1455,16 @@ private fun SteamStorePurchaseActions(
                 }
             }
         }
-        Button(
-            onClick = onToggleCart,
-            enabled = inCart || (purchaseAvailable && !alreadyOwned && hasPurchasablePackage),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Icon(Icons.Default.ShoppingCart, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                if (inCart) {
-                    stringResource(R.string.steam_store_cart_remove)
-                } else if (alreadyOwned) {
-                    stringResource(R.string.steam_store_already_owned)
-                } else {
-                    stringResource(R.string.steam_store_add_cart)
-                }
-            )
-        }
+        SteamStoreGiftPurchaseSplitButton(
+            cartItem = cartItem,
+            canAdd = purchaseAvailable && !alreadyOwned && hasPurchasablePackage,
+            alreadyOwned = alreadyOwned,
+            onAddForSelf = onAddForSelf,
+            onAddAsGift = onAddAsGift,
+            onOpenCart = onOpenCart,
+            onRemove = onRemoveFromCart,
+            modifier = Modifier.fillMaxWidth()
+        )
         FilledTonalButton(
             onClick = onToggleWishlist,
             enabled = (purchaseAvailable || inWishlist) && wishlistAvailable && !wishlistMutating,

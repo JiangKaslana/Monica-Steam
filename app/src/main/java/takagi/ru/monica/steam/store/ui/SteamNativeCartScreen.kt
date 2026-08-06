@@ -22,8 +22,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Button
@@ -71,6 +73,7 @@ fun SteamNativeCartScreen(
     onTabSelected: (SteamStoreCollectionTab) -> Unit,
     onBack: () -> Unit,
     onRemove: (Int) -> Unit,
+    onEditGiftRecipient: (SteamCartItem) -> Unit,
     onClear: () -> Unit,
     onCheckout: () -> Unit,
     onRefreshWishlist: () -> Unit,
@@ -183,7 +186,8 @@ fun SteamNativeCartScreen(
             when (tab) {
                 SteamStoreCollectionTab.CART -> SteamCartContent(
                     items = cartItems,
-                    onRemove = onRemove
+                    onRemove = onRemove,
+                    onEditGiftRecipient = onEditGiftRecipient
                 )
                 SteamStoreCollectionTab.WISHLIST -> SteamWishlistContent(
                     items = wishlistItems,
@@ -203,7 +207,8 @@ fun SteamNativeCartScreen(
 @Composable
 private fun SteamCartContent(
     items: List<SteamCartItem>,
-    onRemove: (Int) -> Unit
+    onRemove: (Int) -> Unit,
+    onEditGiftRecipient: (SteamCartItem) -> Unit
 ) {
     if (items.isEmpty()) {
         SteamCollectionEmptyState(
@@ -224,7 +229,11 @@ private fun SteamCartContent(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         itemsIndexed(items, key = ::steamCartLazyKey) { _, item ->
-            SteamCartItemCard(item = item, onRemove = { onRemove(item.appId) })
+            SteamCartItemCard(
+                item = item,
+                onRemove = { onRemove(item.appId) },
+                onEditGiftRecipient = { onEditGiftRecipient(item) }
+            )
         }
     }
 }
@@ -296,57 +305,129 @@ private fun SteamWishlistContent(
 }
 
 @Composable
-private fun SteamCartItemCard(item: SteamCartItem, onRemove: () -> Unit) {
+private fun SteamCartItemCard(
+    item: SteamCartItem,
+    onRemove: () -> Unit,
+    onEditGiftRecipient: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SteamStoreImage(
-                item.imageUrl,
-                Modifier
-                    .size(width = 104.dp, height = 52.dp)
-                    .clip(RoundedCornerShape(12.dp))
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    item.name,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleMedium
+                SteamStoreImage(
+                    item.imageUrl,
+                    Modifier
+                        .size(width = 104.dp, height = 52.dp)
+                        .clip(RoundedCornerShape(12.dp))
                 )
-                Text(
-                    item.formattedPrice,
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                if (item.packageId == null) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
-                        stringResource(R.string.steam_store_cart_manual_add),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error,
-                        maxLines = 2
+                        item.name,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        item.formattedPrice,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (item.packageId == null) {
+                        Text(
+                            stringResource(R.string.steam_store_cart_manual_add),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 2
+                        )
+                    }
+                }
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        Icons.Default.DeleteOutline,
+                        contentDescription = stringResource(R.string.steam_store_cart_remove)
                     )
                 }
             }
-            IconButton(onClick = onRemove) {
-                Icon(
-                    Icons.Default.DeleteOutline,
-                    contentDescription = stringResource(R.string.steam_store_cart_remove)
+            SteamCartPurchaseTypeRow(
+                item = item,
+                onEditGiftRecipient = onEditGiftRecipient,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SteamCartPurchaseTypeRow(
+    item: SteamCartItem,
+    onEditGiftRecipient: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val recipient = item.giftRecipient
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = if (recipient != null) {
+            MaterialTheme.colorScheme.tertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.secondaryContainer
+        },
+        contentColor = if (recipient != null) {
+            MaterialTheme.colorScheme.onTertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (recipient != null && recipient.avatarUrl.isNotBlank()) {
+                SteamStoreImage(
+                    url = recipient.avatarUrl,
+                    modifier = Modifier.size(32.dp).clip(CircleShape),
+                    contentDescription = recipient.displayName
                 )
+            } else {
+                Icon(
+                    imageVector = if (recipient != null) {
+                        Icons.Default.CardGiftcard
+                    } else {
+                        Icons.Default.Person
+                    },
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Text(
+                text = if (recipient != null) {
+                    stringResource(R.string.steam_store_gift_recipient_label, recipient.displayName)
+                } else {
+                    stringResource(R.string.steam_store_cart_personal_purchase)
+                },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (recipient != null) {
+                TextButton(onClick = onEditGiftRecipient) {
+                    Text(stringResource(R.string.steam_store_gift_change_recipient))
+                }
             }
         }
     }
@@ -479,6 +560,7 @@ private fun SteamCheckoutBar(
 ) {
     val currency = items.map { it.currency }.distinct().singleOrNull()
     val total = steamCartTotalCents(items)
+    val giftCount = items.count { it.giftRecipient != null }
     Surface(
         modifier = modifier,
         tonalElevation = 5.dp,
@@ -529,6 +611,13 @@ private fun SteamCheckoutBar(
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            if (giftCount > 0) {
+                Text(
+                    text = stringResource(R.string.steam_store_gift_checkout_summary, giftCount),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
             Text(
                 text = stringResource(R.string.steam_store_security_note),
                 style = MaterialTheme.typography.labelSmall,
