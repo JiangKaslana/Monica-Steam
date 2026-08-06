@@ -97,6 +97,10 @@ import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.freebie.ui.SteamFreebieScreen
+import takagi.ru.monica.steam.store.filters.domain.resolveSteamStoreTagLabels
+import takagi.ru.monica.steam.store.filters.ui.SteamStoreActiveFilterSummary
+import takagi.ru.monica.steam.store.filters.ui.SteamStoreAdvancedFilterSheet
+import takagi.ru.monica.steam.store.filters.ui.SteamStoreTagBadges
 import takagi.ru.monica.steam.store.hints.data.SteamStoreHintPreferences
 import takagi.ru.monica.steam.store.hints.domain.SteamStoreHintKind
 import takagi.ru.monica.steam.store.hints.domain.SteamStoreHintSettings
@@ -171,10 +175,15 @@ fun SteamStoreScreen(
     }
     val reduceAnimations = LocalReduceAnimations.current
     val dockContentClearance = LocalSteamDockContentClearance.current
-    val storeRefreshing = state.loadingHome || state.loadingCatalog
+    val storeRefreshing = state.loadingHome || state.loadingCatalog || state.searching
     val refreshStore = {
         viewModel.refreshHintSources()
-        if (state.browseFilter == SteamStoreBrowseFilter.ALL) {
+        viewModel.loadStoreFilterMetadata(force = true)
+        if (state.query.isNotBlank()) {
+            viewModel.search()
+        } else if (state.browseFilter == SteamStoreBrowseFilter.ALL &&
+            !state.storeFilters.isActive
+        ) {
             viewModel.loadHome(force = true)
         } else {
             viewModel.loadCatalog(force = true)
@@ -182,6 +191,7 @@ fun SteamStoreScreen(
     }
     var showAccounts by remember { mutableStateOf(false) }
     var searchExpanded by remember { mutableStateOf(false) }
+    var showAdvancedFilters by rememberSaveable { mutableStateOf(false) }
     var freebiesOpen by rememberSaveable { mutableStateOf(false) }
     var lastDetail by remember { mutableStateOf<SteamStoreDetail?>(null) }
     LaunchedEffect(state.detail) {
@@ -195,6 +205,7 @@ fun SteamStoreScreen(
     }
     LaunchedEffect(state.selectedAccountId, state.storageSource) {
         viewModel.loadWishlist()
+        viewModel.loadStoreFilterMetadata()
     }
     val webUrl = state.webUrl
     val detailAppId = state.detailAppId
@@ -367,7 +378,12 @@ fun SteamStoreScreen(
                         actions = {
                             SteamStoreBrowseMenu(
                                 selectedFilter = state.browseFilter,
+                                activeFilterCount = state.storeFilters.activeCount,
                                 onSelectFilter = viewModel::selectBrowseFilter,
+                                onOpenAdvancedFilters = {
+                                    showAdvancedFilters = true
+                                    viewModel.loadStoreFilterMetadata()
+                                },
                                 onOpenFreebies = { freebiesOpen = true },
                                 onOpenPointsShop = viewModel::openPointsShop
                             )
@@ -427,6 +443,15 @@ fun SteamStoreScreen(
                         contentPadding = PaddingValues(bottom = dockContentClearance + 16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                    if (state.storeFilters.isActive) {
+                        item(key = "store_active_filters") {
+                            SteamStoreActiveFilterSummary(
+                                selection = state.storeFilters,
+                                metadata = state.filterMetadata,
+                                onClear = viewModel::clearStoreFilters
+                            )
+                        }
+                    }
                     if (state.searching) {
                         item {
                             androidx.compose.material3.LinearProgressIndicator(
@@ -439,7 +464,10 @@ fun SteamStoreScreen(
                             StoreMessage(
                                     state.catalogError ?: state.error.orEmpty(),
                                     onRetry = {
-                                        if (state.query.isBlank() && state.browseFilter != SteamStoreBrowseFilter.ALL) {
+                                        if (state.query.isBlank() &&
+                                            (state.browseFilter != SteamStoreBrowseFilter.ALL ||
+                                                state.storeFilters.isActive)
+                                        ) {
                                             viewModel.loadCatalog(force = true)
                                         } else if (state.query.isBlank()) viewModel.loadHome(force = true)
                                         else viewModel.search()
@@ -455,11 +483,18 @@ fun SteamStoreScreen(
                                 SearchResultCard(
                                     game = item,
                                     hints = itemHints(item.appId),
+                                    tagLabels = resolveSteamStoreTagLabels(
+                                        tagIds = item.tagIds,
+                                        metadata = state.filterMetadata,
+                                        enabled = hintSettings.storeTagsEnabled
+                                    ),
                                     onClick = { viewModel.openDetail(item) }
                                 )
                             }
                         }
-                    } else if (state.browseFilter != SteamStoreBrowseFilter.ALL) {
+                    } else if (state.browseFilter != SteamStoreBrowseFilter.ALL ||
+                        state.storeFilters.isActive
+                    ) {
                         if (state.catalogFromCache) item { CachedNotice() }
                         if (state.loadingCatalog && state.catalogPage == null) {
                             item { StoreHeroSkeleton() }
@@ -472,6 +507,11 @@ fun SteamStoreScreen(
                                 SearchResultCard(
                                     game = item,
                                     hints = itemHints(item.appId),
+                                    tagLabels = resolveSteamStoreTagLabels(
+                                        tagIds = item.tagIds,
+                                        metadata = state.filterMetadata,
+                                        enabled = hintSettings.storeTagsEnabled
+                                    ),
                                     onClick = { viewModel.openDetail(item) }
                                 )
                             }
@@ -535,6 +575,20 @@ fun SteamStoreScreen(
             },
             onRefresh = viewModel::refreshAccountSource,
             onDismiss = { showAccounts = false }
+        )
+    }
+    if (showAdvancedFilters) {
+        SteamStoreAdvancedFilterSheet(
+            selection = state.storeFilters,
+            metadata = state.filterMetadata,
+            loading = state.loadingFilterMetadata,
+            error = state.filterMetadataError,
+            onRetry = { viewModel.loadStoreFilterMetadata(force = true) },
+            onApply = { selection ->
+                viewModel.applyStoreFilters(selection)
+                showAdvancedFilters = false
+            },
+            onDismiss = { showAdvancedFilters = false }
         )
     }
 }
@@ -795,6 +849,7 @@ private fun StoreGameCard(
 private fun SearchResultCard(
     game: SteamStoreItem,
     hints: List<SteamStoreHintKind>,
+    tagLabels: List<String>,
     onClick: () -> Unit
 ) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -820,6 +875,7 @@ private fun SearchResultCard(
                 )
             }
             SteamStoreHintBadges(hints = hints, compact = true)
+            SteamStoreTagBadges(labels = tagLabels)
             if (game.availableInAccountRegion == false) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,

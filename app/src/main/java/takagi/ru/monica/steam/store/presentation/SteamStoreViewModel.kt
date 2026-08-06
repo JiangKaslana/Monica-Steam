@@ -45,6 +45,8 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFai
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextGateway
 import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailHistory
 import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailRoute
+import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterMetadata
+import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterSelection
 
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -62,6 +64,11 @@ data class SteamStoreUiState(
     val loadingCatalog: Boolean = false,
     val loadingMoreCatalog: Boolean = false,
     val catalogError: String? = null,
+    val storeFilters: SteamStoreFilterSelection = SteamStoreFilterSelection(),
+    val filterMetadata: SteamStoreFilterMetadata? = null,
+    val filterMetadataFromCache: Boolean = false,
+    val loadingFilterMetadata: Boolean = false,
+    val filterMetadataError: String? = null,
     val query: String = "",
     val searchResults: List<SteamStoreItem> = emptyList(),
     val searching: Boolean = false,
@@ -117,6 +124,7 @@ class SteamStoreViewModel(
     private var searchRequestJob: Job? = null
     private var catalogRequestJob: Job? = null
     private var catalogRequestGeneration: Long = 0L
+    private var filterMetadataRequestGeneration: Long = 0L
     private var detailRequestGeneration: Long = 0L
     private val detailHistory = SteamStoreDetailHistory()
     private var regionalPriceRequestGeneration: Long = 0L
@@ -149,6 +157,7 @@ class SteamStoreViewModel(
                     loadLibraryHints(selected?.id, sourceState.storageSource)
                     loadCart(selected?.id)
                     loadWishlistCache(selected?.id)
+                    loadStoreFilterMetadata()
                     loadHome(force = true)
                 }
             }
@@ -198,6 +207,66 @@ class SteamStoreViewModel(
         }
     }
 
+    fun loadStoreFilterMetadata(force: Boolean = false) {
+        val state = _uiState.value
+        if (state.loadingFilterMetadata) return
+        val accountId = state.selectedAccountId
+        val account = selectedAccount()
+        val generation = ++filterMetadataRequestGeneration
+        viewModelScope.launch {
+            val cachedFromDisk = state.filterMetadata == null
+            val cached = if (cachedFromDisk) {
+                withContext(Dispatchers.IO) { cache.readFilterMetadata(accountId) }
+            } else {
+                state.filterMetadata
+            }
+            if (!filterMetadataRequestIsCurrent(accountId, generation)) return@launch
+            if (cached != null && cachedFromDisk) {
+                _uiState.value = _uiState.value.copy(
+                    filterMetadata = cached,
+                    filterMetadataFromCache = true
+                )
+            }
+            val cachedIsFresh = cached != null &&
+                System.currentTimeMillis() - cached.fetchedAt < FILTER_METADATA_CACHE_TTL_MILLIS
+            if (!force && cachedIsFresh) return@launch
+
+            _uiState.value = _uiState.value.copy(
+                loadingFilterMetadata = true,
+                filterMetadataError = null
+            )
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    executeStoreRequest(account) { credentials ->
+                        service.filterMetadata(
+                            steamLoginSecure = credentials.steamLoginSecure,
+                            accessToken = credentials.accessToken
+                        )
+                    }
+                }
+            }.onSuccess { metadata ->
+                if (!filterMetadataRequestIsCurrent(accountId, generation)) return@onSuccess
+                withContext(Dispatchers.IO) { cache.writeFilterMetadata(accountId, metadata) }
+                _uiState.value = _uiState.value.copy(
+                    filterMetadata = metadata,
+                    filterMetadataFromCache = false,
+                    loadingFilterMetadata = false,
+                    filterMetadataError = null
+                )
+            }.onFailure { error ->
+                if (!filterMetadataRequestIsCurrent(accountId, generation)) return@onFailure
+                _uiState.value = _uiState.value.copy(
+                    loadingFilterMetadata = false,
+                    filterMetadataError = error.message ?: "Steam 商店筛选信息加载失败"
+                )
+            }
+        }
+    }
+
+    private fun filterMetadataRequestIsCurrent(accountId: Long?, generation: Long): Boolean =
+        generation == filterMetadataRequestGeneration &&
+            _uiState.value.selectedAccountId == accountId
+
     fun updateQuery(value: String) {
         _uiState.value = _uiState.value.copy(query = value)
         searchDebounceJob?.cancel()
@@ -216,6 +285,7 @@ class SteamStoreViewModel(
         val query = _uiState.value.query.trim()
         if (query.isBlank()) return
         val accountId = _uiState.value.selectedAccountId
+        val filters = _uiState.value.storeFilters
         val account = selectedAccount()
         searchRequestJob?.cancel()
         searchRequestJob = viewModelScope.launch {
@@ -225,6 +295,7 @@ class SteamStoreViewModel(
                     executeStoreRequest(account) { credentials ->
                         service.search(
                             queryText = query,
+                            filters = filters,
                             steamLoginSecure = credentials.steamLoginSecure,
                             accessToken = credentials.accessToken
                         )
@@ -233,7 +304,8 @@ class SteamStoreViewModel(
             }
                 .onSuccess { results ->
                     if (_uiState.value.query.trim() != query ||
-                        _uiState.value.selectedAccountId != accountId
+                        _uiState.value.selectedAccountId != accountId ||
+                        _uiState.value.storeFilters != filters
                     ) return@onSuccess
                     _uiState.value = _uiState.value.copy(
                         searchResults = results,
@@ -242,7 +314,8 @@ class SteamStoreViewModel(
                 }
                 .onFailure { error ->
                     if (_uiState.value.query.trim() != query ||
-                        _uiState.value.selectedAccountId != accountId
+                        _uiState.value.selectedAccountId != accountId ||
+                        _uiState.value.storeFilters != filters
                     ) return@onFailure
                     _uiState.value = _uiState.value.copy(
                         searching = false,
@@ -792,6 +865,33 @@ class SteamStoreViewModel(
         loadWishlist(force = true)
     }
 
+    fun applyStoreFilters(selection: SteamStoreFilterSelection) {
+        val normalized = selection.normalized()
+        if (_uiState.value.storeFilters == normalized) return
+        searchDebounceJob?.cancel()
+        searchRequestJob?.cancel()
+        catalogRequestJob?.cancel()
+        catalogRequestGeneration++
+        _uiState.value = _uiState.value.copy(
+            storeFilters = normalized,
+            catalogPage = null,
+            catalogFromCache = false,
+            loadingCatalog = false,
+            loadingMoreCatalog = false,
+            catalogError = null,
+            searchResults = emptyList(),
+            searching = false,
+            error = null
+        )
+        if (_uiState.value.query.isNotBlank()) {
+            search()
+        } else if (_uiState.value.browseFilter != SteamStoreBrowseFilter.ALL || normalized.isActive) {
+            loadCatalog(force = false)
+        }
+    }
+
+    fun clearStoreFilters() = applyStoreFilters(SteamStoreFilterSelection())
+
     fun selectBrowseFilter(filter: SteamStoreBrowseFilter) {
         if (_uiState.value.browseFilter == filter) return
         catalogRequestJob?.cancel()
@@ -804,13 +904,18 @@ class SteamStoreViewModel(
             loadingMoreCatalog = false,
             catalogError = null
         )
-        if (filter != SteamStoreBrowseFilter.ALL) loadCatalog(force = false)
+        if (filter != SteamStoreBrowseFilter.ALL || _uiState.value.storeFilters.isActive) {
+            loadCatalog(force = false)
+        }
     }
 
     fun loadCatalog(force: Boolean = false, loadMore: Boolean = false) {
         val state = _uiState.value
         val filter = state.browseFilter
-        if (filter == SteamStoreBrowseFilter.ALL || state.loadingCatalog || state.loadingMoreCatalog) return
+        val filters = state.storeFilters
+        if ((filter == SteamStoreBrowseFilter.ALL && !filters.isActive) ||
+            state.loadingCatalog || state.loadingMoreCatalog
+        ) return
         if (loadMore && state.catalogPage?.hasMore != true) return
         val accountId = state.selectedAccountId
         val account = selectedAccount()
@@ -818,8 +923,10 @@ class SteamStoreViewModel(
         catalogRequestJob?.cancel()
         catalogRequestJob = viewModelScope.launch {
             if (!force && !loadMore && _uiState.value.catalogPage == null) {
-                val cached = withContext(Dispatchers.IO) { cache.readCatalog(accountId, filter) }
-                if (catalogRequestIsCurrent(accountId, filter, generation) && cached != null) {
+                val cached = withContext(Dispatchers.IO) {
+                    cache.readCatalog(accountId, filter, filters)
+                }
+                if (catalogRequestIsCurrent(accountId, filter, filters, generation) && cached != null) {
                     _uiState.value = _uiState.value.copy(
                         catalogPage = cached,
                         catalogFromCache = true
@@ -838,6 +945,7 @@ class SteamStoreViewModel(
                     executeStoreRequest(account) { credentials ->
                         service.catalog(
                             filter = filter,
+                            filters = filters,
                             start = if (loadMore) existing?.nextStart ?: 0 else 0,
                             steamLoginSecure = credentials.steamLoginSecure,
                             accessToken = credentials.accessToken
@@ -845,14 +953,14 @@ class SteamStoreViewModel(
                     }
                 }
             }.onSuccess { page ->
-                if (!catalogRequestIsCurrent(accountId, filter, generation)) return@onSuccess
+                if (!catalogRequestIsCurrent(accountId, filter, filters, generation)) return@onSuccess
                 val merged = if (loadMore && existing != null) {
                     page.copy(
                         start = 0,
                         items = (existing.items + page.items).distinctBy(SteamStoreItem::appId)
                     )
                 } else page
-                withContext(Dispatchers.IO) { cache.writeCatalog(accountId, merged) }
+                withContext(Dispatchers.IO) { cache.writeCatalog(accountId, merged, filters) }
                 _uiState.value = _uiState.value.copy(
                     catalogPage = merged,
                     catalogFromCache = false,
@@ -860,7 +968,7 @@ class SteamStoreViewModel(
                     loadingMoreCatalog = false
                 )
             }.onFailure { error ->
-                if (!catalogRequestIsCurrent(accountId, filter, generation)) return@onFailure
+                if (!catalogRequestIsCurrent(accountId, filter, filters, generation)) return@onFailure
                 _uiState.value = _uiState.value.copy(
                     loadingCatalog = false,
                     loadingMoreCatalog = false,
@@ -873,10 +981,12 @@ class SteamStoreViewModel(
     private fun catalogRequestIsCurrent(
         accountId: Long?,
         filter: SteamStoreBrowseFilter,
+        filters: SteamStoreFilterSelection,
         generation: Long
     ): Boolean = generation == catalogRequestGeneration &&
         _uiState.value.selectedAccountId == accountId &&
-        _uiState.value.browseFilter == filter
+        _uiState.value.browseFilter == filter &&
+        _uiState.value.storeFilters == filters
 
     fun openPointsShop() {
         _uiState.value = _uiState.value.copy(pointsShopOpen = true)
@@ -892,6 +1002,7 @@ class SteamStoreViewModel(
         searchRequestJob?.cancel()
         catalogRequestJob?.cancel()
         catalogRequestGeneration++
+        filterMetadataRequestGeneration++
         detailRequestGeneration++
         regionalPriceRequestGeneration++
         libraryHintRequestGeneration++
@@ -907,6 +1018,11 @@ class SteamStoreViewModel(
             loadingCatalog = false,
             loadingMoreCatalog = false,
             catalogError = null,
+            storeFilters = SteamStoreFilterSelection(),
+            filterMetadata = null,
+            filterMetadataFromCache = false,
+            loadingFilterMetadata = false,
+            filterMetadataError = null,
             query = "",
             searchResults = emptyList(),
             searching = false,
@@ -1190,6 +1306,7 @@ class SteamStoreViewModel(
                 "UA", "IN", "ID", "PK"
             )
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
+        private const val FILTER_METADATA_CACHE_TTL_MILLIS = 24L * 60L * 60L * 1_000L
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext

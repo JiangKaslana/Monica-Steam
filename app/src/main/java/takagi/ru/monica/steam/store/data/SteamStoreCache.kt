@@ -6,6 +6,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.store.domain.*
+import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterMetadata
+import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterSelection
 
 class SteamStoreCache(context: Context) {
     private val directory = File(context.applicationContext.filesDir, "steam_store_cache")
@@ -16,11 +18,23 @@ class SteamStoreCache(context: Context) {
     fun writeHome(accountId: Long?, home: SteamStoreHome) =
         write("${scope(accountId)}_home.json", home)
 
-    fun readCatalog(accountId: Long?, filter: SteamStoreBrowseFilter): SteamStoreCatalogPage? =
-        read("${scope(accountId)}_catalog_${filter.name.lowercase()}.json")
+    fun readCatalog(
+        accountId: Long?,
+        filter: SteamStoreBrowseFilter,
+        filters: SteamStoreFilterSelection = SteamStoreFilterSelection()
+    ): SteamStoreCatalogPage? = read(catalogCacheName(accountId, filter, filters))
 
-    fun writeCatalog(accountId: Long?, page: SteamStoreCatalogPage) =
-        write("${scope(accountId)}_catalog_${page.filter.name.lowercase()}.json", page)
+    fun writeCatalog(
+        accountId: Long?,
+        page: SteamStoreCatalogPage,
+        filters: SteamStoreFilterSelection = SteamStoreFilterSelection()
+    ) = write(catalogCacheName(accountId, page.filter, filters), page)
+
+    fun readFilterMetadata(accountId: Long?): SteamStoreFilterMetadata? =
+        read("${scope(accountId)}_filter_metadata.json")
+
+    fun writeFilterMetadata(accountId: Long?, metadata: SteamStoreFilterMetadata) =
+        write("${scope(accountId)}_filter_metadata.json", metadata)
 
     fun readDetail(accountId: Long?, appId: Int): SteamStoreDetail? =
         read("${scope(accountId)}_detail_$appId.json")
@@ -69,6 +83,17 @@ class SteamStoreCache(context: Context) {
             }
         }
     }
+}
+
+internal fun catalogCacheName(
+    accountId: Long?,
+    filter: SteamStoreBrowseFilter,
+    filters: SteamStoreFilterSelection
+): String {
+    val scope = accountId?.let { "v2_account_$it" } ?: "v2_guest"
+    val base = "${scope}_catalog_${filter.name.lowercase()}"
+    val filterKey = filters.cacheKey()
+    return if (filterKey == "default") "$base.json" else "${base}_$filterKey.json"
 }
 
 internal fun steamWishlistCacheName(accountId: Long?): String =

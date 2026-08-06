@@ -109,7 +109,8 @@ class SteamStoreGlobalSearchTest {
         name = name,
         currency = currency,
         initialPriceCents = finalPriceCents,
-        finalPriceCents = finalPriceCents
+        finalPriceCents = finalPriceCents,
+        tagIds = emptyList()
     )
 
     private fun projectFile(path: String): File {

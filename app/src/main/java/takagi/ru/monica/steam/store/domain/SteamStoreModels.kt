@@ -23,6 +23,7 @@ data class SteamStoreItem(
     val mac: Boolean = false,
     val linux: Boolean = false,
     val metascore: Int? = null,
+    val tagIds: List<Int> = emptyList(),
     val availableInAccountRegion: Boolean? = null,
     val accountCountryCode: String? = null,
     val priceCountryCode: String? = null

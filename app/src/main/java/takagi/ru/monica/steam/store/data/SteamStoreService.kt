@@ -25,6 +25,9 @@ import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.data.SteamAccount
 import java.io.IOException
 import takagi.ru.monica.steam.store.catalog.data.SteamStoreCatalogService
+import takagi.ru.monica.steam.store.filters.data.SteamStoreFilterMetadataService
+import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterMetadata
+import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterSelection
 import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentService
 import takagi.ru.monica.steam.store.purchase.data.SteamStorePackageMetadataService
 import takagi.ru.monica.steam.store.purchase.data.SteamStorePurchasePageService
@@ -57,6 +60,7 @@ class SteamStoreService(
 ) {
     private val countryBySession = ConcurrentHashMap<String, String>()
     private val catalogService = SteamStoreCatalogService(client)
+    private val filterMetadataService = SteamStoreFilterMetadataService(client)
     private val relatedContentService = SteamStoreRelatedContentService(api)
     private val packageMetadataService = SteamStorePackageMetadataService(client)
     private val purchasePageService = SteamStorePurchasePageService(client, relatedContentService)
@@ -114,6 +118,7 @@ class SteamStoreService(
 
     fun catalog(
         filter: SteamStoreBrowseFilter,
+        filters: SteamStoreFilterSelection = SteamStoreFilterSelection(),
         start: Int = 0,
         count: Int = 24,
         steamLoginSecure: String? = null,
@@ -121,6 +126,7 @@ class SteamStoreService(
         language: String = "schinese"
     ): SteamStoreCatalogPage = catalogService.page(
         filter = filter,
+        filters = filters,
         start = start,
         count = count,
         language = language,
@@ -128,8 +134,19 @@ class SteamStoreService(
         steamLoginSecure = steamLoginSecure
     )
 
+    fun filterMetadata(
+        steamLoginSecure: String? = null,
+        accessToken: String? = null,
+        language: String = "schinese"
+    ): SteamStoreFilterMetadata = filterMetadataService.fetch(
+        countryCode = accountCountryOrFail(steamLoginSecure, accessToken),
+        steamLoginSecure = steamLoginSecure,
+        language = language
+    )
+
     suspend fun search(
         queryText: String,
+        filters: SteamStoreFilterSelection = SteamStoreFilterSelection(),
         steamLoginSecure: String? = null,
         accessToken: String? = null,
         language: String = "schinese"
@@ -157,14 +174,24 @@ class SteamStoreService(
                         Result.success(
                             SteamStoreRegionSearchResult(
                                 countryCode = target.countryCode,
-                                items = SteamStoreParser.parseSearch(
-                                    getAsync(
-                                        path = "/api/storesearch/",
-                                        query = mapOf("term" to query, "l" to language),
-                                        steamLoginSecure = target.steamLoginSecure,
-                                        countryCode = target.countryCode
+                                items = if (filters.isActive) {
+                                    catalogService.search(
+                                        queryText = query,
+                                        filters = filters,
+                                        language = language,
+                                        countryCode = target.countryCode,
+                                        steamLoginSecure = target.steamLoginSecure
                                     )
-                                )
+                                } else {
+                                    SteamStoreParser.parseSearch(
+                                        getAsync(
+                                            path = "/api/storesearch/",
+                                            query = mapOf("term" to query, "l" to language),
+                                            steamLoginSecure = target.steamLoginSecure,
+                                            countryCode = target.countryCode
+                                        )
+                                    )
+                                }
                             )
                         )
                     } catch (cancelled: CancellationException) {

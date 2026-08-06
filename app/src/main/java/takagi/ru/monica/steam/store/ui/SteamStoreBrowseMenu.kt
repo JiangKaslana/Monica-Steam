@@ -7,6 +7,9 @@ import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Redeem
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,17 +32,27 @@ import takagi.ru.monica.ui.password.MonicaTopActionsDropdownMenu
 @Composable
 internal fun SteamStoreBrowseMenu(
     selectedFilter: SteamStoreBrowseFilter,
+    activeFilterCount: Int,
     onSelectFilter: (SteamStoreBrowseFilter) -> Unit,
+    onOpenAdvancedFilters: () -> Unit,
     onOpenFreebies: () -> Unit,
     onOpenPointsShop: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
-            Icon(
-                imageVector = Icons.Default.FilterAlt,
-                contentDescription = stringResource(R.string.steam_store_browse)
-            )
+            BadgedBox(
+                badge = {
+                    if (activeFilterCount > 0) {
+                        Badge { Text(activeFilterCount.coerceAtMost(99).toString()) }
+                    }
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FilterAlt,
+                    contentDescription = stringResource(R.string.steam_store_browse)
+                )
+            }
         }
         MonicaTopActionsDropdownMenu(
             expanded = expanded,
@@ -66,6 +79,19 @@ internal fun SteamStoreBrowseMenu(
                     }
                 )
             }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.steam_store_advanced_filters)) },
+                leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null) },
+                trailingIcon = {
+                    if (activeFilterCount > 0) {
+                        Badge { Text(activeFilterCount.coerceAtMost(99).toString()) }
+                    }
+                },
+                onClick = {
+                    expanded = false
+                    onOpenAdvancedFilters()
+                }
+            )
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 12.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)

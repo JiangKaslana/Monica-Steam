@@ -6,22 +6,30 @@ import takagi.ru.monica.steam.store.data.buildSteamStoreRequest
 import takagi.ru.monica.steam.store.domain.SteamStoreBrowseFilter
 import takagi.ru.monica.steam.store.domain.SteamStoreCatalogPage
 import takagi.ru.monica.steam.store.domain.SteamStoreItem
+import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterSelection
 
 internal class SteamStoreCatalogService(private val client: OkHttpClient) {
     private val budgetPriceStopsByCountry = ConcurrentHashMap<String, List<Int>>()
 
     fun page(
         filter: SteamStoreBrowseFilter,
+        filters: SteamStoreFilterSelection,
         start: Int,
         count: Int,
         language: String,
         countryCode: String?,
         steamLoginSecure: String?
     ): SteamStoreCatalogPage {
-        require(filter != SteamStoreBrowseFilter.ALL)
+        require(filter != SteamStoreBrowseFilter.ALL || filters.isActive)
         val request = buildSteamStoreRequest(
             path = "/search/results/",
-            query = buildQuery(filter, start, count, language),
+            query = buildSteamStoreCatalogQuery(
+                filter = filter,
+                filters = filters,
+                start = start,
+                count = count,
+                language = language
+            ),
             steamLoginSecure = steamLoginSecure,
             countryCode = countryCode
         )
@@ -32,6 +40,36 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 商店目录返回空数据")
             return SteamStoreCatalogParser.parse(body, filter)
+        }
+    }
+
+    fun search(
+        queryText: String,
+        filters: SteamStoreFilterSelection,
+        language: String,
+        countryCode: String?,
+        steamLoginSecure: String?
+    ): List<SteamStoreItem> {
+        val request = buildSteamStoreRequest(
+            path = "/search/results/",
+            query = buildSteamStoreCatalogQuery(
+                filter = SteamStoreBrowseFilter.ALL,
+                filters = filters,
+                start = 0,
+                count = FILTERED_SEARCH_RESULT_LIMIT,
+                language = language,
+                queryText = queryText
+            ),
+            steamLoginSecure = steamLoginSecure,
+            countryCode = countryCode
+        )
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException("Steam 商店筛选搜索请求失败：${response.code}")
+            }
+            val body = response.body?.string()?.takeIf(String::isNotBlank)
+                ?: throw IllegalStateException("Steam 商店筛选搜索返回空数据")
+            return SteamStoreCatalogParser.parse(body, SteamStoreBrowseFilter.ALL).items
         }
     }
 
@@ -132,29 +170,6 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
         }
     }
 
-    private fun buildQuery(
-        filter: SteamStoreBrowseFilter,
-        start: Int,
-        count: Int,
-        language: String
-    ): Map<String, String> = buildMap {
-        put("query", "")
-        put("start", start.coerceAtLeast(0).toString())
-        put("count", count.coerceIn(1, 50).toString())
-        put("dynamic_data", "")
-        put("infinite", "1")
-        put("l", language)
-        put("category1", "998")
-        when (filter) {
-            SteamStoreBrowseFilter.SPECIALS -> put("specials", "1")
-            SteamStoreBrowseFilter.TOP_SELLERS -> put("filter", "topsellers")
-            SteamStoreBrowseFilter.NEW_RELEASES -> put("sort_by", "Released_DESC")
-            SteamStoreBrowseFilter.COMING_SOON -> put("filter", "comingsoon")
-            SteamStoreBrowseFilter.FREE -> put("maxprice", "free")
-            SteamStoreBrowseFilter.ALL -> Unit
-        }
-    }
-
     private fun buildBudgetQuery(
         start: Int,
         count: Int,
@@ -245,8 +260,42 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
 
     private companion object {
         const val BUDGET_PAGE_SIZE = 50
+        const val FILTERED_SEARCH_RESULT_LIMIT = 50
         const val MAX_BUDGET_BINARY_PROBES = 14
         const val MAX_BUDGET_SCAN_PAGES = 8
+    }
+}
+
+internal fun buildSteamStoreCatalogQuery(
+    filter: SteamStoreBrowseFilter,
+    filters: SteamStoreFilterSelection,
+    start: Int,
+    count: Int,
+    language: String,
+    queryText: String = ""
+): Map<String, String> = buildMap {
+    val normalizedQuery = queryText.trim()
+    put("query", normalizedQuery)
+    if (normalizedQuery.isNotBlank()) put("term", normalizedQuery)
+    put("start", start.coerceAtLeast(0).toString())
+    put("count", count.coerceIn(1, 50).toString())
+    put("dynamic_data", "")
+    put("force_infinite", "1")
+    put("infinite", "1")
+    put("l", language)
+    put("category1", "998")
+    when (filter) {
+        SteamStoreBrowseFilter.SPECIALS -> put("specials", "1")
+        SteamStoreBrowseFilter.TOP_SELLERS -> put("filter", "topsellers")
+        SteamStoreBrowseFilter.NEW_RELEASES -> put("sort_by", "Released_DESC")
+        SteamStoreBrowseFilter.COMING_SOON -> put("filter", "comingsoon")
+        SteamStoreBrowseFilter.FREE -> put("maxprice", "free")
+        SteamStoreBrowseFilter.ALL -> Unit
+    }
+    filters.toQueryParameters().forEach { (key, value) ->
+        if (filter != SteamStoreBrowseFilter.FREE || key != "maxprice") {
+            put(key, value)
+        }
     }
 }
 

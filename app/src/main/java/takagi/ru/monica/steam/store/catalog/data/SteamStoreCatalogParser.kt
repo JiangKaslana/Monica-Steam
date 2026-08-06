@@ -50,7 +50,12 @@ internal object SteamStoreCatalogParser {
                 ?.filter(Char::isDigit)?.toIntOrNull() ?: 0,
             windows = row.selectFirst(".platform_img.win") != null,
             mac = row.selectFirst(".platform_img.mac") != null,
-            linux = row.selectFirst(".platform_img.linux") != null
+            linux = row.selectFirst(".platform_img.linux") != null,
+            tagIds = TAG_ID.findAll(row.attr("data-ds-tagids"))
+                .mapNotNull { it.value.toIntOrNull() }
+                .filter { it > 0 }
+                .distinct()
+                .toList()
         )
     }
 
@@ -77,4 +82,5 @@ internal object SteamStoreCatalogParser {
     }
 
     private const val STEAM_STORE_BASE = "https://store.steampowered.com"
+    private val TAG_ID = Regex("\\d+")
 }
