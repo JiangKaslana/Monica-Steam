@@ -51,6 +51,7 @@ fun SteamChatScreen(
     onUnreadCountChange: (Int) -> Unit = {},
     onThreadVisibilityChange: (Boolean) -> Unit = {},
     onOpenStoreApp: (Int) -> Unit = {},
+    onAddSteamAccount: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -398,6 +399,7 @@ fun SteamChatScreen(
         groupChatViewModel = groupChatViewModel,
         voiceRuntime = voiceRuntime,
         runVoiceAction = ::runVoiceAction,
+        onAddSteamAccount = onAddSteamAccount,
         onShowAccountsChange = { showAccounts = it },
         onShowCreateGroupChange = { showCreateGroup = it },
         onShowInviteFriendChange = { showInviteFriend = it },

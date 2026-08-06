@@ -128,6 +128,7 @@ fun SteamLibraryScreen(
     showNavigationBack: Boolean = true,
     onOpenSettings: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
+    onAddSteamAccount: () -> Unit = {},
     modifier: Modifier = Modifier,
     onOpenStoreApp: (Int) -> Unit = {}
 ) {
@@ -312,6 +313,7 @@ fun SteamLibraryScreen(
                 viewModel.selectAccount(accountId)
                 showAccountSheet = false
             },
+            onAddAccount = onAddSteamAccount,
             onRefresh = viewModel::refreshAccountSource,
             onDismiss = { showAccountSheet = false }
         )

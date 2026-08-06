@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Storage
@@ -50,6 +52,7 @@ internal fun SteamAccountSwitcherSheet(
     errorMessage: String?,
     onSelectStorageSource: (SteamStorageSource) -> Unit,
     onSelectAccount: (Long) -> Unit,
+    onAddAccount: () -> Unit,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -149,9 +152,12 @@ internal fun SteamAccountSwitcherSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 520.dp),
-                    contentPadding = PaddingValues(bottom = 32.dp)
+                    contentPadding = PaddingValues(bottom = 8.dp)
                 ) {
-                    items(accounts, key = SteamAccount::id) { account ->
+                    itemsIndexed(
+                        items = accounts,
+                        key = { _, account -> account.id }
+                    ) { index, account ->
                         ListItem(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -192,11 +198,37 @@ internal fun SteamAccountSwitcherSheet(
                             },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                         )
-                        HorizontalDivider(modifier = Modifier.padding(start = 80.dp))
+                        if (index < accounts.lastIndex) {
+                            HorizontalDivider(modifier = Modifier.padding(start = 80.dp))
+                        }
                     }
                 }
             }
         }
+
+        HorizontalDivider()
+        ListItem(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .clickable {
+                    onDismiss()
+                    onAddAccount()
+                },
+            headlineContent = {
+                Text(
+                    text = stringResource(R.string.steam_add_account_title),
+                    fontWeight = FontWeight.Medium
+                )
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Default.PersonAdd,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
     }
 }
-

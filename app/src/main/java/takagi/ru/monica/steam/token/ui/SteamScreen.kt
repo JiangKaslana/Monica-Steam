@@ -375,6 +375,8 @@ fun SteamScreen(
     onOpenCommunity: (String?) -> Unit = {},
     openNotificationsOnEntry: Boolean = false,
     onNotificationsEntryConsumed: () -> Unit = {},
+    openAddAccountOnEntry: Boolean = false,
+    onAddAccountEntryConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
     pendingSteamQrResult: String? = null,
     pendingSteamQrAccountId: Long? = null,
@@ -734,6 +736,13 @@ fun SteamScreen(
         if (uiState.accounts.isNotEmpty()) {
             showAddAccountDialog = false
             addAccountMethod = null
+        }
+    }
+
+    LaunchedEffect(openAddAccountOnEntry) {
+        if (openAddAccountOnEntry) {
+            showAddAccountDialog = true
+            onAddAccountEntryConsumed()
         }
     }
 

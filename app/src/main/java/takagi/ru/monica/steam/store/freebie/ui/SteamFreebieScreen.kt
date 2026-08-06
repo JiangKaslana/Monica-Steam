@@ -73,6 +73,7 @@ internal fun SteamFreebieScreen(
     onBack: () -> Unit,
     onOpenDetail: (Int) -> Unit,
     onOpenOfficial: (String) -> Unit,
+    onAddSteamAccount: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SteamFreebieViewModel = viewModel(
         factory = SteamFreebieViewModel.factory(LocalContext.current)
@@ -231,6 +232,7 @@ internal fun SteamFreebieScreen(
                 viewModel.selectAccount(it)
                 showAccounts = false
             },
+            onAddAccount = onAddSteamAccount,
             onRefresh = viewModel::refreshAccountSource,
             onDismiss = { showAccounts = false }
         )

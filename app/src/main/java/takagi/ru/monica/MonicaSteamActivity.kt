@@ -231,6 +231,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 var pendingCommunitySteamId by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingChatPartnerSteamId by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingSteamNotifications by rememberSaveable { mutableStateOf(false) }
+                var pendingAddSteamAccount by rememberSaveable { mutableStateOf(false) }
                 var isSteamChatThreadOpen by rememberSaveable { mutableStateOf(false) }
                 var backPressedOnce by remember { mutableStateOf(false) }
                 val composeScope = rememberCoroutineScope()
@@ -314,6 +315,11 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                         currentPage = parent
                     }
                     scannerAccountId = null
+                }
+
+                fun openSteamAccountAddition() {
+                    pendingAddSteamAccount = true
+                    navigateTo(MonicaSteamPage.STEAM)
                 }
 
                 CompositionLocalProvider(
@@ -479,6 +485,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     navigateTo(MonicaSteamPage.STORE)
                                 },
                                 onOpenStore = { navigateTo(MonicaSteamPage.STORE) },
+                                onAddSteamAccount = ::openSteamAccountAddition,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -492,6 +499,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     pendingSteamNotifications = true
                                     navigateTo(MonicaSteamPage.STEAM)
                                 },
+                                onAddSteamAccount = ::openSteamAccountAddition,
                                 onOpenStoreApp = { appId ->
                                     pendingStoreAppId = appId
                                     navigateTo(MonicaSteamPage.STORE)
@@ -508,6 +516,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     pendingSteamNotifications = true
                                     navigateTo(MonicaSteamPage.STEAM)
                                 },
+                                onAddSteamAccount = ::openSteamAccountAddition,
                                 initialAppId = pendingStoreAppId,
                                 onInitialAppIdConsumed = { pendingStoreAppId = null },
                                 modifier = Modifier.fillMaxSize()
@@ -528,6 +537,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     pendingStoreAppId = appId
                                     navigateTo(MonicaSteamPage.STORE)
                                 },
+                                onAddSteamAccount = ::openSteamAccountAddition,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -623,6 +633,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     openNotificationsOnEntry = pendingSteamNotifications,
                                     onNotificationsEntryConsumed = {
                                         pendingSteamNotifications = false
+                                    },
+                                    openAddAccountOnEntry = pendingAddSteamAccount,
+                                    onAddAccountEntryConsumed = {
+                                        pendingAddSteamAccount = false
                                     },
                                     onOpenStoreApp = { appId ->
                                         pendingStoreAppId = appId

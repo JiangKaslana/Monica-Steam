@@ -31,6 +31,7 @@ internal fun SteamChatScreenDialogs(
     groupChatViewModel: SteamGroupChatViewModel,
     voiceRuntime: SteamVoiceCallRuntime,
     runVoiceAction: (() -> Unit) -> Unit,
+    onAddSteamAccount: () -> Unit,
     onShowAccountsChange: (Boolean) -> Unit,
     onShowCreateGroupChange: (Boolean) -> Unit,
     onShowInviteFriendChange: (Boolean) -> Unit,
@@ -76,6 +77,7 @@ internal fun SteamChatScreenDialogs(
                 accountSourceRepository.selectAccount(accountId)
                 onShowAccountsChange(false)
             },
+            onAddAccount = onAddSteamAccount,
             onRefresh = accountSourceRepository::refreshCurrentSource,
             onDismiss = { onShowAccountsChange(false) }
         )

@@ -43,6 +43,7 @@ fun SteamCommunityScreen(
     onInitialSteamIdConsumed: () -> Unit = {},
     onOpenStoreApp: (Int) -> Unit = {},
     onOpenStore: () -> Unit = {},
+    onAddSteamAccount: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -94,6 +95,7 @@ fun SteamCommunityScreen(
                 accountSource.selectAccount(accountId)
                 showAccountSheet = false
             },
+            onAddAccount = onAddSteamAccount,
             onRefresh = accountSource::refreshCurrentSource,
             onDismiss = { showAccountSheet = false }
         )

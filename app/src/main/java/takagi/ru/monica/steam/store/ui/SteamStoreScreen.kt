@@ -144,6 +144,7 @@ fun SteamStoreScreen(
     onNavigateBack: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
+    onAddSteamAccount: () -> Unit = {},
     initialAppId: Int? = null,
     onInitialAppIdConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -285,6 +286,7 @@ fun SteamStoreScreen(
                 onBack = { freebiesOpen = false },
                 onOpenDetail = viewModel::openDetail,
                 onOpenOfficial = viewModel::openStoreWeb,
+                onAddSteamAccount = onAddSteamAccount,
                 modifier = Modifier.fillMaxSize()
             )
             is SteamStoreDestination.Detail -> {
@@ -577,6 +579,7 @@ fun SteamStoreScreen(
                 viewModel.selectAccount(it)
                 showAccounts = false
             },
+            onAddAccount = onAddSteamAccount,
             onRefresh = viewModel::refreshAccountSource,
             onDismiss = { showAccounts = false }
         )
