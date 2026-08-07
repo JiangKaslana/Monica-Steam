@@ -2935,7 +2935,7 @@ private fun getColorSchemeDisplayName(colorScheme: takagi.ru.monica.data.ColorSc
     }
 }
 
-private fun getProgressBarStyleDisplayName(style: takagi.ru.monica.data.ProgressBarStyle, context: android.content.Context): String {
+internal fun getProgressBarStyleDisplayName(style: takagi.ru.monica.data.ProgressBarStyle, context: android.content.Context): String {
     return when (style) {
         takagi.ru.monica.data.ProgressBarStyle.LINEAR -> context.getString(R.string.progress_bar_style_linear)
         takagi.ru.monica.data.ProgressBarStyle.WAVE -> context.getString(R.string.progress_bar_style_wave)
@@ -3072,30 +3072,29 @@ fun ProgressBarStyleDialog(
         onDismissRequest = onDismiss,
         title = { Text(context.getString(R.string.validator_progress_bar_style)) },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 takagi.ru.monica.data.ProgressBarStyle.values().forEach { style ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = style == currentStyle,
-                            onClick = { 
-                                android.util.Log.d("ProgressBarStyleDialog", "User selected style: $style")
-                                onStyleSelected(style)
-                            }
+                    ListItem(
+                        headlineContent = {
+                            Text(getProgressBarStyleDisplayName(style, context))
+                        },
+                        leadingContent = {
+                            RadioButton(
+                                selected = style == currentStyle,
+                                onClick = null
+                            )
+                        },
+                        modifier = Modifier.clickable { onStyleSelected(style) },
+                        colors = ListItemDefaults.colors(
+                            containerColor = androidx.compose.ui.graphics.Color.Transparent
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(getProgressBarStyleDisplayName(style, context))
-                    }
+                    )
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(context.getString(R.string.ok))
+                Text(context.getString(R.string.cancel))
             }
         }
     )

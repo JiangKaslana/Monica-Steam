@@ -6,7 +6,9 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -21,6 +23,7 @@ import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.data.AppSettings
 import takagi.ru.monica.data.InterfaceScale
+import takagi.ru.monica.data.ProgressBarStyle
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
@@ -81,6 +84,7 @@ internal fun MonicaSteamSharedSettingsHost(
     var showUiScaleSheet by remember { mutableStateOf(false) }
     var showPlainAvatarShapeSheet by remember { mutableStateOf(false) }
     var showFramedAvatarShapeSheet by remember { mutableStateOf(false) }
+    var showProgressBarStyleDialog by remember { mutableStateOf(false) }
     val dockContentClearance = LocalSteamDockContentClearance.current
 
     SettingsScreen(
@@ -172,6 +176,19 @@ internal fun MonicaSteamSharedSettingsHost(
                     }
                 }
             )
+            SettingsItem(
+                icon = if (settings.validatorProgressBarStyle == ProgressBarStyle.WAVE) {
+                    Icons.Default.Waves
+                } else {
+                    Icons.Default.Straighten
+                },
+                title = context.getString(R.string.validator_progress_bar_style),
+                subtitle = getProgressBarStyleDisplayName(
+                    settings.validatorProgressBarStyle,
+                    context
+                ),
+                onClick = { showProgressBarStyleDialog = true }
+            )
             SettingsItemWithSwitch(
                 icon = Icons.Default.Speed,
                 title = context.getString(R.string.reduce_animations),
@@ -189,6 +206,9 @@ internal fun MonicaSteamSharedSettingsHost(
             context.getString(R.string.steam_avatar_frame_shape_description),
             context.getString(R.string.steam_guard_code_grouping_title),
             context.getString(R.string.steam_guard_code_grouping_description),
+            context.getString(R.string.validator_progress_bar_style),
+            context.getString(R.string.progress_bar_style_linear),
+            context.getString(R.string.progress_bar_style_wave),
             context.getString(R.string.reduce_animations),
             context.getString(R.string.reduce_animations_description),
             "DPI"
@@ -228,6 +248,16 @@ internal fun MonicaSteamSharedSettingsHost(
                 }
             },
             onDismiss = { showFramedAvatarShapeSheet = false }
+        )
+    }
+    if (showProgressBarStyleDialog) {
+        ProgressBarStyleDialog(
+            currentStyle = settings.validatorProgressBarStyle,
+            onStyleSelected = { style ->
+                settingsViewModel.updateValidatorProgressBarStyle(style)
+                showProgressBarStyleDialog = false
+            },
+            onDismiss = { showProgressBarStyleDialog = false }
         )
     }
 }
