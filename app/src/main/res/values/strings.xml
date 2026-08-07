@@ -4523,9 +4523,11 @@
     <string name="interface_scale_current">%1$d%% · %2$d DPI</string>
     <string name="interface_scale_description">Adjust Monica Steam’s interface size without changing the system display or font settings.</string>
     <string name="interface_scale_reset">Reset to default</string>
-    <string name="steam_avatar_shape_title">User avatar shape</string>
+    <string name="steam_avatar_shape_title">Standard avatar shape</string>
     <string name="steam_avatar_shape_current">Current · %1$s</string>
-    <string name="steam_avatar_shape_description">Choose one consistent shape for Steam account, friend, profile, and notification avatars.</string>
+    <string name="steam_avatar_shape_description">Used for token, friend, notification, community, and other avatars without a Steam avatar frame.</string>
+    <string name="steam_avatar_frame_shape_title">Framed avatar shape</string>
+    <string name="steam_avatar_frame_shape_description">Used for library profile cards and other avatars that display a Steam avatar frame.</string>
     <string name="steam_avatar_shape_square">Square</string>
     <string name="steam_avatar_shape_rounded">Rounded square</string>
     <string name="steam_avatar_shape_circle">Circle</string>

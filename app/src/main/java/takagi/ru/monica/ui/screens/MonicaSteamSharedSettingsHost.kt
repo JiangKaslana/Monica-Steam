@@ -66,12 +66,16 @@ internal fun MonicaSteamSharedSettingsHost(
         initial = InterfaceScale.DEFAULT_PERCENT
     )
     val avatarShapePreferences = remember(context) { SteamAvatarShapePreferences(context) }
-    val currentAvatarShape by avatarShapePreferences.shape.collectAsState(
+    val currentPlainAvatarShape by avatarShapePreferences.plainShape.collectAsState(
+        initial = SteamAvatarShapeOption.SQUARE
+    )
+    val currentFramedAvatarShape by avatarShapePreferences.framedShape.collectAsState(
         initial = SteamAvatarShapeOption.SQUARE
     )
     val coroutineScope = rememberCoroutineScope()
     var showUiScaleSheet by remember { mutableStateOf(false) }
-    var showAvatarShapeSheet by remember { mutableStateOf(false) }
+    var showPlainAvatarShapeSheet by remember { mutableStateOf(false) }
+    var showFramedAvatarShapeSheet by remember { mutableStateOf(false) }
     val dockContentClearance = LocalSteamDockContentClearance.current
 
     SettingsScreen(
@@ -128,8 +132,12 @@ internal fun MonicaSteamSharedSettingsHost(
                 onClick = { showUiScaleSheet = true }
             )
             SteamAvatarShapeSettingsItem(
-                currentShape = currentAvatarShape,
-                onClick = { showAvatarShapeSheet = true }
+                currentShape = currentPlainAvatarShape,
+                onClick = { showPlainAvatarShapeSheet = true }
+            )
+            SteamAvatarFrameShapeSettingsItem(
+                currentShape = currentFramedAvatarShape,
+                onClick = { showFramedAvatarShapeSheet = true }
             )
             SettingsItemWithSwitch(
                 icon = Icons.Default.SpaceBar,
@@ -155,6 +163,8 @@ internal fun MonicaSteamSharedSettingsHost(
             context.getString(R.string.interface_scale_description),
             context.getString(R.string.steam_avatar_shape_title),
             context.getString(R.string.steam_avatar_shape_description),
+            context.getString(R.string.steam_avatar_frame_shape_title),
+            context.getString(R.string.steam_avatar_frame_shape_description),
             context.getString(R.string.steam_guard_code_grouping_title),
             context.getString(R.string.steam_guard_code_grouping_description),
             context.getString(R.string.reduce_animations),
@@ -176,15 +186,26 @@ internal fun MonicaSteamSharedSettingsHost(
             onDismiss = { showUiScaleSheet = false }
         )
     }
-    if (showAvatarShapeSheet) {
+    if (showPlainAvatarShapeSheet) {
         SteamAvatarShapeSelectionSheet(
-            currentShape = currentAvatarShape,
+            currentShape = currentPlainAvatarShape,
             onShapeSelected = { shape ->
                 coroutineScope.launch {
-                    avatarShapePreferences.updateShape(shape)
+                    avatarShapePreferences.updatePlainShape(shape)
                 }
             },
-            onDismiss = { showAvatarShapeSheet = false }
+            onDismiss = { showPlainAvatarShapeSheet = false }
+        )
+    }
+    if (showFramedAvatarShapeSheet) {
+        SteamAvatarFrameShapeSelectionSheet(
+            currentShape = currentFramedAvatarShape,
+            onShapeSelected = { shape ->
+                coroutineScope.launch {
+                    avatarShapePreferences.updateFramedShape(shape)
+                }
+            },
+            onDismiss = { showFramedAvatarShapeSheet = false }
         )
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material3.Button
@@ -28,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,9 +42,37 @@ internal fun SteamAvatarShapeSettingsItem(
     currentShape: SteamAvatarShapeOption,
     onClick: () -> Unit
 ) {
-    SettingsItem(
+    AvatarShapeSettingsItem(
         icon = Icons.Default.AccountBox,
-        title = stringResource(R.string.steam_avatar_shape_title),
+        titleResource = R.string.steam_avatar_shape_title,
+        currentShape = currentShape,
+        onClick = onClick
+    )
+}
+
+@Composable
+internal fun SteamAvatarFrameShapeSettingsItem(
+    currentShape: SteamAvatarShapeOption,
+    onClick: () -> Unit
+) {
+    AvatarShapeSettingsItem(
+        icon = Icons.Default.Badge,
+        titleResource = R.string.steam_avatar_frame_shape_title,
+        currentShape = currentShape,
+        onClick = onClick
+    )
+}
+
+@Composable
+private fun AvatarShapeSettingsItem(
+    icon: ImageVector,
+    titleResource: Int,
+    currentShape: SteamAvatarShapeOption,
+    onClick: () -> Unit
+) {
+    SettingsItem(
+        icon = icon,
+        title = stringResource(titleResource),
         subtitle = stringResource(
             R.string.steam_avatar_shape_current,
             stringResource(currentShape.titleResource)
@@ -54,6 +84,40 @@ internal fun SteamAvatarShapeSettingsItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SteamAvatarShapeSelectionSheet(
+    currentShape: SteamAvatarShapeOption,
+    onShapeSelected: (SteamAvatarShapeOption) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AvatarShapeSelectionSheet(
+        titleResource = R.string.steam_avatar_shape_title,
+        descriptionResource = R.string.steam_avatar_shape_description,
+        currentShape = currentShape,
+        onShapeSelected = onShapeSelected,
+        onDismiss = onDismiss
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SteamAvatarFrameShapeSelectionSheet(
+    currentShape: SteamAvatarShapeOption,
+    onShapeSelected: (SteamAvatarShapeOption) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AvatarShapeSelectionSheet(
+        titleResource = R.string.steam_avatar_frame_shape_title,
+        descriptionResource = R.string.steam_avatar_frame_shape_description,
+        currentShape = currentShape,
+        onShapeSelected = onShapeSelected,
+        onDismiss = onDismiss
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AvatarShapeSelectionSheet(
+    titleResource: Int,
+    descriptionResource: Int,
     currentShape: SteamAvatarShapeOption,
     onShapeSelected: (SteamAvatarShapeOption) -> Unit,
     onDismiss: () -> Unit
@@ -72,12 +136,12 @@ internal fun SteamAvatarShapeSelectionSheet(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = stringResource(R.string.steam_avatar_shape_title),
+                        text = stringResource(titleResource),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = stringResource(R.string.steam_avatar_shape_description),
+                        text = stringResource(descriptionResource),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

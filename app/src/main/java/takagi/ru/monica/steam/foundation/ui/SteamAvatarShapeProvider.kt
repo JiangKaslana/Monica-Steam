@@ -16,14 +16,26 @@ import androidx.compose.ui.unit.dp
 internal val LocalSteamAvatarShape = staticCompositionLocalOf<Shape> {
     RectangleShape
 }
+
+/** Shape for avatars that are rendered beneath a Steam avatar-frame overlay. */
+internal val LocalSteamAvatarFrameShape = staticCompositionLocalOf<Shape> {
+    RectangleShape
+}
+
 @Composable
 internal fun ProvideSteamAvatarShape(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val preferences = remember(context) { SteamAvatarShapePreferences(context) }
-    val option by preferences.shape.collectAsState(initial = SteamAvatarShapeOption.SQUARE)
+    val plainOption by preferences.plainShape.collectAsState(
+        initial = SteamAvatarShapeOption.SQUARE
+    )
+    val framedOption by preferences.framedShape.collectAsState(
+        initial = SteamAvatarShapeOption.SQUARE
+    )
 
     CompositionLocalProvider(
-        LocalSteamAvatarShape provides option.steamAvatarShape(),
+        LocalSteamAvatarShape provides plainOption.steamAvatarShape(),
+        LocalSteamAvatarFrameShape provides framedOption.steamAvatarShape(),
         content = content
     )
 }

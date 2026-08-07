@@ -4353,9 +4353,11 @@
     <string name="interface_scale_current">%1$d%% · %2$d DPI</string>
     <string name="interface_scale_description">调整 Monica Steam 内的界面大小，不会修改 Android 系统显示或字体设置。</string>
     <string name="interface_scale_reset">恢复默认</string>
-    <string name="steam_avatar_shape_title">用户头像形状</string>
+    <string name="steam_avatar_shape_title">普通头像形状</string>
     <string name="steam_avatar_shape_current">当前 · %1$s</string>
-    <string name="steam_avatar_shape_description">统一设置 Steam 账号、好友、个人资料与通知中的用户头像形状。</string>
+    <string name="steam_avatar_shape_description">用于令牌、好友、通知、社区等不显示 Steam 头像框的头像。</string>
+    <string name="steam_avatar_frame_shape_title">头像框头像形状</string>
+    <string name="steam_avatar_frame_shape_description">用于游戏库个人卡片等支持显示 Steam 头像框的头像。</string>
     <string name="steam_avatar_shape_square">直角方形</string>
     <string name="steam_avatar_shape_rounded">圆角方形</string>
     <string name="steam_avatar_shape_circle">圆形</string>
