@@ -41,6 +41,7 @@ import takagi.ru.monica.steam.data.SteamMaFileTransferAction
 import takagi.ru.monica.steam.data.SteamMdbxAccountRecord
 import takagi.ru.monica.steam.data.SteamMdbxAccountStore
 import takagi.ru.monica.steam.data.SteamStorageSource
+import takagi.ru.monica.steam.data.hasAuthenticatorCode
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.importer.SteamMaFileBackupCodec
 import takagi.ru.monica.steam.importer.SteamMaFileParser
@@ -2805,7 +2806,10 @@ class SteamViewModel(
             storageSource = storageSource,
             accounts = accounts,
             selectedAccountId = selected?.id,
-            currentCode = selected?.let { SteamTotp.generateAuthCode(it.sharedSecret, nowSeconds) }.orEmpty(),
+            currentCode = selected
+                ?.takeIf { it.hasAuthenticatorCode }
+                ?.let { SteamTotp.generateAuthCode(it.sharedSecret, nowSeconds) }
+                .orEmpty(),
             secondsRemaining = secondsRemaining(nowMillis),
             periodProgress = periodProgress(nowMillis),
             confirmations = if (selectedChanged || clearAccountScopedState) emptyList() else previous.confirmations,
@@ -2834,7 +2838,10 @@ class SteamViewModel(
         val account = selectedAccount()
         val nowSeconds = nowMillis / 1000L
         _uiState.value = _uiState.value.copy(
-            currentCode = account?.let { SteamTotp.generateAuthCode(it.sharedSecret, nowSeconds) }.orEmpty(),
+            currentCode = account
+                ?.takeIf { it.hasAuthenticatorCode }
+                ?.let { SteamTotp.generateAuthCode(it.sharedSecret, nowSeconds) }
+                .orEmpty(),
             secondsRemaining = secondsRemaining(nowMillis),
             periodProgress = periodProgress(nowMillis)
         )

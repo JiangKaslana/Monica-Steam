@@ -29,6 +29,17 @@ class SteamCoreAlgorithmsTest {
     }
 
     @Test
+    fun emptyOrMalformedSecretsDoNotCrashTheApp() {
+        assertEquals("", SteamTotp.generateAuthCode("", 1_700_000_000L))
+        assertEquals("", SteamTotp.generateAuthCode("not-base64", 1_700_000_000L))
+        assertEquals("", SteamTotp.generateConfirmationHash("", 1_700_000_000L, "conf"))
+        assertEquals(
+            "",
+            SteamTotp.generateConfirmationHash("not-base64", 1_700_000_000L, "conf")
+        )
+    }
+
+    @Test
     fun loginApprovalSignatureUsesLittleEndianTuple() {
         val signature = SteamLoginApprovalSigner.signature(
             sharedSecretBase64 = sharedSecret,

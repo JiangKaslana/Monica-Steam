@@ -10,7 +10,7 @@ object SteamTotp {
     private const val CODE_CHARS = "23456789BCDFGHJKMNPQRTVWXY"
 
     fun generateAuthCode(sharedSecretBase64: String, unixTimeSeconds: Long): String {
-        val key = Base64.getDecoder().decode(sharedSecretBase64.trim())
+        val key = decodeSecretOrNull(sharedSecretBase64) ?: return ""
         val counter = unixTimeSeconds / 30L
         val timeBytes = ByteBuffer.allocate(8)
             .order(ByteOrder.BIG_ENDIAN)
@@ -36,7 +36,7 @@ object SteamTotp {
         unixTimeSeconds: Long,
         tag: String
     ): String {
-        val key = Base64.getDecoder().decode(identitySecretBase64.trim())
+        val key = decodeSecretOrNull(identitySecretBase64) ?: return ""
         val tagBytes = tag.take(32).toByteArray(Charsets.UTF_8)
         val timeBytes = ByteBuffer.allocate(8)
             .order(ByteOrder.BIG_ENDIAN)
@@ -47,6 +47,14 @@ object SteamTotp {
     }
 
     fun secondsRemaining(unixTimeSeconds: Long): Int = (30L - (unixTimeSeconds % 30L)).toInt()
+
+    private fun decodeSecretOrNull(encodedSecret: String): ByteArray? {
+        val normalized = encodedSecret.trim()
+        if (normalized.isEmpty()) return null
+        return runCatching { Base64.getDecoder().decode(normalized) }
+            .getOrNull()
+            ?.takeIf { it.isNotEmpty() }
+    }
 
     internal fun hmac(algorithm: String, key: ByteArray, payload: ByteArray): ByteArray {
         val mac = Mac.getInstance(algorithm)
