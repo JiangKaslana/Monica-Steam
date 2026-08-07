@@ -4,14 +4,26 @@ import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.market.SteamInventoryItemStack
 import takagi.ru.monica.steam.market.SteamMarketListing
 import takagi.ru.monica.steam.network.SteamConfirmation
-import takagi.ru.monica.steam.organization.SteamAccountOrganizer
 import takagi.ru.monica.steam.trade.SteamTradeOffer
 
 internal fun filterSteamAccounts(
     accounts: List<SteamAccount>,
     query: String
 ): List<SteamAccount> {
-    return SteamAccountOrganizer.filter(accounts, query)
+    val normalizedQuery = query.trim()
+    if (normalizedQuery.isEmpty()) return accounts
+    return accounts.filter { account ->
+        account.accountName.contains(normalizedQuery, ignoreCase = true) ||
+            account.displayName.contains(normalizedQuery, ignoreCase = true) ||
+            account.steamId.contains(normalizedQuery, ignoreCase = true)
+    }
+}
+
+internal fun sortSteamAccountsForDisplay(accounts: List<SteamAccount>): List<SteamAccount> {
+    return accounts.sortedWith(
+        compareBy<SteamAccount> { it.sortOrder }
+            .thenBy { it.id }
+    )
 }
 
 internal fun filterSteamConfirmations(

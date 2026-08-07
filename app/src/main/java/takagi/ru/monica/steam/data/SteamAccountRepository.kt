@@ -172,27 +172,6 @@ class SteamAccountRepository(
         }
     }
 
-    suspend fun updateOrganization(
-        id: Long,
-        groupName: String?,
-        tags: Iterable<String>,
-        accentArgb: Long?,
-        note: String,
-        pinned: Boolean
-    ) {
-        val existing = dao.getById(id) ?: return
-        dao.update(
-            existing.copy(
-                groupName = groupName?.trim()?.takeIf(String::isNotEmpty)?.let(::encrypt),
-                tagsJson = encrypt(SteamAccountTags.encode(tags)),
-                accentArgb = accentArgb,
-                note = encrypt(note.trim()),
-                pinned = pinned,
-                updatedAt = System.currentTimeMillis()
-            )
-        )
-    }
-
     suspend fun markHealthChecked(id: Long, checkedAt: Long = System.currentTimeMillis()) {
         val existing = dao.getById(id) ?: return
         dao.update(existing.copy(lastHealthCheckAt = checkedAt))

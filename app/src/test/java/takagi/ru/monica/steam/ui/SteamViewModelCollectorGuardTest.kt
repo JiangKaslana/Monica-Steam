@@ -15,12 +15,9 @@ class SteamViewModelCollectorGuardTest {
         val collectorCount = Regex("securityEventRepository.*?observeRecent\\(\\)\\.collect", RegexOption.DOT_MATCHES_ALL)
             .findAll(source)
             .count()
-        val organizationBlock = source
-            .substringAfter("fun updateOrganization(")
-            .substringBefore("fun clearMessage(")
 
         assertEquals(1, collectorCount)
-        assertFalse(organizationBlock.contains("observeRecent().collect"))
+        assertFalse(source.contains("fun updateOrganization("))
         assertTrue(source.substringBefore("fun selectStorageSource(").contains("observeRecent().collect"))
     }
 

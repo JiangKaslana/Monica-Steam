@@ -66,10 +66,7 @@ class SteamStandaloneNavigationGuardTest {
         assertFalse(menu.contains("R.string.steam_store_title"))
         assertFalse(menu.contains("R.string.nav_settings"))
 
-        val codeContent = steamScreen
-            .substringAfter("private fun SteamCodeContent(")
-            .substringBefore("private fun SteamAccountDetailContent(")
-        assertFalse(codeContent.contains("SteamOrganizationFilterBar("))
+        assertFalse(steamScreen.contains("SteamOrganization"))
     }
 
     private fun projectFile(path: String): File {

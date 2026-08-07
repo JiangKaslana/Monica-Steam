@@ -61,15 +61,15 @@ class SteamFoundationSchemaGuardTest {
         assertTrue(dao.contains("LIMIT :maxEvents"))
         assertTrue(dao.contains("observeRecent"))
 
-        val organizationUpdate = accountRepository
-            .substringAfter("suspend fun updateOrganization(")
+        assertFalse(accountRepository.contains("suspend fun updateOrganization("))
+        val backupRestore = accountRepository
+            .substringAfter("suspend fun restoreFromBackup(")
             .substringBefore("suspend fun markHealthChecked(")
-        assertTrue(organizationUpdate.contains("existing.copy("))
-        assertTrue(organizationUpdate.contains("tagsJson = encrypt(SteamAccountTags.encode(tags))"))
-        assertFalse(organizationUpdate.contains("sharedSecret ="))
-        assertFalse(organizationUpdate.contains("identitySecret ="))
-        assertFalse(organizationUpdate.contains("accessToken ="))
-        assertFalse(organizationUpdate.contains("refreshToken ="))
+        assertTrue(backupRestore.contains("groupName = groupName"))
+        assertTrue(backupRestore.contains("tagsJson = encrypt(SteamAccountTags.encode(tags))"))
+        assertTrue(backupRestore.contains("accentArgb = accentArgb"))
+        assertTrue(backupRestore.contains("note = encrypt(note.trim())"))
+        assertTrue(backupRestore.contains("pinned = pinned"))
 
         val healthUpdate = accountRepository
             .substringAfter("suspend fun markHealthChecked(")

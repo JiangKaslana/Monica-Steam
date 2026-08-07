@@ -85,7 +85,6 @@ import takagi.ru.monica.steam.notifications.domain.SteamNotificationsUiState
 import takagi.ru.monica.steam.notifications.domain.markSteamNotificationsRead
 import takagi.ru.monica.steam.store.data.SteamStoreCache
 import takagi.ru.monica.steam.store.data.SteamStoreService
-import takagi.ru.monica.steam.organization.SteamAccountOrganizationRules
 import takagi.ru.monica.steam.scanner.data.readSteamStorageSource
 import takagi.ru.monica.steam.scanner.data.saveSteamStorageSource
 import takagi.ru.monica.steam.token.data.SteamLoginImportService
@@ -418,61 +417,6 @@ class SteamViewModel(
                 }
             }.onSuccess {
                 setMessage(R.string.steam_remark_updated)
-            }.onFailure { error ->
-                setMessage(error.message ?: appContext.getString(R.string.steam_import_failed))
-            }
-        }
-    }
-
-    fun updateOrganization(
-        accountId: Long,
-        groupName: String,
-        tags: Iterable<String>,
-        accentArgb: Long?,
-        note: String,
-        pinned: Boolean
-    ) {
-        viewModelScope.launch {
-            runCatching {
-                val storedAccount = accountById(accountId) ?: return@launch
-                val normalizedGroup = SteamAccountOrganizationRules.normalizeGroup(groupName)
-                val normalizedTags = SteamAccountOrganizationRules.parseTags(tags.joinToString(","))
-                val normalizedNote = note.trim().take(SteamAccountOrganizationRules.MAX_NOTE_LENGTH)
-                when (val source = _uiState.value.storageSource) {
-                    SteamStorageSource.Local -> withContext(Dispatchers.IO) {
-                        repository.updateOrganization(
-                            id = accountId,
-                            groupName = normalizedGroup,
-                            tags = normalizedTags,
-                            accentArgb = accentArgb,
-                            note = normalizedNote,
-                            pinned = pinned
-                        )
-                    }
-                    is SteamStorageSource.Mdbx -> {
-                        val store = mdbxAccountStore
-                            ?: throw IllegalStateException(appContext.getString(R.string.steam_cannot_load_mdbx_accounts))
-                        val record = mdbxAccountRecords.firstOrNull { it.account.id == accountId }
-                            ?: return@launch
-                        withContext(Dispatchers.IO) {
-                            store.upsertAccount(
-                                databaseId = source.databaseId,
-                                entryId = record.entryId,
-                                account = storedAccount.copy(
-                                    groupName = normalizedGroup,
-                                    tags = normalizedTags,
-                                    accentArgb = accentArgb,
-                                    note = normalizedNote,
-                                    pinned = pinned,
-                                    updatedAt = System.currentTimeMillis()
-                                )
-                            )
-                        }
-                        reloadMdbxAccounts(source)
-                    }
-                }
-            }.onSuccess {
-                setMessage(R.string.steam_organization_updated)
             }.onFailure { error ->
                 setMessage(error.message ?: appContext.getString(R.string.steam_import_failed))
             }

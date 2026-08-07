@@ -198,10 +198,6 @@ import takagi.ru.monica.steam.network.SteamPendingLogin
 import takagi.ru.monica.steam.gifts.domain.SteamGiftAction
 import takagi.ru.monica.steam.gifts.domain.SteamPendingGift
 import takagi.ru.monica.steam.notifications.ui.SteamNotificationsScreen
-import takagi.ru.monica.steam.organization.SteamAccountOrganizationFilter
-import takagi.ru.monica.steam.organization.SteamAccountOrganizer
-import takagi.ru.monica.steam.organization.ui.SteamOrganizationEditorDialog
-import takagi.ru.monica.steam.organization.ui.SteamOrganizationSummary
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarImage
 import takagi.ru.monica.steam.friends.ui.SteamFriendsScreen
 import takagi.ru.monica.steam.friends.chat.ui.SteamChatScreen
@@ -493,10 +489,6 @@ fun SteamScreen(
     var deleteRequest by remember { mutableStateOf<SteamDeleteAccountsRequest?>(null) }
     var transferRequest by remember { mutableStateOf<SteamTransferAccountsRequest?>(null) }
     var editRemarkAccount by remember { mutableStateOf<SteamAccount?>(null) }
-    var organizationEditAccount by remember { mutableStateOf<SteamAccount?>(null) }
-    var organizationGroupFilter by rememberSaveable { mutableStateOf<String?>(null) }
-    var organizationTagFilter by rememberSaveable { mutableStateOf<String?>(null) }
-    var organizationPinnedOnly by rememberSaveable { mutableStateOf(false) }
     var removeAuthenticatorRequest by remember { mutableStateOf<SteamAccount?>(null) }
     var removeAuthenticatorVerifyAccount by remember { mutableStateOf<SteamAccount?>(null) }
     var removeAuthenticatorVerifyMode by remember { mutableStateOf(SteamAuthenticatorRemovalMode.REMOTE) }
@@ -520,20 +512,11 @@ fun SteamScreen(
     val pendingNotificationCount = notificationSnapshot?.unreadCount ?: 0
     val chatUnreadCount = chatUiState.unreadCount
     val pendingTopActionCount = pendingConfirmationCount + pendingNotificationCount
-    val organizationFilter = SteamAccountOrganizationFilter(
-        groupName = organizationGroupFilter,
-        tag = organizationTagFilter,
-        pinnedOnly = organizationPinnedOnly
-    )
     val filteredSteamAccounts = remember(
         tokenAccounts,
-        steamSearchQuery,
-        organizationGroupFilter,
-        organizationTagFilter,
-        organizationPinnedOnly
+        steamSearchQuery
     ) {
-        val queryFilteredAccounts = filterSteamAccounts(tokenAccounts, steamSearchQuery)
-        SteamAccountOrganizer.filter(queryFilteredAccounts, "", organizationFilter)
+        filterSteamAccounts(tokenAccounts, steamSearchQuery)
     }
     val filteredSteamConfirmations = remember(uiState.confirmations, steamSearchQuery) {
         filterSteamConfirmations(uiState.confirmations, steamSearchQuery)
@@ -1147,24 +1130,6 @@ fun SteamScreen(
             onSave = { remark ->
                 viewModel.updateDisplayName(account.id, remark)
                 editRemarkAccount = null
-            }
-        )
-    }
-
-    organizationEditAccount?.let { account ->
-        SteamOrganizationEditorDialog(
-            account = uiState.accounts.firstOrNull { it.id == account.id } ?: account,
-            onDismissRequest = { organizationEditAccount = null },
-            onSave = { groupName, tags, accentArgb, note, pinned ->
-                viewModel.updateOrganization(
-                    accountId = account.id,
-                    groupName = groupName,
-                    tags = tags,
-                    accentArgb = accentArgb,
-                    note = note,
-                    pinned = pinned
-                )
-                organizationEditAccount = null
             }
         )
     }
@@ -1947,7 +1912,6 @@ fun SteamScreen(
                             pendingScannedQr = scannedQrPayload,
                             onScannedQrHandled = { scannedQrPayload = null },
                             onEditRemark = { editRemarkAccount = animatedDetailAccount },
-                            onEditOrganization = { organizationEditAccount = animatedDetailAccount },
                             onCompleteSteamIdLogin = { steamIdCompletionAccountId = animatedDetailAccount.id },
                             onRefreshLogins = { viewModel.refreshPendingLogins() },
                             onRefreshAuthorizedDevices = { viewModel.refreshAuthorizedDevices(animatedDetailAccount.id) },
@@ -2015,13 +1979,6 @@ fun SteamScreen(
                         when (selectedSection) {
                             SteamSection.CODE -> SteamCodeContent(
                                 accounts = filteredSteamAccounts,
-                                organizationAccounts = tokenAccounts,
-                                organizationFilter = organizationFilter,
-                                onOrganizationFilterChange = { filter ->
-                                    organizationGroupFilter = filter.groupName
-                                    organizationTagFilter = filter.tag
-                                    organizationPinnedOnly = filter.pinnedOnly
-                                },
                                 selectedAccountIds = selectedTokenAccountIds,
                                 appSettings = appSettings,
                                 isSearchActive = isSteamSearchExpanded || steamSearchQuery.isNotBlank(),
@@ -2757,9 +2714,6 @@ private fun SteamTransferTargetRow(
 @Composable
 private fun SteamCodeContent(
     accounts: List<SteamAccount>,
-    organizationAccounts: List<SteamAccount>,
-    organizationFilter: SteamAccountOrganizationFilter,
-    onOrganizationFilterChange: (SteamAccountOrganizationFilter) -> Unit,
     selectedAccountIds: List<Long>,
     appSettings: AppSettings,
     isSearchActive: Boolean,
@@ -2781,7 +2735,7 @@ private fun SteamCodeContent(
     val sharedProgressTimeMillis = rememberTotpTickerMillis(appSettings.validatorSmoothProgress)
     val sharedTickSeconds = sharedProgressTimeMillis / 1000L
     val lazyListState = rememberSaveableLazyListState()
-    val orderedAccounts = remember(accounts) { SteamAccountOrganizer.sortForDisplay(accounts) }
+    val orderedAccounts = remember(accounts) { sortSteamAccountsForDisplay(accounts) }
     var localAccounts by remember { mutableStateOf(accounts) }
     val reorderEnabled = selectionMode && !isSearchActive
 
@@ -2796,7 +2750,7 @@ private fun SteamCodeContent(
         if (reorderEnabled) {
             val fromAccount = localAccounts.getOrNull(from.index)
             val toAccount = localAccounts.getOrNull(to.index)
-            if (fromAccount != null && toAccount != null && fromAccount.pinned == toAccount.pinned) {
+            if (fromAccount != null && toAccount != null) {
                 localAccounts = localAccounts.toMutableList().apply {
                     add(to.index, removeAt(from.index))
                 }
@@ -2967,7 +2921,6 @@ private fun SteamCodeContent(
                                         null
                                     }
                                 )
-                                SteamOrganizationSummary(account)
                             }
                         }
                         }
@@ -3017,7 +2970,6 @@ private fun SteamAccountDetailContent(
     pendingScannedQr: String?,
     onScannedQrHandled: () -> Unit,
     onEditRemark: () -> Unit,
-    onEditOrganization: () -> Unit,
     onCompleteSteamIdLogin: () -> Unit,
     onRefreshLogins: () -> Unit,
     onRefreshAuthorizedDevices: () -> Unit,
@@ -3109,8 +3061,7 @@ private fun SteamAccountDetailContent(
                     account = account,
                     context = context,
                     clipboard = clipboard,
-                    onEditRemark = onEditRemark,
-                    onEditOrganization = onEditOrganization
+                    onEditRemark = onEditRemark
                 )
             }
             item {
@@ -3187,8 +3138,7 @@ private fun SteamAccountCredentialCard(
     account: SteamAccount,
     context: Context,
     clipboard: ClipboardManager,
-    onEditRemark: () -> Unit,
-    onEditOrganization: () -> Unit
+    onEditRemark: () -> Unit
 ) {
     var revocationCodeVisible by rememberSaveable(account.id) { mutableStateOf(false) }
 
@@ -3210,26 +3160,10 @@ private fun SteamAccountCredentialCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SteamRemarkInfoRow(
-                    account = account,
-                    onEditRemark = onEditRemark,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(
-                    onClick = onEditOrganization,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = stringResource(R.string.steam_organization_edit_title)
-                    )
-                }
-            }
+            SteamRemarkInfoRow(
+                account = account,
+                onEditRemark = onEditRemark
+            )
             SteamDetailInfoRow(
                 label = stringResource(R.string.steam_account_label),
                 value = account.accountName.ifBlank { account.visibleSteamId }.ifBlank { "Steam" },

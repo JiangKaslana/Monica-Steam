@@ -105,7 +105,6 @@ class SteamModuleArchitectureGuardTest {
             "foundation/ui/SteamAvatarImage.kt",
             "profile/ui/SteamMiniProfileBackgroundLayer.kt",
             "profile/ui/SteamMiniProfileCrop.kt",
-            "organization/ui/SteamOrganizationComponents.kt",
             "scanner/data/SteamQrAccountPreference.kt",
             "scanner/ui/SteamQrScannerScreen.kt"
         )

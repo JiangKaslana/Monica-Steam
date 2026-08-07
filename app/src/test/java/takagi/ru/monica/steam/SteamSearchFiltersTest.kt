@@ -12,6 +12,7 @@ import takagi.ru.monica.steam.token.domain.filterSteamConfirmations
 import takagi.ru.monica.steam.token.domain.filterSteamInventoryStacks
 import takagi.ru.monica.steam.token.domain.filterSteamMarketListings
 import takagi.ru.monica.steam.token.domain.filterSteamTradeOffers
+import takagi.ru.monica.steam.token.domain.sortSteamAccountsForDisplay
 import takagi.ru.monica.steam.token.domain.steamCommunityLanguage
 import takagi.ru.monica.steam.trade.SteamTradeOffer
 import takagi.ru.monica.steam.trade.SteamTradeOfferDirection
@@ -72,6 +73,20 @@ class SteamSearchFiltersTest {
     @Test
     fun blankQueryReturnsOriginalLists() {
         assertEquals(listOf(account), filterSteamAccounts(listOf(account), "  "))
+    }
+
+    @Test
+    fun accountOrderingUsesManualOrderAndIgnoresLegacyPinnedMetadata() {
+        val accounts = listOf(
+            account.copy(id = 3L, sortOrder = 2, pinned = true),
+            account.copy(id = 2L, sortOrder = 0, pinned = false),
+            account.copy(id = 1L, sortOrder = 0, pinned = true)
+        )
+
+        assertEquals(
+            listOf(1L, 2L, 3L),
+            sortSteamAccountsForDisplay(accounts).map(SteamAccount::id)
+        )
     }
 
     @Test
