@@ -55,6 +55,8 @@ import takagi.ru.monica.steam.organization.SteamAccountOrganizationFilter
 import takagi.ru.monica.steam.organization.SteamAccountOrganizationRules
 import takagi.ru.monica.steam.organization.SteamAccountOrganizer
 
+private fun steamAccentColor(argb: Long): Color = Color(argb.toInt())
+
 @Composable
 internal fun SteamOrganizationFilterBar(
     accounts: List<SteamAccount>,
@@ -150,7 +152,7 @@ internal fun SteamOrganizationSummary(
         Row(verticalAlignment = Alignment.CenterVertically) {
             account.accentArgb?.let { accent ->
                 Spacer(
-                    Modifier.size(12.dp).clip(CircleShape).background(Color(accent.toULong()))
+                    Modifier.size(12.dp).clip(CircleShape).background(steamAccentColor(accent))
                 )
                 Spacer(Modifier.width(8.dp))
             }
@@ -268,7 +270,7 @@ internal fun SteamOrganizationEditorDialog(
                         )
                         SteamAccountAccentPalette.options.forEach { option ->
                             AccentButton(
-                                color = Color(option.argb.toULong()),
+                                color = steamAccentColor(option.argb),
                                 selected = accentArgb == option.argb,
                                 contentDescription = stringResource(R.string.steam_organization_color_choice, option.key),
                                 onClick = { accentArgb = option.argb }

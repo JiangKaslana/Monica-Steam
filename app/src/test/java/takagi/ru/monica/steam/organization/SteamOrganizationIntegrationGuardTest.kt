@@ -47,6 +47,19 @@ class SteamOrganizationIntegrationGuardTest {
         assertTrue(update.contains("store.upsertAccount("))
     }
 
+    @Test
+    fun organizationColorsUseArgbConversionInsteadOfComposePackedColorBits() {
+        val components = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/organization/ui/" +
+                "SteamOrganizationComponents.kt"
+        ).readText()
+
+        assertTrue(components.contains("private fun steamAccentColor(argb: Long): Color"))
+        assertTrue(components.contains("Color(argb.toInt())"))
+        assertFalse(components.contains("Color(option.argb.toULong())"))
+        assertFalse(components.contains("Color(accent.toULong())"))
+    }
+
     private fun projectFile(path: String): File {
         var dir = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (
