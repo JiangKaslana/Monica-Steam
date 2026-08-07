@@ -4362,6 +4362,12 @@
     <string name="steam_avatar_shape_rounded">圆角方形</string>
     <string name="steam_avatar_shape_circle">圆形</string>
     <string name="steam_avatar_shape_reset">使用直角方形</string>
+    <string name="settings_data_management_entry_title">数据与存储</string>
+    <string name="settings_data_management_entry_description">管理 maFile 导入导出、WebDAV 备份和 MDBX 数据库。</string>
+    <string name="settings_appearance_entry_title">外观与界面</string>
+    <string name="settings_appearance_entry_description">管理主题、配色、界面缩放、Dock、动画与头像显示。</string>
+    <string name="steam_settings_features_title">Steam 功能</string>
+    <string name="steam_settings_features_description">管理通知、商店提示和连接优化。</string>
     <string name="steam_store_title">商店</string>
     <string name="steam_store_hint_settings_section">商店体验</string>
     <string name="steam_store_hint_settings_title">商店与游戏提示</string>

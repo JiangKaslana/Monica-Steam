@@ -3,6 +3,7 @@ package takagi.ru.monica.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -51,6 +52,9 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 private enum class SteamSettingsChild {
+    DATA_MANAGEMENT,
+    APPEARANCE,
+    STEAM_FEATURES,
     DOCK,
     COLORS,
     CUSTOM_COLORS,
@@ -65,6 +69,30 @@ private enum class SteamSettingsChild {
     NOTIFICATIONS,
     NETWORK_OPTIMIZATION,
     STORE_HINTS
+}
+
+private fun SteamSettingsChild.parent(): SteamSettingsChild? = when (this) {
+    SteamSettingsChild.DATA_MANAGEMENT,
+    SteamSettingsChild.APPEARANCE,
+    SteamSettingsChild.STEAM_FEATURES,
+    SteamSettingsChild.MASTER_PASSWORD_SETUP,
+    SteamSettingsChild.MASTER_PASSWORD_LOCKING,
+    SteamSettingsChild.PLUS,
+    SteamSettingsChild.DEVELOPER -> null
+
+    SteamSettingsChild.DOCK,
+    SteamSettingsChild.COLORS,
+    SteamSettingsChild.EXTENSIONS -> SteamSettingsChild.APPEARANCE
+
+    SteamSettingsChild.CUSTOM_COLORS -> SteamSettingsChild.COLORS
+    SteamSettingsChild.NOTIFICATIONS,
+    SteamSettingsChild.NETWORK_OPTIMIZATION,
+    SteamSettingsChild.STORE_HINTS -> SteamSettingsChild.STEAM_FEATURES
+
+    SteamSettingsChild.RESET_PASSWORD,
+    SteamSettingsChild.SECURITY_QUESTIONS -> SteamSettingsChild.MASTER_PASSWORD_LOCKING
+
+    SteamSettingsChild.PAYMENT -> SteamSettingsChild.PLUS
 }
 
 @Composable
@@ -89,17 +117,58 @@ fun MonicaSteamSettingsScreen(
 ) {
     var child by remember { mutableStateOf<SteamSettingsChild?>(null) }
     val settingsScrollState = rememberScrollState()
+    val dataManagementScrollState = rememberScrollState()
+    val appearanceScrollState = rememberScrollState()
+    val steamFeaturesScrollState = rememberScrollState()
     val context = LocalContext.current
 
     BackHandler(enabled = child != null) {
-        child = when (child) {
-            SteamSettingsChild.CUSTOM_COLORS -> SteamSettingsChild.COLORS
-            SteamSettingsChild.PAYMENT -> SteamSettingsChild.PLUS
-            SteamSettingsChild.RESET_PASSWORD,
-            SteamSettingsChild.SECURITY_QUESTIONS -> SteamSettingsChild.MASTER_PASSWORD_LOCKING
-            else -> null
-        }
+        child = child?.parent()
     }
+
+    @Composable
+    fun SharedSettingsSurface(
+        mode: SettingsScreenMode,
+        title: String?,
+        scrollState: ScrollState,
+        showBack: Boolean,
+        onBack: () -> Unit
+    ) {
+        MonicaSteamSharedSettingsHost(
+            settings = settings,
+            settingsManager = settingsManager,
+            settingsViewModel = settingsViewModel,
+            scrollState = scrollState,
+            screenMode = mode,
+            screenTitle = title,
+            onNavigateBack = onBack,
+            onOpenMaFileTransfer = onOpenMaFileTransfer,
+            onOpenWebDavBackup = onOpenWebDavBackup,
+            onOpenMdbx = onOpenMdbx,
+            onOpenDock = { child = SteamSettingsChild.DOCK },
+            onOpenColors = { child = SteamSettingsChild.COLORS },
+            onOpenMasterPasswordLocking = {
+                child = if (securityManager.isMasterPasswordSet()) {
+                    SteamSettingsChild.MASTER_PASSWORD_LOCKING
+                } else {
+                    SteamSettingsChild.MASTER_PASSWORD_SETUP
+                }
+            },
+            onOpenPlus = { child = SteamSettingsChild.PLUS },
+            onOpenDeveloper = { child = SteamSettingsChild.DEVELOPER },
+            onOpenExtensions = { child = SteamSettingsChild.EXTENSIONS },
+            onOpenNotifications = { child = SteamSettingsChild.NOTIFICATIONS },
+            onOpenNetworkOptimization = { child = SteamSettingsChild.NETWORK_OPTIMIZATION },
+            onOpenStoreHints = { child = SteamSettingsChild.STORE_HINTS },
+            onOpenDataManagement = { child = SteamSettingsChild.DATA_MANAGEMENT },
+            onOpenAppearance = { child = SteamSettingsChild.APPEARANCE },
+            onOpenSteamFeatures = { child = SteamSettingsChild.STEAM_FEATURES },
+            showNavigationBack = showBack,
+            modifier = Modifier.fillMaxSize(),
+            context = context
+        )
+    }
+
     AnimatedContent(
         targetState = child,
         modifier = modifier,
@@ -110,36 +179,36 @@ fun MonicaSteamSettingsScreen(
         label = "MonicaSteamSettingsNavigation"
     ) { animatedChild ->
         if (animatedChild == null) {
-            MonicaSteamSharedSettingsHost(
-                settings = settings,
-                settingsManager = settingsManager,
-                settingsViewModel = settingsViewModel,
+            SharedSettingsSurface(
+                mode = SettingsScreenMode.COMPACT_HOME,
+                title = null,
                 scrollState = settingsScrollState,
-                onNavigateBack = onNavigateBack,
-                onOpenMaFileTransfer = onOpenMaFileTransfer,
-                onOpenWebDavBackup = onOpenWebDavBackup,
-                onOpenMdbx = onOpenMdbx,
-                onOpenDock = { child = SteamSettingsChild.DOCK },
-                onOpenColors = { child = SteamSettingsChild.COLORS },
-                onOpenMasterPasswordLocking = {
-                    child = if (securityManager.isMasterPasswordSet()) {
-                        SteamSettingsChild.MASTER_PASSWORD_LOCKING
-                    } else {
-                        SteamSettingsChild.MASTER_PASSWORD_SETUP
-                    }
-                },
-                onOpenPlus = { child = SteamSettingsChild.PLUS },
-                onOpenDeveloper = { child = SteamSettingsChild.DEVELOPER },
-                onOpenExtensions = { child = SteamSettingsChild.EXTENSIONS },
-                onOpenNotifications = { child = SteamSettingsChild.NOTIFICATIONS },
-                onOpenNetworkOptimization = { child = SteamSettingsChild.NETWORK_OPTIMIZATION },
-                onOpenStoreHints = { child = SteamSettingsChild.STORE_HINTS },
-                showNavigationBack = showNavigationBack,
-                modifier = Modifier.fillMaxSize(),
-                context = context
+                showBack = showNavigationBack,
+                onBack = onNavigateBack
             )
         } else {
             when (animatedChild) {
+                SteamSettingsChild.DATA_MANAGEMENT -> SharedSettingsSurface(
+                    mode = SettingsScreenMode.DATA_MANAGEMENT,
+                    title = context.getString(R.string.settings_data_management_entry_title),
+                    scrollState = dataManagementScrollState,
+                    showBack = true,
+                    onBack = { child = null }
+                )
+                SteamSettingsChild.APPEARANCE -> SharedSettingsSurface(
+                    mode = SettingsScreenMode.APPEARANCE,
+                    title = context.getString(R.string.settings_appearance_entry_title),
+                    scrollState = appearanceScrollState,
+                    showBack = true,
+                    onBack = { child = null }
+                )
+                SteamSettingsChild.STEAM_FEATURES -> SharedSettingsSurface(
+                    mode = SettingsScreenMode.ADDITIONAL,
+                    title = context.getString(R.string.steam_settings_features_title),
+                    scrollState = steamFeaturesScrollState,
+                    showBack = true,
+                    onBack = { child = null }
+                )
                 SteamSettingsChild.DOCK -> SteamDockOrderScreen(
                     order = dockOrder,
                     onOrderChange = onDockOrderChange,
@@ -147,12 +216,12 @@ fun MonicaSteamSettingsScreen(
                     onStyleChange = onDockStyleChange,
                     liquidGlassOrder = liquidGlassDockOrder,
                     onLiquidGlassOrderChange = onLiquidGlassDockOrderChange,
-                    onNavigateBack = { child = null },
+                    onNavigateBack = { child = SteamSettingsChild.APPEARANCE },
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.COLORS -> ColorSchemeSelectionScreen(
                     settingsViewModel = settingsViewModel,
-                    onNavigateBack = { child = null },
+                    onNavigateBack = { child = SteamSettingsChild.APPEARANCE },
                     onNavigateToCustomColors = { child = SteamSettingsChild.CUSTOM_COLORS },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -243,7 +312,7 @@ fun MonicaSteamSettingsScreen(
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.EXTENSIONS -> ExtensionsScreen(
-                    onNavigateBack = { child = null },
+                    onNavigateBack = { child = SteamSettingsChild.APPEARANCE },
                     onNavigateToMonicaPlus = { child = SteamSettingsChild.PLUS },
                     isPlusActivated = settings.isPlusActivated,
                     clipboardAutoClearSeconds = settings.clipboardAutoClearSeconds,
@@ -260,15 +329,15 @@ fun MonicaSteamSettingsScreen(
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.NOTIFICATIONS -> SteamNotificationSettingsScreen(
-                    onNavigateBack = { child = null },
+                    onNavigateBack = { child = SteamSettingsChild.STEAM_FEATURES },
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.NETWORK_OPTIMIZATION -> SteamNetworkOptimizationSettingsScreen(
-                    onNavigateBack = { child = null },
+                    onNavigateBack = { child = SteamSettingsChild.STEAM_FEATURES },
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.STORE_HINTS -> SteamStoreHintSettingsScreen(
-                    onNavigateBack = { child = null },
+                    onNavigateBack = { child = SteamSettingsChild.STEAM_FEATURES },
                     modifier = Modifier.fillMaxSize()
                 )
             }

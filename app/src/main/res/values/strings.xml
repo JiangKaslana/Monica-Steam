@@ -4532,6 +4532,12 @@
     <string name="steam_avatar_shape_rounded">Rounded square</string>
     <string name="steam_avatar_shape_circle">Circle</string>
     <string name="steam_avatar_shape_reset">Use square</string>
+    <string name="settings_data_management_entry_title">Data &amp; storage</string>
+    <string name="settings_data_management_entry_description">Manage maFile transfer, WebDAV backup, and MDBX databases.</string>
+    <string name="settings_appearance_entry_title">Appearance &amp; interface</string>
+    <string name="settings_appearance_entry_description">Theme, colors, interface scale, dock, animation, and avatar display.</string>
+    <string name="steam_settings_features_title">Steam features</string>
+    <string name="steam_settings_features_description">Notifications, store hints, and connection optimization.</string>
     <string name="steam_store_title">Store</string>
     <string name="steam_store_hint_settings_section">Store experience</string>
     <string name="steam_store_hint_settings_title">Store and game hints</string>

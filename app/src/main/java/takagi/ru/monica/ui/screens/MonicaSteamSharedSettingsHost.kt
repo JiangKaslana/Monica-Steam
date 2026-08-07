@@ -44,6 +44,8 @@ internal fun MonicaSteamSharedSettingsHost(
     settingsManager: SettingsManager,
     settingsViewModel: SettingsViewModel,
     scrollState: ScrollState,
+    screenMode: SettingsScreenMode,
+    screenTitle: String?,
     onNavigateBack: () -> Unit,
     onOpenMaFileTransfer: () -> Unit,
     onOpenWebDavBackup: () -> Unit,
@@ -57,6 +59,9 @@ internal fun MonicaSteamSharedSettingsHost(
     onOpenNotifications: () -> Unit,
     onOpenNetworkOptimization: () -> Unit,
     onOpenStoreHints: () -> Unit,
+    onOpenDataManagement: () -> Unit,
+    onOpenAppearance: () -> Unit,
+    onOpenSteamFeatures: () -> Unit,
     showNavigationBack: Boolean,
     modifier: Modifier,
     context: Context
@@ -120,6 +125,23 @@ internal fun MonicaSteamSharedSettingsHost(
             showUpdateCheck = false,
             showPreviewFeatures = false,
             showDeveloperSettings = true
+        ),
+        screenMode = screenMode,
+        screenTitle = screenTitle,
+        onNavigateToDataManagement = onOpenDataManagement,
+        onNavigateToAppearance = onOpenAppearance,
+        additionalSettingsEntryTitle = context.getString(R.string.steam_settings_features_title),
+        additionalSettingsEntryDescription = context.getString(
+            R.string.steam_settings_features_description
+        ),
+        onNavigateToAdditionalSettings = onOpenSteamFeatures,
+        additionalSettingsEntrySearchTexts = listOf(
+            context.getString(R.string.steam_store_hint_settings_title),
+            context.getString(R.string.steam_store_hint_settings_description),
+            context.getString(R.string.steam_notification_settings_title),
+            context.getString(R.string.steam_notification_settings_description),
+            context.getString(R.string.steam_network_optimization_title),
+            context.getString(R.string.steam_network_optimization_description)
         ),
         additionalSettingsContent = {
             SteamStoreHintSettingsEntry(onClick = onOpenStoreHints)

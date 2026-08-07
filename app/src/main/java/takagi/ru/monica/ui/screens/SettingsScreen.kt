@@ -134,6 +134,14 @@ fun SettingsScreen(
     webDavBackupDescription: String? = null,
     onNavigateToWebDavBackup: (() -> Unit)? = null,
     surfacePolicy: SettingsSurfacePolicy = SettingsSurfacePolicy(),
+    screenMode: SettingsScreenMode = SettingsScreenMode.FULL,
+    screenTitle: String? = null,
+    onNavigateToDataManagement: () -> Unit = {},
+    onNavigateToAppearance: () -> Unit = {},
+    additionalSettingsEntryTitle: String? = null,
+    additionalSettingsEntryDescription: String? = null,
+    onNavigateToAdditionalSettings: (() -> Unit)? = null,
+    additionalSettingsEntrySearchTexts: List<String> = emptyList(),
     additionalSettingsContent: (@Composable () -> Unit)? = null,
     additionalAppearanceContent: (@Composable () -> Unit)? = null,
     additionalAppearanceSearchTexts: List<String> = emptyList(),
@@ -142,6 +150,15 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isHomeMode = screenMode == SettingsScreenMode.FULL ||
+        screenMode == SettingsScreenMode.COMPACT_HOME
+    val isCompactHomeMode = screenMode == SettingsScreenMode.COMPACT_HOME
+    val isDataManagementMode = screenMode == SettingsScreenMode.DATA_MANAGEMENT
+    val isAppearanceMode = screenMode == SettingsScreenMode.APPEARANCE
+    val isAdditionalMode = screenMode == SettingsScreenMode.ADDITIONAL
+    val showDataManagementDetails = screenMode == SettingsScreenMode.FULL || isDataManagementMode
+    val showAppearanceDetails = screenMode == SettingsScreenMode.FULL || isAppearanceMode
+    val showAdditionalDetails = screenMode == SettingsScreenMode.FULL || isAdditionalMode
     val openExternalLink: (String) -> Unit = { url ->
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -600,19 +617,21 @@ fun SettingsScreen(
         *extraSearchTexts
     )
 
-    val showMonicaPlusCard = (surfacePolicy.forceMonicaPlusActivated || !settings.isPlusActivated) && matchesSettingsSearch(
+    val showMonicaPlusCard = isHomeMode &&
+        (surfacePolicy.forceMonicaPlusActivated || !settings.isPlusActivated) && matchesSettingsSearch(
         settingsSearchQuery,
         context.getString(R.string.monica_plus_title),
         context.getString(R.string.monica_plus_card_desc)
     )
-    val showSecurityAnalysisCard = surfacePolicy.showSecurityAnalysis && matchesSettingsSearch(
+    val showSecurityAnalysisCard = isHomeMode && surfacePolicy.showSecurityAnalysis && matchesSettingsSearch(
         settingsSearchQuery,
         securityTitle,
         context.getString(R.string.security_analysis),
         context.getString(R.string.security_analysis_description)
     )
 
-    val showMasterPasswordLockingItem = surfacePolicy.showMasterPasswordLocking && matchesSettingsItem(
+    val showMasterPasswordLockingItem = isHomeMode &&
+        surfacePolicy.showMasterPasswordLocking && matchesSettingsItem(
         securityTitle,
         masterPasswordLockingTitle,
         masterPasswordLockingDescription,
@@ -627,12 +646,14 @@ fun SettingsScreen(
         context.getString(R.string.reset_master_password),
         context.getString(R.string.reset_password_description)
     )
-    val showScreenshotProtectionItem = surfacePolicy.showScreenshotProtection && matchesSettingsItem(
+    val showScreenshotProtectionItem = isHomeMode &&
+        surfacePolicy.showScreenshotProtection && matchesSettingsItem(
         securityTitle,
         context.getString(R.string.screenshot_protection),
         screenshotProtectionSubtitle
     )
-    val showPermissionManagementItem = surfacePolicy.showPermissionManagement && matchesSettingsItem(
+    val showPermissionManagementItem = isHomeMode &&
+        surfacePolicy.showPermissionManagement && matchesSettingsItem(
         securityTitle,
         context.getString(R.string.permission_management_title),
         context.getString(R.string.permission_management_subtitle)
@@ -691,7 +712,7 @@ fun SettingsScreen(
         context.getString(R.string.mdbx_format_title),
         context.getString(R.string.mdbx_format_description)
     )
-    val showDataManagementSection = listOf(
+    val hasDataManagementItems = listOf(
         showSyncBackupItem,
         showAutofillItem,
         showSteamBackupItem,
@@ -701,6 +722,28 @@ fun SettingsScreen(
         showClearDataItem,
         showSupportLogItem
     ).any { it }
+    val showDataManagementSection = showDataManagementDetails && hasDataManagementItems
+    val dataManagementEntryMatches = matchesSettingsItem(
+        dataManagementTitle,
+        context.getString(R.string.settings_data_management_entry_title),
+        context.getString(R.string.settings_data_management_entry_description),
+        *syncBackupSubSettingsSearchTexts,
+        *autofillSubSettingsSearchTexts
+    )
+    val showDataManagementEntry = isCompactHomeMode &&
+        (hasDataManagementItems || dataManagementEntryMatches)
+
+    val additionalSettingsSectionTitle = additionalSettingsEntryTitle.orEmpty()
+    val additionalSettingsEntryMatches = additionalSettingsEntryTitle != null &&
+        additionalSettingsEntryDescription != null &&
+        onNavigateToAdditionalSettings != null &&
+        matchesSettingsItem(
+            additionalSettingsSectionTitle,
+            additionalSettingsEntryTitle,
+            additionalSettingsEntryDescription,
+            *additionalSettingsEntrySearchTexts.toTypedArray()
+        )
+    val showAdditionalSettingsEntry = isCompactHomeMode && additionalSettingsEntryMatches
 
     val showThemeItem = matchesSettingsItem(
         appearanceTitle,
@@ -749,7 +792,7 @@ fun SettingsScreen(
             additionalAppearanceSubtitle,
             *additionalAppearanceAliases
         )
-    val showAppearanceSection = listOf(
+    val hasAppearanceItems = listOf(
         showThemeItem,
         showColorSchemeItem,
         showLanguageItem,
@@ -758,24 +801,40 @@ fun SettingsScreen(
         showPageCustomizationItem,
         showAdditionalAppearanceContent
     ).any { it }
+    val showAppearanceSection = showAppearanceDetails && hasAppearanceItems
+    val appearanceEntryMatches = matchesSettingsItem(
+        appearanceTitle,
+        context.getString(R.string.settings_appearance_entry_title),
+        context.getString(R.string.settings_appearance_entry_description),
+        *themeSearchTexts,
+        *colorSchemeSearchTexts,
+        *languageSearchTexts,
+        *bottomNavSubSettingsSearchTexts,
+        *extensionsSubSettingsSearchTexts,
+        *pageCustomizationSubSettingsSearchTexts,
+        *additionalAppearanceSearchTexts.toTypedArray()
+    )
+    val showAppearanceEntry = isCompactHomeMode &&
+        (hasAppearanceItems || appearanceEntryMatches)
 
-    val showVersionItem = matchesSettingsItem(
+    val showVersionItem = isHomeMode && matchesSettingsItem(
         aboutTitle,
         context.getString(R.string.version),
         settingsVersionNumber
     )
-    val showUpdateCheckItem = surfacePolicy.showUpdateCheck && matchesSettingsItem(
+    val showUpdateCheckItem = isHomeMode && surfacePolicy.showUpdateCheck && matchesSettingsItem(
         aboutTitle,
         context.getString(R.string.update_check_title),
         context.getString(R.string.update_check_subtitle),
         context.getString(R.string.update_check_latest_release)
     )
-    val showPreviewFeaturesItem = surfacePolicy.showPreviewFeatures && matchesSettingsItem(
+    val showPreviewFeaturesItem = isHomeMode && surfacePolicy.showPreviewFeatures && matchesSettingsItem(
         developerTitle,
         context.getString(R.string.preview_features_title),
         context.getString(R.string.preview_features_description)
     )
-    val showDeveloperSettingsItem = surfacePolicy.showDeveloperSettings && matchesSettingsItem(
+    val showDeveloperSettingsItem = isHomeMode &&
+        surfacePolicy.showDeveloperSettings && matchesSettingsItem(
         developerTitle,
         context.getString(R.string.developer_settings),
         context.getString(R.string.developer_settings_subtitle),
@@ -786,7 +845,11 @@ fun SettingsScreen(
         showSecurityAnalysisCard,
         showSecuritySection,
         showDataManagementSection,
+        showDataManagementEntry,
+        showAdditionalSettingsEntry,
+        showAdditionalDetails && additionalSettingsContent != null,
         showAppearanceSection,
+        showAppearanceEntry,
         showVersionItem,
         showUpdateCheckItem,
         showPreviewFeaturesItem,
@@ -815,20 +878,21 @@ fun SettingsScreen(
                         }
                         
                         Text(
-                            text = context.getString(R.string.settings_title),
+                            text = screenTitle ?: context.getString(R.string.settings_title),
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(start = 8.dp)
                         )
                         
-                        // 安全分析图标
-                        IconButton(onClick = onSecurityAnalysis) {
-                            Icon(
-                                Icons.Default.Shield,
-                                contentDescription = context.getString(R.string.security_analysis),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                        if (surfacePolicy.showSecurityAnalysis && isHomeMode) {
+                            IconButton(onClick = onSecurityAnalysis) {
+                                Icon(
+                                    Icons.Default.Shield,
+                                    contentDescription = context.getString(R.string.security_analysis),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
@@ -845,17 +909,21 @@ fun SettingsScreen(
             // Top padding spacer for edge-to-edge scrolling
             Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding()))
 
-            SettingsSearchField(
-                query = settingsSearchQuery,
-                onQueryChange = { settingsSearchQuery = it }
-            )
-
-            batchDeleteProgress?.let { progress ->
-                PasswordBatchDeleteProgressCard(progress = progress)
+            if (isHomeMode) {
+                SettingsSearchField(
+                    query = settingsSearchQuery,
+                    onQueryChange = { settingsSearchQuery = it }
+                )
             }
 
-            batchTransferProgress?.let { progress ->
-                PasswordBatchTransferProgressCard(progress = progress)
+            if (isHomeMode) {
+                batchDeleteProgress?.let { progress ->
+                    PasswordBatchDeleteProgressCard(progress = progress)
+                }
+
+                batchTransferProgress?.let { progress ->
+                    PasswordBatchTransferProgressCard(progress = progress)
+                }
             }
 
             // Monica Plus card is moved to Extensions page after activation.
@@ -1037,7 +1105,29 @@ fun SettingsScreen(
                 }
             }
 
-            additionalSettingsContent?.invoke()
+            if (showDataManagementEntry) {
+                SettingsItem(
+                    icon = Icons.Default.Storage,
+                    title = context.getString(R.string.settings_data_management_entry_title),
+                    subtitle = context.getString(R.string.settings_data_management_entry_description),
+                    onClick = onNavigateToDataManagement,
+                    modifier = getSharedModifier("data_management_entry_card")
+                )
+            }
+
+            if (showAdditionalSettingsEntry) {
+                SettingsItem(
+                    icon = Icons.Default.Extension,
+                    title = additionalSettingsEntryTitle.orEmpty(),
+                    subtitle = additionalSettingsEntryDescription.orEmpty(),
+                    onClick = onNavigateToAdditionalSettings ?: {},
+                    modifier = getSharedModifier("additional_settings_entry_card")
+                )
+            }
+
+            if (showAdditionalDetails) {
+                additionalSettingsContent?.invoke()
+            }
             
             if (showAppearanceSection) {
                 SettingsSection(title = appearanceTitle) {
@@ -1102,6 +1192,16 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            if (showAppearanceEntry) {
+                SettingsItem(
+                    icon = Icons.Default.Palette,
+                    title = context.getString(R.string.settings_appearance_entry_title),
+                    subtitle = context.getString(R.string.settings_appearance_entry_description),
+                    onClick = onNavigateToAppearance,
+                    modifier = getSharedModifier("appearance_entry_card")
+                )
             }
 
             if (showVersionItem || showUpdateCheckItem) {
