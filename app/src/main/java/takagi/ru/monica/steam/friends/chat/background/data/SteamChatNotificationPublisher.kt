@@ -43,12 +43,24 @@ internal class SteamChatNotificationPublisher(context: Context) {
         ): Boolean = size > MAX_TRACKED_CONVERSATIONS
     }
 
-    fun canPostMessageNotifications(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+    fun canPostMessageNotifications(): Boolean {
+        createChannels()
+        val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(
                 appContext,
                 Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
+        if (!permissionGranted || !notificationManager.areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = appContext.getSystemService(NotificationManager::class.java)
+            if (manager?.getNotificationChannel(MESSAGE_CHANNEL_ID)?.importance ==
+                NotificationManager.IMPORTANCE_NONE
+            ) {
+                return false
+            }
+        }
+        return true
+    }
 
     fun foregroundNotification(
         handle: SteamAccountSessionHandle?,
@@ -58,27 +70,31 @@ internal class SteamChatNotificationPublisher(context: Context) {
         val accountName = handle?.account?.displayName
             ?.ifBlank { handle.account.accountName }
             ?.ifBlank { handle.account.steamId }
-        val text = when (state) {
+        val statusText = when (state) {
             SteamChatBackgroundConnectionState.WAITING_FOR_ACCOUNT ->
                 appContext.getString(R.string.steam_chat_background_waiting)
             SteamChatBackgroundConnectionState.CONNECTING ->
                 appContext.getString(R.string.steam_chat_background_connecting, accountName.orEmpty())
-            SteamChatBackgroundConnectionState.CONNECTED ->
-                appContext.getString(R.string.steam_chat_background_connected, accountName.orEmpty())
+            SteamChatBackgroundConnectionState.CONNECTED -> null
             SteamChatBackgroundConnectionState.RECONNECTING ->
                 appContext.getString(R.string.steam_chat_background_reconnecting, accountName.orEmpty())
         }
         return NotificationCompat.Builder(appContext, SERVICE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_steam_chat_notification)
-            .setContentTitle(appContext.getString(R.string.steam_chat_background_service_title))
-            .setContentText(text)
+            .setContentTitle(appContext.getString(R.string.app_name))
             .setContentIntent(handle?.let { chatListPendingIntent(it) } ?: launcherPendingIntent())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
+            .setShowWhen(false)
+            .setLocalOnly(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFERRED)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .apply {
+                statusText?.let(::setContentText)
+            }
             .build()
     }
 
@@ -227,10 +243,14 @@ internal class SteamChatNotificationPublisher(context: Context) {
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = appContext.getString(R.string.steam_chat_background_channel_description)
-                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
                 setShowBadge(false)
+                setSound(null, null)
+                enableLights(false)
+                enableVibration(false)
             }
         )
+        manager.deleteNotificationChannel(LEGACY_SERVICE_CHANNEL_ID)
         manager.createNotificationChannel(
             NotificationChannel(
                 MESSAGE_CHANNEL_ID,
@@ -271,7 +291,8 @@ internal class SteamChatNotificationPublisher(context: Context) {
 
     companion object {
         const val SERVICE_NOTIFICATION_ID = 887_001
-        private const val SERVICE_CHANNEL_ID = "steam_chat_background_service"
+        private const val SERVICE_CHANNEL_ID = "steam_chat_background_runtime_v2"
+        private const val LEGACY_SERVICE_CHANNEL_ID = "steam_chat_background_service"
         private const val MESSAGE_CHANNEL_ID = "steam_chat_messages"
         private const val MAX_RECENT_MESSAGES = 6
         private const val MAX_TRACKED_CONVERSATIONS = 48

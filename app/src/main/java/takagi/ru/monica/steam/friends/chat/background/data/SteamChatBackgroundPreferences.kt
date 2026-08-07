@@ -42,6 +42,16 @@ class SteamChatBackgroundPreferences(context: Context) {
         return claimed
     }
 
+    /** Releases a claim when Android rejects the notification so a replay can retry it. */
+    suspend fun releaseNotification(identity: SteamChatNotificationIdentity) {
+        appContext.steamChatBackgroundDataStore.edit { values ->
+            values[KEY_RECENT_NOTIFICATIONS] = SteamChatNotificationHistory.release(
+                encodedHistory = values[KEY_RECENT_NOTIFICATIONS],
+                notificationKey = identity.stableKey
+            )
+        }
+    }
+
     private companion object {
         val KEY_ENABLED = booleanPreferencesKey("enabled")
         val KEY_RECENT_NOTIFICATIONS = stringPreferencesKey("recent_notification_keys")

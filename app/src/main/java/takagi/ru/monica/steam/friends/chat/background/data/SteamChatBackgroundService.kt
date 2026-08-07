@@ -172,13 +172,19 @@ class SteamChatBackgroundService : Service() {
             message = event.message
         )
         if (decision !is SteamChatNotificationDecision.Notify) return
-        if (!notificationPublisher.canPostMessageNotifications()) return
         if (!preferences.claimNotification(decision.identity)) return
-        notificationPublisher.publishIncomingMessage(
+        val published = notificationPublisher.publishIncomingMessage(
             handle = handle,
             message = event.message,
             preview = decision.preview
         )
+        if (!published) {
+            preferences.releaseNotification(decision.identity)
+            SteamDiagLogger.append(
+                "chat_background_notify failed account=${handle.stableKey.hashCode()} " +
+                    "partner=${event.message.partnerSteamId.hashCode()}"
+            )
+        }
     }
 
     private fun startForegroundCompat(notification: android.app.Notification) {

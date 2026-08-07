@@ -27,5 +27,15 @@ class SteamChatNotificationHistoryTest {
         )
     }
 
+    @Test
+    fun releasesAFailedNotificationSoItCanBeClaimedAgain() {
+        val first = SteamChatNotificationHistory.claim(null, key(1))
+        val released = SteamChatNotificationHistory.release(first.encodedHistory, key(1))
+        val retried = SteamChatNotificationHistory.claim(released, key(1))
+
+        assertTrue(retried.claimed)
+        assertEquals(listOf(key(1)), SteamChatNotificationHistory.decode(retried.encodedHistory))
+    }
+
     private fun key(value: Int): String = value.toString(16).padStart(64, '0')
 }

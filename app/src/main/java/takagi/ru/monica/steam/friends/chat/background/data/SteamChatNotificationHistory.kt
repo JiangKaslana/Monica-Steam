@@ -26,6 +26,13 @@ internal object SteamChatNotificationHistory {
         )
     }
 
+    fun release(
+        encodedHistory: String?,
+        notificationKey: String
+    ): String = encode(
+        decode(encodedHistory).filterNot { existing -> existing == notificationKey }
+    )
+
     internal fun decode(encodedHistory: String?): List<String> = encodedHistory
         .orEmpty()
         .lineSequence()
