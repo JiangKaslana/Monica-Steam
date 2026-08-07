@@ -3,6 +3,9 @@ package takagi.ru.monica.steam.network.cm
 import java.io.Closeable
 import java.io.IOException
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.network.SteamApiException
 
@@ -13,16 +16,19 @@ internal data class SteamCmEvent(
 
 /** Owns one persistent CM connection per account/storage identity. */
 internal class SteamCmConnectionPool(
-    private val bootstrap: SteamCmBootstrap,
+    private val bootstrap: SteamCmBootstrapLoader,
     private val socketClient: OkHttpClient,
     private val timeoutMillis: Long,
     private val nowMillis: () -> Long = { System.currentTimeMillis() },
     private val bootstrapTtlMillis: Long = DEFAULT_BOOTSTRAP_TTL_MILLIS,
-    private val eventSink: (SteamCmEvent) -> Unit = {}
+    private val eventSink: (SteamCmEvent) -> Unit = {},
+    private val socketFactory: (Request, WebSocketListener) -> WebSocket =
+        socketClient::newWebSocket
 ) : Closeable {
     private val lock = Any()
     private val connections = mutableMapOf<String, Entry>()
     private val bootstraps = mutableMapOf<String, CachedBootstrap>()
+    private val bootstrapLocks = mutableMapOf<String, Any>()
     private val latestEvents = mutableMapOf<String, MutableMap<Int, SteamCmEnvelope>>()
 
     fun execute(
@@ -114,6 +120,7 @@ internal class SteamCmConnectionPool(
             val current = connections.values.toList()
             connections.clear()
             bootstraps.clear()
+            bootstrapLocks.clear()
             latestEvents.clear()
             current
         }
@@ -134,21 +141,27 @@ internal class SteamCmConnectionPool(
     }
 
     private fun loadBootstrap(account: SteamAccount, accountKey: String): SteamCmBootstrapData {
-        val fingerprint = accountFingerprint(account)
-        synchronized(lock) {
-            bootstraps[accountKey]
-                ?.takeIf { it.fingerprint == fingerprint && it.expiresAtMillis > nowMillis() }
-                ?.let { return it.data }
+        val accountBootstrapLock = synchronized(lock) {
+            bootstrapLocks.getOrPut(accountKey) { Any() }
         }
-        val loaded = bootstrap.load(account)
-        synchronized(lock) {
-            bootstraps[accountKey] = CachedBootstrap(
-                fingerprint = fingerprint,
-                data = loaded,
-                expiresAtMillis = nowMillis() + bootstrapTtlMillis
-            )
+        return synchronized(accountBootstrapLock) bootstrap@{
+            val fingerprint = accountFingerprint(account)
+            val cached = synchronized(lock) {
+                bootstraps[accountKey]
+                    ?.takeIf { it.fingerprint == fingerprint && it.expiresAtMillis > nowMillis() }
+                    ?.data
+            }
+            if (cached != null) return@bootstrap cached
+            val loaded = bootstrap.load(account)
+            synchronized(lock) {
+                bootstraps[accountKey] = CachedBootstrap(
+                    fingerprint = fingerprint,
+                    data = loaded,
+                    expiresAtMillis = nowMillis() + bootstrapTtlMillis
+                )
+            }
+            loaded
         }
-        return loaded
     }
 
     private fun connectionFor(
@@ -161,13 +174,13 @@ internal class SteamCmConnectionPool(
             if (current != null &&
                 current.webLogonToken == session.webLogonToken &&
                 current.endpoint == endpoint &&
-                current.connection.isHealthy()
+                current.connection.canBeReused()
             ) {
                 return current.connection
             }
             current?.connection?.close()
             val created = SteamCmPersistentConnection(
-                socketFactory = socketClient::newWebSocket,
+                socketFactory = socketFactory,
                 endpoint = endpoint,
                 steamId = session.steamId,
                 webLogonToken = session.webLogonToken,

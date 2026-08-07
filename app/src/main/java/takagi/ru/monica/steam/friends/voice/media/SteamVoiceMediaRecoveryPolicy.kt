@@ -47,8 +47,9 @@ internal fun isSteamVoiceMediaConnected(
     voiceChatId: String,
     iceConnected: Boolean,
     webRtcUpdated: Boolean,
-    directAccepted: Boolean
-): Boolean = voiceChatId.isNotBlank() && iceConnected && webRtcUpdated &&
+    directAccepted: Boolean,
+    localMediaReady: Boolean
+): Boolean = voiceChatId.isNotBlank() && iceConnected && webRtcUpdated && localMediaReady &&
     (targetType == SteamVoiceTargetType.GROUP || directAccepted)
 
 /** Detects the one-way-audio case without treating silence or local mute as failure. */

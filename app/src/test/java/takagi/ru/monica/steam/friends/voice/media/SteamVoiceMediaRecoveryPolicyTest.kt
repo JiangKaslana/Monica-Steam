@@ -92,7 +92,8 @@ class SteamVoiceMediaRecoveryPolicyTest {
                 voiceChatId = "voice-1",
                 iceConnected = true,
                 webRtcUpdated = true,
-                directAccepted = false
+                directAccepted = false,
+                localMediaReady = true
             )
         )
         assertTrue(
@@ -101,7 +102,8 @@ class SteamVoiceMediaRecoveryPolicyTest {
                 voiceChatId = "voice-1",
                 iceConnected = true,
                 webRtcUpdated = true,
-                directAccepted = true
+                directAccepted = true,
+                localMediaReady = true
             )
         )
         assertTrue(
@@ -110,7 +112,18 @@ class SteamVoiceMediaRecoveryPolicyTest {
                 voiceChatId = "voice-1",
                 iceConnected = true,
                 webRtcUpdated = true,
-                directAccepted = false
+                directAccepted = false,
+                localMediaReady = true
+            )
+        )
+        assertFalse(
+            isSteamVoiceMediaConnected(
+                targetType = SteamVoiceTargetType.GROUP,
+                voiceChatId = "voice-1",
+                iceConnected = true,
+                webRtcUpdated = true,
+                directAccepted = false,
+                localMediaReady = false
             )
         )
     }

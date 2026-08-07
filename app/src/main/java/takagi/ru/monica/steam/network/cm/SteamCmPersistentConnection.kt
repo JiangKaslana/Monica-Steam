@@ -56,6 +56,13 @@ internal class SteamCmPersistentConnection(
         !closed && loggedOn && activeSocket != null
     }
 
+    /**
+     * A connection remains shareable while its first caller is still opening
+     * or logging on. Closing it merely because `isHealthy()` is not true yet
+     * makes concurrent realtime and service callers tear each other down.
+     */
+    fun canBeReused(): Boolean = synchronized(stateLock) { !closed }
+
     /** Opens and authenticates the socket without requiring a request first. */
     fun connect() {
         ensureConnected()

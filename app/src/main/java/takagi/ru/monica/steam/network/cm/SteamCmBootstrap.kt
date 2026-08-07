@@ -19,10 +19,14 @@ internal data class SteamCmBootstrapData(
     val endpoints: List<String>
 )
 
+internal fun interface SteamCmBootstrapLoader {
+    fun load(account: SteamAccount): SteamCmBootstrapData
+}
+
 internal class SteamCmBootstrap(
     private val api: SteamApiClient = SteamApiClient()
-) {
-    fun load(account: SteamAccount): SteamCmBootstrapData {
+) : SteamCmBootstrapLoader {
+    override fun load(account: SteamAccount): SteamCmBootstrapData {
         require(account.hasRealSteamId) { "Real Steam ID required for Steam chat" }
         val accessToken = account.accessToken?.takeIf(String::isNotBlank)
             ?: throw IllegalStateException("Steam access token required for Steam chat")

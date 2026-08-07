@@ -105,12 +105,16 @@ internal class SteamVoiceNotificationPublisher(context: Context) {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    private fun servicePendingIntent(action: String): PendingIntent = PendingIntent.getBroadcast(
-        appContext,
-        (NOTIFICATION_ID.toString() + action).hashCode(),
-        Intent(appContext, SteamVoiceActionReceiver::class.java).setAction(action),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-    )
+    private fun servicePendingIntent(action: String): PendingIntent {
+        val intent = Intent(appContext, SteamVoiceCallService::class.java).setAction(action)
+        val requestCode = (NOTIFICATION_ID.toString() + action).hashCode()
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            PendingIntent.getForegroundService(appContext, requestCode, intent, flags)
+        } else {
+            PendingIntent.getService(appContext, requestCode, intent, flags)
+        }
+    }
 
     private fun createChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

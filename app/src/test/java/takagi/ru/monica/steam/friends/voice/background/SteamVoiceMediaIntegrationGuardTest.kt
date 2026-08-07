@@ -15,6 +15,7 @@ class SteamVoiceMediaIntegrationGuardTest {
         assertTrue(source.contains("minptime=10;useinbandfec=1;usedtx=1"))
         assertTrue(source.contains("report.type === \"outbound-rtp\""))
         assertTrue(source.contains("onMediaStats"))
+        assertTrue(source.contains("onLocalMediaReady"))
         assertTrue(source.contains("descriptionChain"))
         assertTrue(source.contains("onEngineTerminated"))
     }
@@ -27,6 +28,7 @@ class SteamVoiceMediaIntegrationGuardTest {
 
         assertTrue(runtime.contains("SteamVoiceRecoveryBudget"))
         assertTrue(runtime.contains("SteamVoiceMediaHealthMonitor"))
+        assertTrue(runtime.contains("localMediaReady"))
         assertTrue(runtime.contains("OUTBOUND_STALLED"))
         assertTrue(runtime.contains("ICE_DISCONNECT_GRACE_MILLIS"))
         assertTrue(runtime.contains("restartMediaEngine"))
@@ -53,7 +55,7 @@ class SteamVoiceMediaIntegrationGuardTest {
     }
 
     @Test
-    fun manifestDeclaresMicrophonePlaybackServiceAndNotificationReceiver() {
+    fun manifestDeclaresMicrophonePlaybackForegroundService() {
         val manifest = projectFile("app/src/main/AndroidManifest.xml").readText()
 
         assertTrue(manifest.contains("android.permission.RECORD_AUDIO"))
@@ -62,7 +64,7 @@ class SteamVoiceMediaIntegrationGuardTest {
         assertTrue(manifest.contains("android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"))
         assertTrue(manifest.contains(".steam.friends.voice.background.SteamVoiceCallService"))
         assertTrue(manifest.contains("android:foregroundServiceType=\"microphone|mediaPlayback\""))
-        assertTrue(manifest.contains(".steam.friends.voice.background.SteamVoiceActionReceiver"))
+        assertFalse(manifest.contains(".steam.friends.voice.background.SteamVoiceActionReceiver"))
     }
 
     @Test
@@ -90,9 +92,22 @@ class SteamVoiceMediaIntegrationGuardTest {
         ).readText()
 
         assertTrue(publisher.contains("IMPORTANCE_HIGH"))
-        assertTrue(publisher.contains("PendingIntent.getBroadcast"))
+        assertTrue(publisher.contains("PendingIntent.getForegroundService"))
         assertTrue(runtime.contains("notificationPublisher.post(_state.value)"))
         assertTrue(runtime.indexOf("gateway.answerDirectVoice") < runtime.indexOf("initialVoiceChatId = request.voiceChatId"))
+    }
+
+    @Test
+    fun foregroundCallOwnsAudioFocusAndWakeLockOnlyWhileMediaIsActive() {
+        val service = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/voice/background/SteamVoiceCallService.kt"
+        ).readText()
+
+        assertTrue(service.contains("PowerManager.PARTIAL_WAKE_LOCK"))
+        assertTrue(service.contains("startActiveResources"))
+        assertTrue(service.contains("stopActiveResources"))
+        assertTrue(service.contains("SteamVoiceCallServiceMode.INCOMING"))
+        assertTrue(service.contains("ACTION_ACCEPT -> runtime.acceptIncomingFromNotification()"))
     }
 
     @Test

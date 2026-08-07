@@ -19,10 +19,12 @@ import org.json.JSONObject
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 
 internal interface SteamVoiceWebViewCallbacks {
+    fun onLocalMediaReady()
     fun onLocalOffer(descriptionJson: String)
     fun onLocalAnswer(descriptionJson: String)
     fun onIceStateChanged(state: String)
     fun onMediaStats(stats: String)
+    fun onDiagnostic(message: String)
     fun onEngineTerminated(message: String)
     fun onFailure(message: String)
 }
@@ -176,6 +178,9 @@ internal class SteamVoiceWebViewEngine(
 
     private inner class Bridge {
         @android.webkit.JavascriptInterface
+        fun onLocalMediaReady() = callbacks.onLocalMediaReady()
+
+        @android.webkit.JavascriptInterface
         fun onLocalOffer(descriptionJson: String) = callbacks.onLocalOffer(descriptionJson)
 
         @android.webkit.JavascriptInterface
@@ -186,6 +191,9 @@ internal class SteamVoiceWebViewEngine(
 
         @android.webkit.JavascriptInterface
         fun onMediaStats(stats: String) = callbacks.onMediaStats(stats)
+
+        @android.webkit.JavascriptInterface
+        fun onDiagnostic(message: String) = callbacks.onDiagnostic(message)
 
         @android.webkit.JavascriptInterface
         fun onFailure(message: String) = callbacks.onFailure(message)
@@ -213,6 +221,7 @@ internal class SteamVoiceWebViewEngine(
               let microphonePermission = "unknown";
               const bridge = () => window.MonicaVoiceBridge;
               const fail = (e) => bridge().onFailure(String(e && e.message || e));
+              const diagnostic = (message) => bridge().onDiagnostic(String(message));
               const reportIce = () => {
                 if (pc) bridge().onIceStateChanged(pc.iceConnectionState || "new");
               };
@@ -281,12 +290,22 @@ internal class SteamVoiceWebViewEngine(
                       },
                       video: false
                     });
-                    pc = new RTCPeerConnection({ sdpSemantics: "plan-b" });
+                    try {
+                      pc = new RTCPeerConnection({ sdpSemantics: "plan-b" });
+                    } catch (planBError) {
+                      diagnostic("plan-b unavailable; using unified-plan");
+                      pc = new RTCPeerConnection();
+                    }
                     stream.getTracks().forEach(t => {
                       if (t.kind === "audio" && "contentHint" in t) t.contentHint = "speech";
                       t.enabled = !microphoneMuted;
                       pc.addTrack(t, stream);
                     });
+                    const localAudioTrack = stream.getAudioTracks()[0];
+                    if (!localAudioTrack || localAudioTrack.readyState !== "live") {
+                      throw new Error("Microphone audio track is not live");
+                    }
+                    bridge().onLocalMediaReady();
                     pc.oniceconnectionstatechange = reportIce;
                     pc.onconnectionstatechange = reportIce;
                     pc.ontrack = (event) => {
@@ -304,7 +323,11 @@ internal class SteamVoiceWebViewEngine(
                         remote.srcObject = event.streams && event.streams[0]
                           ? event.streams[0] : new MediaStream([event.track]);
                         remote.muted = outputMuted;
-                        remote.play().catch(() => {});
+                        const playRemote = () => remote.play().catch(error => {
+                          diagnostic(`remote audio playback failed: ${'$'}{error && error.name || error}`);
+                        });
+                        remote.onloadedmetadata = playRemote;
+                        playRemote();
                       } catch (e) { fail(e); }
                     };
                     const offer = normalizeOpus(await pc.createOffer({

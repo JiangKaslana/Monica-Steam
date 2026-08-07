@@ -116,10 +116,6 @@
             android:stopWithTask="false" />
 
         <receiver
-            android:name=".steam.friends.voice.background.SteamVoiceActionReceiver"
-            android:exported="false" />
-
-        <receiver
             android:name=".steam.friends.chat.background.data.SteamChatBackgroundReceiver"
             android:exported="false">
             <intent-filter>
