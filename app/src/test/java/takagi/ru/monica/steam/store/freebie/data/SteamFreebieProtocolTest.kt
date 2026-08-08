@@ -31,7 +31,7 @@ class SteamFreebieProtocolTest {
         assertEquals("POST", request.method)
         assertEquals("/freelicense/addfreelicense/", request.url.encodedPath)
         assertEquals("add_to_cart", body.formValue("action"))
-        assertEquals("1_direct-navigation__", body.formValue("originating_snr"))
+        assertEquals("", body.formValue("originating_snr"))
         assertEquals("1706211", body.formValue("subid"))
         assertTrue(request.header("Cookie").orEmpty().contains("steamLoginSecure="))
         assertEquals("https://store.steampowered.com/app/606150/", request.header("Referer"))

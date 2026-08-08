@@ -86,13 +86,23 @@ class SteamFreebieParserTest {
 
     @Test
     fun offerPageUsesSteamServerSessionIdForClaimRequests() {
-        val sessionId = SteamFreebieOfferPageParser.parseSessionId(
-            """
-                <input type="hidden" name="sessionid" value="a4d2cb9bee17a1711e355aa0">
+        val html = """
+                <form action="/freelicense/addfreelicense/">
+                  <input name="snr" value="1_5_9__403">
+                  <input name="originating_snr" value="">
+                  <input name="action" value="add_to_cart">
+                  <input type="hidden" name="sessionid" value="a4d2cb9bee17a1711e355aa0">
+                  <input name="subid" value="1759598">
+                </form>
             """.trimIndent()
-        )
+        val sessionId = SteamFreebieOfferPageParser.parseSessionId(html)
 
         assertEquals("a4d2cb9bee17a1711e355aa0", sessionId)
+        val form = SteamFreebieOfferPageParser.parseClaimForm(html)
+        assertEquals("1_5_9__403", form?.snr)
+        assertEquals("", form?.originatingSnr)
+        assertEquals("add_to_cart", form?.action)
+        assertEquals(1759598, form?.packageId)
     }
 
     @Test

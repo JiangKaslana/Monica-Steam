@@ -121,16 +121,20 @@ internal class SteamFreebieService(
         }
         // Reuse Steam's page token. A made-up token may produce a successful
         // redirect while Steam silently skips adding the license.
-        val sessionId = fetchSteamSessionId(item, secure)
+        val claimForm = fetchSteamClaimForm(item, secure)
             ?: return SteamFreebieClaimResult(
                 status = SteamFreebieClaimStatus.SESSION_REQUIRED,
-                detail = "Steam store session token was unavailable"
+                detail = "Steam store claim form was unavailable"
             )
+        val currentPackageId = claimForm.packageId ?: packageId
         val response = claimClient.newCall(
             buildSteamFreebieClaimRequest(
                 steamLoginSecure = secure,
-                packageId = packageId,
-                sessionId = sessionId,
+                packageId = currentPackageId,
+                sessionId = claimForm.sessionId,
+                snr = claimForm.snr,
+                originatingSnr = claimForm.originatingSnr,
+                action = claimForm.action,
                 storeUrl = item.storeUrl
             )
         ).execute().use { httpResponse ->
@@ -145,6 +149,11 @@ internal class SteamFreebieService(
                 statusCode = httpResponse.code
             )
         }
+        SteamDiagLogger.append(
+            "store_freebie claim_response app_id=${item.appId} " +
+                "package_id=$currentPackageId http=${response.statusCode} " +
+                "submission=${response.submissionStatus}"
+        )
         when (response.submissionStatus) {
             SteamFreebieSubmissionStatus.SESSION_REQUIRED ->
                 return SteamFreebieClaimResult(SteamFreebieClaimStatus.SESSION_REQUIRED)
@@ -231,10 +240,10 @@ internal class SteamFreebieService(
         }
     }
 
-    private fun fetchSteamSessionId(
+    private fun fetchSteamClaimForm(
         item: SteamFreebieItem,
         steamLoginSecure: String
-    ): String? = runCatching {
+    ): SteamFreebieClaimForm? = runCatching {
         val candidate = SteamFreebieCandidate(
             appId = item.appId,
             name = item.name,
@@ -251,11 +260,12 @@ internal class SteamFreebieService(
         )
         claimClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return@use null
-            SteamFreebieOfferPageParser.parseSessionId(response.body?.string().orEmpty())
+            val html = response.body?.string().orEmpty()
+            SteamFreebieOfferPageParser.parseClaimForm(html)
         }
     }.onFailure { error ->
         SteamDiagLogger.append(
-            "store_freebie session_fetch_failed app_id=${item.appId} " +
+            "store_freebie claim_form_fetch_failed app_id=${item.appId} " +
                 "type=${error.javaClass.simpleName}"
         )
     }.getOrNull()
@@ -305,14 +315,17 @@ internal fun buildSteamFreebieClaimRequest(
     steamLoginSecure: String,
     packageId: Int,
     sessionId: String,
+    snr: String = "1_5_9__403",
+    originatingSnr: String = "",
+    action: String = "add_to_cart",
     storeUrl: String
 ): Request {
     require(packageId > 0)
     require(sessionId.isNotBlank())
     val body = FormBody.Builder()
-        .add("snr", "1_5_9__403")
-        .add("originating_snr", "1_direct-navigation__")
-        .add("action", "add_to_cart")
+        .add("snr", snr)
+        .add("originating_snr", originatingSnr)
+        .add("action", action)
         .add("sessionid", sessionId)
         .add("subid", packageId.toString())
         .build()

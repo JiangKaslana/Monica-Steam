@@ -21,7 +21,7 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextGat
 
 class SteamFreebieServiceTest {
     @Test
-    fun claimPostsTheSessionIdReturnedBySteamInsteadOfGeneratingAnotherOne() =
+    fun claimPostsTheCurrentOfficialFormInsteadOfCachedOrGeneratedValues() =
         kotlinx.coroutines.test.runTest {
             val requests = mutableListOf<Request>()
             val claimClient = OkHttpClient.Builder()
@@ -46,7 +46,11 @@ class SteamFreebieServiceTest {
                             } else {
                                 """
                                     <form action="/freelicense/addfreelicense/">
+                                      <input name="snr" value="1_5_9__403">
+                                      <input name="originating_snr" value="">
+                                      <input name="action" value="add_to_cart">
                                       <input name="sessionid" value="a4d2cb9bee17a1711e355aa0">
+                                      <input name="subid" value="1759598">
                                     </form>
                                 """.trimIndent().toResponseBody("text/html".toMediaType())
                             }
@@ -73,6 +77,9 @@ class SteamFreebieServiceTest {
             val post = requests.single { it.method == "POST" }
             val body = post.body as FormBody
             assertEquals("a4d2cb9bee17a1711e355aa0", body.value(body.indexOf("sessionid")))
+            assertEquals("1_5_9__403", body.value(body.indexOf("snr")))
+            assertEquals("", body.value(body.indexOf("originating_snr")))
+            assertEquals("1759598", body.value(body.indexOf("subid")))
             assertTrue(post.header("Cookie").orEmpty().contains("sessionid=a4d2cb9bee17a1711e355aa0"))
         }
 
@@ -81,7 +88,7 @@ class SteamFreebieServiceTest {
 
     private fun item() = SteamFreebieItem(
         appId = 738520,
-        packageId = 1759598,
+        packageId = 111,
         name = "呼吸边缘",
         storeUrl = "https://store.steampowered.com/app/738520/",
         offerKind = SteamFreebieOfferKind.KEEP_FOREVER,
