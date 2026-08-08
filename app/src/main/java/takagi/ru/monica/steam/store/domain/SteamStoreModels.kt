@@ -153,6 +153,12 @@ data class SteamStoreDetail(
     val storeUrl: String get() = "https://store.steampowered.com/app/$appId/"
     val reviewsUrl: String
         get() = "https://store.steampowered.com/app/$appId/#app_reviews_hash"
+
+    /** The permanent free-license package Steam exposes for this app, if any. */
+    val freeLicenseOption: SteamStorePackageOption?
+        get() = packageOptions.firstOrNull {
+            it.isFreeLicense || it.canGetFreeLicense
+        }
 }
 
 @Serializable

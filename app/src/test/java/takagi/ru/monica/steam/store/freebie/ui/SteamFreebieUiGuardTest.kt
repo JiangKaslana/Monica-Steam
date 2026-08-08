@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.store.freebie.ui
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,6 +44,26 @@ class SteamFreebieUiGuardTest {
         assertTrue(store.indexOf("detailAppId != null ->") < store.indexOf("freebiesOpen ->"))
         assertTrue(store.contains("state.detailAppId != null -> viewModel.closeDetail()"))
         assertTrue(store.contains("freebiesOpen -> freebiesOpen = false"))
+    }
+
+    @Test
+    fun storeDetailExposesDirectFreeLicenseClaimAndPendingRefresh() {
+        val store = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
+        ).readText()
+        val viewModel = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/presentation/SteamStoreViewModel.kt"
+        ).readText()
+        val card = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/freebie/ui/components/SteamFreebieCard.kt"
+        ).readText()
+
+        assertTrue(store.contains("SteamStoreFreeLicenseButton"))
+        assertTrue(store.contains("onClaimFreeLicense"))
+        assertTrue(store.contains("if (hasPurchasablePackage)"))
+        assertFalse(store.contains("if (freeLicenseOption == null)"))
+        assertTrue(viewModel.contains("claimFreeLicense"))
+        assertTrue(card.contains("onRefreshClaim"))
     }
 
     private fun projectFile(path: String): File {

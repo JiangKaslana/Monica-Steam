@@ -98,6 +98,7 @@ import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.freebie.ui.SteamFreebieScreen
+import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieClaimResult
 import takagi.ru.monica.steam.store.filters.domain.resolveSteamStoreTagLabels
 import takagi.ru.monica.steam.store.filters.ui.SteamStoreActiveFilterSummary
 import takagi.ru.monica.steam.store.filters.ui.SteamStoreAdvancedFilterSheet
@@ -117,6 +118,7 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFailure
 import takagi.ru.monica.steam.store.purchase.ui.SteamStorePurchaseContextSection
+import takagi.ru.monica.steam.store.purchase.ui.SteamStoreFreeLicenseButton
 import takagi.ru.monica.steam.store.requirements.ui.SteamStoreSystemRequirementsSection
 import takagi.ru.monica.steam.store.related.ui.SteamStoreRelatedContentSection
 import takagi.ru.monica.steam.store.bundle.ui.SteamStoreBundleSection
@@ -327,6 +329,13 @@ fun SteamStoreScreen(
                         purchaseContextFromCache = state.purchaseContextFromCache,
                         loadingPurchaseContext = state.loadingPurchaseContext,
                         purchaseContextFailure = state.purchaseContextFailure,
+                        alreadyOwned = state.purchaseContext?.ownership ==
+                            SteamStoreOwnershipStatus.OWNED || detail.appId in state.ownedAppIds,
+                        freeLicenseOption = detail.freeLicenseOption.takeIf {
+                            detail.availableInAccountRegion != false
+                        },
+                        freeLicenseClaiming = detail.appId in state.freeLicenseClaimingAppIds,
+                        freeLicenseClaimResult = state.freeLicenseClaimResults[detail.appId],
                         onBack = viewModel::closeDetail,
                         onOpenOfficial = { viewModel.openStoreWeb(detail.storeUrl) },
                         onOpenWebsite = viewModel::openStoreWeb,
@@ -350,6 +359,16 @@ fun SteamStoreScreen(
                         },
                         onAddAsGift = { packageOption ->
                             viewModel.beginGiftPurchase(detail, packageOption)
+                        },
+                        onClaimFreeLicense = {
+                            if (selectedStoreAccount == null) {
+                                showAccounts = true
+                            } else {
+                                viewModel.claimFreeLicense(detail, detail.freeLicenseOption)
+                            }
+                        },
+                        onRefreshFreeLicense = {
+                            viewModel.refreshFreeLicense(detail, detail.freeLicenseOption)
                         },
                         onRemoveFromCart = { viewModel.removeFromCart(detail.appId) },
                         onOpenCart = viewModel::openCart,
@@ -954,6 +973,10 @@ private fun SteamStoreDetailContent(
     purchaseContextFromCache: Boolean,
     loadingPurchaseContext: Boolean,
     purchaseContextFailure: SteamStorePurchaseContextFailure?,
+    alreadyOwned: Boolean,
+    freeLicenseOption: SteamStorePackageOption?,
+    freeLicenseClaiming: Boolean,
+    freeLicenseClaimResult: SteamFreebieClaimResult?,
     onBack: () -> Unit,
     onOpenOfficial: () -> Unit,
     onOpenWebsite: (String) -> Unit,
@@ -974,6 +997,8 @@ private fun SteamStoreDetailContent(
     showRegionalPrices: Boolean,
     onAddToCart: (SteamStorePackageOption?) -> Unit,
     onAddAsGift: (SteamStorePackageOption?) -> Unit,
+    onClaimFreeLicense: () -> Unit,
+    onRefreshFreeLicense: () -> Unit,
     onRemoveFromCart: () -> Unit,
     onOpenCart: () -> Unit,
     onToggleWishlist: () -> Unit,
@@ -1160,6 +1185,18 @@ private fun SteamStoreDetailContent(
             }
         }
         if (cached) item { CachedNotice() }
+        if (freeLicenseOption != null) {
+            item(key = "store_free_license_${detail.appId}") {
+                SteamStoreFreeLicenseButton(
+                    alreadyOwned = alreadyOwned,
+                    claiming = freeLicenseClaiming,
+                    result = freeLicenseClaimResult,
+                    onClaim = onClaimFreeLicense,
+                    onRefresh = onRefreshFreeLicense,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                )
+            }
+        }
         item {
             SteamStorePurchaseContextSection(
                 detail = detail,
@@ -1181,9 +1218,12 @@ private fun SteamStoreDetailContent(
                     cartItem = cartItem,
                     inWishlist = inWishlist,
                     purchaseAvailable = detail.availableInAccountRegion != false,
-                    alreadyOwned = purchaseContext?.ownership == SteamStoreOwnershipStatus.OWNED,
-                    hasPurchasablePackage = !detail.isFree &&
-                        (selectedPackage?.packageId ?: detail.packageId) != null,
+                    alreadyOwned = alreadyOwned,
+                    hasPurchasablePackage = selectedPackage?.let { option ->
+                        !option.isFreeLicense &&
+                            !option.canGetFreeLicense &&
+                            (option.priceCents?.let { it > 0 } ?: !detail.isFree)
+                    } == true,
                     wishlistAvailable = wishlistAvailable,
                     wishlistMutating = wishlistMutating,
                     wishlistError = wishlistError,
@@ -1455,16 +1495,18 @@ private fun SteamStorePurchaseActions(
                 }
             }
         }
-        SteamStoreGiftPurchaseSplitButton(
-            cartItem = cartItem,
-            canAdd = purchaseAvailable && !alreadyOwned && hasPurchasablePackage,
-            alreadyOwned = alreadyOwned,
-            onAddForSelf = onAddForSelf,
-            onAddAsGift = onAddAsGift,
-            onOpenCart = onOpenCart,
-            onRemove = onRemoveFromCart,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (hasPurchasablePackage) {
+            SteamStoreGiftPurchaseSplitButton(
+                cartItem = cartItem,
+                canAdd = purchaseAvailable && !alreadyOwned,
+                alreadyOwned = alreadyOwned,
+                onAddForSelf = onAddForSelf,
+                onAddAsGift = onAddAsGift,
+                onOpenCart = onOpenCart,
+                onRemove = onRemoveFromCart,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
         FilledTonalButton(
             onClick = onToggleWishlist,
             enabled = (purchaseAvailable || inWishlist) && wishlistAvailable && !wishlistMutating,

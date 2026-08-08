@@ -76,4 +76,16 @@ class SteamStoreParserTest {
         assertEquals("Left 4 Dead", detail?.packageOptions?.single()?.title)
         assertEquals(48_000, detail?.packageOptions?.single()?.priceCents)
     }
+
+    @Test
+    fun parsesSteamLimitedFreePackageAsDirectlyClaimable() {
+        val detail = SteamStoreParser.parseDetail(
+            appId = 738520,
+            payload = """{"738520":{"success":true,"data":{"type":"game","name":"呼吸边缘","steam_appid":738520,"package_groups":[{"subs":[{"packageid":1759598,"option_text":"Breathedge Limited Free Promotional Package - Aug 2026 - 免费","can_get_free_license":"0","is_free_license":true,"price_in_cents_with_discount":0},{"packageid":216012,"option_text":"Breathedge - ¥ 92.00","is_free_license":false,"price_in_cents_with_discount":9200}]}]}}}"""
+        )
+
+        assertEquals(1759598, detail?.freeLicenseOption?.packageId)
+        assertTrue(detail?.freeLicenseOption?.isFreeLicense == true)
+        assertEquals(listOf(1759598, 216012), detail?.packageOptions?.map { it.packageId })
+    }
 }

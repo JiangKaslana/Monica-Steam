@@ -44,6 +44,12 @@ import takagi.ru.monica.steam.store.purchase.domain.SteamStorePackageOption
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContext
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextFailure
 import takagi.ru.monica.steam.store.purchase.domain.SteamStorePurchaseContextGateway
+import takagi.ru.monica.steam.store.freebie.data.SteamFreebieService
+import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieClaimResult
+import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieClaimStatus
+import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieClaimMethod
+import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieItem
+import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieOfferKind
 import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailHistory
 import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailRoute
 import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterMetadata
@@ -90,6 +96,8 @@ data class SteamStoreUiState(
     val purchaseContextFromCache: Boolean = false,
     val loadingPurchaseContext: Boolean = false,
     val purchaseContextFailure: SteamStorePurchaseContextFailure? = null,
+    val freeLicenseClaimingAppIds: Set<Int> = emptySet(),
+    val freeLicenseClaimResults: Map<Int, SteamFreebieClaimResult> = emptyMap(),
     val reviewFilters: SteamReviewFilterSelection = SteamReviewFilterSelection(),
     val loadingMoreReviews: Boolean = false,
     val reviewLoadError: String? = null,
@@ -117,7 +125,7 @@ data class SteamStoreUiState(
     val checkoutLines: List<SteamStoreCheckoutLine> = emptyList()
 )
 
-class SteamStoreViewModel(
+class SteamStoreViewModel internal constructor(
     private val accountSourceRepository: SteamAccountSourceRepository,
     private val cache: SteamStoreCache,
     private val service: SteamStoreService = SteamStoreService(),
@@ -130,7 +138,8 @@ class SteamStoreViewModel(
         SteamStorePurchaseContextService(),
     private val purchaseContextCache: SteamStorePurchaseContextCache? = null,
     private val libraryCacheRepository: SteamLibraryCacheRepository? = null,
-    private val giftFriendRepository: SteamStoreGiftFriendRepository? = null
+    private val giftFriendRepository: SteamStoreGiftFriendRepository? = null,
+    private val freebieService: SteamFreebieService = SteamFreebieService()
 ) : ViewModel() {
     private var searchDebounceJob: Job? = null
     private var searchRequestJob: Job? = null
@@ -142,6 +151,7 @@ class SteamStoreViewModel(
     private var regionalPriceRequestGeneration: Long = 0L
     private var libraryHintRequestGeneration: Long = 0L
     private var giftFriendsRequestGeneration: Long = 0L
+    private val freeLicenseVerificationJobs = mutableMapOf<Int, Job>()
     private val _uiState = MutableStateFlow(SteamStoreUiState())
     val uiState: StateFlow<SteamStoreUiState> = _uiState.asStateFlow()
 
@@ -384,6 +394,8 @@ class SteamStoreViewModel(
         val account = selectedAccount()
         val generation = ++detailRequestGeneration
         regionalPriceRequestGeneration++
+        freeLicenseVerificationJobs.values.forEach { it.cancel() }
+        freeLicenseVerificationJobs.clear()
         if (account?.hasRealSteamId == true && !_uiState.value.wishlistLoaded) {
             loadWishlist()
         }
@@ -397,6 +409,8 @@ class SteamStoreViewModel(
             purchaseContextFromCache = false,
             loadingPurchaseContext = false,
             purchaseContextFailure = null,
+            freeLicenseClaimingAppIds = emptySet(),
+            freeLicenseClaimResults = emptyMap(),
             reviewFilters = SteamReviewFilterSelection(),
             loadingMoreReviews = false,
             reviewLoadError = null,
@@ -496,6 +510,8 @@ class SteamStoreViewModel(
         }
         detailRequestGeneration++
         regionalPriceRequestGeneration++
+        freeLicenseVerificationJobs.values.forEach { it.cancel() }
+        freeLicenseVerificationJobs.clear()
         _uiState.value = _uiState.value.copy(
             detailAppId = null,
             detailDiscoveryCountryCode = null,
@@ -505,6 +521,8 @@ class SteamStoreViewModel(
             purchaseContextFromCache = false,
             loadingPurchaseContext = false,
             purchaseContextFailure = null,
+            freeLicenseClaimingAppIds = emptySet(),
+            freeLicenseClaimResults = emptyMap(),
             reviewFilters = SteamReviewFilterSelection(),
             loadingMoreReviews = false,
             reviewLoadError = null,
@@ -753,6 +771,143 @@ class SteamStoreViewModel(
         }
         val item = detail.toCartItem(packageOption).copy(giftRecipient = null)
         updateCart((_uiState.value.cart.filterNot { it.appId == item.appId } + item))
+    }
+
+    /** Adds a Steam permanent free license directly from the detail page. */
+    fun claimFreeLicense(
+        detail: SteamStoreDetail,
+        packageOption: SteamStorePackageOption? = detail.freeLicenseOption
+    ) {
+        val option = packageOption?.takeIf {
+            it.isFreeLicense || it.canGetFreeLicense
+        } ?: return
+        val account = selectedAccount()
+        if (account == null) {
+            _uiState.value = _uiState.value.copy(
+                freeLicenseClaimResults = _uiState.value.freeLicenseClaimResults + (
+                    detail.appId to SteamFreebieClaimResult(
+                        SteamFreebieClaimStatus.SESSION_REQUIRED
+                    )
+                )
+            )
+            return
+        }
+        if (detail.appId in _uiState.value.freeLicenseClaimingAppIds) return
+        val accountId = account.id
+        _uiState.value = _uiState.value.copy(
+            freeLicenseClaimingAppIds = _uiState.value.freeLicenseClaimingAppIds + detail.appId,
+            freeLicenseClaimResults = _uiState.value.freeLicenseClaimResults - detail.appId
+        )
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    claimFreeLicenseWithSessionRetry(
+                        account = account,
+                        appId = detail.appId,
+                        packageId = option.packageId,
+                        storeUrl = detail.storeUrl
+                    )
+                }
+            }.getOrElse { error ->
+                SteamFreebieClaimResult(
+                    status = if (error.requiresPurchaseContextSessionRefresh()) {
+                        SteamFreebieClaimStatus.SESSION_REQUIRED
+                    } else {
+                        SteamFreebieClaimStatus.FAILED
+                    },
+                    detail = error.message
+                )
+            }
+            if (_uiState.value.selectedAccountId != accountId ||
+                _uiState.value.detailAppId != detail.appId
+            ) return@launch
+            val owned = result.status == SteamFreebieClaimStatus.CLAIMED ||
+                result.status == SteamFreebieClaimStatus.ALREADY_OWNED
+            _uiState.value = _uiState.value.copy(
+                freeLicenseClaimingAppIds = _uiState.value.freeLicenseClaimingAppIds - detail.appId,
+                freeLicenseClaimResults = _uiState.value.freeLicenseClaimResults + (
+                    detail.appId to result
+                ),
+                ownedAppIds = if (owned) {
+                    _uiState.value.ownedAppIds + detail.appId
+                } else {
+                    _uiState.value.ownedAppIds
+                },
+                purchaseContext = if (owned) {
+                    _uiState.value.purchaseContext?.copy(
+                        ownership = SteamStoreOwnershipStatus.OWNED,
+                        failure = null
+                    )
+                } else {
+                    _uiState.value.purchaseContext
+                }
+            )
+            if (result.status == SteamFreebieClaimStatus.PENDING_VERIFICATION) {
+                scheduleFreeLicenseVerification(accountId, detail, option)
+            }
+        }
+    }
+
+    /** Re-checks a submitted free-license request without submitting it again. */
+    fun refreshFreeLicense(
+        detail: SteamStoreDetail,
+        packageOption: SteamStorePackageOption? = detail.freeLicenseOption
+    ) {
+        val option = packageOption?.takeIf {
+            it.isFreeLicense || it.canGetFreeLicense
+        } ?: return
+        val account = selectedAccount() ?: return
+        if (detail.appId in _uiState.value.freeLicenseClaimingAppIds) return
+        val accountId = account.id
+        _uiState.value = _uiState.value.copy(
+            freeLicenseClaimingAppIds = _uiState.value.freeLicenseClaimingAppIds + detail.appId
+        )
+        viewModelScope.launch {
+            val verification = runCatching {
+                val prepared = refreshAccountSession(account, force = false)
+                withContext(Dispatchers.IO) {
+                    freebieService.verifyOwnership(prepared, detail.toFreebieItem(option))
+                }
+            }
+            if (_uiState.value.selectedAccountId != accountId ||
+                _uiState.value.detailAppId != detail.appId
+            ) return@launch
+            val previousResult = _uiState.value.freeLicenseClaimResults[detail.appId]
+            val error = verification.exceptionOrNull()
+            val result = when {
+                verification.getOrNull() == SteamStoreOwnershipStatus.OWNED ->
+                    SteamFreebieClaimResult(SteamFreebieClaimStatus.CLAIMED)
+                error?.requiresPurchaseContextSessionRefresh() == true ->
+                    SteamFreebieClaimResult(
+                        status = SteamFreebieClaimStatus.SESSION_REQUIRED,
+                        detail = error.message
+                    )
+                error != null && previousResult?.status !=
+                    SteamFreebieClaimStatus.PENDING_VERIFICATION ->
+                    SteamFreebieClaimResult(
+                        status = SteamFreebieClaimStatus.FAILED,
+                        detail = error.message
+                    )
+                else -> previousResult
+                    ?: SteamFreebieClaimResult(SteamFreebieClaimStatus.PENDING_VERIFICATION)
+            }
+            val owned = result.status == SteamFreebieClaimStatus.CLAIMED
+            _uiState.value = _uiState.value.copy(
+                freeLicenseClaimingAppIds = _uiState.value.freeLicenseClaimingAppIds - detail.appId,
+                freeLicenseClaimResults = _uiState.value.freeLicenseClaimResults + (
+                    detail.appId to result
+                ),
+                ownedAppIds = if (owned) _uiState.value.ownedAppIds + detail.appId
+                else _uiState.value.ownedAppIds,
+                purchaseContext = if (owned) {
+                    _uiState.value.purchaseContext?.copy(
+                        ownership = SteamStoreOwnershipStatus.OWNED,
+                        failure = null
+                    )
+                } else _uiState.value.purchaseContext
+            )
+            if (owned) freeLicenseVerificationJobs.remove(detail.appId)?.cancel()
+        }
     }
 
     fun beginGiftPurchase(
@@ -1133,6 +1288,8 @@ class SteamStoreViewModel(
         regionalPriceRequestGeneration++
         libraryHintRequestGeneration++
         giftFriendsRequestGeneration++
+        freeLicenseVerificationJobs.values.forEach { it.cancel() }
+        freeLicenseVerificationJobs.clear()
         _uiState.value = _uiState.value.copy(
             selectedAccountId = accountId,
             home = null,
@@ -1162,6 +1319,8 @@ class SteamStoreViewModel(
             purchaseContextFromCache = false,
             loadingPurchaseContext = false,
             purchaseContextFailure = null,
+            freeLicenseClaimingAppIds = emptySet(),
+            freeLicenseClaimResults = emptyMap(),
             reviewFilters = SteamReviewFilterSelection(),
             loadingMoreReviews = false,
             reviewLoadError = null,
@@ -1187,6 +1346,65 @@ class SteamStoreViewModel(
             checkoutLines = emptyList()
         )
     }
+
+    private fun scheduleFreeLicenseVerification(
+        accountId: Long,
+        detail: SteamStoreDetail,
+        option: SteamStorePackageOption
+    ) {
+        freeLicenseVerificationJobs[detail.appId]?.cancel()
+        freeLicenseVerificationJobs[detail.appId] = viewModelScope.launch {
+            repeat(FREE_LICENSE_AUTOMATIC_VERIFICATION_ATTEMPTS) {
+                delay(FREE_LICENSE_AUTOMATIC_VERIFICATION_DELAY_MILLIS)
+                if (_uiState.value.selectedAccountId != accountId ||
+                    _uiState.value.detailAppId != detail.appId
+                ) return@launch
+                val account = selectedAccount() ?: return@launch
+                val ownership = runCatching {
+                    val prepared = refreshAccountSession(account, force = false)
+                    withContext(Dispatchers.IO) {
+                        freebieService.verifyOwnership(
+                            account = prepared,
+                            item = detail.toFreebieItem(option)
+                        )
+                    }
+                }.onFailure { error ->
+                    SteamDiagLogger.append(
+                        "store_free_license automatic_verify_failed app_id=${detail.appId} " +
+                            "type=${error.javaClass.simpleName}"
+                    )
+                }.getOrDefault(SteamStoreOwnershipStatus.UNKNOWN)
+                if (ownership == SteamStoreOwnershipStatus.OWNED) {
+                    _uiState.value = _uiState.value.copy(
+                        freeLicenseClaimResults = _uiState.value.freeLicenseClaimResults + (
+                            detail.appId to SteamFreebieClaimResult(
+                                SteamFreebieClaimStatus.CLAIMED
+                            )
+                        ),
+                        ownedAppIds = _uiState.value.ownedAppIds + detail.appId,
+                        purchaseContext = _uiState.value.purchaseContext?.copy(
+                            ownership = SteamStoreOwnershipStatus.OWNED,
+                            failure = null
+                        )
+                    )
+                    return@launch
+                }
+            }
+        }.also { job ->
+            job.invokeOnCompletion { freeLicenseVerificationJobs.remove(detail.appId, job) }
+        }
+    }
+
+    private fun SteamStoreDetail.toFreebieItem(
+        option: SteamStorePackageOption
+    ) = SteamFreebieItem(
+        appId = appId,
+        packageId = option.packageId,
+        name = name,
+        storeUrl = storeUrl,
+        offerKind = SteamFreebieOfferKind.KEEP_FOREVER,
+        claimMethod = SteamFreebieClaimMethod.FREE_LICENSE
+    )
 
     private fun loadLibraryHints(accountId: Long?, source: SteamStorageSource) {
         val generation = ++libraryHintRequestGeneration
@@ -1463,6 +1681,36 @@ class SteamStoreViewModel(
         }
     }
 
+    private suspend fun claimFreeLicenseWithSessionRetry(
+        account: SteamAccount,
+        appId: Int,
+        packageId: Int,
+        storeUrl: String
+    ): SteamFreebieClaimResult {
+        val prepared = refreshAccountSession(account, force = false)
+        val first = freebieService.claimFreeLicense(
+            account = prepared,
+            appId = appId,
+            packageId = packageId,
+            storeUrl = storeUrl
+        )
+        if (first.status != SteamFreebieClaimStatus.SESSION_REQUIRED) return first
+        val refreshed = refreshAccountSession(prepared, force = true)
+        return if (
+            refreshed.accessToken != prepared.accessToken ||
+            refreshed.steamLoginSecure != prepared.steamLoginSecure
+        ) {
+            freebieService.claimFreeLicense(
+                account = refreshed,
+                appId = appId,
+                packageId = packageId,
+                storeUrl = storeUrl
+            )
+        } else {
+            first
+        }
+    }
+
     private fun purchaseContextRequestIsCurrent(
         account: SteamAccount,
         appId: Int,
@@ -1558,6 +1806,8 @@ class SteamStoreViewModel(
         private const val REGIONAL_PRICE_CACHE_TTL_MILLIS = 6L * 60L * 60L * 1_000L
         private const val FILTER_METADATA_CACHE_TTL_MILLIS = 24L * 60L * 60L * 1_000L
         private const val GIFT_FRIENDS_CACHE_TTL_MILLIS = 15L * 60L * 1_000L
+        private const val FREE_LICENSE_AUTOMATIC_VERIFICATION_ATTEMPTS = 4
+        private const val FREE_LICENSE_AUTOMATIC_VERIFICATION_DELAY_MILLIS = 2_000L
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
