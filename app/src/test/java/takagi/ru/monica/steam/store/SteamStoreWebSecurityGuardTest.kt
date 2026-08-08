@@ -19,6 +19,9 @@ class SteamStoreWebSecurityGuardTest {
         val store = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
+        val viewModel = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/presentation/SteamStoreViewModel.kt"
+        ).readText()
 
         assertTrue(source.contains("settings.allowFileAccess = false"))
         assertTrue(source.contains("settings.allowContentAccess = false"))
@@ -32,7 +35,13 @@ class SteamStoreWebSecurityGuardTest {
         assertTrue(source.contains("replaceSteamCookies("))
         assertTrue(installer.contains("removeAllCookies"))
         assertTrue(installer.contains("pending = Request(latestGeneration"))
-        assertTrue(store.contains("requireAuthenticatedSession = state.checkoutLines.isNotEmpty()"))
+        assertTrue(
+            store.contains(
+                "requireAuthenticatedSession = state.webRequiresAuthenticatedSession"
+            )
+        )
+        assertTrue(viewModel.contains("fun openAuthenticatedStoreWeb"))
+        assertTrue(viewModel.contains("webRequiresAuthenticatedSession = true"))
         assertTrue(source.contains("SteamStoreGiftCheckoutProtocol.addToCartBody("))
         assertTrue(source.contains("Intent(Intent.ACTION_VIEW, Uri.parse(target))"))
         assertFalse(source.contains("addJavascriptInterface"))

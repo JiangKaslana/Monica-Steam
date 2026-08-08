@@ -4664,6 +4664,7 @@
     <string name="steam_freebie_expiry_unknown">End time is subject to Steam</string>
     <string name="steam_freebie_cached">Showing saved offers. Pull down to sync when online.</string>
     <string name="steam_freebie_claim">Add to library</string>
+    <string name="steam_freebie_claim_on_steam">Claim on Steam</string>
     <string name="steam_freebie_claiming">Adding…</string>
     <string name="steam_freebie_checking">Checking…</string>
     <string name="steam_freebie_refresh_status">Refresh status</string>

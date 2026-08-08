@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -58,8 +57,6 @@ internal fun SteamFreebieCard(
     verifying: Boolean,
     claimResult: SteamFreebieClaimResult?,
     onOpenDetail: () -> Unit,
-    onClaim: () -> Unit,
-    onRefreshClaim: () -> Unit,
     onOpenOfficial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -147,8 +144,6 @@ internal fun SteamFreebieCard(
                 claiming = claiming,
                 verifying = verifying,
                 claimResult = claimResult,
-                onClaim = onClaim,
-                onRefreshClaim = onRefreshClaim,
                 onOpenOfficial = onOpenOfficial
             )
         }
@@ -205,8 +200,6 @@ private fun SteamFreebieAction(
     claiming: Boolean,
     verifying: Boolean,
     claimResult: SteamFreebieClaimResult?,
-    onClaim: () -> Unit,
-    onRefreshClaim: () -> Unit,
     onOpenOfficial: () -> Unit
 ) {
     when {
@@ -238,18 +231,20 @@ private fun SteamFreebieAction(
             Text(stringResource(R.string.steam_freebie_checking), maxLines = 1)
         }
         claimResult?.status == SteamFreebieClaimStatus.PENDING_VERIFICATION -> Button(
-            onClick = onRefreshClaim,
+            onClick = onOpenOfficial,
             modifier = Modifier.heightIn(min = 48.dp)
         ) {
-            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.steam_freebie_refresh_status), maxLines = 1)
+            Text(stringResource(R.string.steam_freebie_claim_on_steam), maxLines = 1)
         }
         item.isPermanentlyClaimable && !item.needsBaseGame -> Button(
-            onClick = onClaim,
+            onClick = onOpenOfficial,
             modifier = Modifier.heightIn(min = 48.dp)
         ) {
-            Text(stringResource(R.string.steam_freebie_claim), maxLines = 1)
+            Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.steam_freebie_claim_on_steam), maxLines = 1)
         }
         else -> FilledTonalButton(
             onClick = onOpenOfficial,

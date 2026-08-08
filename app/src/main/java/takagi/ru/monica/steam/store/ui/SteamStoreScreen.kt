@@ -261,7 +261,7 @@ fun SteamStoreScreen(
                     },
                 expectedSteamId = selectedStoreAccount?.steamId,
                 checkoutLines = state.checkoutLines,
-                requireAuthenticatedSession = state.checkoutLines.isNotEmpty(),
+                requireAuthenticatedSession = state.webRequiresAuthenticatedSession,
                 onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                 onClose = viewModel::closeStoreWeb,
                 modifier = Modifier.fillMaxSize()
@@ -292,7 +292,7 @@ fun SteamStoreScreen(
             SteamStoreDestination.Freebies -> SteamFreebieScreen(
                 onBack = { freebiesOpen = false },
                 onOpenDetail = viewModel::openDetail,
-                onOpenOfficial = viewModel::openStoreWeb,
+                onOpenOfficial = viewModel::openAuthenticatedStoreWeb,
                 onAddSteamAccount = onAddSteamAccount,
                 modifier = Modifier.fillMaxSize()
             )
@@ -364,11 +364,8 @@ fun SteamStoreScreen(
                             if (selectedStoreAccount == null) {
                                 showAccounts = true
                             } else {
-                                viewModel.claimFreeLicense(detail, detail.freeLicenseOption)
+                                viewModel.openAuthenticatedStoreWeb(detail.storeUrl)
                             }
-                        },
-                        onRefreshFreeLicense = {
-                            viewModel.refreshFreeLicense(detail, detail.freeLicenseOption)
                         },
                         onRemoveFromCart = { viewModel.removeFromCart(detail.appId) },
                         onOpenCart = viewModel::openCart,
@@ -998,7 +995,6 @@ private fun SteamStoreDetailContent(
     onAddToCart: (SteamStorePackageOption?) -> Unit,
     onAddAsGift: (SteamStorePackageOption?) -> Unit,
     onClaimFreeLicense: () -> Unit,
-    onRefreshFreeLicense: () -> Unit,
     onRemoveFromCart: () -> Unit,
     onOpenCart: () -> Unit,
     onToggleWishlist: () -> Unit,
@@ -1191,8 +1187,7 @@ private fun SteamStoreDetailContent(
                     alreadyOwned = alreadyOwned,
                     claiming = freeLicenseClaiming,
                     result = freeLicenseClaimResult,
-                    onClaim = onClaimFreeLicense,
-                    onRefresh = onRefreshFreeLicense,
+                    onOpenOfficial = onClaimFreeLicense,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                 )
             }

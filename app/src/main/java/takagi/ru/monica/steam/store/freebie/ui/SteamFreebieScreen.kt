@@ -208,12 +208,10 @@ internal fun SteamFreebieScreen(
                             verifying = packageId != null && packageId in state.verifyingPackageIds,
                             claimResult = packageId?.let(state.claimResults::get),
                             onOpenDetail = { onOpenDetail(item.appId) },
-                            onClaim = {
+                            onOpenOfficial = {
                                 if (selectedAccount == null) showAccounts = true
-                                else viewModel.claim(item)
-                            },
-                            onRefreshClaim = { viewModel.refreshClaim(item) },
-                            onOpenOfficial = { onOpenOfficial(item.storeUrl) }
+                                else onOpenOfficial(item.storeUrl)
+                            }
                         )
                     }
                 }

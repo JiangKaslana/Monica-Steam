@@ -4494,6 +4494,7 @@
     <string name="steam_freebie_expiry_unknown">截止时间以 Steam 为准</string>
     <string name="steam_freebie_cached">当前显示已保存的活动，联网后下拉即可同步。</string>
     <string name="steam_freebie_claim">领取入库</string>
+    <string name="steam_freebie_claim_on_steam">前往 Steam 领取</string>
     <string name="steam_freebie_claiming">领取中…</string>
     <string name="steam_freebie_checking">正在确认…</string>
     <string name="steam_freebie_refresh_status">刷新拥有状态</string>

@@ -47,7 +47,7 @@ class SteamFreebieUiGuardTest {
     }
 
     @Test
-    fun storeDetailExposesDirectFreeLicenseClaimAndPendingRefresh() {
+    fun freeLicenseActionsUseTheAuthenticatedOfficialStorePage() {
         val store = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
@@ -57,13 +57,20 @@ class SteamFreebieUiGuardTest {
         val card = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/freebie/ui/components/SteamFreebieCard.kt"
         ).readText()
+        val detailButton = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/purchase/ui/SteamStoreFreeLicenseButton.kt"
+        ).readText()
 
         assertTrue(store.contains("SteamStoreFreeLicenseButton"))
-        assertTrue(store.contains("onClaimFreeLicense"))
         assertTrue(store.contains("if (hasPurchasablePackage)"))
         assertFalse(store.contains("if (freeLicenseOption == null)"))
-        assertTrue(viewModel.contains("claimFreeLicense"))
-        assertTrue(card.contains("onRefreshClaim"))
+        assertTrue(store.contains("onOpenOfficial = viewModel::openAuthenticatedStoreWeb"))
+        assertTrue(store.contains("viewModel.openAuthenticatedStoreWeb(detail.storeUrl)"))
+        assertTrue(store.contains("requireAuthenticatedSession = state.webRequiresAuthenticatedSession"))
+        assertTrue(viewModel.contains("webRequiresAuthenticatedSession"))
+        assertTrue(viewModel.contains("fun openAuthenticatedStoreWeb"))
+        assertTrue(card.contains("onClick = onOpenOfficial"))
+        assertTrue(detailButton.contains("onClick = onOpenOfficial"))
     }
 
     private fun projectFile(path: String): File {

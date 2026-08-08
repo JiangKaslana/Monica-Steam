@@ -103,6 +103,7 @@ data class SteamStoreUiState(
     val reviewLoadError: String? = null,
     val error: String? = null,
     val webUrl: String? = null,
+    val webRequiresAuthenticatedSession: Boolean = false,
     val pointsShopOpen: Boolean = false,
     val cart: List<SteamCartItem> = emptyList(),
     val cartOpen: Boolean = false,
@@ -1098,6 +1099,7 @@ class SteamStoreViewModel internal constructor(
         _uiState.value = _uiState.value.copy(
             checkoutLines = lines,
             webUrl = "https://store.steampowered.com/cart/",
+            webRequiresAuthenticatedSession = true,
             cartOpen = false
         )
     }
@@ -1440,12 +1442,28 @@ class SteamStoreViewModel internal constructor(
 
     fun openStoreWeb(url: String) {
         if (SteamStoreNavigationPolicy.isAllowed(url)) {
-            _uiState.value = _uiState.value.copy(webUrl = url)
+            _uiState.value = _uiState.value.copy(
+                webUrl = url,
+                webRequiresAuthenticatedSession = false
+            )
+        }
+    }
+
+    fun openAuthenticatedStoreWeb(url: String) {
+        if (SteamStoreNavigationPolicy.isAllowed(url)) {
+            _uiState.value = _uiState.value.copy(
+                webUrl = url,
+                webRequiresAuthenticatedSession = true
+            )
         }
     }
 
     fun closeStoreWeb() {
-        _uiState.value = _uiState.value.copy(webUrl = null, checkoutLines = emptyList())
+        _uiState.value = _uiState.value.copy(
+            webUrl = null,
+            webRequiresAuthenticatedSession = false,
+            checkoutLines = emptyList()
+        )
     }
 
     private fun openGiftRecipientPicker(item: SteamCartItem) {

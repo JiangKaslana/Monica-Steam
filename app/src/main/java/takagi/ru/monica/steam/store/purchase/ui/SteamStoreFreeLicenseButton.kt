@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,8 +32,7 @@ internal fun SteamStoreFreeLicenseButton(
     alreadyOwned: Boolean,
     claiming: Boolean,
     result: SteamFreebieClaimResult?,
-    onClaim: () -> Unit,
-    onRefresh: () -> Unit,
+    onOpenOfficial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -76,24 +74,24 @@ internal fun SteamStoreFreeLicenseButton(
                 )
             }
             result?.status == SteamFreebieClaimStatus.PENDING_VERIFICATION -> Button(
-                onClick = onRefresh,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = null)
-                Text(
-                    text = stringResource(R.string.steam_freebie_refresh_status),
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-            else -> Button(
-                onClick = onClaim,
+                onClick = onOpenOfficial,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                 shape = RoundedCornerShape(18.dp)
             ) {
                 Icon(Icons.Default.Redeem, contentDescription = null)
                 Text(
-                    text = stringResource(R.string.steam_freebie_claim),
+                    text = stringResource(R.string.steam_freebie_claim_on_steam),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            else -> Button(
+                onClick = onOpenOfficial,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Icon(Icons.Default.Redeem, contentDescription = null)
+                Text(
+                    text = stringResource(R.string.steam_freebie_claim_on_steam),
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
