@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -54,9 +55,11 @@ import takagi.ru.monica.steam.store.ui.SteamStoreImage
 internal fun SteamFreebieCard(
     item: SteamFreebieItem,
     claiming: Boolean,
+    verifying: Boolean,
     claimResult: SteamFreebieClaimResult?,
     onOpenDetail: () -> Unit,
     onClaim: () -> Unit,
+    onRefreshClaim: () -> Unit,
     onOpenOfficial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -142,7 +145,10 @@ internal fun SteamFreebieCard(
             SteamFreebieAction(
                 item = item,
                 claiming = claiming,
+                verifying = verifying,
+                claimResult = claimResult,
                 onClaim = onClaim,
+                onRefreshClaim = onRefreshClaim,
                 onOpenOfficial = onOpenOfficial
             )
         }
@@ -197,7 +203,10 @@ private fun FreebiePriceRow(item: SteamFreebieItem) {
 private fun SteamFreebieAction(
     item: SteamFreebieItem,
     claiming: Boolean,
+    verifying: Boolean,
+    claimResult: SteamFreebieClaimResult?,
     onClaim: () -> Unit,
+    onRefreshClaim: () -> Unit,
     onOpenOfficial: () -> Unit
 ) {
     when {
@@ -218,6 +227,23 @@ private fun SteamFreebieAction(
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.steam_freebie_claiming), maxLines = 1)
+        }
+        verifying -> Button(
+            onClick = {},
+            enabled = false,
+            modifier = Modifier.heightIn(min = 48.dp)
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.steam_freebie_checking), maxLines = 1)
+        }
+        claimResult?.status == SteamFreebieClaimStatus.PENDING_VERIFICATION -> Button(
+            onClick = onRefreshClaim,
+            modifier = Modifier.heightIn(min = 48.dp)
+        ) {
+            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.steam_freebie_refresh_status), maxLines = 1)
         }
         item.isPermanentlyClaimable && !item.needsBaseGame -> Button(
             onClick = onClaim,

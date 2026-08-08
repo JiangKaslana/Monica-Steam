@@ -1,7 +1,6 @@
 package takagi.ru.monica.steam.store.freebie.data
 
 import java.io.IOException
-import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -43,7 +42,9 @@ internal class SteamFreebieService(
     private val storeService: SteamStoreService = SteamStoreService(),
     private val purchaseContextGateway: SteamStorePurchaseContextGateway =
         SteamStorePurchaseContextService(),
-    private val nowMillis: () -> Long = System::currentTimeMillis
+    private val nowMillis: () -> Long = System::currentTimeMillis,
+    private val verificationDelaysMillis: List<Long> = listOf(0L, 750L, 1_500L, 2_500L),
+    private val delayForVerification: suspend (Long) -> Unit = { delay(it) }
 ) {
     suspend fun load(account: SteamAccount?): SteamFreebieCatalog = coroutineScope {
         val countryCode = account?.takeIf { it.hasRealSteamId }
@@ -118,7 +119,13 @@ internal class SteamFreebieService(
         if (!decision.canLoad || !decision.installAuthenticatedCookie) {
             return SteamFreebieClaimResult(SteamFreebieClaimStatus.SESSION_REQUIRED)
         }
-        val sessionId = newSteamSessionId()
+        // Reuse Steam's page token. A made-up token may produce a successful
+        // redirect while Steam silently skips adding the license.
+        val sessionId = fetchSteamSessionId(item, secure)
+            ?: return SteamFreebieClaimResult(
+                status = SteamFreebieClaimStatus.SESSION_REQUIRED,
+                detail = "Steam store session token was unavailable"
+            )
         val response = claimClient.newCall(
             buildSteamFreebieClaimRequest(
                 steamLoginSecure = secure,
@@ -131,7 +138,8 @@ internal class SteamFreebieService(
             SteamFreebieClaimResponse(
                 submissionStatus = classifySteamFreebieSubmission(
                     statusCode = httpResponse.code,
-                    location = httpResponse.header("Location")
+                    location = httpResponse.header("Location"),
+                    body = body
                 ),
                 body = body,
                 statusCode = httpResponse.code
@@ -151,17 +159,45 @@ internal class SteamFreebieService(
             SteamFreebieSubmissionStatus.ACCEPTED -> Unit
         }
 
-        repeat(OWNERSHIP_VERIFICATION_ATTEMPTS) { attempt ->
-            if (attempt > 0) delay(OWNERSHIP_VERIFICATION_DELAY_MILLIS)
-            val ownership = runCatching {
-                purchaseContextGateway.fetch(account, item.appId, "schinese").ownership
-            }.getOrNull()
+        verificationDelaysMillis.forEachIndexed { attempt, waitMillis ->
+            if (attempt > 0) delayForVerification(waitMillis)
+            val ownership = verifyOwnership(account, item)
             if (ownership == SteamStoreOwnershipStatus.OWNED) {
                 return SteamFreebieClaimResult(SteamFreebieClaimStatus.CLAIMED)
             }
         }
         return SteamFreebieClaimResult(SteamFreebieClaimStatus.PENDING_VERIFICATION)
     }
+
+    /** Re-check Steam after delayed license propagation without submitting again. */
+    suspend fun verifyOwnership(
+        account: SteamAccount,
+        item: SteamFreebieItem
+    ): SteamStoreOwnershipStatus = runCatching {
+        purchaseContextGateway.fetch(account, item.appId, "schinese").ownership
+    }.onFailure { error ->
+        SteamDiagLogger.append(
+            "store_freebie ownership_verify_failed app_id=${item.appId} " +
+                "type=${error.javaClass.simpleName}"
+        )
+    }.getOrDefault(SteamStoreOwnershipStatus.UNKNOWN)
+
+    suspend fun claimFreeLicense(
+        account: SteamAccount,
+        appId: Int,
+        packageId: Int,
+        storeUrl: String
+    ): SteamFreebieClaimResult = claim(
+        account = account,
+        item = SteamFreebieItem(
+            appId = appId,
+            packageId = packageId,
+            name = "",
+            storeUrl = storeUrl,
+            offerKind = SteamFreebieOfferKind.KEEP_FOREVER,
+            claimMethod = SteamFreebieClaimMethod.FREE_LICENSE
+        )
+    )
 
     private fun annotateAccountState(
         account: SteamAccount?,
@@ -195,16 +231,41 @@ internal class SteamFreebieService(
         }
     }
 
+    private fun fetchSteamSessionId(
+        item: SteamFreebieItem,
+        steamLoginSecure: String
+    ): String? = runCatching {
+        val candidate = SteamFreebieCandidate(
+            appId = item.appId,
+            name = item.name,
+            imageUrl = item.imageUrl,
+            storeUrl = item.storeUrl,
+            originalPriceText = item.originalPriceText,
+            finalPriceText = item.finalPriceText,
+            discountPercent = item.discountPercent
+        )
+        val request = buildSteamFreebieOfferPageRequest(
+            candidate = candidate,
+            countryCode = item.accountCountryCode,
+            steamLoginSecure = steamLoginSecure
+        )
+        claimClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@use null
+            SteamFreebieOfferPageParser.parseSessionId(response.body?.string().orEmpty())
+        }
+    }.onFailure { error ->
+        SteamDiagLogger.append(
+            "store_freebie session_fetch_failed app_id=${item.appId} " +
+                "type=${error.javaClass.simpleName}"
+        )
+    }.getOrNull()
+
     private data class SteamFreebieClaimResponse(
         val submissionStatus: SteamFreebieSubmissionStatus,
         val body: String,
         val statusCode: Int
     )
 
-    private companion object {
-        const val OWNERSHIP_VERIFICATION_ATTEMPTS = 3
-        const val OWNERSHIP_VERIFICATION_DELAY_MILLIS = 700L
-    }
 }
 
 internal fun buildSteamFreebieSearchRequest(
@@ -229,11 +290,12 @@ internal fun buildSteamFreebieSearchRequest(
 
 internal fun buildSteamFreebieOfferPageRequest(
     candidate: SteamFreebieCandidate,
-    countryCode: String?
+    countryCode: String?,
+    steamLoginSecure: String? = null
 ): Request = buildSteamStoreRequest(
     path = "/app/${candidate.appId}/",
     query = mapOf("l" to "english"),
-    steamLoginSecure = null,
+    steamLoginSecure = steamLoginSecure,
     countryCode = countryCode
 ).newBuilder()
     .header("Accept", "text/html")
@@ -248,6 +310,8 @@ internal fun buildSteamFreebieClaimRequest(
     require(packageId > 0)
     require(sessionId.isNotBlank())
     val body = FormBody.Builder()
+        .add("snr", "1_5_9__403")
+        .add("originating_snr", "1_direct-navigation__")
         .add("action", "add_to_cart")
         .add("sessionid", sessionId)
         .add("subid", packageId.toString())
@@ -280,12 +344,6 @@ internal fun classifyRejectedClaim(body: String): SteamFreebieClaimStatus = when
 }
 
 internal class SteamFreebieRateLimitException : IOException("Steam freebie requests are rate limited")
-
-private fun newSteamSessionId(): String {
-    val bytes = ByteArray(12)
-    SecureRandom().nextBytes(bytes)
-    return bytes.joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
-}
 
 private val REGION_RESTRICTED_TEXT = Regex(
     "not available in your region|not available in your country|地区不可用|所在地区",

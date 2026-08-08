@@ -4665,6 +4665,8 @@
     <string name="steam_freebie_cached">Showing saved offers. Pull down to sync when online.</string>
     <string name="steam_freebie_claim">Add to library</string>
     <string name="steam_freebie_claiming">Adding…</string>
+    <string name="steam_freebie_checking">Checking…</string>
+    <string name="steam_freebie_refresh_status">Refresh status</string>
     <string name="steam_freebie_open_store">Open store</string>
     <string name="steam_freebie_owned">In library</string>
     <string name="steam_freebie_family_shared">Available through Family Sharing; a personal license can still be claimed.</string>
@@ -4673,7 +4675,7 @@
     <string name="steam_freebie_weekend_notice">Free to play for a limited time; it will not remain in the library.</string>
     <string name="steam_freebie_claimed">Added to the library and ownership confirmed.</string>
     <string name="steam_freebie_already_owned">This account already owns the item.</string>
-    <string name="steam_freebie_pending_verification">Request submitted. Steam ownership is still being verified.</string>
+    <string name="steam_freebie_pending_verification">Steam accepted the request and is syncing the library. This page will retry automatically, or you can refresh the status now.</string>
     <string name="steam_freebie_session_required">Steam sign-in expired. Refresh the account session or use the official store.</string>
     <string name="steam_freebie_rate_limited">Steam is receiving too many requests. Try again later.</string>
     <string name="steam_freebie_region_restricted">This item cannot be claimed in the account region.</string>

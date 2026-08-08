@@ -42,6 +42,7 @@ internal data class SteamFreebieUiState(
     val failure: SteamFreebieLoadFailure? = null,
     val filter: SteamFreebieFilter = SteamFreebieFilter.ALL,
     val claimingPackageIds: Set<Int> = emptySet(),
+    val verifyingPackageIds: Set<Int> = emptySet(),
     val claimResults: Map<Int, SteamFreebieClaimResult> = emptyMap()
 )
 
@@ -54,6 +55,7 @@ internal class SteamFreebieViewModel(
     val uiState: StateFlow<SteamFreebieUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
     private var loadGeneration = 0L
+    private val verificationJobs = mutableMapOf<Int, Job>()
 
     init {
         viewModelScope.launch {
@@ -181,6 +183,49 @@ internal class SteamFreebieViewModel(
                     cache.write(accountId, catalog)
                 }
             }
+            if (result.status == SteamFreebieClaimStatus.PENDING_VERIFICATION) {
+                scheduleOwnershipVerification(accountId, item)
+            }
+        }
+    }
+
+    /** Refreshes an accepted claim without submitting the license a second time. */
+    fun refreshClaim(item: SteamFreebieItem) {
+        val packageId = item.packageId ?: return
+        val account = selectedAccount() ?: return
+        if (packageId in _uiState.value.claimingPackageIds ||
+            packageId in _uiState.value.verifyingPackageIds
+        ) return
+        val accountId = account.id
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                verifyingPackageIds = _uiState.value.verifyingPackageIds + packageId
+            )
+            val ownership = withContext(Dispatchers.IO) {
+                service.verifyOwnership(account, item)
+            }
+            if (_uiState.value.selectedAccountId != accountId) return@launch
+            val owned = ownership == SteamStoreOwnershipStatus.OWNED
+            val result = if (owned) {
+                SteamFreebieClaimResult(SteamFreebieClaimStatus.CLAIMED)
+            } else {
+                _uiState.value.claimResults[packageId]
+                    ?: SteamFreebieClaimResult(SteamFreebieClaimStatus.PENDING_VERIFICATION)
+            }
+            val updatedCatalog = if (owned) {
+                markOwned(_uiState.value.catalog, item.appId)
+            } else {
+                _uiState.value.catalog
+            }
+            _uiState.value = _uiState.value.copy(
+                catalog = updatedCatalog,
+                verifyingPackageIds = _uiState.value.verifyingPackageIds - packageId,
+                claimResults = _uiState.value.claimResults + (packageId to result)
+            )
+            updatedCatalog?.let { catalog ->
+                withContext(Dispatchers.IO) { cache.write(accountId, catalog) }
+            }
+            if (owned) verificationJobs.remove(packageId)?.cancel()
         }
     }
 
@@ -261,9 +306,59 @@ internal class SteamFreebieViewModel(
             failure = null,
             filter = SteamFreebieFilter.ALL,
             claimingPackageIds = emptySet(),
+            verifyingPackageIds = emptySet(),
             claimResults = emptyMap()
         )
+        verificationJobs.values.forEach { it.cancel() }
+        verificationJobs.clear()
     }
+
+    private fun scheduleOwnershipVerification(
+        accountId: Long,
+        item: SteamFreebieItem
+    ) {
+        val packageId = item.packageId ?: return
+        verificationJobs[packageId]?.cancel()
+        verificationJobs[packageId] = viewModelScope.launch {
+            repeat(AUTOMATIC_VERIFICATION_ATTEMPTS) { attempt ->
+                kotlinx.coroutines.delay(AUTOMATIC_VERIFICATION_DELAY_MILLIS)
+                if (_uiState.value.selectedAccountId != accountId) return@launch
+                val ownership = withContext(Dispatchers.IO) {
+                    selectedAccount()?.let { account -> service.verifyOwnership(account, item) }
+                }
+                if (ownership == SteamStoreOwnershipStatus.OWNED) {
+                    val updatedCatalog = markOwned(_uiState.value.catalog, item.appId)
+                    _uiState.value = _uiState.value.copy(
+                        catalog = updatedCatalog,
+                        claimResults = _uiState.value.claimResults + (
+                            packageId to SteamFreebieClaimResult(
+                                SteamFreebieClaimStatus.CLAIMED
+                            )
+                        )
+                    )
+                    updatedCatalog?.let { catalog ->
+                        withContext(Dispatchers.IO) { cache.write(accountId, catalog) }
+                    }
+                    return@launch
+                }
+            }
+        }.also { job ->
+            job.invokeOnCompletion { verificationJobs.remove(packageId, job) }
+        }
+    }
+
+    private fun markOwned(
+        catalog: SteamFreebieCatalog?,
+        appId: Int
+    ): SteamFreebieCatalog? = catalog?.copy(
+        items = catalog.items.map { current ->
+            if (current.appId == appId) {
+                current.copy(ownership = SteamStoreOwnershipStatus.OWNED)
+            } else {
+                current
+            }
+        }
+    )
 
     private fun requestIsCurrent(accountId: Long?, generation: Long): Boolean =
         _uiState.value.selectedAccountId == accountId && generation == loadGeneration
@@ -276,6 +371,9 @@ internal class SteamFreebieViewModel(
     }
 
     companion object {
+        private const val AUTOMATIC_VERIFICATION_ATTEMPTS = 5
+        private const val AUTOMATIC_VERIFICATION_DELAY_MILLIS = 2_000L
+
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             val accountSourceRepository = SteamAccountSourceRepository.get(appContext)

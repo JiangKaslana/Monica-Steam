@@ -85,6 +85,17 @@ class SteamFreebieParserTest {
     }
 
     @Test
+    fun offerPageUsesSteamServerSessionIdForClaimRequests() {
+        val sessionId = SteamFreebieOfferPageParser.parseSessionId(
+            """
+                <input type="hidden" name="sessionid" value="a4d2cb9bee17a1711e355aa0">
+            """.trimIndent()
+        )
+
+        assertEquals("a4d2cb9bee17a1711e355aa0", sessionId)
+    }
+
+    @Test
     fun offerPageSeparatesOfficialCheckoutAndDlcBaseGame() {
         val item = SteamFreebieOfferPageParser.parse(
             candidate = candidate(discountPercent = 100),
