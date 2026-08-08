@@ -68,6 +68,21 @@ class SteamMiniProfileRenderingRegressionTest {
         assertTrue(layer.contains("awaitCancellation()"))
     }
 
+    @Test
+    fun mediaPlayerCanRecoverAfterAnAsynchronousDecodeError() {
+        val layer = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/profile/ui/SteamMiniProfileBackgroundLayer.kt"
+        ).readText()
+
+        assertTrue(layer.contains("player == null"))
+        assertTrue(layer.contains("schedulePlaybackRetry"))
+        assertTrue(layer.contains("MAX_PLAYBACK_RETRIES"))
+        assertTrue(layer.contains("postDelayed"))
+        val updatePlayback = layer.substringAfter("private fun updatePlayback()")
+            .substringBefore("private fun applyCenterCrop()")
+        assertTrue(updatePlayback.contains("handlePlaybackError(path)"))
+    }
+
     private fun projectFile(relativePath: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (

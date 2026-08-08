@@ -40,6 +40,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
+import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.profile.SteamMiniProfileBackgroundRepository
 import takagi.ru.monica.steam.profile.SteamMiniProfilePreparedMedia
 
@@ -221,6 +222,8 @@ private class SteamMiniProfileTextureView @JvmOverloads constructor(
     private var prepared: Boolean = false
     private var videoWidth: Int = 0
     private var videoHeight: Int = 0
+    private var playbackRetryCount: Int = 0
+    private var retryRunnable: Runnable? = null
 
     init {
         surfaceTextureListener = this
@@ -232,7 +235,12 @@ private class SteamMiniProfileTextureView @JvmOverloads constructor(
         playRequested = play
         val path = file.absolutePath
         if (mediaPath != path) {
+            cancelPlaybackRetry()
+            playbackRetryCount = 0
             mediaPath = path
+            createPlayerIfPossible()
+        } else if (player == null && surface != null) {
+            cancelPlaybackRetry()
             createPlayerIfPossible()
         } else {
             updatePlayback()
@@ -240,6 +248,7 @@ private class SteamMiniProfileTextureView @JvmOverloads constructor(
     }
 
     override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
+        cancelPlaybackRetry()
         surface?.release()
         surface = Surface(texture)
         createPlayerIfPossible()
@@ -250,6 +259,7 @@ private class SteamMiniProfileTextureView @JvmOverloads constructor(
     }
 
     override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean {
+        cancelPlaybackRetry()
         releasePlayer()
         surface?.release()
         surface = null
@@ -264,17 +274,20 @@ private class SteamMiniProfileTextureView @JvmOverloads constructor(
     }
 
     fun release() {
+        cancelPlaybackRetry()
         animate().cancel()
         releasePlayer()
         surface?.release()
         surface = null
         mediaPath = null
+        playbackRetryCount = 0
         alpha = 0f
     }
 
     private fun createPlayerIfPossible() {
         val path = mediaPath ?: return
         val targetSurface = surface ?: return
+        cancelPlaybackRetry()
         releasePlayer()
         animate().cancel()
         alpha = 0f
@@ -296,26 +309,56 @@ private class SteamMiniProfileTextureView @JvmOverloads constructor(
                 }
                 setOnInfoListener { _, what, _ ->
                     if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                        playbackRetryCount = 0
                         animate().alpha(1f).setDuration(180L).start()
                     }
                     false
                 }
-                setOnErrorListener { _, _, _ ->
-                    animate().cancel()
-                    alpha = 0f
-                    releasePlayer()
+                setOnErrorListener { _, what, extra ->
+                    SteamDiagLogger.append(
+                        "mini_profile_playback error file=${File(path).name} " +
+                            "what=$what extra=$extra retry=$playbackRetryCount"
+                    )
+                    handlePlaybackError(path)
                     true
                 }
                 prepareAsync()
             }
-        }.getOrElse {
-            animate().cancel()
-            alpha = 0f
+        }.getOrElse { error ->
+            SteamDiagLogger.append(
+                "mini_profile_playback prepare_failed file=${File(path).name} " +
+                    "type=${error.javaClass.simpleName} retry=$playbackRetryCount"
+            )
+            handlePlaybackError(path)
             null
         }
     }
 
+    private fun handlePlaybackError(path: String) {
+        animate().cancel()
+        alpha = 0f
+        releasePlayer()
+        if (playRequested) schedulePlaybackRetry(path)
+    }
+
+    private fun schedulePlaybackRetry(path: String) {
+        if (playbackRetryCount >= MAX_PLAYBACK_RETRIES || retryRunnable != null) return
+        playbackRetryCount += 1
+        retryRunnable = Runnable {
+            retryRunnable = null
+            if (mediaPath == path && playRequested && surface != null && player == null) {
+                createPlayerIfPossible()
+            }
+        }.also { postDelayed(it, PLAYBACK_RETRY_DELAY_MILLIS) }
+    }
+
+    private fun cancelPlaybackRetry() {
+        retryRunnable?.let(::removeCallbacks)
+        retryRunnable = null
+    }
+
     private fun updatePlayback() {
+        val path = mediaPath ?: return
         val active = player ?: return
         if (!prepared) return
         runCatching {
@@ -324,10 +367,12 @@ private class SteamMiniProfileTextureView @JvmOverloads constructor(
             } else if (active.isPlaying) {
                 active.pause()
             }
-        }.onFailure {
-            animate().cancel()
-            alpha = 0f
-            releasePlayer()
+        }.onFailure { error ->
+            SteamDiagLogger.append(
+                "mini_profile_playback update_failed file=${File(path).name} " +
+                    "type=${error.javaClass.simpleName} retry=$playbackRetryCount"
+            )
+            handlePlaybackError(path)
         }
     }
 
@@ -359,5 +404,10 @@ private class SteamMiniProfileTextureView @JvmOverloads constructor(
             // stall the UI thread when several animated cards leave composition.
             runCatching { current.release() }
         }
+    }
+
+    private companion object {
+        const val MAX_PLAYBACK_RETRIES = 2
+        const val PLAYBACK_RETRY_DELAY_MILLIS = 650L
     }
 }
