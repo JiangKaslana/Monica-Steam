@@ -40,7 +40,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -54,12 +53,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import takagi.ru.monica.steam.navigation.SteamDockPreferences
 import takagi.ru.monica.steam.navigation.SteamDockStyle
 import takagi.ru.monica.steam.navigation.SteamDockTab
+import takagi.ru.monica.steam.navigation.icon
+import takagi.ru.monica.steam.navigation.label
 import takagi.ru.monica.steam.navigation.shouldEnableSteamLiquidGlassRuntimeEffects
 import takagi.ru.monica.steam.navigation.liquidglass.render.rememberSteamLiquidGlassBackdrop
 import takagi.ru.monica.steam.navigation.liquidglass.render.steamLiquidGlassBackdropSource
 import takagi.ru.monica.steam.navigation.liquidglass.ui.SteamLiquidGlassDock
 import takagi.ru.monica.steam.navigation.liquidglass.ui.SteamLiquidGlassDockVisibility
 import takagi.ru.monica.steam.navigation.ui.SteamEssentialsFloatingToolbar
+import takagi.ru.monica.steam.navigation.ui.SteamFixedBottomBar
 import takagi.ru.monica.steam.navigation.ui.SteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.SteamToolbarItem
@@ -253,10 +255,11 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 val dockStyle = dockConfiguration?.style ?: SteamDockStyle.M3E
                 val dockOrder = dockConfiguration?.m3eOrder.orEmpty()
                 val liquidGlassDockOrder = dockConfiguration?.liquidGlassOrder.orEmpty()
-                val activeDockOrder = if (dockStyle == SteamDockStyle.LIQUID_GLASS) {
-                    liquidGlassDockOrder
-                } else {
-                    dockOrder
+                val fixedDockOrder = dockConfiguration?.fixedOrder.orEmpty()
+                val activeDockOrder = when (dockStyle) {
+                    SteamDockStyle.M3E -> dockOrder
+                    SteamDockStyle.LIQUID_GLASS -> liquidGlassDockOrder
+                    SteamDockStyle.FIXED -> fixedDockOrder
                 }
                 val liquidGlassBackdrop = rememberSteamLiquidGlassBackdrop()
                 val dockBlurHeightPx = with(LocalDensity.current) { 130.dp.toPx() }
@@ -476,6 +479,12 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onLiquidGlassDockOrderChange = { order ->
                                     composeScope.launch {
                                         dockPreferences.updateLiquidGlassOrder(order)
+                                    }
+                                },
+                                fixedDockOrder = fixedDockOrder,
+                                onFixedDockOrderChange = { order ->
+                                    composeScope.launch {
+                                        dockPreferences.updateFixedOrder(order)
                                     }
                                 },
                                 showNavigationBack = false,
@@ -712,6 +721,19 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     }
                                 )
                             }
+                            if (dockStyle == SteamDockStyle.FIXED && dockVisible) {
+                                SteamFixedBottomBar(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .zIndex(1f),
+                                    order = fixedDockOrder,
+                                    selected = currentPage.toDockTab(),
+                                    onSelected = { tab ->
+                                        pageHistory = emptyList()
+                                        currentPage = tab.toPage()
+                                    }
+                                )
+                            }
                 }
             }
                     }
@@ -777,7 +799,8 @@ private fun MonicaSteamPage.isDockPage(style: SteamDockStyle): Boolean = when (t
     MonicaSteamPage.LIBRARY,
     MonicaSteamPage.STORE,
     MonicaSteamPage.CHAT -> true
-    MonicaSteamPage.SETTINGS -> style == SteamDockStyle.LIQUID_GLASS
+    MonicaSteamPage.SETTINGS -> style == SteamDockStyle.LIQUID_GLASS ||
+        style == SteamDockStyle.FIXED
     MonicaSteamPage.SCANNER,
     MonicaSteamPage.HEALTH,
     MonicaSteamPage.COMMUNITY,
@@ -885,21 +908,4 @@ private fun SteamStandaloneDock(
             }
         )
     }
-}
-
-private fun SteamDockTab.icon(): ImageVector = when (this) {
-    SteamDockTab.TOKEN -> Icons.Default.Security
-    SteamDockTab.LIBRARY -> Icons.Default.SportsEsports
-    SteamDockTab.STORE -> Icons.Default.Storefront
-    SteamDockTab.CHAT -> Icons.Default.ChatBubble
-    SteamDockTab.SETTINGS -> Icons.Default.Settings
-}
-
-@Composable
-private fun SteamDockTab.label(): String = when (this) {
-    SteamDockTab.TOKEN -> stringResource(R.string.steam_dock_token)
-    SteamDockTab.LIBRARY -> stringResource(R.string.steam_library_title)
-    SteamDockTab.STORE -> stringResource(R.string.steam_store_title)
-    SteamDockTab.CHAT -> stringResource(R.string.steam_chat_title)
-    SteamDockTab.SETTINGS -> stringResource(R.string.settings_title)
 }

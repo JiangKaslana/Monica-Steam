@@ -11,7 +11,8 @@ import kotlin.math.abs
 
 enum class SteamDockStyle {
     M3E,
-    LIQUID_GLASS;
+    LIQUID_GLASS,
+    FIXED;
 
     companion object {
         fun fromStoredValue(value: String?): SteamDockStyle =
@@ -29,6 +30,8 @@ enum class SteamDockTab {
     companion object {
         val DEFAULT_ORDER: List<SteamDockTab> = listOf(STORE, LIBRARY, CHAT)
         val LIQUID_GLASS_DEFAULT_ORDER: List<SteamDockTab> =
+            listOf(STORE, LIBRARY, CHAT, TOKEN, SETTINGS)
+        val FIXED_DEFAULT_ORDER: List<SteamDockTab> =
             listOf(STORE, LIBRARY, CHAT, TOKEN, SETTINGS)
 
         fun sanitizeOrder(order: List<SteamDockTab>): List<SteamDockTab> {
@@ -50,13 +53,24 @@ enum class SteamDockTab {
             LIQUID_GLASS_DEFAULT_ORDER.forEach { tab -> if (tab !in result) result += tab }
             return result
         }
+
+        fun sanitizeFixedOrder(order: List<SteamDockTab>): List<SteamDockTab> {
+            return order.distinct().filter { it in FIXED_DEFAULT_ORDER }
+        }
+
+        fun completeFixedOrder(order: List<SteamDockTab>): List<SteamDockTab> {
+            val result = sanitizeFixedOrder(order).toMutableList()
+            FIXED_DEFAULT_ORDER.forEach { tab -> if (tab !in result) result += tab }
+            return result
+        }
     }
 }
 
 data class SteamDockConfiguration(
     val style: SteamDockStyle,
     val m3eOrder: List<SteamDockTab>,
-    val liquidGlassOrder: List<SteamDockTab>
+    val liquidGlassOrder: List<SteamDockTab>,
+    val fixedOrder: List<SteamDockTab>
 )
 
 private val LEGACY_DEFAULT_DOCK_ORDER = listOf(
@@ -134,6 +148,19 @@ internal fun reorderLiquidGlassDockOrder(
     }
 }
 
+internal fun reorderFixedDockOrder(
+    order: List<SteamDockTab>,
+    fromIndex: Int,
+    toIndex: Int
+): List<SteamDockTab> {
+    val completed = SteamDockTab.completeFixedOrder(order)
+    if (fromIndex !in completed.indices || toIndex !in completed.indices) return completed
+    if (fromIndex == toIndex) return completed
+    return completed.toMutableList().apply {
+        add(toIndex, removeAt(fromIndex))
+    }
+}
+
 private val Context.steamDockDataStore by preferencesDataStore(name = "monica_steam_dock")
 
 class SteamDockPreferences(context: Context) {
@@ -154,6 +181,9 @@ class SteamDockPreferences(context: Context) {
             m3eOrder = m3eOrder,
             liquidGlassOrder = SteamDockTab.completeLiquidGlassOrder(
                 preferences[LIQUID_GLASS_ORDER_KEY].parseDockTabs()
+            ),
+            fixedOrder = SteamDockTab.completeFixedOrder(
+                preferences[FIXED_ORDER_KEY].parseDockTabs()
             )
         )
     }
@@ -162,6 +192,8 @@ class SteamDockPreferences(context: Context) {
     val order: Flow<List<SteamDockTab>> = configuration.map { it.m3eOrder }
     val liquidGlassOrder: Flow<List<SteamDockTab>> =
         configuration.map { it.liquidGlassOrder }
+    val fixedOrder: Flow<List<SteamDockTab>> =
+        configuration.map { it.fixedOrder }
 
     suspend fun updateStyle(style: SteamDockStyle) {
         dataStore.edit { preferences ->
@@ -184,10 +216,18 @@ class SteamDockPreferences(context: Context) {
         }
     }
 
+    suspend fun updateFixedOrder(order: List<SteamDockTab>) {
+        val completed = SteamDockTab.completeFixedOrder(order)
+        dataStore.edit { preferences ->
+            preferences[FIXED_ORDER_KEY] = completed.joinToString(",") { it.name }
+        }
+    }
+
     private companion object {
         val STYLE_KEY = stringPreferencesKey("dock_style")
         val ORDER_KEY = stringPreferencesKey("dock_order")
         val LIQUID_GLASS_ORDER_KEY = stringPreferencesKey("liquid_glass_dock_order")
+        val FIXED_ORDER_KEY = stringPreferencesKey("fixed_dock_order")
         val CHAT_MIGRATION_KEY = booleanPreferencesKey("chat_tab_migrated")
     }
 }

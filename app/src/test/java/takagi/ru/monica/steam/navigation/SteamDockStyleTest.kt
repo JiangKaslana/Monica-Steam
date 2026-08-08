@@ -12,6 +12,10 @@ class SteamDockStyleTest {
             SteamDockStyle.LIQUID_GLASS,
             SteamDockStyle.fromStoredValue(SteamDockStyle.LIQUID_GLASS.name)
         )
+        assertEquals(
+            SteamDockStyle.FIXED,
+            SteamDockStyle.fromStoredValue(SteamDockStyle.FIXED.name)
+        )
     }
 
     @Test
@@ -25,6 +29,14 @@ class SteamDockStyleTest {
                 SteamDockTab.SETTINGS
             ),
             SteamDockTab.LIQUID_GLASS_DEFAULT_ORDER
+        )
+    }
+
+    @Test
+    fun fixedDefaultKeepsAllFiveTopLevelDestinations() {
+        assertEquals(
+            SteamDockTab.LIQUID_GLASS_DEFAULT_ORDER,
+            SteamDockTab.FIXED_DEFAULT_ORDER
         )
     }
 }

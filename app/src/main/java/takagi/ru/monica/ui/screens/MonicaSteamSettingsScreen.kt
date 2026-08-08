@@ -36,6 +36,7 @@ import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.navigation.SteamDockStyle
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.reorderDockOrder
+import takagi.ru.monica.steam.navigation.reorderFixedDockOrder
 import takagi.ru.monica.steam.navigation.reorderLiquidGlassDockOrder
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSettingsScreen
@@ -112,6 +113,8 @@ fun MonicaSteamSettingsScreen(
     onDockOrderChange: (List<SteamDockTab>) -> Unit = {},
     liquidGlassDockOrder: List<SteamDockTab> = SteamDockTab.LIQUID_GLASS_DEFAULT_ORDER,
     onLiquidGlassDockOrderChange: (List<SteamDockTab>) -> Unit = {},
+    fixedDockOrder: List<SteamDockTab> = SteamDockTab.FIXED_DEFAULT_ORDER,
+    onFixedDockOrderChange: (List<SteamDockTab>) -> Unit = {},
     showNavigationBack: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -216,6 +219,8 @@ fun MonicaSteamSettingsScreen(
                     onStyleChange = onDockStyleChange,
                     liquidGlassOrder = liquidGlassDockOrder,
                     onLiquidGlassOrderChange = onLiquidGlassDockOrderChange,
+                    fixedOrder = fixedDockOrder,
+                    onFixedOrderChange = onFixedDockOrderChange,
                     onNavigateBack = { child = SteamSettingsChild.APPEARANCE },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -377,7 +382,9 @@ private fun SteamDockOrderScreen(
     style: SteamDockStyle = SteamDockStyle.M3E,
     onStyleChange: (SteamDockStyle) -> Unit = {},
     liquidGlassOrder: List<SteamDockTab> = SteamDockTab.LIQUID_GLASS_DEFAULT_ORDER,
-    onLiquidGlassOrderChange: (List<SteamDockTab>) -> Unit = {}
+    onLiquidGlassOrderChange: (List<SteamDockTab>) -> Unit = {},
+    fixedOrder: List<SteamDockTab> = SteamDockTab.FIXED_DEFAULT_ORDER,
+    onFixedOrderChange: (List<SteamDockTab>) -> Unit = {}
 ) {
     var selectedStyle by remember(style) { mutableStateOf(style) }
 
@@ -436,10 +443,11 @@ private fun SteamDockOrderScreen(
                     ) {
                         Text(
                             text = stringResource(
-                                if (candidate == SteamDockStyle.M3E) {
-                                    R.string.steam_dock_style_m3e
-                                } else {
-                                    R.string.steam_dock_style_liquid_glass
+                                when (candidate) {
+                                    SteamDockStyle.M3E -> R.string.steam_dock_style_m3e
+                                    SteamDockStyle.LIQUID_GLASS ->
+                                        R.string.steam_dock_style_liquid_glass
+                                    SteamDockStyle.FIXED -> R.string.steam_dock_style_fixed
                                 }
                             ),
                             maxLines = 1
@@ -451,11 +459,15 @@ private fun SteamDockOrderScreen(
             key(selectedStyle) {
                 SteamDockSortableList(
                     style = selectedStyle,
-                    order = if (selectedStyle == SteamDockStyle.M3E) order else liquidGlassOrder,
-                    onOrderChange = if (selectedStyle == SteamDockStyle.M3E) {
-                        onOrderChange
-                    } else {
-                        onLiquidGlassOrderChange
+                    order = when (selectedStyle) {
+                        SteamDockStyle.M3E -> order
+                        SteamDockStyle.LIQUID_GLASS -> liquidGlassOrder
+                        SteamDockStyle.FIXED -> fixedOrder
+                    },
+                    onOrderChange = when (selectedStyle) {
+                        SteamDockStyle.M3E -> onOrderChange
+                        SteamDockStyle.LIQUID_GLASS -> onLiquidGlassOrderChange
+                        SteamDockStyle.FIXED -> onFixedOrderChange
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -477,10 +489,10 @@ private fun SteamDockSortableList(
     val dockContentClearance = LocalSteamDockContentClearance.current
     var localOrder by remember(style, order) {
         mutableStateOf(
-            if (style == SteamDockStyle.M3E) {
-                SteamDockTab.completeOrder(order)
-            } else {
-                SteamDockTab.completeLiquidGlassOrder(order)
+            when (style) {
+                SteamDockStyle.M3E -> SteamDockTab.completeOrder(order)
+                SteamDockStyle.LIQUID_GLASS -> SteamDockTab.completeLiquidGlassOrder(order)
+                SteamDockStyle.FIXED -> SteamDockTab.completeFixedOrder(order)
             }
         )
     }
@@ -489,16 +501,21 @@ private fun SteamDockSortableList(
             if (style == SteamDockStyle.M3E) {
                 SteamDockTab.sanitizeOrder(order).toSet()
             } else {
-                SteamDockTab.LIQUID_GLASS_DEFAULT_ORDER.toSet()
+                when (style) {
+                    SteamDockStyle.LIQUID_GLASS -> SteamDockTab.LIQUID_GLASS_DEFAULT_ORDER.toSet()
+                    SteamDockStyle.FIXED -> SteamDockTab.FIXED_DEFAULT_ORDER.toSet()
+                    SteamDockStyle.M3E -> emptySet()
+                }
             }
         )
     }
     var reorderDirty by remember { mutableStateOf(false) }
     val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
-        val reordered = if (style == SteamDockStyle.M3E) {
-            reorderDockOrder(localOrder, from.index, to.index)
-        } else {
-            reorderLiquidGlassDockOrder(localOrder, from.index, to.index)
+        val reordered = when (style) {
+            SteamDockStyle.M3E -> reorderDockOrder(localOrder, from.index, to.index)
+            SteamDockStyle.LIQUID_GLASS ->
+                reorderLiquidGlassDockOrder(localOrder, from.index, to.index)
+            SteamDockStyle.FIXED -> reorderFixedDockOrder(localOrder, from.index, to.index)
         }
         if (reordered != localOrder) {
             localOrder = reordered
@@ -509,10 +526,11 @@ private fun SteamDockSortableList(
         if (!reorderableState.isAnyItemDragging && reorderDirty) {
             reorderDirty = false
             onOrderChange(
-                if (style == SteamDockStyle.M3E) {
-                    localOrder.filter { it in enabledTabs }
-                } else {
-                    SteamDockTab.completeLiquidGlassOrder(localOrder)
+                when (style) {
+                    SteamDockStyle.M3E -> localOrder.filter { it in enabledTabs }
+                    SteamDockStyle.LIQUID_GLASS ->
+                        SteamDockTab.completeLiquidGlassOrder(localOrder)
+                    SteamDockStyle.FIXED -> SteamDockTab.completeFixedOrder(localOrder)
                 }
             )
         }
@@ -520,10 +538,10 @@ private fun SteamDockSortableList(
 
     Text(
         text = stringResource(
-            if (style == SteamDockStyle.M3E) {
-                R.string.steam_dock_m3e_order_hint
-            } else {
-                R.string.steam_dock_liquid_glass_order_hint
+            when (style) {
+                SteamDockStyle.M3E -> R.string.steam_dock_m3e_order_hint
+                SteamDockStyle.LIQUID_GLASS -> R.string.steam_dock_liquid_glass_order_hint
+                SteamDockStyle.FIXED -> R.string.steam_dock_fixed_order_hint
             }
         ),
         style = MaterialTheme.typography.bodyMedium,
@@ -561,7 +579,7 @@ private fun SteamDockSortableList(
                         SteamDockTab.SETTINGS -> stringResource(R.string.settings_title)
                     },
                     subtitle = stringResource(R.string.steam_dock_drag_hint),
-                    checked = style == SteamDockStyle.LIQUID_GLASS || tab in enabledTabs,
+                    checked = style != SteamDockStyle.M3E || tab in enabledTabs,
                     switchEnabled = style == SteamDockStyle.M3E,
                     onCheckedChange = { checked ->
                         if (style == SteamDockStyle.M3E) {
