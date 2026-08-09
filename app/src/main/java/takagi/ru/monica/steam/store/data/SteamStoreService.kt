@@ -98,7 +98,7 @@ class SteamStoreService(
             steamLoginSecure = steamLoginSecure,
             countryCode = countryCode
         )
-        val featured = SteamStoreParser.parseFeatured(body)
+        val featured = SteamStoreParser.parseFeatured(body, countryCode)
         val events = runCatching {
             SteamStoreParser.parseDiscoveryEvents(
                 get(
@@ -183,7 +183,7 @@ class SteamStoreService(
                                         steamLoginSecure = target.steamLoginSecure
                                     )
                                 } else {
-                                    SteamStoreParser.parseSearch(
+                            SteamStoreParser.parseSearch(
                                         getAsync(
                                             path = "/api/storesearch/",
                                             query = mapOf("term" to query, "l" to language),

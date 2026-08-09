@@ -14,12 +14,12 @@ import takagi.ru.monica.steam.store.domain.SteamStoreItem
 internal object SteamStoreCatalogParser {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parse(payload: String, filter: SteamStoreBrowseFilter): SteamStoreCatalogPage {
+    fun parse(payload: String, filter: SteamStoreBrowseFilter, countryCode: String? = null): SteamStoreCatalogPage {
         val root = json.parseToJsonElement(payload).jsonObject
         val html = root["results_html"]?.jsonPrimitive?.contentOrNull.orEmpty()
         val items = Jsoup.parseBodyFragment(html, STEAM_STORE_BASE)
             .select("a.search_result_row[data-ds-appid]")
-            .mapNotNull(::parseItem)
+            .mapNotNull { parseItem(it, countryCode) }
             .distinctBy(SteamStoreItem::appId)
         return SteamStoreCatalogPage(
             filter = filter,
@@ -29,7 +29,7 @@ internal object SteamStoreCatalogParser {
         )
     }
 
-    private fun parseItem(row: Element): SteamStoreItem? {
+    private fun parseItem(row: Element, countryCode: String?): SteamStoreItem? {
         val appId = row.attr("data-ds-appid").substringBefore(',').toIntOrNull() ?: return null
         val imageUrl = row.selectFirst(".search_capsule img")?.attr("abs:src").orEmpty()
         val initialText = row.selectFirst(".discount_original_price")?.text().orEmpty()
@@ -40,7 +40,7 @@ internal object SteamStoreCatalogParser {
             name = row.selectFirst(".title")?.text().orEmpty(),
             imageUrl = imageUrl,
             headerImageUrl = imageUrl,
-            currency = steamCurrency(initialText.ifBlank { finalText }),
+            currency = steamCurrency(initialText.ifBlank { finalText }, countryCode),
             initialPriceCents = steamPriceMinor(initialText),
             finalPriceCents = when {
                 finalElement?.hasClass("free") == true || finalText.contains("免费", true) -> 0
@@ -59,7 +59,8 @@ internal object SteamStoreCatalogParser {
         )
     }
 
-    private fun steamCurrency(text: String): String = when {
+    private fun steamCurrency(text: String, countryCode: String?): String = when {
+        text.contains("₹") -> "INR"
         text.contains("NT$") -> "TWD"
         text.contains("HK$") -> "HKD"
         text.contains("¥") || text.contains("元") -> "CNY"
@@ -67,7 +68,7 @@ internal object SteamStoreCatalogParser {
         text.contains("£") -> "GBP"
         text.contains("₩") -> "KRW"
         text.contains("₽") -> "RUB"
-        else -> "USD"
+        else -> takagi.ru.monica.steam.store.domain.steamStoreCurrencyForCountry(countryCode)
     }
 
     private fun steamPriceMinor(text: String): Int? {

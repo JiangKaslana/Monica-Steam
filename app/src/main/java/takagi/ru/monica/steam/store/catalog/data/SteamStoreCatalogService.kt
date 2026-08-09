@@ -39,7 +39,7 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
             }
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 商店目录返回空数据")
-            return SteamStoreCatalogParser.parse(body, filter)
+            return SteamStoreCatalogParser.parse(body, filter, countryCode)
         }
     }
 
@@ -69,7 +69,7 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
             }
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 商店筛选搜索返回空数据")
-            return SteamStoreCatalogParser.parse(body, SteamStoreBrowseFilter.ALL).items
+            return SteamStoreCatalogParser.parse(body, SteamStoreBrowseFilter.ALL, countryCode).items
         }
     }
 

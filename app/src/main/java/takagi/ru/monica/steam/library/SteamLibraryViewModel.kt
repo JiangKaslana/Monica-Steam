@@ -155,6 +155,7 @@ class SteamLibraryViewModel(
             }
             when (result) {
                 is SteamLibraryResult.Success -> {
+                    val normalized = normalizeLibraryPrices(result.value)
                     val inventoryResult = runSteamLibraryCatching {
                         withContext(Dispatchers.IO) {
                             fetchInventorySummaryWithSessionRetry(account)
@@ -163,7 +164,7 @@ class SteamLibraryViewModel(
                         SteamLibraryResult.Failure(steamLibraryFailureReason(error))
                     }
                     val merged = mergeLibraryDashboardSnapshot(
-                        fresh = result.value,
+                        fresh = normalized,
                         cached = cachedBeforeRefresh,
                         inventoryResult = inventoryResult
                     )
@@ -205,6 +206,16 @@ class SteamLibraryViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun normalizeLibraryPrices(snapshot: SteamLibrarySnapshot): SteamLibrarySnapshot {
+        val rates = runCatching {
+            withContext(Dispatchers.IO) { currencyExchangeService.fetchCnyRates() }
+        }.getOrNull() ?: return snapshot
+        val games = snapshot.games.map { game ->
+            game.copy(price = game.price?.withCnyConversion(rates.unitsPerCny, rates.fetchedAt))
+        }
+        return snapshot.copy(games = games)
     }
 
     fun openGame(game: SteamGame) {

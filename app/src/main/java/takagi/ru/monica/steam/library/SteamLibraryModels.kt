@@ -50,8 +50,26 @@ data class SteamGamePrice(
     val finalPriceMinor: Long,
     val originalPriceMinor: Long = finalPriceMinor,
     val isAvailable: Boolean,
-    val fetchedAt: Long = System.currentTimeMillis()
+    val fetchedAt: Long = System.currentTimeMillis(),
+    val cnyFinalPriceMinor: Long? = null,
+    val cnyOriginalPriceMinor: Long? = null,
+    val exchangeRateFetchedAt: Long? = null
 )
+
+internal fun SteamGamePrice.withCnyConversion(
+    unitsPerCny: Map<String, Double>,
+    exchangeRateFetchedAt: Long
+): SteamGamePrice {
+    if (!isAvailable) return this
+    val code = currency.trim().uppercase()
+    val rate = if (code == "CNY") 1.0 else unitsPerCny[code]
+    if (rate == null || !rate.isFinite() || rate <= 0.0) return this
+    return copy(
+        cnyFinalPriceMinor = (finalPriceMinor / rate).roundToLong(),
+        cnyOriginalPriceMinor = (originalPriceMinor / rate).roundToLong(),
+        exchangeRateFetchedAt = exchangeRateFetchedAt
+    )
+}
 
 @Serializable
 data class SteamRegionalPrice(

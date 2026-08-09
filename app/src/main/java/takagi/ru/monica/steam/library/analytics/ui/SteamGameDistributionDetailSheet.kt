@@ -261,12 +261,12 @@ private fun formatDistributionPrice(game: SteamGame): String {
     val price = game.price?.takeIf { it.isAvailable }
         ?: return stringResource(R.string.steam_library_price_unavailable)
     if (price.originalPriceMinor == 0L) return stringResource(R.string.steam_library_free)
-    val minor = price.originalPriceMinor
+    val minor = (price.cnyOriginalPriceMinor ?: price.originalPriceMinor.takeIf {
+        price.currency.equals("CNY", ignoreCase = true)
+    })
+        ?: return stringResource(R.string.steam_library_price_unavailable)
     val amount = "${minor / 100}.${(minor % 100).toString().padStart(2, '0')}"
-    return listOfNotNull(
-        price.currency.uppercase(Locale.ROOT).takeIf(String::isNotBlank),
-        amount
-    ).joinToString(" ")
+    return "CNY $amount"
 }
 
 @Composable

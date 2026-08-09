@@ -20,13 +20,13 @@ import takagi.ru.monica.steam.store.requirements.domain.SteamStoreSystemRequirem
 object SteamStoreParser {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parseFeatured(payload: String): SteamStoreHome {
+    fun parseFeatured(payload: String, countryCode: String? = null): SteamStoreHome {
         val root = json.parseToJsonElement(payload).jsonObject
         return SteamStoreHome(
-            specials = categoryItems(root["specials"]),
-            topSellers = categoryItems(root["top_sellers"]),
-            newReleases = categoryItems(root["new_releases"]),
-            comingSoon = categoryItems(root["coming_soon"])
+            specials = categoryItems(root["specials"], countryCode),
+            topSellers = categoryItems(root["top_sellers"], countryCode),
+            newReleases = categoryItems(root["new_releases"], countryCode),
+            comingSoon = categoryItems(root["coming_soon"], countryCode)
         )
     }
 
@@ -185,7 +185,7 @@ object SteamStoreParser {
         )
     }
 
-    private fun categoryItems(element: JsonElement?): List<SteamStoreItem> {
+    private fun categoryItems(element: JsonElement?, countryCode: String? = null): List<SteamStoreItem> {
         val category = element as? JsonObject ?: return emptyList()
         return category.array("items").mapNotNull { entry ->
             val item = entry as? JsonObject ?: return@mapNotNull null
@@ -196,7 +196,7 @@ object SteamStoreParser {
                 imageUrl = item.string("large_capsule_image")
                     ?: item.string("small_capsule_image").orEmpty(),
                 headerImageUrl = item.string("header_image").orEmpty(),
-                currency = item.string("currency") ?: "CNY",
+                currency = item.string("currency") ?: steamStoreCurrencyForCountry(countryCode),
                 initialPriceCents = item.int("original_price"),
                 finalPriceCents = item.int("final_price"),
                 discountPercent = item.int("discount_percent") ?: 0,

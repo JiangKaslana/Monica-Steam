@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamGamePrice
+import takagi.ru.monica.steam.library.withCnyConversion
 
 class SteamGameDistributionTest {
     @Test
@@ -60,6 +61,28 @@ class SteamGameDistributionTest {
                 .games
                 .map(SteamGame::appId)
         )
+    }
+
+    @Test
+    fun inrPriceIsConvertedToCnyBeforeBucketAssignment() {
+        val inrPrice = SteamGamePrice("INR", 299_900, 299_900, true)
+            .withCnyConversion(mapOf("INR" to 12.0), 123L)
+        val game = game(9).copy(price = inrPrice)
+
+        val bucket = steamGameDistribution(listOf(game), SteamGameDistributionMode.PRICE)
+            .single { it.gameCount == 1 }
+
+        assertEquals(SteamGameDistributionRange.PRICE_200_TO_400, bucket.range)
+    }
+
+    @Test
+    fun unknownCurrencyStaysInUnknownBucket() {
+        val game = game(10).copy(price = SteamGamePrice("ZZZ", 2_000, 2_000, true))
+
+        val bucket = steamGameDistribution(listOf(game), SteamGameDistributionMode.PRICE)
+            .single { it.gameCount == 1 }
+
+        assertEquals(SteamGameDistributionRange.PRICE_UNKNOWN, bucket.range)
     }
 
     private fun game(appId: Int, minutes: Int = 0, priceMinor: Long? = null) = SteamGame(

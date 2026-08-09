@@ -76,7 +76,11 @@ private fun rangeFor(game: SteamGame, mode: SteamGameDistributionMode): SteamGam
         }
     }
 
-    val price = game.price?.takeIf { it.isAvailable }?.originalPriceMinor
+    val price = game.price?.takeIf { it.isAvailable }?.let { price ->
+        price.cnyOriginalPriceMinor ?: price.originalPriceMinor.takeIf {
+            price.currency.equals("CNY", ignoreCase = true)
+        }
+    }
         ?: return SteamGameDistributionRange.PRICE_UNKNOWN
     return when (price) {
         0L -> SteamGameDistributionRange.FREE

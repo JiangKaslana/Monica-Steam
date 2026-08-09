@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.store.domain
 
 import java.util.Locale
+import java.util.Currency
 import kotlinx.serialization.Serializable
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreBaseGame
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreDemo
@@ -34,6 +35,19 @@ data class SteamStoreItem(
     val formattedFinalPrice: String get() = formatSteamPrice(finalPriceCents, currency)
     val formattedInitialPrice: String get() = formatSteamPrice(initialPriceCents, currency)
 }
+
+internal fun steamStoreCurrencyForCountry(countryCode: String?): String {
+    val country = countryCode.orEmpty().trim().uppercase(Locale.ROOT)
+    if (country in STEAM_USD_PRICING_COUNTRIES) return "USD"
+    return runCatching { Currency.getInstance(Locale("", country)).currencyCode }
+        .getOrDefault("USD")
+}
+
+private val STEAM_USD_PRICING_COUNTRIES = setOf(
+    "AR", "TR", "PK", "BD", "BT", "NP", "LK",
+    "BO", "EC", "GY", "PY", "SR", "VE",
+    "DZ", "BH", "EG", "IQ", "JO", "LB", "LY", "MA", "OM", "PS", "SD", "TN", "YE"
+)
 
 @Serializable
 data class SteamStoreHome(

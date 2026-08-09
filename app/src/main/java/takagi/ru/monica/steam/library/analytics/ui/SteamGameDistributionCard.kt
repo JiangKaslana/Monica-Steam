@@ -63,13 +63,7 @@ fun SteamGameDistributionCard(
         mutableStateOf<SteamGameDistributionBucket?>(null)
     }
     val buckets = remember(snapshot.games, mode) { steamGameDistribution(snapshot.games, mode) }
-    val currency = remember(snapshot.currency, snapshot.games) {
-        snapshot.currency.ifBlank {
-            snapshot.games.firstNotNullOfOrNull { game ->
-                game.price?.currency?.takeIf(String::isNotBlank)
-            }.orEmpty()
-        }
-    }
+    val currency = if (mode == SteamGameDistributionMode.PRICE) "CNY" else ""
 
     SteamAnalyticsCard(
         title = stringResource(R.string.steam_analytics_game_distribution),
