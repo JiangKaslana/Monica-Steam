@@ -76,6 +76,7 @@ class SteamStoreSessionPolicyTest {
         assertTrue(SteamStoreNavigationPolicy.isAllowed("https://store.steampowered.com/cart/"))
         assertTrue(SteamStoreNavigationPolicy.isAllowed("https://checkout.steampowered.com/"))
         assertTrue(SteamStoreNavigationPolicy.isAllowed("https://steamcommunity.com/login/home/"))
+        assertTrue(SteamStoreNavigationPolicy.isAllowed("https://s.team/p/example"))
         assertFalse(SteamStoreNavigationPolicy.isAllowed("http://store.steampowered.com/cart/"))
         assertFalse(SteamStoreNavigationPolicy.isAllowed("https://store.steampowered.com.evil.example/"))
         assertFalse(SteamStoreNavigationPolicy.isAllowed("javascript:alert(1)"))

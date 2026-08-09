@@ -10,7 +10,7 @@ object SteamStoreNavigationPolicy {
         val uri = URI(url)
         if (!uri.scheme.equals("https", ignoreCase = true)) return false
         val host = uri.host?.lowercase().orEmpty()
-        host == "steampowered.com" || host.endsWith(".steampowered.com") ||
+        host == "s.team" || host == "steampowered.com" || host.endsWith(".steampowered.com") ||
             host == "steamcommunity.com" || host.endsWith(".steamcommunity.com")
     }.getOrDefault(false)
 }

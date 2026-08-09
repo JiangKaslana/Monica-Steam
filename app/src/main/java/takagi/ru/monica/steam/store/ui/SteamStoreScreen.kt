@@ -153,6 +153,8 @@ fun SteamStoreScreen(
     onAddSteamAccount: () -> Unit = {},
     initialAppId: Int? = null,
     onInitialAppIdConsumed: () -> Unit = {},
+    initialWebUrl: String? = null,
+    onInitialWebUrlConsumed: () -> Unit = {},
     onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SteamStoreViewModel = viewModel(factory = SteamStoreViewModel.factory(LocalContext.current))
@@ -210,6 +212,12 @@ fun SteamStoreScreen(
         initialAppId?.let { appId ->
             viewModel.openDetail(appId)
             onInitialAppIdConsumed()
+        }
+    }
+    LaunchedEffect(initialWebUrl) {
+        initialWebUrl?.let { url ->
+            viewModel.openStoreWeb(url)
+            onInitialWebUrlConsumed()
         }
     }
     LaunchedEffect(state.selectedAccountId, state.storageSource) {

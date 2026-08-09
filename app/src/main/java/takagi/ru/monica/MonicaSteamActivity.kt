@@ -83,6 +83,8 @@ import takagi.ru.monica.steam.backup.ui.SteamMaFileTransferScreen
 import takagi.ru.monica.steam.health.ui.SteamHealthScreen
 import takagi.ru.monica.steam.friends.chat.ui.SteamChatScreen
 import takagi.ru.monica.steam.library.ui.SteamLibraryScreen
+import takagi.ru.monica.steam.links.domain.SteamExternalLinkRouter
+import takagi.ru.monica.steam.links.domain.SteamExternalLinkTarget
 import takagi.ru.monica.steam.token.ui.SteamScreen
 import takagi.ru.monica.steam.foundation.ui.ProvideSteamContentDensity
 import takagi.ru.monica.steam.foundation.ui.setSteamUiScaledContent
@@ -136,12 +138,14 @@ private const val STEAM_AUTO_BACKUP_INTERVAL_HOURS = 12L
 class MonicaSteamActivity : BaseMonicaActivity() {
     private val pendingChatNotificationRequest =
         MutableStateFlow<SteamChatNotificationTarget?>(null)
+    private val pendingExternalSteamLink = MutableStateFlow<SteamExternalLinkTarget?>(null)
 
     override fun shouldEnforceSharedSessionLock(): Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         consumeChatNotificationIntent(intent)
+        consumeExternalSteamLinkIntent(intent)
 
         lifecycleScope.launch {
             SteamAlerts.sync(this@MonicaSteamActivity)
@@ -177,6 +181,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                     SecurityManager(this@MonicaSteamActivity.applicationContext)
                 }
                 val chatNotificationRequest by pendingChatNotificationRequest.collectAsState()
+                val externalSteamLink by pendingExternalSteamLink.collectAsState()
                 val mdbxRepository: MdbxRepository = remember(passwordDatabase, securityManager) {
                     MdbxVaultStore(
                         this@MonicaSteamActivity.applicationContext,
@@ -232,6 +237,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 var pendingQrResult by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingQrAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var pendingStoreAppId by rememberSaveable { mutableStateOf<Int?>(null) }
+                var pendingStoreWebUrl by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingCommunitySteamId by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingChatPartnerSteamId by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingSteamNotifications by rememberSaveable { mutableStateOf(false) }
@@ -300,6 +306,28 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             Toast.LENGTH_LONG
                         ).show()
                     }
+                }
+
+                LaunchedEffect(externalSteamLink) {
+                    when (val target = externalSteamLink ?: return@LaunchedEffect) {
+                        is SteamExternalLinkTarget.StoreApp -> {
+                            pendingStoreWebUrl = null
+                            pendingStoreAppId = target.appId
+                            currentPage = MonicaSteamPage.STORE
+                        }
+                        is SteamExternalLinkTarget.CommunityProfile -> {
+                            pendingCommunitySteamId = target.steamId
+                            currentPage = MonicaSteamPage.COMMUNITY
+                        }
+                        is SteamExternalLinkTarget.Web -> {
+                            pendingStoreAppId = null
+                            pendingStoreWebUrl = target.url
+                            currentPage = MonicaSteamPage.STORE
+                        }
+                    }
+                    appliedInitialDockPage = true
+                    pageHistory = emptyList()
+                    pendingExternalSteamLink.value = null
                 }
 
                 LaunchedEffect(currentPage, dockStyle) {
@@ -543,6 +571,8 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onAddSteamAccount = ::openSteamAccountAddition,
                                 initialAppId = pendingStoreAppId,
                                 onInitialAppIdConsumed = { pendingStoreAppId = null },
+                                initialWebUrl = pendingStoreWebUrl,
+                                onInitialWebUrlConsumed = { pendingStoreWebUrl = null },
                                 onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -748,11 +778,19 @@ class MonicaSteamActivity : BaseMonicaActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         consumeChatNotificationIntent(intent)
+        consumeExternalSteamLinkIntent(intent)
     }
 
     private fun consumeChatNotificationIntent(intent: Intent?) {
         SteamChatBackground.consumeNotification(intent)?.let { request ->
             pendingChatNotificationRequest.value = request
+        }
+    }
+
+    private fun consumeExternalSteamLinkIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        SteamExternalLinkRouter.route(intent.dataString)?.let { target ->
+            pendingExternalSteamLink.value = target
         }
     }
 
