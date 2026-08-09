@@ -51,7 +51,7 @@ class SteamStoreFilterServiceTest {
     }
 
     @Test
-    fun filteredCatalogCachesAreSeparatedWhileDefaultCacheNameRemainsCompatible() {
+    fun filteredCatalogCachesAreSeparatedInsideCurrentContentCacheVersion() {
         val defaultName = catalogCacheName(
             accountId = 7L,
             filter = SteamStoreBrowseFilter.TOP_SELLERS,
@@ -63,7 +63,7 @@ class SteamStoreFilterServiceTest {
             filters = SteamStoreFilterSelection(tagIds = setOf(19))
         )
 
-        assertEquals("v2_account_7_catalog_top_sellers.json", defaultName)
+        assertEquals("v3_account_7_catalog_top_sellers.json", defaultName)
         assertNotEquals(defaultName, filteredName)
         assertTrue(filteredName.contains("t_19"))
     }

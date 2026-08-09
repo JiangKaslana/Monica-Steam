@@ -13,10 +13,10 @@ class SteamStoreCache(context: Context) {
     private val directory = File(context.applicationContext.filesDir, "steam_store_cache")
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-    fun readHome(accountId: Long?): SteamStoreHome? = read("${scope(accountId)}_home.json")
+    fun readHome(accountId: Long?): SteamStoreHome? = read(steamStoreHomeCacheName(accountId))
 
     fun writeHome(accountId: Long?, home: SteamStoreHome) =
-        write("${scope(accountId)}_home.json", home)
+        write(steamStoreHomeCacheName(accountId), home)
 
     fun readCatalog(
         accountId: Long?,
@@ -37,10 +37,10 @@ class SteamStoreCache(context: Context) {
         write("${scope(accountId)}_filter_metadata.json", metadata)
 
     fun readDetail(accountId: Long?, appId: Int): SteamStoreDetail? =
-        read("${scope(accountId)}_detail_$appId.json")
+        read(steamStoreDetailCacheName(accountId, appId))
 
     fun writeDetail(accountId: Long?, detail: SteamStoreDetail) =
-        write("${scope(accountId)}_detail_${detail.appId}.json", detail)
+        write(steamStoreDetailCacheName(accountId, detail.appId), detail)
 
     fun readCart(accountId: Long?): List<SteamCartItem> =
         read<List<SteamCartItem>>("${scope(accountId)}_cart.json").orEmpty()
@@ -63,7 +63,10 @@ class SteamStoreCache(context: Context) {
         prices: List<SteamRegionalPrice>
     ) = write(steamRegionalPriceCacheName(accountId, appId), prices)
 
-    private fun scope(accountId: Long?): String = accountId?.let { "v2_account_$it" } ?: "v2_guest"
+    private fun scope(accountId: Long?): String = storeCacheScope(
+        accountId = accountId,
+        version = STORE_ACCOUNT_CACHE_VERSION
+    )
 
     private inline fun <reified T> read(name: String): T? = runCatching {
         val file = File(directory, name)
@@ -90,16 +93,31 @@ internal fun catalogCacheName(
     filter: SteamStoreBrowseFilter,
     filters: SteamStoreFilterSelection
 ): String {
-    val scope = accountId?.let { "v2_account_$it" } ?: "v2_guest"
+    val scope = storeContentCacheScope(accountId)
     val base = "${scope}_catalog_${filter.name.lowercase()}"
     val filterKey = filters.cacheKey()
     return if (filterKey == "default") "$base.json" else "${base}_$filterKey.json"
 }
 
+internal fun steamStoreHomeCacheName(accountId: Long?): String =
+    "${storeContentCacheScope(accountId)}_home.json"
+
+internal fun steamStoreDetailCacheName(accountId: Long?, appId: Int): String =
+    "${storeContentCacheScope(accountId)}_detail_$appId.json"
+
 internal fun steamWishlistCacheName(accountId: Long?): String =
-    accountId?.let { "v2_account_${it}_wishlist.json" } ?: "v2_guest_wishlist.json"
+    "${storeCacheScope(accountId, STORE_ACCOUNT_CACHE_VERSION)}_wishlist.json"
 
 internal fun steamRegionalPriceCacheName(accountId: Long?, appId: Int): String {
-    val scope = accountId?.let { "v2_account_$it" } ?: "v2_guest"
+    val scope = storeCacheScope(accountId, STORE_ACCOUNT_CACHE_VERSION)
     return "${scope}_regional_prices_$appId.json"
 }
+
+private fun storeContentCacheScope(accountId: Long?): String =
+    storeCacheScope(accountId, STORE_CONTENT_CACHE_VERSION)
+
+private fun storeCacheScope(accountId: Long?, version: String): String =
+    accountId?.let { "${version}_account_$it" } ?: "${version}_guest"
+
+private const val STORE_CONTENT_CACHE_VERSION = "v3"
+private const val STORE_ACCOUNT_CACHE_VERSION = "v2"
