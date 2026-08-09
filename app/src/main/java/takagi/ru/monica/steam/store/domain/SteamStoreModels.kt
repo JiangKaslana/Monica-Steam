@@ -82,10 +82,12 @@ data class SteamStoreCatalogPage(
     val filter: SteamStoreBrowseFilter,
     val items: List<SteamStoreItem> = emptyList(),
     val start: Int = 0,
-    val totalCount: Int = 0
+    val totalCount: Int = 0,
+    val nextStartOverride: Int? = null
 ) {
-    val nextStart: Int get() = start + items.size
-    val hasMore: Boolean get() = nextStart < totalCount && items.isNotEmpty()
+    val nextStart: Int get() = nextStartOverride ?: start + items.size
+    val hasMore: Boolean get() = nextStart < totalCount &&
+        (nextStartOverride != null || items.isNotEmpty())
 }
 
 data class SteamStoreCollection(
