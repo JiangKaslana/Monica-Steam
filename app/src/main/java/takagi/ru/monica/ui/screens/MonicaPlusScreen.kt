@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.data.PlusFeatures
@@ -25,6 +26,7 @@ fun MonicaPlusScreen(
     onNavigateBack: () -> Unit,
     onNavigateToPayment: () -> Unit,
     onDeactivatePlus: () -> Unit = {},
+    contentBottomPadding: Dp = 16.dp,
     modifier: Modifier = Modifier
 ) {
     val features = PlusFeatures.getPlaceholderFeatures()
@@ -66,7 +68,10 @@ fun MonicaPlusScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
+            contentPadding = PaddingValues(
+                top = 16.dp,
+                bottom = contentBottomPadding
+            )
         ) {
             // Header - Plus Status
             item {

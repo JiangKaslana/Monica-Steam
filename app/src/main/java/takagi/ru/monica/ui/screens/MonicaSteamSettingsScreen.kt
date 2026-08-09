@@ -124,6 +124,7 @@ fun MonicaSteamSettingsScreen(
     val appearanceScrollState = rememberScrollState()
     val steamFeaturesScrollState = rememberScrollState()
     val context = LocalContext.current
+    val dockContentClearance = LocalSteamDockContentClearance.current
 
     BackHandler(enabled = child != null) {
         child = child?.parent()
@@ -228,11 +229,13 @@ fun MonicaSteamSettingsScreen(
                     settingsViewModel = settingsViewModel,
                     onNavigateBack = { child = SteamSettingsChild.APPEARANCE },
                     onNavigateToCustomColors = { child = SteamSettingsChild.CUSTOM_COLORS },
+                    contentBottomPadding = dockContentClearance + 16.dp,
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.CUSTOM_COLORS -> CustomColorSettingsScreen(
                     settingsViewModel = settingsViewModel,
                     onNavigateBack = { child = SteamSettingsChild.COLORS },
+                    contentBottomPadding = dockContentClearance + 16.dp,
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.MASTER_PASSWORD_SETUP -> LoginScreen(
@@ -258,7 +261,8 @@ fun MonicaSteamSettingsScreen(
                             onSecurityQuestions = {
                                 child = SteamSettingsChild.SECURITY_QUESTIONS
                             },
-                            showSteamTokenPageLockOption = true
+                            showSteamTokenPageLockOption = true,
+                            contentBottomPadding = dockContentClearance + 16.dp
                         )
                     }
                 SteamSettingsChild.RESET_PASSWORD -> SteamSensitiveSettingsGate(
@@ -274,7 +278,8 @@ fun MonicaSteamSettingsScreen(
                         },
                         onResetSuccess = {
                             child = SteamSettingsChild.MASTER_PASSWORD_LOCKING
-                        }
+                        },
+                        contentBottomPadding = dockContentClearance + 16.dp
                     )
                 }
                 SteamSettingsChild.SECURITY_QUESTIONS ->
@@ -291,7 +296,8 @@ fun MonicaSteamSettingsScreen(
                             },
                             onSetupComplete = {
                                 child = SteamSettingsChild.MASTER_PASSWORD_LOCKING
-                            }
+                            },
+                            contentBottomPadding = dockContentClearance + 16.dp
                         )
                     }
                 SteamSettingsChild.PLUS -> MonicaPlusScreen(
@@ -299,6 +305,7 @@ fun MonicaSteamSettingsScreen(
                     onNavigateBack = { child = null },
                     onNavigateToPayment = { child = SteamSettingsChild.PAYMENT },
                     onDeactivatePlus = { settingsViewModel.clearPlusLicenseData() },
+                    contentBottomPadding = dockContentClearance + 16.dp,
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.PAYMENT -> PaymentScreen(
@@ -310,10 +317,12 @@ fun MonicaSteamSettingsScreen(
                             message = context.getString(R.string.plus_status_activated)
                         )
                     },
+                    contentBottomPadding = dockContentClearance + 16.dp,
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.DEVELOPER -> DeveloperSettingsScreen(
                     onNavigateBack = { child = null },
+                    contentBottomPadding = dockContentClearance + 16.dp,
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.EXTENSIONS -> ExtensionsScreen(
@@ -331,6 +340,7 @@ fun MonicaSteamSettingsScreen(
                         showTotp = false
                     ),
                     additionalContent = { SteamWidgetExtensionContent(context) },
+                    contentBottomPadding = dockContentClearance + 16.dp,
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.NOTIFICATIONS -> SteamNotificationSettingsScreen(

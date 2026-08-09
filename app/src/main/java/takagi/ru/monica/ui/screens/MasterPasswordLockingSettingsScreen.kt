@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import takagi.ru.monica.R
@@ -48,7 +49,8 @@ fun MasterPasswordLockingSettingsScreen(
     onNavigateBack: () -> Unit,
     onResetPassword: () -> Unit,
     onSecurityQuestions: () -> Unit,
-    showSteamTokenPageLockOption: Boolean = false
+    showSteamTokenPageLockOption: Boolean = false,
+    contentBottomPadding: Dp = 0.dp
 ) {
     val context = LocalContext.current
     val activity = context as? FragmentActivity
@@ -212,7 +214,7 @@ fun MasterPasswordLockingSettingsScreen(
                 onClick = onResetPassword
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp + contentBottomPadding))
         }
     }
 

@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.data.ColorScheme
@@ -117,6 +118,7 @@ private fun parseHexColorOrNull(text: String): Color? {
 fun CustomColorSettingsScreen(
     settingsViewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
+    contentBottomPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val settings by settingsViewModel.settings.collectAsState()
@@ -535,6 +537,8 @@ fun CustomColorSettingsScreen(
             ) {
                 Text(stringResource(R.string.apply_custom_colors))
             }
+
+            Spacer(modifier = Modifier.height(contentBottomPadding))
         }
     }
 

@@ -21,6 +21,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import takagi.ru.monica.plus.PlusActivationUiResult
@@ -31,6 +32,7 @@ import takagi.ru.monica.R
 fun PaymentScreen(
     onNavigateBack: () -> Unit,
     onActivatePlus: suspend () -> PlusActivationUiResult,
+    contentBottomPadding: Dp = 16.dp,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -227,7 +229,7 @@ fun PaymentScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(contentBottomPadding))
         }
     }
 }

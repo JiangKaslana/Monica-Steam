@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import takagi.ru.monica.R
@@ -39,6 +40,7 @@ fun ColorSchemeSelectionScreen(
     onNavigateBack: () -> Unit,
     onNavigateToCustomColors: () -> Unit,
     forcePlusFeatures: Boolean = false,
+    contentBottomPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val settings by settingsViewModel.settings.collectAsState()
@@ -410,6 +412,8 @@ fun ColorSchemeSelectionScreen(
                     }
                 }
             )
+
+            Spacer(modifier = Modifier.height(contentBottomPadding))
         }
     }
 }

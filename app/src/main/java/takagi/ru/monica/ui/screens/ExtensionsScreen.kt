@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.data.PasswordSwipeSelectionMode
@@ -69,6 +70,7 @@ fun ExtensionsScreen(
     onNotificationValidatorSelected: (Long) -> Unit = {},
     surfacePolicy: ExtensionsSurfacePolicy = ExtensionsSurfacePolicy(),
     additionalContent: (@Composable () -> Unit)? = null,
+    contentBottomPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -401,7 +403,7 @@ fun ExtensionsScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(32.dp + contentBottomPadding))
         }
     }
 }

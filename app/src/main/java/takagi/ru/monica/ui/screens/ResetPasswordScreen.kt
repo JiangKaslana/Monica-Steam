@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.security.MasterPasswordPolicy
@@ -25,7 +26,8 @@ fun ResetPasswordScreen(
     securityManager: SecurityManager,
     onNavigateBack: () -> Unit,
     onResetSuccess: () -> Unit,
-    skipCurrentPassword: Boolean = false
+    skipCurrentPassword: Boolean = false,
+    contentBottomPadding: Dp = 0.dp
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -301,6 +303,8 @@ fun ResetPasswordScreen(
                 }
                 Text(context.getString(R.string.reset_password))
             }
+
+            Spacer(modifier = Modifier.height(contentBottomPadding))
         }
     }
     
