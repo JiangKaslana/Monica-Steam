@@ -154,11 +154,15 @@ class SteamModuleArchitectureGuardTest {
 
         assertEquals(
             setOf(
+                "activation",
                 "bundle",
                 "catalog",
                 "data",
                 "domain",
+                "filters",
                 "freebie",
+                "gift",
+                "hints",
                 "navigation",
                 "points",
                 "presentation",

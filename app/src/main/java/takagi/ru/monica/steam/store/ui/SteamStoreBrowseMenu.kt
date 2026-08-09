@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
@@ -36,7 +37,8 @@ internal fun SteamStoreBrowseMenu(
     onSelectFilter: (SteamStoreBrowseFilter) -> Unit,
     onOpenAdvancedFilters: () -> Unit,
     onOpenFreebies: () -> Unit,
-    onOpenPointsShop: () -> Unit
+    onOpenPointsShop: () -> Unit,
+    onOpenProductActivation: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -114,6 +116,20 @@ internal fun SteamStoreBrowseMenu(
                 onClick = {
                     expanded = false
                     onOpenPointsShop()
+                }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.steam_store_activate_product_code)) },
+                leadingIcon = {
+                    Icon(Icons.Default.Key, contentDescription = null)
+                },
+                onClick = {
+                    expanded = false
+                    onOpenProductActivation()
                 }
             )
         }

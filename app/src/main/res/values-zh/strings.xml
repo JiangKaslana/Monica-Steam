@@ -4472,6 +4472,8 @@
     <string name="steam_store_free_games">免费游戏</string>
     <string name="steam_store_points_shop">点数商店</string>
     <string name="steam_store_freebies">喜加一</string>
+    <string name="steam_store_activate_product_code">激活产品代码</string>
+    <string name="steam_store_activate_product_code_note">产品代码兑换由 Steam 官方页面处理。</string>
     <string name="steam_freebie_title">喜加一</string>
     <string name="steam_freebie_subtitle">Steam 官方限时免费活动</string>
     <string name="steam_freebie_official_source">数据来自 Steam 官方商店</string>

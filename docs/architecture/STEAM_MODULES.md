@@ -50,7 +50,7 @@ feature/
 
 Small features may keep files at the feature root when adding layers would only create shallow pass-through modules. Large features must use the internal layout to preserve Locality.
 
-Large features may also contain named independent slices at their root. The Store feature currently owns `bundle`, `catalog`, `freebie`, `navigation`, `points`, `purchase`, `related` and `requirements`; each slice keeps its own domain, data, presentation or UI implementation separate from the Store shell.
+Large features may also contain named independent slices at their root. The Store feature currently owns `activation`, `bundle`, `catalog`, `filters`, `freebie`, `gift`, `hints`, `navigation`, `points`, `purchase`, `related` and `requirements`; each slice keeps its own domain, data, presentation or UI implementation separate from the Store shell.
 
 The Token feature keeps Steam identifier conversion and its account-detail card in the `identity` slice so the large token screen only hosts the component.
 

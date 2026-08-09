@@ -123,6 +123,7 @@ import takagi.ru.monica.steam.store.requirements.ui.SteamStoreSystemRequirements
 import takagi.ru.monica.steam.store.related.ui.SteamStoreRelatedContentSection
 import takagi.ru.monica.steam.store.bundle.ui.SteamStoreBundleSection
 import takagi.ru.monica.steam.store.ui.gallery.SteamStoreScreenshotViewer
+import takagi.ru.monica.steam.store.activation.domain.SteamStoreProductActivation
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
@@ -255,6 +256,16 @@ fun SteamStoreScreen(
         when (destination) {
             is SteamStoreDestination.Web -> SteamStoreWebScreen(
                 url = destination.url,
+                title = if (destination.url == SteamStoreProductActivation.REGISTER_KEY_URL) {
+                    stringResource(R.string.steam_store_activate_product_code)
+                } else {
+                    null
+                },
+                securityNote = if (destination.url == SteamStoreProductActivation.REGISTER_KEY_URL) {
+                    stringResource(R.string.steam_store_activate_product_code_note)
+                } else {
+                    null
+                },
                 steamLoginSecure = selectedStoreAccount?.steamLoginSecure
                     ?: selectedStoreAccount?.accessToken?.let { token ->
                         "${selectedStoreAccount.steamId}||$token"
@@ -416,7 +427,12 @@ fun SteamStoreScreen(
                                     viewModel.loadStoreFilterMetadata()
                                 },
                                 onOpenFreebies = { freebiesOpen = true },
-                                onOpenPointsShop = viewModel::openPointsShop
+                                onOpenPointsShop = viewModel::openPointsShop,
+                                onOpenProductActivation = {
+                                    viewModel.openAuthenticatedStoreWeb(
+                                        SteamStoreProductActivation.REGISTER_KEY_URL
+                                    )
+                                }
                             )
                             IconButton(
                                 onClick = { showAccounts = true },

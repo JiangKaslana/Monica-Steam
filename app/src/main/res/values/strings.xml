@@ -4642,6 +4642,8 @@
     <string name="steam_store_free_games">Free to play</string>
     <string name="steam_store_points_shop">Points Shop</string>
     <string name="steam_store_freebies">Limited free offers</string>
+    <string name="steam_store_activate_product_code">Activate a Product on Steam</string>
+    <string name="steam_store_activate_product_code_note">Product code redemption is handled by Steam’s official page.</string>
     <string name="steam_freebie_title">Limited free offers</string>
     <string name="steam_freebie_subtitle">Official Steam promotions that are free for a limited time</string>
     <string name="steam_freebie_official_source">Data from the official Steam store</string>
