@@ -552,6 +552,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     navigateTo(MonicaSteamPage.STEAM)
                                 },
                                 onAddSteamAccount = ::openSteamAccountAddition,
+                                onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                                 onOpenStoreApp = { appId ->
                                     pendingStoreAppId = appId
                                     navigateTo(MonicaSteamPage.STORE)

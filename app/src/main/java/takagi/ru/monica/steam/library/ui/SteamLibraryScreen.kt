@@ -96,6 +96,10 @@ import takagi.ru.monica.steam.library.filter.domain.SteamLibraryFilterSelection
 import takagi.ru.monica.steam.library.filter.domain.countSteamLibraryGames
 import takagi.ru.monica.steam.library.filter.ui.SteamLibraryFilterEntry
 import takagi.ru.monica.steam.library.filter.ui.SteamLibraryFilterSheet
+import takagi.ru.monica.steam.library.gamedata.domain.SteamGameDataPage
+import takagi.ru.monica.steam.library.gamedata.domain.steamGameDataPage
+import takagi.ru.monica.steam.library.gamedata.ui.SteamGameDataEntry
+import takagi.ru.monica.steam.library.gamedata.ui.SteamGameDataWebScreen
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
@@ -119,6 +123,7 @@ private sealed interface SteamLibraryDestination {
     data object Account : SteamLibraryDestination
     data class Profile(val steamId: String) : SteamLibraryDestination
     data class Game(val appId: Int) : SteamLibraryDestination
+    data class GameData(val appId: Int) : SteamLibraryDestination
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -129,6 +134,7 @@ fun SteamLibraryScreen(
     onOpenSettings: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
     onAddSteamAccount: () -> Unit = {},
+    onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     onOpenStoreApp: (Int) -> Unit = {}
 ) {
@@ -145,18 +151,25 @@ fun SteamLibraryScreen(
     var showAccountDetails by rememberSaveable { mutableStateOf(false) }
     var showSteamProfile by rememberSaveable { mutableStateOf(false) }
     var showRegionalPriceSheet by rememberSaveable { mutableStateOf(false) }
+    var gameDataAppId by rememberSaveable { mutableStateOf<Int?>(null) }
     val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
         ?: state.accounts.firstOrNull()
     val accountDetailsVisible = showAccountDetails && selectedAccount != null
     val libraryDestination = when {
+        gameDataAppId != null && selectedGame != null ->
+            SteamLibraryDestination.GameData(requireNotNull(gameDataAppId))
         selectedGame != null -> SteamLibraryDestination.Game(selectedGame.appId)
         showSteamProfile && selectedAccount?.hasRealSteamId == true ->
             SteamLibraryDestination.Profile(selectedAccount.steamId)
         accountDetailsVisible -> SteamLibraryDestination.Account
         else -> SteamLibraryDestination.Overview
     }
-    BackHandler(enabled = selectedGame != null || showSteamProfile || accountDetailsVisible) {
+    BackHandler(
+        enabled = gameDataAppId != null || selectedGame != null ||
+            showSteamProfile || accountDetailsVisible
+    ) {
         when {
+            gameDataAppId != null -> gameDataAppId = null
             selectedGame != null -> viewModel.closeGame()
             showSteamProfile -> showSteamProfile = false
             else -> showAccountDetails = false
@@ -227,8 +240,13 @@ fun SteamLibraryScreen(
                     val game = selectedGame
                         ?: state.snapshot?.games?.firstOrNull { it.appId == destination.appId }
                     if (game != null) {
+                        val gameDataPage = steamGameDataPage(
+                            steamId = selectedAccount?.steamId,
+                            appId = game.appId
+                        )
                         SteamGameDetail(
                             game = game,
+                            gameDataPage = gameDataPage,
                             achievements = state.achievements,
                             loading = state.loadingAchievements,
                             fromCache = state.achievementsFromCache,
@@ -240,10 +258,33 @@ fun SteamLibraryScreen(
                                 viewModel.loadRegionalPrices(game)
                             },
                             onOpenStoreApp = onOpenStoreApp,
+                            onOpenGameData = { gameDataAppId = game.appId },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(padding)
                         )
+                    }
+                }
+                is SteamLibraryDestination.GameData -> {
+                    val account = selectedAccount
+                    val page = steamGameDataPage(
+                        steamId = account?.steamId,
+                        appId = destination.appId
+                    )
+                    if (account != null && page != null) {
+                        SteamGameDataWebScreen(
+                            page = page,
+                            account = account,
+                            onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
+                            onClose = { gameDataAppId = null },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(padding)
+                        )
+                    } else {
+                        LaunchedEffect(destination.appId, account?.steamId) {
+                            gameDataAppId = null
+                        }
                     }
                 }
                 SteamLibraryDestination.Account -> {
@@ -1341,6 +1382,7 @@ private fun SummaryCell(label: String, value: String, modifier: Modifier = Modif
 @Composable
 private fun SteamGameDetail(
     game: SteamGame,
+    gameDataPage: SteamGameDataPage?,
     achievements: SteamGameAchievements?,
     loading: Boolean,
     fromCache: Boolean,
@@ -1349,6 +1391,7 @@ private fun SteamGameDetail(
     onNavigateBack: () -> Unit,
     onOpenRegionalPrices: () -> Unit,
     onOpenStoreApp: (Int) -> Unit,
+    onOpenGameData: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
@@ -1392,6 +1435,14 @@ private fun SteamGameDetail(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.steam_library_open_store))
+            }
+        }
+        if (gameDataPage != null) {
+            item {
+                SteamGameDataEntry(
+                    onClick = onOpenGameData,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
             }
         }
         item {

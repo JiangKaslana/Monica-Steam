@@ -67,6 +67,7 @@ fun SteamStoreWebScreen(
     checkoutLines: List<SteamStoreCheckoutLine> = emptyList(),
     requireAuthenticatedSession: Boolean = false,
     clientMode: SteamWebClientMode = SteamWebClientMode.DEFAULT,
+    onDownloadRequested: ((String) -> Unit)? = null,
     onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
     onClose: () -> Unit,
     modifier: Modifier = Modifier
@@ -97,6 +98,7 @@ fun SteamStoreWebScreen(
     val platformViewVisibilityCallback by rememberUpdatedState(
         onPlatformViewVisibilityChanged
     )
+    val downloadRequestCallback by rememberUpdatedState(onDownloadRequested)
 
     LaunchedEffect(sessionScopeKey, sessionDecision.canLoad) {
         platformViewReady = false
@@ -205,6 +207,11 @@ fun SteamStoreWebScreen(
                             settings.safeBrowsingEnabled = true
                             settings.setSupportMultipleWindows(false)
                             CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
+                            setDownloadListener { downloadUrl, _, _, _, _ ->
+                                downloadUrl
+                                    ?.takeIf(String::isNotBlank)
+                                    ?.let { downloadRequestCallback?.invoke(it) }
+                            }
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     progress = newProgress
@@ -268,6 +275,7 @@ fun SteamStoreWebScreen(
         onDispose {
             webView?.apply {
                 stopLoading()
+                setDownloadListener(null)
                 webChromeClient = null
                 webViewClient = WebViewClient()
                 destroy()

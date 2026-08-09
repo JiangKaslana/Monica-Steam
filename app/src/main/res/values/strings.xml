@@ -4381,6 +4381,10 @@
     <string name="steam_library_change_filter">Change game filter</string>
     <string name="steam_library_open_game_details">Open game details</string>
     <string name="steam_library_open_store">Open in store</string>
+    <string name="steam_library_game_data_title">Personal game data</string>
+    <string name="steam_library_game_data_description">View matches and activity. Replay downloads are handed off to your browser.</string>
+    <string name="steam_library_game_data_security_note">Uses the current Steam account community session</string>
+    <string name="steam_library_replay_browser_failed">Could not open a browser to download this replay</string>
     <string name="steam_backup_title">maFile import and export</string>
     <string name="steam_backup_description">Import or export Steam Guard accounts as a portable maFile ZIP.</string>
     <string name="steam_mafile_transfer_title">maFile import and export</string>
