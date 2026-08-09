@@ -100,6 +100,10 @@ import takagi.ru.monica.steam.library.gamedata.domain.SteamGameDataPage
 import takagi.ru.monica.steam.library.gamedata.domain.steamGameDataPage
 import takagi.ru.monica.steam.library.gamedata.ui.SteamGameDataEntry
 import takagi.ru.monica.steam.library.gamedata.ui.SteamGameDataWebScreen
+import takagi.ru.monica.steam.library.screenshots.domain.SteamGameScreenshotsPage
+import takagi.ru.monica.steam.library.screenshots.domain.steamGameScreenshotsPage
+import takagi.ru.monica.steam.library.screenshots.ui.SteamGameScreenshotsEntry
+import takagi.ru.monica.steam.library.screenshots.ui.SteamGameScreenshotsWebScreen
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
@@ -124,6 +128,7 @@ private sealed interface SteamLibraryDestination {
     data class Profile(val steamId: String) : SteamLibraryDestination
     data class Game(val appId: Int) : SteamLibraryDestination
     data class GameData(val appId: Int) : SteamLibraryDestination
+    data class Screenshots(val appId: Int) : SteamLibraryDestination
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,10 +157,13 @@ fun SteamLibraryScreen(
     var showSteamProfile by rememberSaveable { mutableStateOf(false) }
     var showRegionalPriceSheet by rememberSaveable { mutableStateOf(false) }
     var gameDataAppId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var screenshotsAppId by rememberSaveable { mutableStateOf<Int?>(null) }
     val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
         ?: state.accounts.firstOrNull()
     val accountDetailsVisible = showAccountDetails && selectedAccount != null
     val libraryDestination = when {
+        screenshotsAppId != null && selectedGame != null ->
+            SteamLibraryDestination.Screenshots(requireNotNull(screenshotsAppId))
         gameDataAppId != null && selectedGame != null ->
             SteamLibraryDestination.GameData(requireNotNull(gameDataAppId))
         selectedGame != null -> SteamLibraryDestination.Game(selectedGame.appId)
@@ -165,10 +173,11 @@ fun SteamLibraryScreen(
         else -> SteamLibraryDestination.Overview
     }
     BackHandler(
-        enabled = gameDataAppId != null || selectedGame != null ||
+        enabled = screenshotsAppId != null || gameDataAppId != null || selectedGame != null ||
             showSteamProfile || accountDetailsVisible
     ) {
         when {
+            screenshotsAppId != null -> screenshotsAppId = null
             gameDataAppId != null -> gameDataAppId = null
             selectedGame != null -> viewModel.closeGame()
             showSteamProfile -> showSteamProfile = false
@@ -244,9 +253,14 @@ fun SteamLibraryScreen(
                             steamId = selectedAccount?.steamId,
                             appId = game.appId
                         )
+                        val screenshotsPage = steamGameScreenshotsPage(
+                            steamId = selectedAccount?.steamId,
+                            appId = game.appId
+                        )
                         SteamGameDetail(
                             game = game,
                             gameDataPage = gameDataPage,
+                            screenshotsPage = screenshotsPage,
                             achievements = state.achievements,
                             loading = state.loadingAchievements,
                             fromCache = state.achievementsFromCache,
@@ -259,6 +273,7 @@ fun SteamLibraryScreen(
                             },
                             onOpenStoreApp = onOpenStoreApp,
                             onOpenGameData = { gameDataAppId = game.appId },
+                            onOpenScreenshots = { screenshotsAppId = game.appId },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(padding)
@@ -284,6 +299,28 @@ fun SteamLibraryScreen(
                     } else {
                         LaunchedEffect(destination.appId, account?.steamId) {
                             gameDataAppId = null
+                        }
+                    }
+                }
+                is SteamLibraryDestination.Screenshots -> {
+                    val account = selectedAccount
+                    val page = steamGameScreenshotsPage(
+                        steamId = account?.steamId,
+                        appId = destination.appId
+                    )
+                    if (account != null && page != null) {
+                        SteamGameScreenshotsWebScreen(
+                            page = page,
+                            account = account,
+                            onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
+                            onClose = { screenshotsAppId = null },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(padding)
+                        )
+                    } else {
+                        LaunchedEffect(destination.appId, account?.steamId) {
+                            screenshotsAppId = null
                         }
                     }
                 }
@@ -1383,6 +1420,7 @@ private fun SummaryCell(label: String, value: String, modifier: Modifier = Modif
 private fun SteamGameDetail(
     game: SteamGame,
     gameDataPage: SteamGameDataPage?,
+    screenshotsPage: SteamGameScreenshotsPage?,
     achievements: SteamGameAchievements?,
     loading: Boolean,
     fromCache: Boolean,
@@ -1392,6 +1430,7 @@ private fun SteamGameDetail(
     onOpenRegionalPrices: () -> Unit,
     onOpenStoreApp: (Int) -> Unit,
     onOpenGameData: () -> Unit,
+    onOpenScreenshots: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
@@ -1441,6 +1480,14 @@ private fun SteamGameDetail(
             item {
                 SteamGameDataEntry(
                     onClick = onOpenGameData,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
+        if (screenshotsPage != null) {
+            item {
+                SteamGameScreenshotsEntry(
+                    onClick = onOpenScreenshots,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
