@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +37,8 @@ import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.avatar.ui.SteamGroupAvatarImage
 import takagi.ru.monica.steam.friends.groupchat.domain.SteamGroupChatSummary
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
+import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 
 @Composable
 internal fun SteamGroupChatList(
@@ -48,6 +51,7 @@ internal fun SteamGroupChatList(
     onCreateGroup: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dockClearance = LocalSteamDockContentClearance.current
     val friendsById = remember(friends) { friends.associateBy(SteamFriend::steamId) }
     val groups = state.groups.sortedWith(
         compareByDescending<SteamGroupChatSummary> { it.groupId in pinnedGroupIds }
@@ -62,7 +66,12 @@ internal fun SteamGroupChatList(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 128.dp),
+            contentPadding = PaddingValues(
+                start = 12.dp,
+                end = 12.dp,
+                top = 12.dp,
+                bottom = dockClearance + 24.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             when {
@@ -95,7 +104,11 @@ internal fun SteamGroupChatList(
         }
         ExtendedFloatingActionButton(
             onClick = onCreateGroup,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 96.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .steamDockActionClearance(extraBottomSpacing = 12.dp)
+                .padding(end = 18.dp),
             icon = { Icon(Icons.Default.Add, contentDescription = null) },
             text = { Text(stringResource(R.string.steam_group_chat_create)) }
         )

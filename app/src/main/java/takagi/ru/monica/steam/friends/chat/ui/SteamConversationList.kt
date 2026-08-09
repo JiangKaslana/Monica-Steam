@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,6 +50,7 @@ import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 
 internal enum class SteamConversationType { DIRECT, GROUP }
 
@@ -277,7 +279,11 @@ internal fun SteamConversationList(
         }
         ExtendedFloatingActionButton(
             onClick = onCreateGroup,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = dockClearance + 12.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .steamDockActionClearance(extraBottomSpacing = 12.dp)
+                .padding(end = 18.dp),
             icon = { Icon(Icons.Default.Add, null) },
             text = { Text("新建群聊") }
         )
