@@ -4461,6 +4461,8 @@
     <string name="steam_store_detail_unavailable">暂时无法加载游戏详情</string>
     <string name="steam_store_add_wishlist">加入愿望单</string>
     <string name="steam_store_remove_wishlist">移出愿望单</string>
+    <string name="steam_store_ignore_game">忽略</string>
+    <string name="steam_store_unignore_game">取消忽略</string>
     <string name="steam_store_account">商店账号</string>
     <string name="steam_store_specials">特别优惠</string>
     <string name="steam_store_top_sellers">热销商品</string>

@@ -21,6 +21,10 @@ class SteamStoreAccountRegionApiTest {
     fun extractsAccessTokenFromStoredFieldOrSecureCookie() {
         assertEquals("field-token", effectiveSteamStoreAccessToken("field-token", "id||cookie-token"))
         assertEquals("cookie-token", effectiveSteamStoreAccessToken(null, "76561198000000000||cookie-token"))
+        assertEquals(
+            "cookie-token",
+            effectiveSteamStoreAccessToken(null, "76561198000000000%7C%7Ccookie-token")
+        )
         assertNull(effectiveSteamStoreAccessToken(null, "invalid-cookie"))
     }
 }

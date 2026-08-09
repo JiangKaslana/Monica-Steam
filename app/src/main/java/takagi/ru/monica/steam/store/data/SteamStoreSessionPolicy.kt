@@ -57,7 +57,7 @@ object SteamWebAccountSessionPolicy {
             }
         }
 
-        val normalized = normalizeEncodedValue(loginSecure)
+        val normalized = normalizeSteamCookieValue(loginSecure)
         val separatorIndex = normalized.indexOf("||")
         if (separatorIndex <= 0 || separatorIndex + 2 >= normalized.length) {
             return SteamWebSessionDecision(
@@ -222,7 +222,7 @@ object SteamStoreSessionPolicy {
         }
         steamLoginSecure?.takeIf { it.isNotBlank() }?.let { value ->
             add(
-                "steamLoginSecure=${encode(normalizeEncodedValue(value))}; Domain=$domain; " +
+                "steamLoginSecure=${encode(normalizeSteamCookieValue(value))}; Domain=$domain; " +
                     "Path=/; Secure; HttpOnly; SameSite=None"
             )
         }
@@ -234,7 +234,7 @@ object SteamStoreSessionPolicy {
     ).replace("+", "%20")
 }
 
-private fun normalizeEncodedValue(value: String): String {
+internal fun normalizeSteamCookieValue(value: String): String {
     if (!Regex("%[0-9a-fA-F]{2}").containsMatchIn(value)) return value
     return runCatching {
         URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())

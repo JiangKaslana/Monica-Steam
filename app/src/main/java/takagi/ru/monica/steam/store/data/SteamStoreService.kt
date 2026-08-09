@@ -31,6 +31,8 @@ import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterSelection
 import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentService
 import takagi.ru.monica.steam.store.purchase.data.SteamStorePackageMetadataService
 import takagi.ru.monica.steam.store.purchase.data.SteamStorePurchasePageService
+import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestService
+import takagi.ru.monica.steam.store.interest.domain.withoutIgnoredGames
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -64,7 +66,7 @@ class SteamStoreService(
     private val relatedContentService = SteamStoreRelatedContentService(api)
     private val packageMetadataService = SteamStorePackageMetadataService(client)
     private val purchasePageService = SteamStorePurchasePageService(client, relatedContentService)
-    private val ignoredGamesService = SteamStoreIgnoredGamesService(api)
+    private val ignoredGamesService = SteamStoreInterestService(client, api)
 
     fun accountCountryCode(account: SteamAccount): String? = accountCountryOrFail(
         steamLoginSecure = account.steamLoginSecure,
@@ -90,7 +92,8 @@ class SteamStoreService(
     fun featured(
         steamLoginSecure: String? = null,
         accessToken: String? = null,
-        language: String = "schinese"
+        language: String = "schinese",
+        steamId: String? = null
     ): SteamStoreHome {
         val countryCode = accountCountryOrFail(steamLoginSecure, accessToken)
         val body = get(
@@ -119,7 +122,9 @@ class SteamStoreService(
                 featured.newReleases + featured.comingSoon,
             steamLoginSecure = steamLoginSecure,
             accessToken = accessToken,
-            countryCode = countryCode
+            countryCode = countryCode,
+            steamId = steamId,
+            forceRefresh = true
         )
         return featured.withoutIgnoredGames(ignoredAppIds).copy(events = events)
     }
@@ -131,7 +136,8 @@ class SteamStoreService(
         count: Int = 24,
         steamLoginSecure: String? = null,
         accessToken: String? = null,
-        language: String = "schinese"
+        language: String = "schinese",
+        steamId: String? = null
     ): SteamStoreCatalogPage {
         val countryCode = accountCountryOrFail(steamLoginSecure, accessToken)
         val page = catalogService.page(
@@ -144,7 +150,13 @@ class SteamStoreService(
             steamLoginSecure = steamLoginSecure
         )
         return page.withoutIgnoredGames(
-            ignoredAppIds(page.items, steamLoginSecure, accessToken, countryCode, language)
+            ignoredAppIds(
+                items = page.items,
+                steamLoginSecure = steamLoginSecure,
+                accessToken = accessToken,
+                countryCode = countryCode,
+                steamId = steamId
+            )
         )
     }
 
@@ -163,7 +175,8 @@ class SteamStoreService(
         filters: SteamStoreFilterSelection = SteamStoreFilterSelection(),
         steamLoginSecure: String? = null,
         accessToken: String? = null,
-        language: String = "schinese"
+        language: String = "schinese",
+        steamId: String? = null
     ): List<SteamStoreItem> {
         if (queryText.isBlank()) return emptyList()
         val query = queryText.trim()
@@ -235,7 +248,13 @@ class SteamStoreService(
             regionalResults = regionalResults
         )
         return merged.withoutIgnoredGames(
-            ignoredAppIds(merged, steamLoginSecure, accessToken, accountCountry, language)
+            ignoredAppIds(
+                items = merged,
+                steamLoginSecure = steamLoginSecure,
+                accessToken = accessToken,
+                countryCode = accountCountry,
+                steamId = steamId
+            )
         )
     }
 
@@ -244,22 +263,27 @@ class SteamStoreService(
         steamLoginSecure: String?,
         accessToken: String?,
         countryCode: String?,
-        language: String = "schinese"
+        steamId: String?,
+        forceRefresh: Boolean = false
     ): Set<Int> {
-        val token = effectiveSteamStoreAccessToken(accessToken, steamLoginSecure)
-            ?: return emptySet()
-        return runCatching {
+        val visibleAppIds = items.asSequence().map(SteamStoreItem::appId).toSet()
+        if (visibleAppIds.isEmpty()) return emptySet()
+        return try {
             ignoredGamesService.ignoredAppIds(
-                appIds = items.map(SteamStoreItem::appId),
-                accessToken = token,
+                steamId = steamId,
+                steamLoginSecure = steamLoginSecure,
+                accessToken = accessToken,
                 countryCode = countryCode ?: "US",
-                language = language
-            )
-        }.onFailure { error ->
+                forceRefresh = forceRefresh
+            ).intersect(visibleAppIds)
+        } catch (error: SteamStoreSessionException) {
+            throw error
+        } catch (error: Throwable) {
             SteamDiagLogger.append(
                 "store_ignored_state failed type=${error.javaClass.simpleName}"
             )
-        }.getOrDefault(emptySet())
+            emptySet()
+        }
     }
 
     fun detail(
@@ -267,7 +291,8 @@ class SteamStoreService(
         steamLoginSecure: String? = null,
         accessToken: String? = null,
         language: String = "schinese",
-        discoveryCountryCode: String? = null
+        discoveryCountryCode: String? = null,
+        steamId: String? = null
     ): SteamStoreDetail = resolveDetail(
         appId = appId,
         steamLoginSecure = steamLoginSecure,
@@ -276,6 +301,22 @@ class SteamStoreService(
         discoveryCountryCode = discoveryCountryCode
     ).let { detail ->
         val effectiveAccessToken = effectiveSteamStoreAccessToken(accessToken, steamLoginSecure)
+        val ignored = try {
+            ignoredGamesService.isIgnored(
+                appId = detail.appId,
+                steamId = steamId,
+                steamLoginSecure = steamLoginSecure,
+                accessToken = accessToken
+            )
+        } catch (error: SteamStoreSessionException) {
+            throw error
+        } catch (error: Throwable) {
+            SteamDiagLogger.append(
+                "store_interest_state failed appid=${detail.appId} " +
+                    "type=${error.javaClass.simpleName}"
+            )
+            false
+        }
         val purchasePage = purchasePageService.fetch(
             appId = detail.appId,
             countryCode = detail.priceCountryCode,
@@ -303,9 +344,26 @@ class SteamStoreService(
                 language = language,
                 accessToken = effectiveAccessToken
             ),
-            bundles = purchasePage.bundles
+            bundles = purchasePage.bundles,
+            ignored = ignored
         )
     }.let { detail -> attachReviews(detail, appId, language) }
+
+    fun setIgnored(
+        appId: Int,
+        ignored: Boolean,
+        steamId: String?,
+        steamLoginSecure: String?,
+        accessToken: String?
+    ) {
+        ignoredGamesService.setIgnored(
+            appId = appId,
+            ignored = ignored,
+            steamId = steamId,
+            steamLoginSecure = steamLoginSecure,
+            accessToken = accessToken
+        )
+    }
 
     fun compactDetail(
         appId: Int,
@@ -684,6 +742,7 @@ internal fun effectiveSteamStoreAccessToken(
     steamLoginSecure: String?
 ): String? = accessToken?.trim()?.takeIf(String::isNotBlank)
     ?: steamLoginSecure
+        ?.let(::normalizeSteamCookieValue)
         ?.substringAfter("||", missingDelimiterValue = "")
         ?.trim()
         ?.takeIf(String::isNotBlank)
@@ -733,7 +792,7 @@ internal fun buildSteamStoreRequest(
 }
 
 internal fun encodeSteamCookieValue(value: String): String = URLEncoder.encode(
-    value,
+    normalizeSteamCookieValue(value),
     StandardCharsets.UTF_8.name()
 ).replace("+", "%20")
 

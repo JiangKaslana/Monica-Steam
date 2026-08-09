@@ -4631,6 +4631,8 @@
     <string name="steam_store_detail_unavailable">Game details are temporarily unavailable</string>
     <string name="steam_store_add_wishlist">Add to wishlist</string>
     <string name="steam_store_remove_wishlist">Remove from wishlist</string>
+    <string name="steam_store_ignore_game">Ignore</string>
+    <string name="steam_store_unignore_game">Undo ignore</string>
     <string name="steam_store_account">Store account</string>
     <string name="steam_store_specials">Special offers</string>
     <string name="steam_store_top_sellers">Top sellers</string>

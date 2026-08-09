@@ -157,6 +157,7 @@ data class SteamStoreDetail(
     val website: String = "",
     val recommendationCount: Int? = null,
     val achievementCount: Int? = null,
+    val ignored: Boolean = false,
     val availableInAccountRegion: Boolean? = null,
     val accountCountryCode: String? = null,
     val priceCountryCode: String? = null,

@@ -98,6 +98,7 @@ import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
 import takagi.ru.monica.steam.store.domain.*
+import takagi.ru.monica.steam.store.interest.ui.SteamStoreIgnoreButton
 import takagi.ru.monica.steam.store.freebie.ui.SteamFreebieScreen
 import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieClaimResult
 import takagi.ru.monica.steam.store.filters.domain.resolveSteamStoreTagLabels
@@ -369,6 +370,10 @@ fun SteamStoreScreen(
                         wishlistAvailable = viewModel.selectedAccount()?.hasRealSteamId == true,
                         wishlistMutating = detail.appId in state.wishlistMutatingAppIds,
                         wishlistError = state.wishlistError,
+                        ignored = detail.ignored,
+                        ignoreAvailable = viewModel.selectedAccount()?.hasRealSteamId == true,
+                        ignoreMutating = detail.appId in state.ignoredMutatingAppIds,
+                        ignoredError = state.ignoredError,
                         regionalPrices = state.regionalPrices,
                         regionalPricesFromCache = state.regionalPricesFromCache,
                         loadingRegionalPrices = state.loadingRegionalPrices,
@@ -390,6 +395,7 @@ fun SteamStoreScreen(
                         onRemoveFromCart = { viewModel.removeFromCart(detail.appId) },
                         onOpenCart = viewModel::openCart,
                         onToggleWishlist = { viewModel.toggleWishlist(detail) },
+                        onToggleIgnored = { viewModel.toggleIgnored(detail) },
                         onOpenRegionalPrices = { viewModel.openRegionalPrices(detail.appId) },
                         onCloseRegionalPrices = viewModel::closeRegionalPrices,
                         onRetryRegionalPrices = {
@@ -1014,6 +1020,10 @@ private fun SteamStoreDetailContent(
     wishlistAvailable: Boolean,
     wishlistMutating: Boolean,
     wishlistError: String?,
+    ignored: Boolean,
+    ignoreAvailable: Boolean,
+    ignoreMutating: Boolean,
+    ignoredError: String?,
     regionalPrices: List<SteamRegionalPrice>,
     regionalPricesFromCache: Boolean,
     loadingRegionalPrices: Boolean,
@@ -1025,6 +1035,7 @@ private fun SteamStoreDetailContent(
     onRemoveFromCart: () -> Unit,
     onOpenCart: () -> Unit,
     onToggleWishlist: () -> Unit,
+    onToggleIgnored: () -> Unit,
     onOpenRegionalPrices: () -> Unit,
     onCloseRegionalPrices: () -> Unit,
     onRetryRegionalPrices: () -> Unit,
@@ -1249,11 +1260,16 @@ private fun SteamStoreDetailContent(
                     wishlistAvailable = wishlistAvailable,
                     wishlistMutating = wishlistMutating,
                     wishlistError = wishlistError,
+                    ignored = ignored,
+                    ignoreAvailable = ignoreAvailable,
+                    ignoreMutating = ignoreMutating,
+                    ignoredError = ignoredError,
                     onAddForSelf = { onAddToCart(selectedPackage) },
                     onAddAsGift = { onAddAsGift(selectedPackage) },
                     onRemoveFromCart = onRemoveFromCart,
                     onOpenCart = onOpenCart,
                     onToggleWishlist = onToggleWishlist,
+                    onToggleIgnored = onToggleIgnored,
                     onOpenOfficial = onOpenOfficial,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1484,11 +1500,16 @@ private fun SteamStorePurchaseActions(
     wishlistAvailable: Boolean,
     wishlistMutating: Boolean,
     wishlistError: String?,
+    ignored: Boolean,
+    ignoreAvailable: Boolean,
+    ignoreMutating: Boolean,
+    ignoredError: String?,
     onAddForSelf: () -> Unit,
     onAddAsGift: () -> Unit,
     onRemoveFromCart: () -> Unit,
     onOpenCart: () -> Unit,
     onToggleWishlist: () -> Unit,
+    onToggleIgnored: () -> Unit,
     onOpenOfficial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1529,30 +1550,42 @@ private fun SteamStorePurchaseActions(
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        FilledTonalButton(
-            onClick = onToggleWishlist,
-            enabled = (purchaseAvailable || inWishlist) && wishlistAvailable && !wishlistMutating,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-            shape = RoundedCornerShape(18.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (wishlistMutating) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(
-                    imageVector = if (inWishlist) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = null
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(
-                        if (inWishlist) {
-                            R.string.steam_store_remove_wishlist
-                        } else {
-                            R.string.steam_store_add_wishlist
-                        }
+            FilledTonalButton(
+                onClick = onToggleWishlist,
+                enabled = (purchaseAvailable || inWishlist) && wishlistAvailable && !wishlistMutating,
+                modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                if (wishlistMutating) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        imageVector = if (inWishlist) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = null
                     )
-                )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(
+                            if (inWishlist) {
+                                R.string.steam_store_remove_wishlist
+                            } else {
+                                R.string.steam_store_add_wishlist
+                            }
+                        )
+                    )
+                }
             }
+            SteamStoreIgnoreButton(
+                ignored = ignored,
+                enabled = ignoreAvailable,
+                mutating = ignoreMutating,
+                onClick = onToggleIgnored,
+                modifier = Modifier.weight(1f)
+            )
         }
         OutlinedButton(
             onClick = onOpenOfficial,
@@ -1567,7 +1600,8 @@ private fun SteamStorePurchaseActions(
                 text = stringResource(R.string.steam_store_buy)
             )
         }
-        if (wishlistError != null) {
+        val actionError = ignoredError ?: wishlistError
+        if (actionError != null) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -1585,7 +1619,7 @@ private fun SteamStorePurchaseActions(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = wishlistError,
+                        text = actionError,
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 4,

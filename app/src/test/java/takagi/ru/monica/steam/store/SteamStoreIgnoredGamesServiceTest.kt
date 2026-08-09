@@ -2,12 +2,25 @@ package takagi.ru.monica.steam.store
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import takagi.ru.monica.steam.network.SteamProtoReader
+import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoWriter
-import takagi.ru.monica.steam.store.data.SteamStoreIgnoredGamesService
-import takagi.ru.monica.steam.store.data.withoutIgnoredGames
+import takagi.ru.monica.steam.store.interest.data.buildSteamGameInterestStateRequest
+import takagi.ru.monica.steam.store.interest.data.buildSteamIgnoreMutationRequest
+import takagi.ru.monica.steam.store.interest.data.buildSteamIgnoredAppsRequest
+import takagi.ru.monica.steam.store.interest.data.effectiveSteamStoreLoginSecure
+import takagi.ru.monica.steam.store.interest.data.parseSteamGameInterestState
+import takagi.ru.monica.steam.store.interest.data.parseSteamIgnoredAppIds
+import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestService
+import takagi.ru.monica.steam.store.interest.domain.withoutIgnoredGames
 import takagi.ru.monica.steam.store.domain.SteamStoreBrowseFilter
 import takagi.ru.monica.steam.store.domain.SteamStoreCatalogPage
 import takagi.ru.monica.steam.store.domain.SteamStoreHome
@@ -15,32 +28,159 @@ import takagi.ru.monica.steam.store.domain.SteamStoreItem
 
 class SteamStoreIgnoredGamesServiceTest {
     @Test
-    fun requestEnablesOfficialSteamUserFilters() {
-        val request = SteamStoreIgnoredGamesService.buildIgnoredStateRequest(
-            appIds = listOf(730, 1091500),
-            countryCode = "cn",
-            language = "schinese"
+    fun refreshedAccessTokenReplacesAStaleStoreCookieToken() {
+        assertEquals(
+            "76561198000000000||fresh-token",
+            effectiveSteamStoreLoginSecure(
+                steamId = "76561198000000000",
+                steamLoginSecure = "76561198000000000||stale-token",
+                accessToken = "fresh-token"
+            )
         )
-        val root = SteamProtoReader(request.toByteArray()).parse()
-        val context = SteamProtoReader(requireNotNull(root[2]?.bytes)).parse()
-        val dataRequest = SteamProtoReader(requireNotNull(root[3]?.bytes)).parse()
-
-        assertEquals("CN", context[3]?.asString)
-        assertTrue(dataRequest[16]?.asBool == true)
     }
 
     @Test
-    fun parserReadsOnlyItemsMarkedIgnoredBySteam() {
-        val response = SteamProtoWriter().apply {
-            writeMessage(1, storeItem(appId = 730, ignored = true))
-            writeMessage(1, storeItem(appId = 1091500, ignored = false))
-            writeMessage(1, storeItem(appId = 578080, ignored = true))
-        }.toByteArray()
+    fun serviceCachesOfficialIgnoredAppsAndUpdatesCacheAfterMutation() {
+        val requests = mutableListOf<okhttp3.Request>()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            requests += chain.request()
+            val payload = if (chain.request().url.encodedPath == "/dynamicstore/userdata/") {
+                "{\"rgIgnoredApps\":{\"730\":0}}"
+            } else {
+                "{}"
+            }
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(payload.toResponseBody("application/json".toMediaType()))
+                .build()
+        }.build()
+        val service = SteamStoreInterestService(
+            client = client,
+            api = SteamApiClient(client),
+            nowMillis = { 1_000L },
+            sessionIdFactory = { "session123" }
+        )
 
         assertEquals(
-            linkedSetOf(730, 578080),
-            SteamStoreIgnoredGamesService.parseIgnoredAppIds(response)
+            setOf(730),
+            service.ignoredAppIds(
+                steamId = "76561198000000000",
+                steamLoginSecure = null,
+                accessToken = "fresh-token",
+                countryCode = "CN"
+            )
         )
+        service.setIgnored(
+            appId = 3722330,
+            ignored = true,
+            steamId = "76561198000000000",
+            steamLoginSecure = null,
+            accessToken = "fresh-token"
+        )
+
+        assertEquals(
+            setOf(730, 3722330),
+            service.ignoredAppIds(
+                steamId = "76561198000000000",
+                steamLoginSecure = null,
+                accessToken = "fresh-token",
+                countryCode = "CN"
+            )
+        )
+        assertEquals(2, requests.size)
+        assertEquals("POST", requests.last().method)
+    }
+
+    @Test
+    fun requestUsesOfficialDynamicStoreUserDataForTheAuthenticatedAccount() {
+        val request = buildSteamIgnoredAppsRequest(
+            steamId = "76561198000000000",
+            steamLoginSecure = "76561198000000000%7C%7Ctoken",
+            countryCode = "cn",
+        )
+
+        assertEquals("/dynamicstore/userdata/", request.url.encodedPath)
+        assertEquals("39734272", request.url.queryParameter("id"))
+        assertEquals("CN", request.url.queryParameter("cc"))
+        assertTrue(request.header("Cookie").orEmpty().contains("%7C%7C"))
+        assertFalse(request.header("Cookie").orEmpty().contains("%257C"))
+    }
+
+    @Test
+    fun parserReadsIgnoredAppsFromOfficialDynamicStorePayload() {
+        val payload = """
+            {
+              "rgIgnoredApps": {
+                "3722330": 0,
+                "730": 2
+              }
+            }
+        """.trimIndent()
+
+        assertEquals(linkedSetOf(3722330, 730), parseSteamIgnoredAppIds(payload))
+    }
+
+    @Test
+    fun parserAcceptsEmptyOrArrayDynamicStorePayloads() {
+        assertTrue(parseSteamIgnoredAppIds("{\"rgIgnoredApps\":[]}").isEmpty())
+        assertEquals(
+            linkedSetOf(3722330, 730),
+            parseSteamIgnoredAppIds("{\"rgIgnoredApps\":[3722330,730]}")
+        )
+    }
+
+    @Test
+    fun parserRejectsLoginHtmlOrUnrelatedJsonInsteadOfTreatingItAsNoIgnoredGames() {
+        assertThrows(IllegalArgumentException::class.java) {
+            parseSteamIgnoredAppIds("{\"success\":false}")
+        }
+    }
+
+    @Test
+    fun mutationRequestMatchesOfficialSteamIgnoreEndpoint() {
+        val request = buildSteamIgnoreMutationRequest(
+            appId = 3722330,
+            ignored = true,
+            steamLoginSecure = "76561198000000000||token",
+            sessionId = "session123"
+        )
+        val body = request.body as FormBody
+
+        assertEquals("/recommended/ignorerecommendation/", request.url.encodedPath)
+        assertEquals("session123", body.value("sessionid"))
+        assertEquals("3722330", body.value("appid"))
+        assertEquals("0", body.value("ignore_reason"))
+        assertEquals(null, body.value("remove"))
+        assertTrue(request.header("Cookie").orEmpty().contains("sessionid=session123"))
+    }
+
+    @Test
+    fun mutationRequestUsesRemoveFlagWhenUndoingIgnore() {
+        val body = buildSteamIgnoreMutationRequest(
+            appId = 3722330,
+            ignored = false,
+            steamLoginSecure = "76561198000000000||token",
+            sessionId = "session123"
+        ).body as FormBody
+
+        assertEquals("1", body.value("remove"))
+        assertEquals(null, body.value("ignore_reason"))
+    }
+
+    @Test
+    fun interestStateUsesStableStoreServiceFields() {
+        val request = buildSteamGameInterestStateRequest(3722330)
+        val ignoredResponse = SteamProtoWriter().apply { writeBool(3, true) }.toByteArray()
+        val visibleResponse = SteamProtoWriter().toByteArray()
+
+        assertEquals(3722330, request.toByteArray().let {
+            takagi.ru.monica.steam.network.SteamProtoReader(it).parse()[1]?.asInt
+        })
+        assertTrue(parseSteamGameInterestState(ignoredResponse))
+        assertFalse(parseSteamGameInterestState(visibleResponse))
     }
 
     @Test
@@ -109,11 +249,8 @@ class SteamStoreIgnoredGamesServiceTest {
         assertTrue(merged.hasMore)
     }
 
-    private fun storeItem(appId: Int, ignored: Boolean): SteamProtoWriter =
-        SteamProtoWriter().apply {
-            writeVarint(9, appId.toLong())
-            writeMessage(70, SteamProtoWriter().apply { writeBool(7, ignored) })
-        }
-
     private fun item(appId: Int) = SteamStoreItem(appId = appId, name = "Game $appId")
+
+    private fun FormBody.value(name: String): String? =
+        (0 until size).firstOrNull { encodedName(it) == name }?.let(::value)
 }

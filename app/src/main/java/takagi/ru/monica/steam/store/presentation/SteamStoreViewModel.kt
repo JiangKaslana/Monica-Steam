@@ -62,6 +62,7 @@ import takagi.ru.monica.steam.store.gift.domain.SteamStoreCheckoutLine
 import takagi.ru.monica.steam.store.gift.domain.SteamStoreGiftFailure
 import takagi.ru.monica.steam.store.gift.domain.toSteamStoreGiftRecipient
 import takagi.ru.monica.steam.store.gift.presentation.SteamStoreGiftUiState
+import takagi.ru.monica.steam.store.interest.domain.withoutIgnoredGames
 
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -114,6 +115,8 @@ data class SteamStoreUiState(
     val loadingWishlist: Boolean = false,
     val wishlistError: String? = null,
     val wishlistMutatingAppIds: Set<Int> = emptySet(),
+    val ignoredMutatingAppIds: Set<Int> = emptySet(),
+    val ignoredError: String? = null,
     val ownedAppIds: Set<Int> = emptySet(),
     val familySharedAppIds: Set<Int> = emptySet(),
     val regionalPrices: List<SteamRegionalPrice> = emptyList(),
@@ -125,6 +128,23 @@ data class SteamStoreUiState(
     val gift: SteamStoreGiftUiState = SteamStoreGiftUiState(),
     val checkoutLines: List<SteamStoreCheckoutLine> = emptyList()
 )
+
+internal fun SteamStoreUiState.withIgnoredGameState(
+    appId: Int,
+    ignored: Boolean
+): SteamStoreUiState {
+    val updatedDetail = detail?.let { current ->
+        if (current.appId == appId) current.copy(ignored = ignored) else current
+    }
+    if (!ignored) return copy(detail = updatedDetail)
+    val ignoredIds = setOf(appId)
+    return copy(
+        home = home?.withoutIgnoredGames(ignoredIds),
+        catalogPage = catalogPage?.withoutIgnoredGames(ignoredIds),
+        searchResults = searchResults.withoutIgnoredGames(ignoredIds),
+        detail = updatedDetail
+    )
+}
 
 class SteamStoreViewModel internal constructor(
     private val accountSourceRepository: SteamAccountSourceRepository,
@@ -207,7 +227,8 @@ class SteamStoreViewModel internal constructor(
                     executeStoreRequest(account) { credentials ->
                         service.featured(
                             steamLoginSecure = credentials.steamLoginSecure,
-                            accessToken = credentials.accessToken
+                            accessToken = credentials.accessToken,
+                            steamId = credentials.steamId
                         )
                     }
                 }
@@ -321,7 +342,8 @@ class SteamStoreViewModel internal constructor(
                             queryText = query,
                             filters = filters,
                             steamLoginSecure = credentials.steamLoginSecure,
-                            accessToken = credentials.accessToken
+                            accessToken = credentials.accessToken,
+                            steamId = credentials.steamId
                         )
                     }
                 }
@@ -421,6 +443,7 @@ class SteamStoreViewModel internal constructor(
             loadingRegionalPrices = false,
             regionalPriceFailure = null,
             regionalPriceSheetOpen = false,
+            ignoredError = null,
             error = null
         )
         viewModelScope.launch {
@@ -443,7 +466,8 @@ class SteamStoreViewModel internal constructor(
                             appId = appId,
                             steamLoginSecure = credentials.steamLoginSecure,
                             accessToken = credentials.accessToken,
-                            discoveryCountryCode = discoveryCountryCode
+                            discoveryCountryCode = discoveryCountryCode,
+                            steamId = credentials.steamId
                         )
                     }
                 }
@@ -1090,6 +1114,69 @@ class SteamStoreViewModel internal constructor(
         }
     }
 
+    fun toggleIgnored(detail: SteamStoreDetail) {
+        if (detail.appId in _uiState.value.ignoredMutatingAppIds) return
+        val accountId = _uiState.value.selectedAccountId
+        val account = selectedAccount()
+        if (account == null || !account.hasRealSteamId) {
+            _uiState.value = _uiState.value.copy(
+                ignoredError = "请先选择有效的 Steam 账号"
+            )
+            return
+        }
+        val ignored = !detail.ignored
+        _uiState.value = _uiState.value.copy(
+            ignoredMutatingAppIds = _uiState.value.ignoredMutatingAppIds + detail.appId,
+            ignoredError = null
+        )
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    executeStoreRequest(account) { credentials ->
+                        service.setIgnored(
+                            appId = detail.appId,
+                            ignored = ignored,
+                            steamId = credentials.steamId,
+                            steamLoginSecure = credentials.steamLoginSecure,
+                            accessToken = credentials.accessToken
+                        )
+                    }
+                }
+            }.onSuccess {
+                if (_uiState.value.selectedAccountId != accountId) return@onSuccess
+                val updated = _uiState.value.withIgnoredGameState(detail.appId, ignored).copy(
+                    ignoredMutatingAppIds = _uiState.value.ignoredMutatingAppIds - detail.appId,
+                    ignoredError = null
+                )
+                _uiState.value = updated
+                withContext(Dispatchers.IO) {
+                    updated.detail?.takeIf { it.appId == detail.appId }?.let {
+                        cache.writeDetail(accountId, it)
+                    }
+                    updated.home?.let { cache.writeHome(accountId, it) }
+                    updated.catalogPage?.let {
+                        cache.writeCatalog(accountId, it, updated.storeFilters)
+                    }
+                }
+                loadHome(force = true)
+                if (!ignored) {
+                    if (updated.browseFilter != SteamStoreBrowseFilter.ALL ||
+                        updated.storeFilters.isActive
+                    ) {
+                        loadCatalog(force = true)
+                    }
+                    if (updated.query.isNotBlank()) search()
+                }
+            }.onFailure { error ->
+                if (_uiState.value.selectedAccountId != accountId) return@onFailure
+                _uiState.value = _uiState.value.copy(
+                    ignoredMutatingAppIds = _uiState.value.ignoredMutatingAppIds - detail.appId,
+                    ignoredError = error.message ?: "Steam 忽略状态修改失败"
+                )
+            }
+        }
+    }
+
     fun checkout() {
         val lines = steamCartCheckoutLines(_uiState.value.cart)
         if (lines.isEmpty()) {
@@ -1231,7 +1318,8 @@ class SteamStoreViewModel internal constructor(
                             filters = filters,
                             start = if (loadMore) existing?.nextStart ?: 0 else 0,
                             steamLoginSecure = credentials.steamLoginSecure,
-                            accessToken = credentials.accessToken
+                            accessToken = credentials.accessToken,
+                            steamId = credentials.steamId
                         )
                     }
                 }
@@ -1336,6 +1424,8 @@ class SteamStoreViewModel internal constructor(
             loadingWishlist = false,
             wishlistError = null,
             wishlistMutatingAppIds = emptySet(),
+            ignoredMutatingAppIds = emptySet(),
+            ignoredError = null,
             ownedAppIds = emptySet(),
             familySharedAppIds = emptySet(),
             regionalPrices = emptyList(),
@@ -1785,7 +1875,7 @@ class SteamStoreViewModel internal constructor(
         account: SteamAccount?,
         request: suspend (SteamStoreAccountCredentials) -> T
     ): T {
-        if (account == null) return request(SteamStoreAccountCredentials(null, null))
+        if (account == null) return request(SteamStoreAccountCredentials(null, null, null))
         val prepared = refreshAccountSession(account, force = false)
         return executeSteamStoreAccountRetry(
             initialCredentials = prepared.toStoreCredentials(),
@@ -1799,7 +1889,8 @@ class SteamStoreViewModel internal constructor(
     private fun SteamAccount.toStoreCredentials(): SteamStoreAccountCredentials =
         SteamStoreAccountCredentials(
             accessToken = accessToken,
-            steamLoginSecure = steamLoginSecure
+            steamLoginSecure = steamLoginSecure,
+            steamId = steamId
         )
 
     private suspend fun refreshAccountSession(

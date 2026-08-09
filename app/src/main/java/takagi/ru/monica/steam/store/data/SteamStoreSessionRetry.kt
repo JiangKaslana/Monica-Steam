@@ -10,9 +10,14 @@ internal class SteamStoreWishlistSessionException(
     message: String = "Steam 愿望单会话已失效，请刷新后重试"
 ) : SteamStoreSessionException(message)
 
+internal class SteamStoreIgnoreSessionException(
+    message: String = "Steam 商店偏好会话已失效，请刷新账号后重试"
+) : SteamStoreSessionException(message)
+
 internal data class SteamStoreAccountCredentials(
     val accessToken: String?,
-    val steamLoginSecure: String?
+    val steamLoginSecure: String?,
+    val steamId: String? = null
 )
 
 internal suspend fun <T> executeSteamStoreAccountRetry(
