@@ -4,6 +4,8 @@
     
     <!-- General -->
     <string name="press_back_again_to_exit">Press back again to exit</string>
+    <string name="steam_link_handling_title">Open Steam links</string>
+    <string name="steam_link_handling_description">Choose Monica Steam under Open by default. Android 12 and later require this one-time system approval for Valve web domains.</string>
     
     <!-- Accessibility Service -->
     <string name="accessibility_service_description">Helps Monica find password fields for better autofill.</string>

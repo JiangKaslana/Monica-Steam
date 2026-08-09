@@ -26,6 +26,7 @@ import takagi.ru.monica.data.InterfaceScale
 import takagi.ru.monica.data.ProgressBarStyle
 import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.links.ui.SteamLinkHandlingSettingsEntry
 import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
 import takagi.ru.monica.steam.foundation.ui.SteamUiScalePreferences
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarShapeOption
@@ -145,9 +146,12 @@ internal fun MonicaSteamSharedSettingsHost(
             context.getString(R.string.steam_notification_settings_title),
             context.getString(R.string.steam_notification_settings_description),
             context.getString(R.string.steam_network_optimization_title),
-            context.getString(R.string.steam_network_optimization_description)
+            context.getString(R.string.steam_network_optimization_description),
+            context.getString(R.string.steam_link_handling_title),
+            context.getString(R.string.steam_link_handling_description)
         ),
         additionalSettingsContent = {
+            SteamLinkHandlingSettingsEntry()
             SteamStoreHintSettingsEntry(onClick = onOpenStoreHints)
             SteamNotificationSettingsEntry(onClick = onOpenNotifications)
             SteamNetworkOptimizationSettingsEntry(onClick = onOpenNetworkOptimization)
