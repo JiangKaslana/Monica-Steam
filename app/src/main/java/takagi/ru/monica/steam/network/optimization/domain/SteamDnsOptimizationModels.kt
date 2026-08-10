@@ -86,6 +86,8 @@ data class SteamDnsOptimizationScanResult(
     val availableHostCount: Int get() = selectedRoutes.map { it.hostname }.distinct().size
     val isComplete: Boolean
         get() = targetHostnames.isNotEmpty() && availableHostCount == totalHostCount
+    val isApplicable: Boolean
+        get() = targetHostnames.isNotEmpty() && selectedRoutes.isNotEmpty()
     val averageLatencyMillis: Long?
         get() = selectedRoutes.map { it.latencyMillis }.takeIf { it.isNotEmpty() }?.average()?.toLong()
     val providerIds: List<String>

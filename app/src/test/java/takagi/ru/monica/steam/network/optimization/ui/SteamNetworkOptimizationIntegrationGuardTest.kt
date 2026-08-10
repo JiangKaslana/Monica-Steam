@@ -43,6 +43,7 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         assertTrue(runtime.contains("KEY_CUSTOM_HOSTS"))
         assertTrue(runtime.contains("saveHosts("))
         assertTrue(runtime.contains("applyAutoOptimization("))
+        assertTrue(runtime.contains("if (!result.isApplicable) return false"))
         assertTrue(advancedEditor.contains("OutlinedTextField("))
         assertTrue(optimizationScreen.contains("SteamHostsRuleParser.parse("))
         assertTrue(optimizationScreen.contains("SteamNetworkOptimizationRuntime.saveHosts("))
@@ -87,15 +88,21 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         val scanner = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/network/optimization/diagnostics/SteamDnsOptimizationScanner.kt"
         ).readText()
+        val viewModel = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/SteamNetworkOptimizationViewModel.kt"
+        ).readText()
 
         assertTrue(settingsHost.contains("homeHeaderContent ="))
         assertTrue(settingsHost.contains("SteamNetworkOptimizationPullCard("))
-        assertTrue(automaticScreen.contains("SteamDnsOptimizationScanner()"))
-        assertTrue(automaticScreen.contains("applyAutoOptimization(context, result)"))
+        assertTrue(automaticScreen.contains("SteamNetworkOptimizationViewModel"))
+        assertFalse(automaticScreen.contains("rememberCoroutineScope()"))
+        assertTrue(automaticScreen.contains("applyAutoOptimization("))
+        assertTrue(automaticScreen.contains("applicationContext"))
+        assertTrue(viewModel.contains("viewModelScope.launch"))
         assertTrue(models.contains("val DEFAULTS: List<SteamDnsProvider>"))
         assertTrue(resolver.contains("DnsOverHttps.Builder()"))
         assertTrue(scanner.contains("SteamHostProbeTarget(hostname, address)"))
-        assertTrue(scanner.contains("it.target.hostname == hostname && it.isAvailable"))
+        assertTrue(scanner.contains("evaluation.candidate.hostname == hostname && evaluation.isStable"))
         assertFalse(
             projectFile(
                 "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamNetworkOptimizationHeroCard.kt"

@@ -96,7 +96,8 @@ internal class SteamDnsOptimizationScanner(
                     evaluation.candidate.hostname == hostname && evaluation.isStable
                 }
                 .minWithOrNull(
-                    compareBy<SteamDnsCandidateEvaluation> { it.medianLatencyMillis }
+                    compareByDescending<SteamDnsCandidateEvaluation> { it.successPercent }
+                        .thenBy { it.medianLatencyMillis }
                         .thenBy { it.p90LatencyMillis }
                         .thenByDescending { it.successfulProbeCount }
                         .thenBy { it.candidate.address }
@@ -265,13 +266,19 @@ internal class SteamDnsOptimizationScanner(
         val p90LatencyMillis: Long,
         val httpStatusCode: Int?
     ) {
+        val successPercent: Int
+            get() = if (totalProbeCount <= 0) {
+                0
+            } else {
+                successfulProbeCount * 100 / totalProbeCount
+            }
         val isStable: Boolean
             get() = totalProbeCount > 0 &&
                 successfulProbeCount * 100 >= totalProbeCount * MIN_SUCCESS_PERCENT
     }
 
     companion object {
-        private const val MIN_SUCCESS_PERCENT = 70
+        private const val MIN_SUCCESS_PERCENT = 60
 
         val DEFAULT_TARGET_HOSTNAMES: List<String> = listOf(
             "store.steampowered.com",

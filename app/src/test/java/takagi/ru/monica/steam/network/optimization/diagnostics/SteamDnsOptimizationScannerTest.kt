@@ -101,6 +101,7 @@ class SteamDnsOptimizationScannerTest {
         val result = scanner.scan()
 
         assertFalse(result.isComplete)
+        assertTrue(result.isApplicable)
         assertEquals(1, result.availableHostCount)
         assertEquals(listOf(hostA), result.selectedRoutes.map { it.hostname })
     }
@@ -189,6 +190,43 @@ class SteamDnsOptimizationScannerTest {
         assertEquals(10, result.probeResults.size)
         assertEquals("10.0.0.2", result.selectedRoutes.single().address)
         assertEquals(24L, result.selectedRoutes.single().latencyMillis)
+    }
+
+    @Test
+    fun majorityOfSuccessfulChecksKeepsAMobileCandidateUsable() = runBlocking {
+        val attempts = AtomicInteger()
+        val scanner = SteamDnsOptimizationScanner(
+            resolver = SteamDnsResolver { provider, hostname ->
+                SteamDnsResolutionResult(
+                    provider = provider,
+                    hostname = hostname,
+                    addresses = listOf("10.0.0.1")
+                )
+            },
+            probe = SteamHostProbe { target ->
+                val attempt = attempts.incrementAndGet()
+                SteamHostProbeResult(
+                    target = target,
+                    status = if (attempt <= 3) {
+                        SteamHostProbeStatus.AVAILABLE
+                    } else {
+                        SteamHostProbeStatus.TIMEOUT
+                    },
+                    latencyMillis = if (attempt <= 3) 40L else 5_000L,
+                    httpStatusCode = if (attempt <= 3) 200 else null
+                )
+            },
+            providers = listOf(providerA),
+            targetHostnames = listOf(hostA),
+            minimumProbeAttemptsPerCandidate = 5,
+            minimumProbeAttemptsPerHost = 5,
+            maxConcurrentProbes = 1
+        )
+
+        val result = scanner.scan()
+
+        assertTrue(result.isComplete)
+        assertEquals("10.0.0.1", result.selectedRoutes.single().address)
     }
 
     @Test

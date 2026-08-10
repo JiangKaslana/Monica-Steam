@@ -114,7 +114,7 @@ object SteamNetworkOptimizationRuntime {
         result: SteamDnsOptimizationScanResult
     ): Boolean {
         initialize(context)
-        if (!result.isComplete) return false
+        if (!result.isApplicable) return false
         val mergedHosts = runCatching {
             SteamAutoHostsFormatter.merge(
                 existingText = mutableSettings.value.hostsText,

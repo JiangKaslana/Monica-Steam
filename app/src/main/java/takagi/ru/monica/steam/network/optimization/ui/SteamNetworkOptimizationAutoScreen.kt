@@ -17,24 +17,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.network.optimization.SteamNetworkOptimizationRuntime
-import takagi.ru.monica.steam.network.optimization.diagnostics.SteamDnsOptimizationScanner
 import takagi.ru.monica.steam.network.optimization.domain.SteamAutoHostsFormatter
-import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
-import takagi.ru.monica.steam.network.optimization.domain.SteamDnsScanProgress
-import takagi.ru.monica.steam.network.optimization.domain.SteamDnsScanStage
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkAdvancedSettingsCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkAutomaticScanCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkCurrentSelectionCard
@@ -49,64 +41,19 @@ fun SteamNetworkOptimizationAutoScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val scanner = remember { SteamDnsOptimizationScanner() }
+    val applicationContext = context.applicationContext
+    val optimizationViewModel: SteamNetworkOptimizationViewModel = viewModel {
+        SteamNetworkOptimizationViewModel()
+    }
     val dockClearance = LocalSteamDockContentClearance.current
     val settings by SteamNetworkOptimizationRuntime.settings.collectAsState()
+    val scanState by optimizationViewModel.scanState.collectAsState()
     val summary = remember(settings.hostsText) {
         SteamAutoHostsFormatter.summary(settings.hostsText)
-    }
-    var scanState by remember {
-        mutableStateOf<SteamAutoOptimizationUiState>(SteamAutoOptimizationUiState.Idle)
     }
 
     LaunchedEffect(context) {
         SteamNetworkOptimizationRuntime.initialize(context)
-    }
-
-    fun startScan() {
-        if (scanState.isBusy) return
-        scope.launch {
-            scanState = SteamAutoOptimizationUiState.Running(
-                SteamDnsScanProgress(
-                    stage = SteamDnsScanStage.RESOLVING,
-                    completed = 0,
-                    total = SteamDnsProvider.DEFAULTS.size *
-                        SteamDnsOptimizationScanner.DEFAULT_TARGET_HOSTNAMES.size
-                )
-            )
-            try {
-                val result = scanner.scan { progress ->
-                    scanState = SteamAutoOptimizationUiState.Running(progress)
-                }
-                if (!result.isComplete) {
-                    scanState = SteamAutoOptimizationUiState.Error(
-                        availableHostCount = result.availableHostCount,
-                        totalHostCount = result.totalHostCount
-                    )
-                    return@launch
-                }
-                scanState = SteamAutoOptimizationUiState.Applying
-                scanState = if (
-                    SteamNetworkOptimizationRuntime.applyAutoOptimization(context, result)
-                ) {
-                    SteamAutoOptimizationUiState.Success(result)
-                } else {
-                    SteamAutoOptimizationUiState.Error(
-                        availableHostCount = result.availableHostCount,
-                        totalHostCount = result.totalHostCount,
-                        applyFailed = true
-                    )
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Throwable) {
-                scanState = SteamAutoOptimizationUiState.Error(
-                    availableHostCount = 0,
-                    totalHostCount = SteamDnsOptimizationScanner.DEFAULT_TARGET_HOSTNAMES.size
-                )
-            }
-        }
     }
 
     val selectedProviderIds = when (val state = scanState) {
@@ -151,10 +98,17 @@ fun SteamNetworkOptimizationAutoScreen(
                     state = scanState,
                     summary = summary,
                     enabled = settings.enabled,
-                    onScan = ::startScan,
+                    onScan = {
+                        optimizationViewModel.startScan { result ->
+                            SteamNetworkOptimizationRuntime.applyAutoOptimization(
+                                applicationContext,
+                                result
+                            )
+                        }
+                    },
                     onDisable = {
-                        SteamNetworkOptimizationRuntime.setEnabled(context, false)
-                        scanState = SteamAutoOptimizationUiState.Idle
+                        optimizationViewModel.cancelScan()
+                        SteamNetworkOptimizationRuntime.setEnabled(applicationContext, false)
                     }
                 )
             }
