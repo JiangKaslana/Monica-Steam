@@ -31,7 +31,9 @@ import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
 import takagi.ru.monica.steam.foundation.ui.SteamUiScalePreferences
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarShapeOption
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarShapePreferences
-import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkOptimizationHeroCard
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkOptimizationPullCard
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkOptimizationPullMaxDistance
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkOptimizationPullTriggerDistance
 import takagi.ru.monica.steam.store.hints.ui.SteamStoreHintSettingsEntry
 import takagi.ru.monica.utils.SettingsManager
 import takagi.ru.monica.viewmodel.SettingsViewModel
@@ -136,9 +138,12 @@ internal fun MonicaSteamSharedSettingsHost(
         ),
         screenMode = screenMode,
         screenTitle = screenTitle,
-        homeHeaderContent = {
-            SteamNetworkOptimizationHeroCard(
-                onOpenAdvanced = onOpenNetworkOptimization
+        homeHeaderContent = { pullOffset, triggerDistance, isArmed ->
+            SteamNetworkOptimizationPullCard(
+                pullOffset = pullOffset,
+                triggerDistance = triggerDistance,
+                isArmed = isArmed,
+                onOpen = onOpenNetworkOptimization
             )
         },
         homeHeaderSearchTexts = listOf(
@@ -150,6 +155,9 @@ internal fun MonicaSteamSharedSettingsHost(
             "DoH",
             "Hosts"
         ),
+        homeHeaderPullTriggerDistance = SteamNetworkOptimizationPullTriggerDistance,
+        homeHeaderPullMaxDistance = SteamNetworkOptimizationPullMaxDistance,
+        onHomeHeaderPullTriggered = onOpenNetworkOptimization,
         compactHomeSections = compactHomeSections,
         appearanceSectionTitle = context.getString(R.string.settings_appearance_entry_title),
         applicationSectionTitle = context.getString(

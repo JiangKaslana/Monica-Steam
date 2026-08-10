@@ -27,8 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,6 +62,7 @@ import takagi.ru.monica.ui.password.PasswordBatchDeleteGlobalProgressState
 import takagi.ru.monica.ui.password.PasswordBatchDeleteProgressTracker
 import takagi.ru.monica.ui.password.PasswordBatchTransferGlobalProgressState
 import takagi.ru.monica.ui.password.PasswordBatchTransferProgressTracker
+import takagi.ru.monica.ui.common.pull.rememberPullToActionState
 import takagi.ru.monica.utils.BiometricAuthHelper
 import takagi.ru.monica.utils.UpdateCheckResult
 import takagi.ru.monica.utils.UpdateChecker
@@ -138,8 +141,11 @@ fun SettingsScreen(
     surfacePolicy: SettingsSurfacePolicy = SettingsSurfacePolicy(),
     screenMode: SettingsScreenMode = SettingsScreenMode.FULL,
     screenTitle: String? = null,
-    homeHeaderContent: (@Composable () -> Unit)? = null,
+    homeHeaderContent: (@Composable (Float, Float, Boolean) -> Unit)? = null,
     homeHeaderSearchTexts: List<String> = emptyList(),
+    homeHeaderPullTriggerDistance: Dp = 0.dp,
+    homeHeaderPullMaxDistance: Dp = 0.dp,
+    onHomeHeaderPullTriggered: (() -> Unit)? = null,
     compactHomeSections: List<SettingsNavigationSection> = emptyList(),
     appearanceSectionTitle: String? = null,
     applicationSectionTitle: String? = null,
@@ -647,6 +653,38 @@ fun SettingsScreen(
             settingsSearchQuery,
             *homeHeaderSearchTexts.toTypedArray()
         )
+    val density = LocalDensity.current
+    val homeHeaderPullTriggerDistancePx = remember(
+        density,
+        homeHeaderPullTriggerDistance,
+        onHomeHeaderPullTriggered
+    ) {
+        if (onHomeHeaderPullTriggered == null) {
+            1f
+        } else {
+            with(density) { homeHeaderPullTriggerDistance.toPx() }
+        }
+    }
+    val homeHeaderPullMaxDistancePx = remember(
+        density,
+        homeHeaderPullMaxDistance,
+        onHomeHeaderPullTriggered
+    ) {
+        if (onHomeHeaderPullTriggered == null) {
+            0f
+        } else {
+            with(density) { homeHeaderPullMaxDistance.toPx() }
+        }
+    }
+    val homeHeaderPullState = rememberPullToActionState(
+        enabled = onHomeHeaderPullTriggered != null &&
+            settingsSearchQuery.isBlank() &&
+            showHomeHeaderContent,
+        triggerDistance = homeHeaderPullTriggerDistancePx,
+        maxDragDistance = homeHeaderPullMaxDistancePx,
+        onTriggered = { onHomeHeaderPullTriggered?.invoke() },
+        canStartPull = { scrollState.value == 0 }
+    )
 
     val showMonicaPlusCard = isHomeMode &&
         (surfacePolicy.forceMonicaPlusActivated || !settings.isPlusActivated) && matchesSettingsSearch(
@@ -950,6 +988,7 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .nestedScroll(homeHeaderPullState.nestedScrollConnection)
                 .verticalScroll(scrollState)
         ) {
             // Top padding spacer for edge-to-edge scrolling
@@ -957,14 +996,13 @@ fun SettingsScreen(
 
             if (showHomeHeaderContent) {
                 Box(
-                    modifier = Modifier.padding(
-                        start = 16.dp,
-                        top = 16.dp,
-                        end = 16.dp,
-                        bottom = 4.dp
-                    )
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    homeHeaderContent?.invoke()
+                    homeHeaderContent?.invoke(
+                        homeHeaderPullState.currentOffset,
+                        homeHeaderPullTriggerDistancePx,
+                        homeHeaderPullState.isArmed
+                    )
                 }
             }
 

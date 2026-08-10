@@ -38,7 +38,8 @@
 
 ## 导航与显示
 
-- 设置页顶部新增可展开的 M3E 网络优化卡片，可同时查询系统 DNS、DNSPod、AliDNS、Cloudflare、Google 与 Quad9 ECS。
+- 设置页顶部新增与 Monica Pass 安全分析一致的网络优化下拉卡片；卡片会随下拉距离从紧凑形态过渡为大卡片，达到阈值后提供震动反馈，松手或点按会进入独立网络优化页面。
+- 独立网络优化页面可同时查询系统 DNS、DNSPod、AliDNS、Cloudflare、Google 与 Quad9 ECS，并保留高级网络设置子页面管理手动 Hosts。
 - 网络优化会对 Steam 商店、社区和 API 域名执行 HTTPS 证书验证与延迟测试，三个必需域名全部可用后才保存最快节点；扫描失败时保留原有设置。
 - 自动优选结果写入 Monica Steam 的应用内 Hosts，并保留高级页面中的手动规则。该功能仅作用于受支持的原生网络请求，不修改 Android 系统 DNS、系统 Hosts、VPN、其他应用或 WebView。
 - 设置页参考 Monica Pass 的分区层级重新整理为“安全与数据、界面与交互、Steam 体验、应用”四组；Dock 与减少动效、商店提示与链接、通知与网络、语言与扩展不再混放在同一页面。

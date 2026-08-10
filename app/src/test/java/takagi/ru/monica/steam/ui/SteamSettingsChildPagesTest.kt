@@ -47,11 +47,18 @@ class SteamSettingsChildPagesTest {
         assertTrue(navigation.contains("SteamSettingsChild.STEAM_FEATURES"))
         assertTrue(navigation.contains("SteamSettingsChild.NAVIGATION"))
         assertTrue(navigation.contains("SteamSettingsChild.APP_SUPPORT"))
+        assertTrue(navigation.contains("SteamSettingsChild.NETWORK_OPTIMIZATION_ADVANCED"))
         assertTrue(navigation.contains("SteamSettingsAdditionalGroup.STEAM_EXPERIENCE"))
         assertTrue(navigation.contains("SteamSettingsAdditionalGroup.NAVIGATION"))
         assertTrue(navigation.contains("mode = SettingsScreenMode.APP_SUPPORT"))
         assertTrue(navigation.contains("onOpenNotifications = { child = SteamSettingsChild.NOTIFICATIONS }"))
         assertTrue(navigation.contains("onNavigateBack = { child = null }"))
+        assertTrue(navigation.contains("SteamNetworkOptimizationAutoScreen("))
+        assertTrue(
+            navigation.contains(
+                "onNavigateBack = { child = SteamSettingsChild.NETWORK_OPTIMIZATION }"
+            )
+        )
     }
 
     @Test
@@ -68,8 +75,8 @@ class SteamSettingsChildPagesTest {
         assertTrue(host.contains("onNavigateToMdbx = onOpenMdbx"))
         assertTrue(host.contains("SteamStoreHintSettingsEntry(onClick = onOpenStoreHints)"))
         assertTrue(host.contains("homeHeaderContent ="))
-        assertTrue(host.contains("SteamNetworkOptimizationHeroCard("))
-        assertTrue(host.contains("onOpenAdvanced = onOpenNetworkOptimization"))
+        assertTrue(host.contains("SteamNetworkOptimizationPullCard("))
+        assertTrue(host.contains("onHomeHeaderPullTriggered = onOpenNetworkOptimization"))
         assertTrue(host.contains("SteamSettingsAdditionalGroup.NAVIGATION"))
         assertTrue(host.contains("showLanguage = screenMode == SettingsScreenMode.APP_SUPPORT"))
         assertTrue(host.contains("showBottomNavigation = false"))

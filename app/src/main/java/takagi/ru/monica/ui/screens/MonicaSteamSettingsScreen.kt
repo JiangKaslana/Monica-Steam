@@ -40,6 +40,7 @@ import takagi.ru.monica.steam.navigation.reorderFixedDockOrder
 import takagi.ru.monica.steam.navigation.reorderLiquidGlassDockOrder
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSettingsScreen
+import takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationAutoScreen
 import takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationSettingsScreen
 import takagi.ru.monica.steam.store.hints.ui.SteamStoreHintSettingsScreen
 import takagi.ru.monica.steam.security.SteamAppLockGate
@@ -71,6 +72,7 @@ private enum class SteamSettingsChild {
     EXTENSIONS,
     NOTIFICATIONS,
     NETWORK_OPTIMIZATION,
+    NETWORK_OPTIMIZATION_ADVANCED,
     STORE_HINTS
 }
 
@@ -94,6 +96,7 @@ private fun SteamSettingsChild.parent(): SteamSettingsChild? = when (this) {
 
     SteamSettingsChild.CUSTOM_COLORS -> SteamSettingsChild.COLORS
     SteamSettingsChild.STORE_HINTS -> SteamSettingsChild.STEAM_FEATURES
+    SteamSettingsChild.NETWORK_OPTIMIZATION_ADVANCED -> SteamSettingsChild.NETWORK_OPTIMIZATION
 
     SteamSettingsChild.RESET_PASSWORD,
     SteamSettingsChild.SECURITY_QUESTIONS -> SteamSettingsChild.MASTER_PASSWORD_LOCKING
@@ -386,10 +389,19 @@ fun MonicaSteamSettingsScreen(
                     onNavigateBack = { child = null },
                     modifier = Modifier.fillMaxSize()
                 )
-                SteamSettingsChild.NETWORK_OPTIMIZATION -> SteamNetworkOptimizationSettingsScreen(
+                SteamSettingsChild.NETWORK_OPTIMIZATION -> SteamNetworkOptimizationAutoScreen(
                     onNavigateBack = { child = null },
+                    onOpenAdvanced = {
+                        child = SteamSettingsChild.NETWORK_OPTIMIZATION_ADVANCED
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
+                SteamSettingsChild.NETWORK_OPTIMIZATION_ADVANCED -> {
+                    SteamNetworkOptimizationSettingsScreen(
+                        onNavigateBack = { child = SteamSettingsChild.NETWORK_OPTIMIZATION },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 SteamSettingsChild.STORE_HINTS -> SteamStoreHintSettingsScreen(
                     onNavigateBack = { child = SteamSettingsChild.STEAM_FEATURES },
                     modifier = Modifier.fillMaxSize()

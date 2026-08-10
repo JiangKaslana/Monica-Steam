@@ -205,7 +205,7 @@ fun SteamNetworkOptimizationSettingsScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(context.getString(R.string.steam_network_optimization_title)) },
+                title = { Text(context.getString(R.string.steam_network_advanced_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
