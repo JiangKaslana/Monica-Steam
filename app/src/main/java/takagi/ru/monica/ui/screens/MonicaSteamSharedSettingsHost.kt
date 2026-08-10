@@ -66,6 +66,8 @@ internal fun MonicaSteamSharedSettingsHost(
     onOpenDataManagement: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenSteamFeatures: () -> Unit,
+    compactHomeSections: List<SettingsNavigationSection> = emptyList(),
+    additionalGroup: SteamSettingsAdditionalGroup = SteamSettingsAdditionalGroup.NONE,
     showNavigationBack: Boolean,
     modifier: Modifier,
     context: Context
@@ -125,14 +127,22 @@ internal fun MonicaSteamSharedSettingsHost(
             showPermissionManagement = false,
             showTrash = false,
             showClearData = false,
-            showExtensions = settings.isPlusActivated,
+            showExtensions = settings.isPlusActivated &&
+                screenMode == SettingsScreenMode.APP_SUPPORT,
             showPageCustomization = false,
             showUpdateCheck = false,
             showPreviewFeatures = false,
-            showDeveloperSettings = true
+            showDeveloperSettings = screenMode == SettingsScreenMode.APP_SUPPORT,
+            showLanguage = screenMode == SettingsScreenMode.APP_SUPPORT,
+            showBottomNavigation = false
         ),
         screenMode = screenMode,
         screenTitle = screenTitle,
+        compactHomeSections = compactHomeSections,
+        appearanceSectionTitle = context.getString(R.string.settings_appearance_entry_title),
+        applicationSectionTitle = context.getString(
+            R.string.steam_settings_application_preferences_title
+        ),
         onNavigateToDataManagement = onOpenDataManagement,
         onNavigateToAppearance = onOpenAppearance,
         additionalSettingsEntryTitle = context.getString(R.string.steam_settings_features_title),
@@ -151,10 +161,32 @@ internal fun MonicaSteamSharedSettingsHost(
             context.getString(R.string.steam_link_handling_description)
         ),
         additionalSettingsContent = {
-            SteamLinkHandlingSettingsEntry()
-            SteamStoreHintSettingsEntry(onClick = onOpenStoreHints)
-            SteamNotificationSettingsEntry(onClick = onOpenNotifications)
-            SteamNetworkOptimizationSettingsEntry(onClick = onOpenNetworkOptimization)
+            when (additionalGroup) {
+                SteamSettingsAdditionalGroup.NONE -> Unit
+                SteamSettingsAdditionalGroup.NAVIGATION -> {
+                    SettingsItem(
+                        icon = Icons.Default.ViewList,
+                        title = context.getString(R.string.bottom_nav_settings),
+                        subtitle = context.getString(R.string.bottom_nav_settings_entry_subtitle),
+                        onClick = onOpenDock
+                    )
+                    SettingsItemWithSwitch(
+                        icon = Icons.Default.Speed,
+                        title = context.getString(R.string.reduce_animations),
+                        subtitle = context.getString(R.string.reduce_animations_description),
+                        checked = settings.reduceAnimations,
+                        onCheckedChange = settingsViewModel::updateReduceAnimations
+                    )
+                }
+                SteamSettingsAdditionalGroup.STEAM_EXPERIENCE -> {
+                    SteamLinkHandlingSettingsEntry()
+                    SteamStoreHintSettingsEntry(onClick = onOpenStoreHints)
+                }
+                SteamSettingsAdditionalGroup.CONNECTIVITY -> {
+                    SteamNotificationSettingsEntry(onClick = onOpenNotifications)
+                    SteamNetworkOptimizationSettingsEntry(onClick = onOpenNetworkOptimization)
+                }
+            }
         },
         additionalAppearanceContent = {
             InterfaceScaleSettingsItem(
@@ -193,13 +225,6 @@ internal fun MonicaSteamSharedSettingsHost(
                 ),
                 onClick = { showProgressBarStyleDialog = true }
             )
-            SettingsItemWithSwitch(
-                icon = Icons.Default.Speed,
-                title = context.getString(R.string.reduce_animations),
-                subtitle = context.getString(R.string.reduce_animations_description),
-                checked = settings.reduceAnimations,
-                onCheckedChange = settingsViewModel::updateReduceAnimations
-            )
         },
         additionalAppearanceSearchTexts = listOf(
             context.getString(R.string.interface_scale_title),
@@ -213,8 +238,6 @@ internal fun MonicaSteamSharedSettingsHost(
             context.getString(R.string.validator_progress_bar_style),
             context.getString(R.string.progress_bar_style_linear),
             context.getString(R.string.progress_bar_style_wave),
-            context.getString(R.string.reduce_animations),
-            context.getString(R.string.reduce_animations_description),
             "DPI"
         ),
         contentBottomPadding = dockContentClearance + 16.dp,

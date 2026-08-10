@@ -337,7 +337,11 @@ class SteamBoundaryGuardTest {
         ).readText()
 
         assertTrue(settingsHostSource.contains("onNavigateToDeveloperSettings = onOpenDeveloper"))
-        assertTrue(settingsHostSource.contains("showDeveloperSettings = true"))
+        assertTrue(
+            settingsHostSource.contains(
+                "showDeveloperSettings = screenMode == SettingsScreenMode.APP_SUPPORT"
+            )
+        )
         assertFalse(settingsHostSource.contains("SteamSupportLogExporter"))
         assertFalse(settingsHostSource.contains("putExtra(Intent.EXTRA_TEXT, report)"))
 
@@ -366,7 +370,10 @@ class SteamBoundaryGuardTest {
         assertTrue(sharedSettingsSource.contains("contentBottomPadding: Dp = 0.dp"))
         assertTrue(sharedSettingsSource.contains("paddingValues.calculateBottomPadding() + contentBottomPadding"))
         assertTrue(sharedSettingsSource.contains("modifier: Modifier = Modifier"))
-        assertTrue(sharedSettingsSource.contains("Scaffold(\n        modifier = modifier,"))
+        assertTrue(
+            Regex("Scaffold\\(\\s+modifier = modifier,")
+                .containsMatchIn(sharedSettingsSource)
+        )
         assertTrue(settingsHostSource.contains("modifier = modifier"))
         assertFalse(settingsHostSource.contains("contentBottomPadding = 120.dp"))
 

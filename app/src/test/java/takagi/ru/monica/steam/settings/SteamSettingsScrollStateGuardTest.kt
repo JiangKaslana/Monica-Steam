@@ -19,6 +19,9 @@ class SteamSettingsScrollStateGuardTest {
         ).readText()
 
         assertTrue(steamSettings.contains("val settingsScrollState = rememberScrollState()"))
+        assertTrue(steamSettings.contains("val navigationScrollState = rememberScrollState()"))
+        assertTrue(steamSettings.contains("val connectivityScrollState = rememberScrollState()"))
+        assertTrue(steamSettings.contains("val appSupportScrollState = rememberScrollState()"))
         assertTrue(steamSettings.contains("scrollState = settingsScrollState"))
         assertTrue(sharedHost.contains("scrollState: ScrollState"))
         assertTrue(sharedHost.contains("scrollState = scrollState"))

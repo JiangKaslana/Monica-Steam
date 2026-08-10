@@ -96,6 +96,8 @@ data class SettingsSurfacePolicy(
     val showUpdateCheck: Boolean = true,
     val showPreviewFeatures: Boolean = true,
     val showDeveloperSettings: Boolean = true,
+    val showLanguage: Boolean = true,
+    val showBottomNavigation: Boolean = true,
     val forceMonicaPlusActivated: Boolean = false
 )
 
@@ -136,6 +138,9 @@ fun SettingsScreen(
     surfacePolicy: SettingsSurfacePolicy = SettingsSurfacePolicy(),
     screenMode: SettingsScreenMode = SettingsScreenMode.FULL,
     screenTitle: String? = null,
+    compactHomeSections: List<SettingsNavigationSection> = emptyList(),
+    appearanceSectionTitle: String? = null,
+    applicationSectionTitle: String? = null,
     onNavigateToDataManagement: () -> Unit = {},
     onNavigateToAppearance: () -> Unit = {},
     additionalSettingsEntryTitle: String? = null,
@@ -156,6 +161,8 @@ fun SettingsScreen(
     val isDataManagementMode = screenMode == SettingsScreenMode.DATA_MANAGEMENT
     val isAppearanceMode = screenMode == SettingsScreenMode.APPEARANCE
     val isAdditionalMode = screenMode == SettingsScreenMode.ADDITIONAL
+    val isAppSupportMode = screenMode == SettingsScreenMode.APP_SUPPORT
+    val useCustomCompactHome = isCompactHomeMode && compactHomeSections.isNotEmpty()
     val showDataManagementDetails = screenMode == SettingsScreenMode.FULL || isDataManagementMode
     val showAppearanceDetails = screenMode == SettingsScreenMode.FULL || isAppearanceMode
     val showAdditionalDetails = screenMode == SettingsScreenMode.FULL || isAdditionalMode
@@ -390,7 +397,7 @@ fun SettingsScreen(
     val masterPasswordLockingTitle = context.getString(R.string.master_password_and_locking)
     val masterPasswordLockingDescription = context.getString(R.string.master_password_and_locking_description)
     val dataManagementTitle = context.getString(R.string.data_management)
-    val appearanceTitle = context.getString(R.string.theme)
+    val appearanceTitle = appearanceSectionTitle ?: context.getString(R.string.theme)
     val aboutTitle = context.getString(R.string.about)
     val developerTitle = context.getString(R.string.developer_settings)
 
@@ -617,20 +624,38 @@ fun SettingsScreen(
         *extraSearchTexts
     )
 
+    val visibleCompactHomeSections = if (useCustomCompactHome) {
+        compactHomeSections.mapNotNull { section ->
+            val visibleEntries = section.entries.filter { entry ->
+                matchesSettingsSearch(
+                    settingsSearchQuery,
+                    section.title,
+                    entry.title,
+                    entry.subtitle,
+                    *entry.searchTexts.toTypedArray()
+                )
+            }
+            section.copy(entries = visibleEntries).takeIf { visibleEntries.isNotEmpty() }
+        }
+    } else {
+        emptyList()
+    }
+
     val showMonicaPlusCard = isHomeMode &&
         (surfacePolicy.forceMonicaPlusActivated || !settings.isPlusActivated) && matchesSettingsSearch(
         settingsSearchQuery,
         context.getString(R.string.monica_plus_title),
         context.getString(R.string.monica_plus_card_desc)
     )
-    val showSecurityAnalysisCard = isHomeMode && surfacePolicy.showSecurityAnalysis && matchesSettingsSearch(
+    val showSecurityAnalysisCard = isHomeMode && !useCustomCompactHome &&
+        surfacePolicy.showSecurityAnalysis && matchesSettingsSearch(
         settingsSearchQuery,
         securityTitle,
         context.getString(R.string.security_analysis),
         context.getString(R.string.security_analysis_description)
     )
 
-    val showMasterPasswordLockingItem = isHomeMode &&
+    val showMasterPasswordLockingItem = isHomeMode && !useCustomCompactHome &&
         surfacePolicy.showMasterPasswordLocking && matchesSettingsItem(
         securityTitle,
         masterPasswordLockingTitle,
@@ -646,13 +671,13 @@ fun SettingsScreen(
         context.getString(R.string.reset_master_password),
         context.getString(R.string.reset_password_description)
     )
-    val showScreenshotProtectionItem = isHomeMode &&
+    val showScreenshotProtectionItem = isHomeMode && !useCustomCompactHome &&
         surfacePolicy.showScreenshotProtection && matchesSettingsItem(
         securityTitle,
         context.getString(R.string.screenshot_protection),
         screenshotProtectionSubtitle
     )
-    val showPermissionManagementItem = isHomeMode &&
+    val showPermissionManagementItem = isHomeMode && !useCustomCompactHome &&
         surfacePolicy.showPermissionManagement && matchesSettingsItem(
         securityTitle,
         context.getString(R.string.permission_management_title),
@@ -730,7 +755,7 @@ fun SettingsScreen(
         *syncBackupSubSettingsSearchTexts,
         *autofillSubSettingsSearchTexts
     )
-    val showDataManagementEntry = isCompactHomeMode &&
+    val showDataManagementEntry = isCompactHomeMode && !useCustomCompactHome &&
         (hasDataManagementItems || dataManagementEntryMatches)
 
     val additionalSettingsSectionTitle = additionalSettingsEntryTitle.orEmpty()
@@ -743,39 +768,44 @@ fun SettingsScreen(
             additionalSettingsEntryDescription,
             *additionalSettingsEntrySearchTexts.toTypedArray()
         )
-    val showAdditionalSettingsEntry = isCompactHomeMode && additionalSettingsEntryMatches
+    val showAdditionalSettingsEntry = isCompactHomeMode && !useCustomCompactHome &&
+        additionalSettingsEntryMatches
 
-    val showThemeItem = matchesSettingsItem(
+    val showThemeItem = showAppearanceDetails && matchesSettingsItem(
         appearanceTitle,
         context.getString(R.string.theme),
         themeSubtitle,
         *themeSearchTexts
     )
-    val showColorSchemeItem = matchesSettingsItem(
+    val showColorSchemeItem = showAppearanceDetails && matchesSettingsItem(
         appearanceTitle,
         context.getString(R.string.color_scheme),
         colorSchemeSubtitle,
         *colorSchemeSearchTexts
     )
-    val showLanguageItem = matchesSettingsItem(
+    val showLanguageItem = surfacePolicy.showLanguage &&
+        (showAppearanceDetails || isAppSupportMode) && matchesSettingsItem(
         appearanceTitle,
         context.getString(R.string.language),
         languageSubtitle,
         *languageSearchTexts
     )
-    val showBottomNavItem = matchesSettingsItem(
+    val showBottomNavItem = surfacePolicy.showBottomNavigation &&
+        showAppearanceDetails && matchesSettingsItem(
         appearanceTitle,
         context.getString(R.string.bottom_nav_settings),
         context.getString(R.string.bottom_nav_settings_entry_subtitle),
         *bottomNavSubSettingsSearchTexts
     )
-    val showExtensionsItem = surfacePolicy.showExtensions && matchesSettingsItem(
+    val showExtensionsItem = surfacePolicy.showExtensions &&
+        (showAppearanceDetails || isAppSupportMode) && matchesSettingsItem(
         appearanceTitle,
         context.getString(R.string.extensions_title),
         context.getString(R.string.extensions_description),
         *extensionsSubSettingsSearchTexts
     )
-    val showPageCustomizationItem = surfacePolicy.showPageCustomization && matchesSettingsItem(
+    val showPageCustomizationItem = surfacePolicy.showPageCustomization &&
+        showAppearanceDetails && matchesSettingsItem(
         appearanceTitle,
         context.getString(R.string.page_adjust_custom_title),
         context.getString(R.string.page_adjust_custom_subtitle),
@@ -785,7 +815,8 @@ fun SettingsScreen(
         ?: appearanceTitle
     val additionalAppearanceSubtitle = additionalAppearanceSearchTexts.getOrNull(1)
     val additionalAppearanceAliases = additionalAppearanceSearchTexts.drop(2).toTypedArray()
-    val showAdditionalAppearanceContent = additionalAppearanceContent != null &&
+    val showAdditionalAppearanceContent = showAppearanceDetails &&
+        additionalAppearanceContent != null &&
         matchesSettingsItem(
             appearanceTitle,
             additionalAppearanceTitle,
@@ -801,7 +832,7 @@ fun SettingsScreen(
         showPageCustomizationItem,
         showAdditionalAppearanceContent
     ).any { it }
-    val showAppearanceSection = showAppearanceDetails && hasAppearanceItems
+    val showAppearanceSection = (showAppearanceDetails || isAppSupportMode) && hasAppearanceItems
     val appearanceEntryMatches = matchesSettingsItem(
         appearanceTitle,
         context.getString(R.string.settings_appearance_entry_title),
@@ -814,26 +845,32 @@ fun SettingsScreen(
         *pageCustomizationSubSettingsSearchTexts,
         *additionalAppearanceSearchTexts.toTypedArray()
     )
-    val showAppearanceEntry = isCompactHomeMode &&
+    val showAppearanceEntry = isCompactHomeMode && !useCustomCompactHome &&
         (hasAppearanceItems || appearanceEntryMatches)
 
-    val showVersionItem = isHomeMode && matchesSettingsItem(
+    val showVersionItem = (isHomeMode || isAppSupportMode) &&
+        (!useCustomCompactHome || isAppSupportMode) && matchesSettingsItem(
         aboutTitle,
         context.getString(R.string.version),
         settingsVersionNumber
     )
-    val showUpdateCheckItem = isHomeMode && surfacePolicy.showUpdateCheck && matchesSettingsItem(
+    val showUpdateCheckItem = (isHomeMode || isAppSupportMode) &&
+        (!useCustomCompactHome || isAppSupportMode) &&
+        surfacePolicy.showUpdateCheck && matchesSettingsItem(
         aboutTitle,
         context.getString(R.string.update_check_title),
         context.getString(R.string.update_check_subtitle),
         context.getString(R.string.update_check_latest_release)
     )
-    val showPreviewFeaturesItem = isHomeMode && surfacePolicy.showPreviewFeatures && matchesSettingsItem(
+    val showPreviewFeaturesItem = (isHomeMode || isAppSupportMode) &&
+        (!useCustomCompactHome || isAppSupportMode) &&
+        surfacePolicy.showPreviewFeatures && matchesSettingsItem(
         developerTitle,
         context.getString(R.string.preview_features_title),
         context.getString(R.string.preview_features_description)
     )
-    val showDeveloperSettingsItem = isHomeMode &&
+    val showDeveloperSettingsItem = (isHomeMode || isAppSupportMode) &&
+        (!useCustomCompactHome || isAppSupportMode) &&
         surfacePolicy.showDeveloperSettings && matchesSettingsItem(
         developerTitle,
         context.getString(R.string.developer_settings),
@@ -841,6 +878,7 @@ fun SettingsScreen(
         *developerSubSettingsSearchTexts
     )
     val hasVisibleResults = listOf(
+        visibleCompactHomeSections.isNotEmpty(),
         showMonicaPlusCard,
         showSecurityAnalysisCard,
         showSecuritySection,
@@ -936,6 +974,21 @@ fun SettingsScreen(
                     },
                     modifier = getSharedModifier("monica_plus_card")
                 )
+            }
+
+            if (useCustomCompactHome) {
+                visibleCompactHomeSections.forEach { section ->
+                    SettingsSection(title = section.title) {
+                        section.entries.forEach { entry ->
+                            SettingsItem(
+                                icon = entry.icon,
+                                title = entry.title,
+                                subtitle = entry.subtitle,
+                                onClick = entry.onClick
+                            )
+                        }
+                    }
+                }
             }
 
             // 安全分析入口卡片 - 置顶显示
@@ -1130,7 +1183,13 @@ fun SettingsScreen(
             }
             
             if (showAppearanceSection) {
-                SettingsSection(title = appearanceTitle) {
+                SettingsSection(
+                    title = if (isAppSupportMode) {
+                        applicationSectionTitle ?: appearanceTitle
+                    } else {
+                        appearanceTitle
+                    }
+                ) {
                     if (showThemeItem) {
                         SettingsItem(
                             icon = Icons.Default.Palette,

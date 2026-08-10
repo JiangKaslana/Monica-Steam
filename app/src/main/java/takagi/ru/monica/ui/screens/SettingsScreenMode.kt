@@ -12,5 +12,6 @@ enum class SettingsScreenMode {
     COMPACT_HOME,
     DATA_MANAGEMENT,
     APPEARANCE,
-    ADDITIONAL
+    ADDITIONAL,
+    APP_SUPPORT
 }

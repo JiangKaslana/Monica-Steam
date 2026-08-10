@@ -18,7 +18,8 @@ class SteamSettingsChildPagesTest {
             "COMPACT_HOME",
             "DATA_MANAGEMENT",
             "APPEARANCE",
-            "ADDITIONAL"
+            "ADDITIONAL",
+            "APP_SUPPORT"
         ).forEach { expected -> assertTrue(mode.contains(expected)) }
         assertTrue(screen.contains("screenMode: SettingsScreenMode = SettingsScreenMode.FULL"))
         assertTrue(screen.contains("val showDataManagementEntry = isCompactHomeMode"))
@@ -26,6 +27,8 @@ class SteamSettingsChildPagesTest {
         assertTrue(screen.contains("val showAppearanceEntry = isCompactHomeMode"))
         assertTrue(screen.contains("val appearanceEntryMatches = matchesSettingsItem("))
         assertTrue(screen.contains("if (showAdditionalDetails)"))
+        assertTrue(screen.contains("compactHomeSections: List<SettingsNavigationSection>"))
+        assertTrue(screen.contains("visibleCompactHomeSections.forEach"))
         assertTrue(screen.contains("settings_data_management_entry_title"))
         assertTrue(screen.contains("settings_appearance_entry_title"))
     }
@@ -42,10 +45,15 @@ class SteamSettingsChildPagesTest {
         assertTrue(navigation.contains("SteamSettingsChild.APPEARANCE"))
         assertTrue(navigation.contains("mode = SettingsScreenMode.APPEARANCE"))
         assertTrue(navigation.contains("SteamSettingsChild.STEAM_FEATURES"))
-        assertTrue(navigation.contains("mode = SettingsScreenMode.ADDITIONAL"))
+        assertTrue(navigation.contains("SteamSettingsChild.NAVIGATION"))
+        assertTrue(navigation.contains("SteamSettingsChild.CONNECTIVITY"))
+        assertTrue(navigation.contains("SteamSettingsChild.APP_SUPPORT"))
+        assertTrue(navigation.contains("SteamSettingsAdditionalGroup.STEAM_EXPERIENCE"))
+        assertTrue(navigation.contains("SteamSettingsAdditionalGroup.NAVIGATION"))
+        assertTrue(navigation.contains("SteamSettingsAdditionalGroup.CONNECTIVITY"))
+        assertTrue(navigation.contains("mode = SettingsScreenMode.APP_SUPPORT"))
         assertTrue(navigation.contains("SteamSettingsChild.NOTIFICATIONS,"))
-        assertTrue(navigation.contains("SteamSettingsChild.STEAM_FEATURES"))
-        assertTrue(navigation.contains("onNavigateBack = { child = SteamSettingsChild.STEAM_FEATURES }"))
+        assertTrue(navigation.contains("onNavigateBack = { child = SteamSettingsChild.CONNECTIVITY }"))
     }
 
     @Test
@@ -65,6 +73,9 @@ class SteamSettingsChildPagesTest {
         assertTrue(
             host.contains("SteamNetworkOptimizationSettingsEntry(onClick = onOpenNetworkOptimization)")
         )
+        assertTrue(host.contains("SteamSettingsAdditionalGroup.NAVIGATION"))
+        assertTrue(host.contains("showLanguage = screenMode == SettingsScreenMode.APP_SUPPORT"))
+        assertTrue(host.contains("showBottomNavigation = false"))
     }
 
     private fun projectFile(path: String): File {
