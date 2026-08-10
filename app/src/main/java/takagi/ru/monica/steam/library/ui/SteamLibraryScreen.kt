@@ -1485,20 +1485,27 @@ private fun SteamGameDetail(
                 Text(stringResource(R.string.steam_library_open_store))
             }
         }
-        if (gameDataPage != null) {
+        if (gameDataPage != null || screenshotsPage != null) {
             item {
-                SteamGameDataEntry(
-                    onClick = onOpenGameData,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
-        }
-        if (screenshotsPage != null) {
-            item {
-                SteamGameScreenshotsEntry(
-                    onClick = onOpenScreenshots,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (gameDataPage != null) {
+                        SteamGameDataEntry(
+                            onClick = onOpenGameData,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (screenshotsPage != null) {
+                        SteamGameScreenshotsEntry(
+                            onClick = onOpenScreenshots,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
         item {
