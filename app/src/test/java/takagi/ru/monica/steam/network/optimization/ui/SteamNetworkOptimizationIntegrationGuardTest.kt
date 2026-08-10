@@ -91,6 +91,9 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         val viewModel = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/SteamNetworkOptimizationViewModel.kt"
         ).readText()
+        val automaticCard = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamNetworkAutomaticScanCard.kt"
+        ).readText()
 
         assertTrue(settingsHost.contains("homeHeaderContent ="))
         assertTrue(settingsHost.contains("SteamNetworkOptimizationPullCard("))
@@ -98,7 +101,12 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         assertFalse(automaticScreen.contains("rememberCoroutineScope()"))
         assertTrue(automaticScreen.contains("applyAutoOptimization("))
         assertTrue(automaticScreen.contains("applicationContext"))
+        assertTrue(automaticScreen.contains("SteamAutoHostsFormatter.routes("))
+        assertTrue(automaticScreen.contains("applyScannedOptimization {"))
         assertTrue(viewModel.contains("viewModelScope.launch"))
+        assertTrue(viewModel.contains("fun applyScannedOptimization("))
+        assertTrue(automaticCard.contains("steam_network_auto_apply"))
+        assertFalse(automaticCard.contains("steam_network_auto_scan_apply"))
         assertTrue(models.contains("val DEFAULTS: List<SteamDnsProvider>"))
         assertTrue(resolver.contains("DnsOverHttps.Builder()"))
         assertTrue(scanner.contains("SteamHostProbeTarget(hostname, address)"))

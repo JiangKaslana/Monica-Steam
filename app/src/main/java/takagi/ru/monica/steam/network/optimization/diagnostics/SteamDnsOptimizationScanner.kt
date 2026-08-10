@@ -30,7 +30,8 @@ internal class SteamDnsOptimizationScanner(
     private val maxConcurrentProbes: Int = 8
 ) {
     suspend fun scan(
-        onProgress: (SteamDnsScanProgress) -> Unit = {}
+        onProgress: (SteamDnsScanProgress) -> Unit = {},
+        preferredRoutes: List<SteamDnsSelectedRoute> = emptyList()
     ): SteamDnsOptimizationScanResult = coroutineScope {
         val resolutionTasks = providers.flatMap { provider ->
             targetHostnames.map { hostname -> provider to hostname }
@@ -52,7 +53,7 @@ internal class SteamDnsOptimizationScanner(
             )
         }
 
-        val candidates = buildCandidates(resolutions)
+        val candidates = buildCandidates(resolutions, preferredRoutes)
         val probeTasks = buildProbeTasks(candidates)
         val probeSemaphore = Semaphore(maxConcurrentProbes.coerceAtLeast(1))
         val probeResultChannel = Channel<SteamHostProbeResult>(Channel.UNLIMITED)
@@ -149,7 +150,8 @@ internal class SteamDnsOptimizationScanner(
     }
 
     private fun buildCandidates(
-        resolutions: List<SteamDnsResolutionResult>
+        resolutions: List<SteamDnsResolutionResult>,
+        preferredRoutes: List<SteamDnsSelectedRoute>
     ): List<SteamDnsCandidate> = targetHostnames.flatMap { hostname ->
         val hostResolutions = resolutions
             .asSequence()
@@ -163,6 +165,13 @@ internal class SteamDnsOptimizationScanner(
                     .add(resolution.provider.id)
             }
         }
+        val preferredHostRoutes = preferredRoutes
+            .filter { route -> route.hostname.equals(hostname, ignoreCase = true) }
+            .distinctBy(SteamDnsSelectedRoute::address)
+        preferredHostRoutes.forEach { route ->
+            providerIdsByAddress.getOrPut(route.address) { linkedSetOf() }
+                .addAll(route.providerIds)
+        }
 
         val roundRobinAddresses = buildList {
             val largestAnswer = hostResolutions.maxOfOrNull { it.addresses.size } ?: 0
@@ -175,8 +184,16 @@ internal class SteamDnsOptimizationScanner(
             }
         }
 
-        roundRobinAddresses
-            .take(maxCandidatesPerHost.coerceAtLeast(1))
+        buildList {
+            preferredHostRoutes.forEach { route ->
+                if (route.address !in this) add(route.address)
+            }
+            roundRobinAddresses
+                .take(maxCandidatesPerHost.coerceAtLeast(1))
+                .forEach { address ->
+                    if (address !in this) add(address)
+                }
+        }
             .map { address ->
                 SteamDnsCandidate(
                     hostname = hostname,

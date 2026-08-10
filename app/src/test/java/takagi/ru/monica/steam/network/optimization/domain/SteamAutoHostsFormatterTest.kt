@@ -51,6 +51,23 @@ class SteamAutoHostsFormatterTest {
         assertEquals(200L, SteamAutoHostsFormatter.summary(second)?.scannedAtMillis)
     }
 
+    @Test
+    fun generatedRoutesCanBeReusedByTheNextScan() {
+        val hostsText = SteamAutoHostsFormatter.merge(
+            existingText = "",
+            result = completeResult(),
+            scannedAtMillis = 123_456L
+        )
+
+        val routes = SteamAutoHostsFormatter.routes(hostsText)
+
+        assertEquals(2, routes.size)
+        assertEquals("10.0.0.1", routes.first().address)
+        assertEquals("store.steampowered.com", routes.first().hostname)
+        assertEquals(listOf("cloudflare"), routes.first().providerIds)
+        assertEquals(30L, routes.first().latencyMillis)
+    }
+
     private fun completeResult(addressSuffix: Int = 1): SteamDnsOptimizationScanResult =
         SteamDnsOptimizationScanResult(
             targetHostnames = listOf("store.steampowered.com", "steamcommunity.com"),

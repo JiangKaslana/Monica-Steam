@@ -5124,6 +5124,7 @@
     <string name="steam_network_auto_flow_title">优化 Steam 网络</string>
     <string name="steam_network_auto_status_idle">等待开始</string>
     <string name="steam_network_auto_status_active">优化已启用</string>
+    <string name="steam_network_auto_status_ready">扫描完成 · 等待应用</string>
     <string name="steam_network_auto_status_failed">扫描未完成</string>
     <string name="steam_network_auto_sources_title">解析来源</string>
     <string name="steam_network_auto_sources_count">%1$d 路内置</string>
@@ -5136,9 +5137,11 @@
     <string name="steam_network_auto_applying">正在应用优选结果…</string>
     <string name="steam_network_auto_resolving_progress">DNS 解析 %1$d/%2$d</string>
     <string name="steam_network_auto_verifying_progress">HTTPS 验证 %1$d/%2$d</string>
-    <string name="steam_network_auto_scan_apply">扫描并自动应用</string>
-    <string name="steam_network_auto_rescan_apply">重新扫描并应用</string>
+    <string name="steam_network_auto_scan">开始扫描</string>
+    <string name="steam_network_auto_rescan">重新扫描</string>
+    <string name="steam_network_auto_apply">一键应用</string>
     <string name="steam_network_auto_current_selection">当前优选</string>
+    <string name="steam_network_auto_scan_result">扫描结果</string>
     <string name="steam_network_auto_result_summary">%1$d/%2$d 个 Steam 域名可用 · 平均 %3$d 毫秒</string>
     <string name="steam_network_auto_result_summary_no_latency">%1$d/%2$d 个 Steam 域名已配置</string>
     <string name="steam_network_auto_scan_incomplete">只验证通过 %1$d/%2$d 个必需域名，原有设置保持不变。请检查网络后重试。</string>

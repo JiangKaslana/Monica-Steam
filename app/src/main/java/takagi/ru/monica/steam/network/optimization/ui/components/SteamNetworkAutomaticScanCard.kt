@@ -46,6 +46,7 @@ internal fun SteamNetworkAutomaticScanCard(
     summary: SteamAutoHostsSummary?,
     enabled: Boolean,
     onScan: () -> Unit,
+    onApply: () -> Unit,
     onDisable: () -> Unit
 ) {
     val colors = automaticCardColors(enabled = enabled, state = state)
@@ -117,7 +118,7 @@ internal fun SteamNetworkAutomaticScanCard(
             }
 
             Button(
-                onClick = onScan,
+                onClick = if (state.isReadyToApply) onApply else onScan,
                 enabled = !state.isBusy,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -129,21 +130,38 @@ internal fun SteamNetworkAutomaticScanCard(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Icon(Icons.Default.NetworkCheck, contentDescription = null)
+                    Icon(
+                        imageVector = if (state.isReadyToApply) {
+                            Icons.Default.CheckCircle
+                        } else {
+                            Icons.Default.NetworkCheck
+                        },
+                        contentDescription = null
+                    )
                 }
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    stringResource(
-                        if (summary == null && state !is SteamAutoOptimizationUiState.Success) {
-                            R.string.steam_network_auto_scan_apply
-                        } else {
-                            R.string.steam_network_auto_rescan_apply
+                    text = stringResource(
+                        when {
+                            state.isReadyToApply -> R.string.steam_network_auto_apply
+                            state === SteamAutoOptimizationUiState.Idle && summary == null ->
+                                R.string.steam_network_auto_scan
+                            else -> R.string.steam_network_auto_rescan
                         }
                     )
                 )
             }
 
-            if (enabled) {
+            if (state.isReadyToApply) {
+                TextButton(
+                    onClick = onScan,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Icon(Icons.Default.NetworkCheck, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.steam_network_auto_rescan))
+                }
+            } else if (enabled) {
                 TextButton(
                     onClick = onDisable,
                     modifier = Modifier.align(Alignment.End)
@@ -283,8 +301,13 @@ private fun scanStatusText(
         stringResource(R.string.steam_network_auto_applying)
     is SteamAutoOptimizationUiState.Error ->
         stringResource(R.string.steam_network_auto_status_failed)
-    is SteamAutoOptimizationUiState.Success ->
-        stringResource(R.string.steam_network_auto_status_active)
+    is SteamAutoOptimizationUiState.Success -> stringResource(
+        if (state.applied) {
+            R.string.steam_network_auto_status_active
+        } else {
+            R.string.steam_network_auto_status_ready
+        }
+    )
     SteamAutoOptimizationUiState.Idle -> stringResource(
         if (enabled) {
             R.string.steam_network_auto_status_active
@@ -303,7 +326,12 @@ private fun automaticCardColors(
         container = MaterialTheme.colorScheme.errorContainer,
         content = MaterialTheme.colorScheme.onErrorContainer
     )
-    enabled || state is SteamAutoOptimizationUiState.Success -> AutomaticCardColors(
+    state.isReadyToApply -> AutomaticCardColors(
+        container = MaterialTheme.colorScheme.secondaryContainer,
+        content = MaterialTheme.colorScheme.onSecondaryContainer
+    )
+    enabled ||
+        (state is SteamAutoOptimizationUiState.Success && state.applied) -> AutomaticCardColors(
         container = MaterialTheme.colorScheme.primaryContainer,
         content = MaterialTheme.colorScheme.onPrimaryContainer
     )
@@ -317,3 +345,6 @@ private data class AutomaticCardColors(
     val container: Color,
     val content: Color
 )
+
+private val SteamAutoOptimizationUiState.isReadyToApply: Boolean
+    get() = this is SteamAutoOptimizationUiState.Success && !applied

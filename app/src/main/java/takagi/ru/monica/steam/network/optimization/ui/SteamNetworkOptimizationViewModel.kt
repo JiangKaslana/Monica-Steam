@@ -13,9 +13,13 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamDnsOptimizationSc
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsScanProgress
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsScanStage
+import takagi.ru.monica.steam.network.optimization.domain.SteamDnsSelectedRoute
 
 internal class SteamNetworkOptimizationViewModel(
-    private val scan: suspend ((SteamDnsScanProgress) -> Unit) ->
+    private val scan: suspend (
+        List<SteamDnsSelectedRoute>,
+        (SteamDnsScanProgress) -> Unit
+    ) ->
         SteamDnsOptimizationScanResult = createDefaultNetworkScan()
 ) : ViewModel() {
     private val mutableScanState = MutableStateFlow<SteamAutoOptimizationUiState>(
@@ -25,9 +29,7 @@ internal class SteamNetworkOptimizationViewModel(
 
     private var scanJob: Job? = null
 
-    fun startScan(
-        applyOptimization: (SteamDnsOptimizationScanResult) -> Boolean
-    ) {
+    fun startScan(existingRoutes: List<SteamDnsSelectedRoute> = emptyList()) {
         if (scanJob?.isActive == true || mutableScanState.value.isBusy) return
         scanJob = viewModelScope.launch {
             mutableScanState.value = SteamAutoOptimizationUiState.Running(
@@ -39,7 +41,7 @@ internal class SteamNetworkOptimizationViewModel(
                 )
             )
             try {
-                val result = scan { progress ->
+                val result = scan(existingRoutes) { progress ->
                     mutableScanState.value = SteamAutoOptimizationUiState.Running(progress)
                 }
                 if (!result.isApplicable) {
@@ -49,16 +51,7 @@ internal class SteamNetworkOptimizationViewModel(
                     )
                     return@launch
                 }
-                mutableScanState.value = SteamAutoOptimizationUiState.Applying
-                mutableScanState.value = if (applyOptimization(result)) {
-                    SteamAutoOptimizationUiState.Success(result)
-                } else {
-                    SteamAutoOptimizationUiState.Error(
-                        availableHostCount = result.availableHostCount,
-                        totalHostCount = result.totalHostCount,
-                        applyFailed = true
-                    )
-                }
+                mutableScanState.value = SteamAutoOptimizationUiState.Success(result)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
@@ -70,6 +63,26 @@ internal class SteamNetworkOptimizationViewModel(
         }
     }
 
+    fun applyScannedOptimization(
+        applyOptimization: (SteamDnsOptimizationScanResult) -> Boolean
+    ) {
+        val scanned = mutableScanState.value as? SteamAutoOptimizationUiState.Success ?: return
+        if (scanned.applied) return
+        mutableScanState.value = SteamAutoOptimizationUiState.Applying
+        val applied = runCatching {
+            applyOptimization(scanned.result)
+        }.getOrDefault(false)
+        mutableScanState.value = if (applied) {
+            scanned.copy(applied = true)
+        } else {
+            SteamAutoOptimizationUiState.Error(
+                availableHostCount = scanned.result.availableHostCount,
+                totalHostCount = scanned.result.totalHostCount,
+                applyFailed = true
+            )
+        }
+    }
+
     fun cancelScan() {
         scanJob?.cancel()
         scanJob = null
@@ -77,8 +90,16 @@ internal class SteamNetworkOptimizationViewModel(
     }
 }
 
-private fun createDefaultNetworkScan(): suspend ((SteamDnsScanProgress) -> Unit) ->
+private fun createDefaultNetworkScan(): suspend (
+    List<SteamDnsSelectedRoute>,
+    (SteamDnsScanProgress) -> Unit
+) ->
     SteamDnsOptimizationScanResult {
     val scanner = SteamDnsOptimizationScanner()
-    return { onProgress -> scanner.scan(onProgress) }
+    return { existingRoutes, onProgress ->
+        scanner.scan(
+            onProgress = onProgress,
+            preferredRoutes = existingRoutes
+        )
+    }
 }

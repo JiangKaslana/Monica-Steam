@@ -112,11 +112,18 @@ private fun ProviderPill(name: String, selected: Boolean) {
 @Composable
 internal fun SteamNetworkCurrentSelectionCard(
     summary: SteamAutoHostsSummary?,
-    routes: List<SteamDnsSelectedRoute>
+    routes: List<SteamDnsSelectedRoute>,
+    showingScanResult: Boolean = false
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-            text = stringResource(R.string.steam_network_auto_current_selection),
+            text = stringResource(
+                if (showingScanResult) {
+                    R.string.steam_network_auto_scan_result
+                } else {
+                    R.string.steam_network_auto_current_selection
+                }
+            ),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold
         )

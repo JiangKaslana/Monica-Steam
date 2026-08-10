@@ -36,11 +36,13 @@ class SteamNetworkOptimizationViewModelTest {
     }
 
     @Test
-    fun scanContinuesWithoutAUiCollectorAndAppliesPartialVerifiedRoutes() = runTest(scheduler) {
+    fun scanWaitsForExplicitApplyAndPassesExistingRoutesForComparison() = runTest(scheduler) {
         val releaseScan = CompletableDeferred<Unit>()
         var applied = false
+        var scannedExistingRoutes = emptyList<SteamDnsSelectedRoute>()
         val viewModel = SteamNetworkOptimizationViewModel(
-            scan = { onProgress ->
+            scan = { existingRoutes, onProgress ->
+                scannedExistingRoutes = existingRoutes
                 onProgress(
                     SteamDnsScanProgress(
                         stage = SteamDnsScanStage.VERIFYING,
@@ -52,11 +54,17 @@ class SteamNetworkOptimizationViewModelTest {
                 partialResult()
             }
         )
+        val existingRoutes = listOf(
+            SteamDnsSelectedRoute(
+                hostname = "store.steampowered.com",
+                address = "9.9.9.9",
+                providerIds = listOf("system"),
+                latencyMillis = 20L,
+                httpStatusCode = 200
+            )
+        )
 
-        viewModel.startScan { result ->
-            applied = true
-            result.isApplicable
-        }
+        viewModel.startScan(existingRoutes)
         runCurrent()
         assertTrue(viewModel.scanState.value is SteamAutoOptimizationUiState.Running)
 
@@ -65,10 +73,23 @@ class SteamNetworkOptimizationViewModelTest {
 
         val state = viewModel.scanState.value
         assertTrue(state is SteamAutoOptimizationUiState.Success)
-        assertTrue(applied)
+        assertTrue(!applied)
+        assertEquals(existingRoutes, scannedExistingRoutes)
         assertEquals(
             2,
             (state as SteamAutoOptimizationUiState.Success).result.availableHostCount
+        )
+        assertTrue(!state.applied)
+
+        viewModel.applyScannedOptimization { result ->
+            applied = true
+            result.isApplicable
+        }
+        advanceUntilIdle()
+
+        assertTrue(applied)
+        assertTrue(
+            (viewModel.scanState.value as SteamAutoOptimizationUiState.Success).applied
         )
     }
 

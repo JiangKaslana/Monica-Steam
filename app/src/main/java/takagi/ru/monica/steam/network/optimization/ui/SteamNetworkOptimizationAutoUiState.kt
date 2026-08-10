@@ -8,7 +8,8 @@ internal sealed interface SteamAutoOptimizationUiState {
     data class Running(val progress: SteamDnsScanProgress) : SteamAutoOptimizationUiState
     data object Applying : SteamAutoOptimizationUiState
     data class Success(
-        val result: SteamDnsOptimizationScanResult
+        val result: SteamDnsOptimizationScanResult,
+        val applied: Boolean = false
     ) : SteamAutoOptimizationUiState
 
     data class Error(

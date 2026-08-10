@@ -63,6 +63,37 @@ object SteamAutoHostsFormatter {
         )
     }
 
+    fun routes(text: String): List<SteamDnsSelectedRoute> {
+        val block = generatedBlockLines(text) ?: return emptyList()
+        return block.mapNotNull { line ->
+            val content = line.substringBefore('#').trim()
+            if (content.isEmpty()) return@mapNotNull null
+            val tokens = content.split(WHITESPACE).filter(String::isNotBlank)
+            if (tokens.size < 2) return@mapNotNull null
+            val comment = line.substringAfter('#', "")
+            val latencyMillis = LATENCY_PATTERN.find(comment)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toLongOrNull()
+                ?.takeIf { it >= 0L }
+                ?: return@mapNotNull null
+            val providerIds = SOURCE_PATTERN.find(comment)
+                ?.groupValues
+                ?.getOrNull(1)
+                .orEmpty()
+                .split('+')
+                .map(String::trim)
+                .filter(String::isNotEmpty)
+                .distinct()
+            SteamDnsSelectedRoute(
+                hostname = SteamHostsRuleParser.normalizeHostname(tokens[1]),
+                address = tokens[0],
+                providerIds = providerIds,
+                latencyMillis = latencyMillis
+            )
+        }.distinctBy { route -> route.hostname to route.address }
+    }
+
     fun stripGeneratedBlock(text: String): String {
         var insideGeneratedBlock = false
         return text
@@ -105,4 +136,8 @@ object SteamAutoHostsFormatter {
     }
 
     private fun Long?.orEmptyValue(): Long = this ?: -1L
+
+    private val WHITESPACE = Regex("\\s+")
+    private val SOURCE_PATTERN = Regex("(?:^|\\s)source=([^\\s]+)")
+    private val LATENCY_PATTERN = Regex("(?:^|\\s)latency_ms=(\\d+)")
 }

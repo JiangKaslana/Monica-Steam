@@ -10,6 +10,7 @@ import org.junit.Test
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsResolutionResult
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsScanProgress
+import takagi.ru.monica.steam.network.optimization.domain.SteamDnsSelectedRoute
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostProbeResult
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostProbeStatus
 
@@ -256,5 +257,46 @@ class SteamDnsOptimizationScannerTest {
 
         assertTrue(result.isComplete)
         assertEquals(108, result.probeResults.size)
+    }
+
+    @Test
+    fun verifiedExistingRouteIsKeptWhenItBeatsNewResolverResults() = runBlocking {
+        val scanner = SteamDnsOptimizationScanner(
+            resolver = SteamDnsResolver { provider, hostname ->
+                SteamDnsResolutionResult(
+                    provider = provider,
+                    hostname = hostname,
+                    addresses = listOf("10.0.0.2")
+                )
+            },
+            probe = SteamHostProbe { target ->
+                SteamHostProbeResult(
+                    target = target,
+                    status = SteamHostProbeStatus.AVAILABLE,
+                    latencyMillis = if (target.address == "10.0.0.1") 18L else 60L,
+                    httpStatusCode = 200
+                )
+            },
+            providers = listOf(providerA),
+            targetHostnames = listOf(hostA),
+            minimumProbeAttemptsPerCandidate = 1,
+            minimumProbeAttemptsPerHost = 1
+        )
+
+        val result = scanner.scan(
+            preferredRoutes = listOf(
+                SteamDnsSelectedRoute(
+                    hostname = hostA,
+                    address = "10.0.0.1",
+                    providerIds = listOf("system"),
+                    latencyMillis = 25L,
+                    httpStatusCode = 200
+                )
+            )
+        )
+
+        assertEquals("10.0.0.1", result.selectedRoutes.single().address)
+        assertEquals(18L, result.selectedRoutes.single().latencyMillis)
+        assertEquals(2, result.probeResults.size)
     }
 }

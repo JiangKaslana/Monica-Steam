@@ -51,6 +51,9 @@ fun SteamNetworkOptimizationAutoScreen(
     val summary = remember(settings.hostsText) {
         SteamAutoHostsFormatter.summary(settings.hostsText)
     }
+    val existingRoutes = remember(settings.hostsText) {
+        SteamAutoHostsFormatter.routes(settings.hostsText)
+    }
 
     LaunchedEffect(context) {
         SteamNetworkOptimizationRuntime.initialize(context)
@@ -64,6 +67,8 @@ fun SteamNetworkOptimizationAutoScreen(
         ?.result
         ?.selectedRoutes
         .orEmpty()
+    val showingScanResult = (scanState as? SteamAutoOptimizationUiState.Success)
+        ?.applied == false
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -99,7 +104,10 @@ fun SteamNetworkOptimizationAutoScreen(
                     summary = summary,
                     enabled = settings.enabled,
                     onScan = {
-                        optimizationViewModel.startScan { result ->
+                        optimizationViewModel.startScan(existingRoutes)
+                    },
+                    onApply = {
+                        optimizationViewModel.applyScannedOptimization { result ->
                             SteamNetworkOptimizationRuntime.applyAutoOptimization(
                                 applicationContext,
                                 result
@@ -119,8 +127,9 @@ fun SteamNetworkOptimizationAutoScreen(
             }
             item(key = "current_selection") {
                 SteamNetworkCurrentSelectionCard(
-                    summary = summary,
-                    routes = selectedRoutes
+                    summary = summary.takeUnless { showingScanResult },
+                    routes = selectedRoutes,
+                    showingScanResult = showingScanResult
                 )
             }
             item(key = "advanced_settings") {
