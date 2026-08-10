@@ -6,20 +6,31 @@ import org.junit.Test
 
 class SteamGameScreenshotsIntegrationGuardTest {
     @Test
-    fun libraryDetailNavigatesToAuthenticatedGameScreenshotsAndReturns() {
+    fun libraryDetailNavigatesToNativeAuthenticatedGameScreenshotsAndReturns() {
         val library = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/ui/SteamLibraryScreen.kt"
         ).readText()
-        val screenshots = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/library/screenshots/ui/SteamGameScreenshotsWebScreen.kt"
-        )
+        val screen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/library/screenshots/ui/SteamGameScreenshotsScreen.kt"
+        ).readText()
+        val service = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/library/screenshots/data/SteamGameScreenshotsService.kt"
+        ).readText()
 
         assertTrue(library.contains("SteamLibraryDestination.Screenshots"))
         assertTrue(library.contains("SteamGameScreenshotsEntry"))
-        assertTrue(library.contains("SteamGameScreenshotsWebScreen"))
-        assertTrue(screenshots.isFile)
-        assertTrue(screenshots.readText().contains("requireAuthenticatedSession = true"))
-        assertTrue(screenshots.readText().contains("SteamWebClientMode.COMMUNITY_DESKTOP"))
+        assertTrue(library.contains("SteamGameScreenshotsScreen"))
+        assertTrue(screen.contains("LazyVerticalGrid"))
+        assertTrue(screen.contains("SteamExpressivePullToRefresh"))
+        assertTrue(screen.contains("SteamFullscreenImageViewer"))
+        assertTrue(service.contains("communityGetText"))
+        assertTrue(service.contains("steamLoginSecure"))
+        assertTrue(service.contains("mobileClientVersion"))
+        assertTrue(
+            !projectFile(
+                "app/src/main/java/takagi/ru/monica/steam/library/screenshots/ui/SteamGameScreenshotsWebScreen.kt"
+            ).exists()
+        )
     }
 
     private fun projectFile(relativePath: String): File {

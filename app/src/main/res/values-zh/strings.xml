@@ -4216,6 +4216,9 @@
     <string name="steam_library_replay_browser_failed">无法调用浏览器下载这份回放</string>
     <string name="steam_library_screenshots_title">游戏截图</string>
     <string name="steam_library_screenshots_security_note">使用当前 Steam 账号的社区会话</string>
+    <string name="steam_library_screenshots_empty">这个游戏还没有上传到 Steam 社区的截图。</string>
+    <string name="steam_library_screenshots_error">无法从 Steam 社区加载游戏截图。</string>
+    <string name="steam_library_screenshots_load_more_error">无法继续加载游戏截图。</string>
     <string name="steam_backup_title">maFile 导入与导出</string>
     <string name="steam_backup_description">以可迁移的 maFile ZIP 导入或导出 Steam Guard 账号。</string>
     <string name="steam_mafile_transfer_title">maFile 导入与导出</string>

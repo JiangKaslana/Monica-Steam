@@ -105,7 +105,7 @@ import takagi.ru.monica.steam.library.gamedata.ui.SteamGameDataWebScreen
 import takagi.ru.monica.steam.library.screenshots.domain.SteamGameScreenshotsPage
 import takagi.ru.monica.steam.library.screenshots.domain.steamGameScreenshotsPage
 import takagi.ru.monica.steam.library.screenshots.ui.SteamGameScreenshotsEntry
-import takagi.ru.monica.steam.library.screenshots.ui.SteamGameScreenshotsWebScreen
+import takagi.ru.monica.steam.library.screenshots.ui.SteamGameScreenshotsScreen
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
@@ -134,7 +134,7 @@ private sealed interface SteamLibraryDestination {
 }
 
 private fun SteamLibraryDestination.isSteamWebDestination(): Boolean =
-    this is SteamLibraryDestination.GameData || this is SteamLibraryDestination.Screenshots
+    this is SteamLibraryDestination.GameData
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -313,16 +313,18 @@ fun SteamLibraryScreen(
                 }
                 is SteamLibraryDestination.Screenshots -> {
                     val account = selectedAccount
+                    val game = selectedGame
+                        ?: state.snapshot?.games?.firstOrNull { it.appId == destination.appId }
                     val page = steamGameScreenshotsPage(
                         steamId = account?.steamId,
                         appId = destination.appId
                     )
-                    if (account != null && page != null) {
-                        SteamGameScreenshotsWebScreen(
+                    if (account != null && page != null && game != null) {
+                        SteamGameScreenshotsScreen(
                             page = page,
                             account = account,
-                            onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
-                            onClose = { screenshotsAppId = null },
+                            gameName = game.name,
+                            onBack = { screenshotsAppId = null },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(padding)

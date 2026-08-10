@@ -4386,6 +4386,9 @@
     <string name="steam_library_replay_browser_failed">Could not open a browser to download this replay</string>
     <string name="steam_library_screenshots_title">Screenshots</string>
     <string name="steam_library_screenshots_security_note">Uses the current Steam account community session</string>
+    <string name="steam_library_screenshots_empty">No screenshots have been uploaded to Steam Community for this game.</string>
+    <string name="steam_library_screenshots_error">Could not load screenshots from Steam Community.</string>
+    <string name="steam_library_screenshots_load_more_error">Could not load more screenshots.</string>
     <string name="steam_backup_title">maFile import and export</string>
     <string name="steam_backup_description">Import or export Steam Guard accounts as a portable maFile ZIP.</string>
     <string name="steam_mafile_transfer_title">maFile import and export</string>
