@@ -5135,9 +5135,12 @@
     <string name="steam_network_advanced_description">管理应用内 Hosts 规则、系统 DNS 回退、导入导出和单节点测试。</string>
     <string name="steam_network_auto_resolving">正在解析多个 DNS 来源…</string>
     <string name="steam_network_auto_verifying">正在验证 Steam 节点…</string>
+    <string name="steam_network_auto_recovering">正在补测未覆盖节点…</string>
     <string name="steam_network_auto_applying">正在应用优选结果…</string>
     <string name="steam_network_auto_resolving_progress">DNS 解析 %1$d/%2$d</string>
     <string name="steam_network_auto_verifying_progress">HTTPS 验证 %1$d/%2$d</string>
+    <string name="steam_network_auto_recovering_progress">补测 %1$d/%2$d</string>
+    <string name="steam_network_auto_missing_hosts">仍有 %1$d 个域名使用系统 DNS</string>
     <string name="steam_network_auto_scan">开始扫描</string>
     <string name="steam_network_auto_rescan">重新扫描</string>
     <string name="steam_network_auto_apply">一键应用</string>

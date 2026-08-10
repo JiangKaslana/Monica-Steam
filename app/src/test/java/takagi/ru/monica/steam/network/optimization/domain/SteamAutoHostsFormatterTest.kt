@@ -28,6 +28,7 @@ class SteamAutoHostsFormatterTest {
         assertEquals(listOf("cloudflare", "alidns"), summary.providerIds)
         assertEquals(2, summary.selectedHostCount)
         assertEquals(2, summary.totalHostCount)
+        assertTrue(summary.missingHostnames.isEmpty())
     }
 
     @Test
@@ -66,6 +67,26 @@ class SteamAutoHostsFormatterTest {
         assertEquals("store.steampowered.com", routes.first().hostname)
         assertEquals(listOf("cloudflare"), routes.first().providerIds)
         assertEquals(30L, routes.first().latencyMillis)
+    }
+
+    @Test
+    fun partialCoveragePersistsTheMissingHostList() {
+        val complete = completeResult()
+        val result = complete.copy(
+            targetHostnames = listOf(
+                "store.steampowered.com",
+                "steamcommunity.com",
+                "api.steampowered.com"
+            ),
+            selectedRoutes = complete.selectedRoutes.take(2)
+        )
+
+        val merged = SteamAutoHostsFormatter.merge("", result, scannedAtMillis = 99L)
+
+        assertEquals(
+            listOf("api.steampowered.com"),
+            SteamAutoHostsFormatter.summary(merged)?.missingHostnames
+        )
     }
 
     private fun completeResult(addressSuffix: Int = 1): SteamDnsOptimizationScanResult =

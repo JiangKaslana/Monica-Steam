@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -113,7 +114,8 @@ private fun ProviderPill(name: String, selected: Boolean) {
 internal fun SteamNetworkCurrentSelectionCard(
     summary: SteamAutoHostsSummary?,
     routes: List<SteamDnsSelectedRoute>,
-    showingScanResult: Boolean = false
+    showingScanResult: Boolean = false,
+    missingHostnames: List<String> = emptyList()
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -165,8 +167,45 @@ internal fun SteamNetworkCurrentSelectionCard(
                         }
                         RouteRow(route)
                     }
+                    if (missingHostnames.isNotEmpty()) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 18.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                        )
+                        MissingHostsRow(missingHostnames)
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MissingHostsRow(hostnames: List<String>) {
+    Row(
+        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.WarningAmber,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.tertiary
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                text = stringResource(
+                    R.string.steam_network_auto_missing_hosts,
+                    hostnames.size
+                ),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = hostnames.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

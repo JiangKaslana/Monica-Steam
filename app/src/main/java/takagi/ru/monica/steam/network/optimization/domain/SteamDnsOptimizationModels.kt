@@ -88,6 +88,11 @@ data class SteamDnsOptimizationScanResult(
         get() = targetHostnames.isNotEmpty() && availableHostCount == totalHostCount
     val isApplicable: Boolean
         get() = targetHostnames.isNotEmpty() && selectedRoutes.isNotEmpty()
+    val missingHostnames: List<String>
+        get() {
+            val covered = selectedRoutes.map { it.hostname.lowercase() }.toSet()
+            return targetHostnames.filterNot { it.lowercase() in covered }
+        }
     val averageLatencyMillis: Long?
         get() = selectedRoutes.map { it.latencyMillis }.takeIf { it.isNotEmpty() }?.average()?.toLong()
     val providerIds: List<String>
@@ -98,7 +103,8 @@ data class SteamDnsOptimizationScanResult(
 
 enum class SteamDnsScanStage {
     RESOLVING,
-    VERIFYING
+    VERIFYING,
+    RECOVERING
 }
 
 data class SteamDnsScanProgress(
@@ -116,7 +122,8 @@ data class SteamAutoHostsSummary(
     val averageLatencyMillis: Long?,
     val providerIds: List<String>,
     val selectedHostCount: Int,
-    val totalHostCount: Int
+    val totalHostCount: Int,
+    val missingHostnames: List<String> = emptyList()
 ) {
     val providerNames: List<String>
         get() = providerIds.map(SteamDnsProvider::displayNameFor)

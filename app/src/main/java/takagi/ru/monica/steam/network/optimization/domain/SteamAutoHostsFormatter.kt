@@ -17,6 +17,7 @@ object SteamAutoHostsFormatter {
             appendLine("# provider_ids=${result.providerIds.joinToString(",")}")
             appendLine("# selected_hosts=${result.availableHostCount}")
             appendLine("# total_hosts=${result.totalHostCount}")
+            appendLine("# missing_hosts=${result.missingHostnames.joinToString(",")}")
             result.selectedRoutes.forEach { route ->
                 append(route.address)
                 append(' ')
@@ -59,7 +60,13 @@ object SteamAutoHostsFormatter {
                 .filter(String::isNotEmpty)
                 .distinct(),
             selectedHostCount = selectedHostCount,
-            totalHostCount = totalHostCount
+            totalHostCount = totalHostCount,
+            missingHostnames = values["missing_hosts"]
+                .orEmpty()
+                .split(',')
+                .map(String::trim)
+                .filter(String::isNotEmpty)
+                .distinct()
         )
     }
 

@@ -192,10 +192,13 @@ private fun ScanProgressContent(
                 stringResource(R.string.steam_network_auto_applying)
             } else {
                 stringResource(
-                    if (progress.stage == SteamDnsScanStage.RESOLVING) {
-                        R.string.steam_network_auto_resolving_progress
-                    } else {
-                        R.string.steam_network_auto_verifying_progress
+                    when (progress.stage) {
+                        SteamDnsScanStage.RESOLVING ->
+                            R.string.steam_network_auto_resolving_progress
+                        SteamDnsScanStage.VERIFYING ->
+                            R.string.steam_network_auto_verifying_progress
+                        SteamDnsScanStage.RECOVERING ->
+                            R.string.steam_network_auto_recovering_progress
                     },
                     progress.completed,
                     progress.total
@@ -291,10 +294,10 @@ private fun scanStatusText(
     enabled: Boolean
 ): String = when (state) {
     is SteamAutoOptimizationUiState.Running -> stringResource(
-        if (state.progress.stage == SteamDnsScanStage.RESOLVING) {
-            R.string.steam_network_auto_resolving
-        } else {
-            R.string.steam_network_auto_verifying
+        when (state.progress.stage) {
+            SteamDnsScanStage.RESOLVING -> R.string.steam_network_auto_resolving
+            SteamDnsScanStage.VERIFYING -> R.string.steam_network_auto_verifying
+            SteamDnsScanStage.RECOVERING -> R.string.steam_network_auto_recovering
         }
     )
     SteamAutoOptimizationUiState.Applying ->

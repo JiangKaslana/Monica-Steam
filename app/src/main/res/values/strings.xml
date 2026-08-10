@@ -5308,9 +5308,12 @@
     <string name="steam_network_advanced_description">Manage app-only Hosts rules, fallback behavior, import, export, and individual route tests.</string>
     <string name="steam_network_auto_resolving">Resolving multiple DNS sources…</string>
     <string name="steam_network_auto_verifying">Verifying Steam routes…</string>
+    <string name="steam_network_auto_recovering">Retrying uncovered routes…</string>
     <string name="steam_network_auto_applying">Applying selected routes…</string>
     <string name="steam_network_auto_resolving_progress">DNS resolution %1$d/%2$d</string>
     <string name="steam_network_auto_verifying_progress">HTTPS verification %1$d/%2$d</string>
+    <string name="steam_network_auto_recovering_progress">Recovery check %1$d/%2$d</string>
+    <string name="steam_network_auto_missing_hosts">%1$d routes still use system DNS</string>
     <string name="steam_network_auto_scan">Start scan</string>
     <string name="steam_network_auto_rescan">Scan again</string>
     <string name="steam_network_auto_apply">Apply with one tap</string>

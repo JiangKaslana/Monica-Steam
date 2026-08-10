@@ -1,5 +1,13 @@
 # Third-Party Notices
 
+## SteamRoute / SteamBolt
+
+Parts of Monica Steam's network optimization target coverage, recovery strategy,
+and public-address validation were informed by SteamRoute / SteamBolt source code
+provided directly by its author and used with permission. The Monica Steam
+implementation is adapted to its app-scoped DNS override architecture and does
+not modify Android system hosts.
+
 ## Grit
 
 The Monica Steam game distribution and play-activity analytics components are adapted from

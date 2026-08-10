@@ -18,100 +18,74 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamDnsSelectedRoute
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostProbeResult
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostProbeStatus
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostProbeTarget
+import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCatalog
 
 internal class SteamDnsOptimizationScanner(
     private val resolver: SteamDnsResolver = OkHttpSteamDnsResolver(),
     private val probe: SteamHostProbe = OkHttpSteamHostProbe(),
+    private val recoveryProbe: SteamHostProbe = OkHttpSteamHostProbe(timeoutMillis = 7_000L),
     private val providers: List<SteamDnsProvider> = SteamDnsProvider.DEFAULTS,
     private val targetHostnames: List<String> = DEFAULT_TARGET_HOSTNAMES,
     private val maxCandidatesPerHost: Int = 12,
     private val minimumProbeAttemptsPerCandidate: Int = 5,
     private val minimumProbeAttemptsPerHost: Int = 36,
+    private val minimumProbeAttemptsByHost: Map<String, Int> =
+        if (targetHostnames == DEFAULT_TARGET_HOSTNAMES) DEFAULT_PROBE_ATTEMPTS else emptyMap(),
+    private val minimumRecoveryProbeAttemptsPerCandidate: Int = 3,
+    private val minimumRecoveryProbeAttemptsPerHost: Int = 12,
     private val maxConcurrentProbes: Int = 8
 ) {
     suspend fun scan(
         onProgress: (SteamDnsScanProgress) -> Unit = {},
         preferredRoutes: List<SteamDnsSelectedRoute> = emptyList()
     ): SteamDnsOptimizationScanResult = coroutineScope {
-        val resolutionTasks = providers.flatMap { provider ->
-            targetHostnames.map { hostname -> provider to hostname }
-        }
-        val resolutionDeferred = resolutionTasks.map { (provider, hostname) ->
-            async(Dispatchers.IO) { resolveSafely(provider, hostname) }
-        }
-        val resolutions = mutableListOf<SteamDnsResolutionResult>()
-        resolutionDeferred.forEachIndexed { index, deferred ->
-            val result = deferred.await()
-            resolutions += result
-            onProgress(
-                SteamDnsScanProgress(
-                    stage = SteamDnsScanStage.RESOLVING,
-                    completed = index + 1,
-                    total = resolutionDeferred.size,
-                    currentSource = result.provider.displayName
-                )
-            )
+        var resolutions = resolveHosts(
+            hostnames = targetHostnames,
+            stage = SteamDnsScanStage.RESOLVING,
+            onProgress = onProgress
+        )
+        var candidates = buildCandidates(targetHostnames, resolutions, preferredRoutes)
+        var probeResults = runProbeTasks(
+            tasks = buildProbeTasks(
+                candidates = candidates,
+                minimumAttemptsPerCandidate = minimumProbeAttemptsPerCandidate,
+                minimumAttemptsForHost = { hostname ->
+                    minimumProbeAttemptsByHost[hostname] ?: minimumProbeAttemptsPerHost
+                }
+            ),
+            probeEngine = probe,
+            stage = SteamDnsScanStage.VERIFYING,
+            onProgress = onProgress
+        )
+        var selectedRoutes = selectRoutes(candidates, probeResults)
+        val missingHostnames = targetHostnames.filterNot { hostname ->
+            selectedRoutes.any { route -> route.hostname.equals(hostname, ignoreCase = true) }
         }
 
-        val candidates = buildCandidates(resolutions, preferredRoutes)
-        val probeTasks = buildProbeTasks(candidates)
-        val probeSemaphore = Semaphore(maxConcurrentProbes.coerceAtLeast(1))
-        val probeResultChannel = Channel<SteamHostProbeResult>(Channel.UNLIMITED)
-        val probeJobs = probeTasks.map { candidate ->
-            launch(Dispatchers.IO) {
-                val result = probeSemaphore.withPermit {
-                    probeSafely(candidate.hostname, candidate.address)
-                }
-                probeResultChannel.send(result)
-            }
-        }
-        val probeResults = mutableListOf<SteamHostProbeResult>()
-        repeat(probeTasks.size) { index ->
-            val result = probeResultChannel.receive()
-            probeResults += result
-            onProgress(
-                SteamDnsScanProgress(
-                    stage = SteamDnsScanStage.VERIFYING,
-                    completed = index + 1,
-                    total = probeTasks.size,
-                    currentSource = result.target.hostname
-                )
+        if (missingHostnames.isNotEmpty()) {
+            val recoveredResolutions = resolveHosts(
+                hostnames = missingHostnames,
+                stage = SteamDnsScanStage.RECOVERING,
+                onProgress = onProgress
             )
-        }
-        probeJobs.joinAll()
-        probeResultChannel.close()
-
-        val candidateSources = candidates.associate { candidate ->
-            candidate.key to candidate.providerIds
-        }
-        val candidateEvaluations = candidates.mapNotNull { candidate ->
-            evaluateCandidate(
-                candidate = candidate,
-                results = probeResults.filter { result -> result.target.key == candidate.key }
+            resolutions = (resolutions + recoveredResolutions).distinct()
+            val recoveryCandidates = buildCandidates(
+                hostnames = missingHostnames,
+                resolutions = resolutions,
+                preferredRoutes = preferredRoutes
             )
-        }
-        val selectedRoutes = targetHostnames.mapNotNull { hostname ->
-            candidateEvaluations
-                .asSequence()
-                .filter { evaluation ->
-                    evaluation.candidate.hostname == hostname && evaluation.isStable
-                }
-                .minWithOrNull(
-                    compareByDescending<SteamDnsCandidateEvaluation> { it.successPercent }
-                        .thenBy { it.medianLatencyMillis }
-                        .thenBy { it.p90LatencyMillis }
-                        .thenByDescending { it.successfulProbeCount }
-                        .thenBy { it.candidate.address }
-                )
-                ?.let { evaluation ->
-                    SteamDnsSelectedRoute(
-                        hostname = hostname,
-                        address = evaluation.candidate.address,
-                        providerIds = candidateSources[evaluation.candidate.key].orEmpty(),
-                        latencyMillis = evaluation.medianLatencyMillis,
-                        httpStatusCode = evaluation.httpStatusCode
-                    )
-                }
+            candidates = mergeCandidates(candidates + recoveryCandidates)
+            probeResults += runProbeTasks(
+                tasks = buildProbeTasks(
+                    candidates = recoveryCandidates,
+                    minimumAttemptsPerCandidate = minimumRecoveryProbeAttemptsPerCandidate,
+                    minimumAttemptsForHost = { minimumRecoveryProbeAttemptsPerHost }
+                ),
+                probeEngine = recoveryProbe,
+                stage = SteamDnsScanStage.RECOVERING,
+                onProgress = onProgress
+            )
+            selectedRoutes = selectRoutes(candidates, probeResults)
         }
 
         SteamDnsOptimizationScanResult(
@@ -120,6 +94,66 @@ internal class SteamDnsOptimizationScanner(
             probeResults = probeResults,
             selectedRoutes = selectedRoutes
         )
+    }
+
+    private suspend fun resolveHosts(
+        hostnames: List<String>,
+        stage: SteamDnsScanStage,
+        onProgress: (SteamDnsScanProgress) -> Unit
+    ): List<SteamDnsResolutionResult> = coroutineScope {
+        val tasks = providers.flatMap { provider ->
+            hostnames.map { hostname -> provider to hostname }
+        }
+        val deferred = tasks.map { (provider, hostname) ->
+            async(Dispatchers.IO) { resolveSafely(provider, hostname) }
+        }
+        deferred.mapIndexed { index, result ->
+            result.await().also { resolution ->
+                onProgress(
+                    SteamDnsScanProgress(
+                        stage = stage,
+                        completed = index + 1,
+                        total = deferred.size,
+                        currentSource = resolution.provider.displayName
+                    )
+                )
+            }
+        }
+    }
+
+    private suspend fun runProbeTasks(
+        tasks: List<SteamDnsCandidate>,
+        probeEngine: SteamHostProbe,
+        stage: SteamDnsScanStage,
+        onProgress: (SteamDnsScanProgress) -> Unit
+    ): List<SteamHostProbeResult> = coroutineScope {
+        if (tasks.isEmpty()) return@coroutineScope emptyList()
+        val probeSemaphore = Semaphore(maxConcurrentProbes.coerceAtLeast(1))
+        val resultChannel = Channel<SteamHostProbeResult>(Channel.UNLIMITED)
+        val jobs = tasks.map { candidate ->
+            launch(Dispatchers.IO) {
+                val result = probeSemaphore.withPermit {
+                    probeSafely(probeEngine, candidate.hostname, candidate.address)
+                }
+                resultChannel.send(result)
+            }
+        }
+        buildList {
+            repeat(tasks.size) { index ->
+                val result = resultChannel.receive()
+                add(result)
+                onProgress(
+                    SteamDnsScanProgress(
+                        stage = stage,
+                        completed = index + 1,
+                        total = tasks.size,
+                        currentSource = result.target.hostname
+                    )
+                )
+            }
+            jobs.joinAll()
+            resultChannel.close()
+        }
     }
 
     private suspend fun resolveSafely(
@@ -137,8 +171,12 @@ internal class SteamDnsOptimizationScanner(
         )
     }
 
-    private suspend fun probeSafely(hostname: String, address: String): SteamHostProbeResult = try {
-        probe.probe(SteamHostProbeTarget(hostname, address))
+    private suspend fun probeSafely(
+        probeEngine: SteamHostProbe,
+        hostname: String,
+        address: String
+    ): SteamHostProbeResult = try {
+        probeEngine.probe(SteamHostProbeTarget(hostname, address))
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (error: Throwable) {
@@ -150,12 +188,13 @@ internal class SteamDnsOptimizationScanner(
     }
 
     private fun buildCandidates(
+        hostnames: List<String>,
         resolutions: List<SteamDnsResolutionResult>,
         preferredRoutes: List<SteamDnsSelectedRoute>
-    ): List<SteamDnsCandidate> = targetHostnames.flatMap { hostname ->
+    ): List<SteamDnsCandidate> = hostnames.flatMap { hostname ->
         val hostResolutions = resolutions
             .asSequence()
-            .filter { it.hostname == hostname && it.isAvailable }
+            .filter { it.hostname.equals(hostname, ignoreCase = true) && it.isAvailable }
             .sortedBy { it.latencyMillis ?: Long.MAX_VALUE }
             .toList()
         val providerIdsByAddress = linkedMapOf<String, MutableSet<String>>()
@@ -193,27 +232,36 @@ internal class SteamDnsOptimizationScanner(
                 .forEach { address ->
                     if (address !in this) add(address)
                 }
+        }.map { address ->
+            SteamDnsCandidate(
+                hostname = hostname,
+                address = address,
+                providerIds = providerIdsByAddress[address].orEmpty().toList()
+            )
         }
-            .map { address ->
-                SteamDnsCandidate(
-                    hostname = hostname,
-                    address = address,
-                    providerIds = providerIdsByAddress[address].orEmpty().toList()
-                )
-            }
     }
 
-    private fun buildProbeTasks(candidates: List<SteamDnsCandidate>): List<SteamDnsCandidate> {
+    private fun mergeCandidates(candidates: List<SteamDnsCandidate>): List<SteamDnsCandidate> =
+        candidates.groupBy(SteamDnsCandidate::key).values.map { duplicates ->
+            val first = duplicates.first()
+            first.copy(providerIds = duplicates.flatMap { it.providerIds }.distinct())
+        }
+
+    private fun buildProbeTasks(
+        candidates: List<SteamDnsCandidate>,
+        minimumAttemptsPerCandidate: Int,
+        minimumAttemptsForHost: (String) -> Int
+    ): List<SteamDnsCandidate> {
         if (candidates.isEmpty()) return emptyList()
         val candidateCountByHost = candidates.groupingBy(SteamDnsCandidate::hostname).eachCount()
         val attemptsByCandidateKey = candidates.associate { candidate ->
             val hostCandidateCount = candidateCountByHost[candidate.hostname].orEmptyCount()
             val hostBudgetAttempts = divideRoundingUp(
-                minimumProbeAttemptsPerHost.coerceAtLeast(1),
+                minimumAttemptsForHost(candidate.hostname).coerceAtLeast(1),
                 hostCandidateCount
             )
             candidate.key to maxOf(
-                minimumProbeAttemptsPerCandidate.coerceAtLeast(1),
+                minimumAttemptsPerCandidate.coerceAtLeast(1),
                 hostBudgetAttempts
             )
         }
@@ -221,11 +269,45 @@ internal class SteamDnsOptimizationScanner(
         return buildList {
             repeat(largestAttemptCount) { attemptIndex ->
                 candidates.forEach { candidate ->
-                    if (attemptIndex < attemptsByCandidateKey.getValue(candidate.key)) {
-                        add(candidate)
-                    }
+                    if (attemptIndex < attemptsByCandidateKey.getValue(candidate.key)) add(candidate)
                 }
             }
+        }
+    }
+
+    private fun selectRoutes(
+        candidates: List<SteamDnsCandidate>,
+        probeResults: List<SteamHostProbeResult>
+    ): List<SteamDnsSelectedRoute> {
+        val candidateSources = candidates.associate { it.key to it.providerIds }
+        val evaluations = candidates.mapNotNull { candidate ->
+            evaluateCandidate(
+                candidate = candidate,
+                results = probeResults.filter { result -> result.target.key == candidate.key }
+            )
+        }
+        return targetHostnames.mapNotNull { hostname ->
+            evaluations
+                .asSequence()
+                .filter { evaluation ->
+                    evaluation.candidate.hostname == hostname && evaluation.isStable
+                }
+                .minWithOrNull(
+                    compareByDescending<SteamDnsCandidateEvaluation> { it.successPercent }
+                        .thenBy { it.medianLatencyMillis }
+                        .thenBy { it.p90LatencyMillis }
+                        .thenByDescending { it.successfulProbeCount }
+                        .thenBy { it.candidate.address }
+                )
+                ?.let { evaluation ->
+                    SteamDnsSelectedRoute(
+                        hostname = hostname,
+                        address = evaluation.candidate.address,
+                        providerIds = candidateSources[evaluation.candidate.key].orEmpty(),
+                        latencyMillis = evaluation.medianLatencyMillis,
+                        httpStatusCode = evaluation.httpStatusCode
+                    )
+                }
         }
     }
 
@@ -234,9 +316,7 @@ internal class SteamDnsOptimizationScanner(
         results: List<SteamHostProbeResult>
     ): SteamDnsCandidateEvaluation? {
         val successfulResults = results.filter(SteamHostProbeResult::isAvailable)
-        val latencies = successfulResults
-            .mapNotNull(SteamHostProbeResult::latencyMillis)
-            .sorted()
+        val latencies = successfulResults.mapNotNull(SteamHostProbeResult::latencyMillis).sorted()
         if (successfulResults.isEmpty() || latencies.isEmpty()) return null
         return SteamDnsCandidateEvaluation(
             candidate = candidate,
@@ -244,9 +324,7 @@ internal class SteamDnsOptimizationScanner(
             totalProbeCount = results.size,
             medianLatencyMillis = percentile(latencies, 0.5),
             p90LatencyMillis = percentile(latencies, 0.9),
-            httpStatusCode = successfulResults.firstNotNullOfOrNull {
-                it.httpStatusCode
-            }
+            httpStatusCode = successfulResults.firstNotNullOfOrNull { it.httpStatusCode }
         )
     }
 
@@ -284,11 +362,7 @@ internal class SteamDnsOptimizationScanner(
         val httpStatusCode: Int?
     ) {
         val successPercent: Int
-            get() = if (totalProbeCount <= 0) {
-                0
-            } else {
-                successfulProbeCount * 100 / totalProbeCount
-            }
+            get() = if (totalProbeCount <= 0) 0 else successfulProbeCount * 100 / totalProbeCount
         val isStable: Boolean
             get() = totalProbeCount > 0 &&
                 successfulProbeCount * 100 >= totalProbeCount * MIN_SUCCESS_PERCENT
@@ -297,10 +371,8 @@ internal class SteamDnsOptimizationScanner(
     companion object {
         private const val MIN_SUCCESS_PERCENT = 60
 
-        val DEFAULT_TARGET_HOSTNAMES: List<String> = listOf(
-            "store.steampowered.com",
-            "steamcommunity.com",
-            "api.steampowered.com"
-        )
+        val DEFAULT_TARGET_HOSTNAMES: List<String> = SteamNetworkTargetCatalog.hostnames
+        val DEFAULT_PROBE_ATTEMPTS: Map<String, Int> =
+            SteamNetworkTargetCatalog.minimumProbeAttemptsByHost
     }
 }

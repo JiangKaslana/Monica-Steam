@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.network.optimization.domain
 
 import java.net.Inet4Address
+import java.net.Inet6Address
 import java.net.InetAddress
 import java.util.Locale
 
@@ -105,11 +106,37 @@ object SteamHostsRuleParser {
         }
         if (address is Inet4Address) {
             val bytes = address.address.map { it.toInt() and 0xff }
-            if (bytes[0] == 108 && bytes[1] == 160 && bytes[2] in 160..175) {
-                return false
+            val a = bytes[0]
+            val b = bytes[1]
+            val c = bytes[2]
+            return when {
+                a == 0 || a == 10 || a == 127 -> false
+                a == 100 && b in 64..127 -> false
+                a == 169 && b == 254 -> false
+                a == 172 && b in 16..31 -> false
+                a == 192 && b == 0 && c == 0 -> false
+                a == 192 && b == 0 && c == 2 -> false
+                a == 192 && b == 88 && c == 99 -> false
+                a == 192 && b == 168 -> false
+                a == 198 && b in 18..19 -> false
+                a == 198 && b == 51 && c == 100 -> false
+                a == 203 && b == 0 && c == 113 -> false
+                a == 108 && b == 160 && c in 160..175 -> false
+                a >= 224 -> false
+                else -> true
             }
         }
-        return true
+        if (address is Inet6Address) {
+            val bytes = address.address
+            val first = bytes[0].toInt() and 0xff
+            if (first and 0xe0 != 0x20) return false
+            val documentationPrefix = bytes[0] == 0x20.toByte() &&
+                bytes[1] == 0x01.toByte() &&
+                bytes[2] == 0x0d.toByte() &&
+                bytes[3] == 0xb8.toByte()
+            return !documentationPrefix
+        }
+        return false
     }
 
     private fun parseNumericAddress(value: String): InetAddress? {

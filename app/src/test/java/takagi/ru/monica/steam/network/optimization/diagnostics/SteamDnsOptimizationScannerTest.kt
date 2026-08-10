@@ -93,6 +93,13 @@ class SteamDnsOptimizationScannerTest {
                     latencyMillis = 50L
                 )
             },
+            recoveryProbe = SteamHostProbe { target ->
+                SteamHostProbeResult(
+                    target = target,
+                    status = SteamHostProbeStatus.TIMEOUT,
+                    latencyMillis = 5_000L
+                )
+            },
             providers = listOf(providerA),
             targetHostnames = listOf(hostA, hostB),
             minimumProbeAttemptsPerCandidate = 1,
@@ -256,7 +263,50 @@ class SteamDnsOptimizationScannerTest {
         val result = scanner.scan()
 
         assertTrue(result.isComplete)
-        assertEquals(108, result.probeResults.size)
+        assertEquals(180, result.probeResults.size)
+    }
+
+    @Test
+    fun missingHostIsResolvedAndVerifiedAgainBeforeFinishing() = runBlocking {
+        val resolveCalls = AtomicInteger()
+        val scanner = SteamDnsOptimizationScanner(
+            resolver = SteamDnsResolver { provider, hostname ->
+                resolveCalls.incrementAndGet()
+                SteamDnsResolutionResult(
+                    provider = provider,
+                    hostname = hostname,
+                    addresses = listOf("10.0.0.1")
+                )
+            },
+            probe = SteamHostProbe { target ->
+                SteamHostProbeResult(
+                    target = target,
+                    status = SteamHostProbeStatus.TIMEOUT,
+                    latencyMillis = 5_000L
+                )
+            },
+            recoveryProbe = SteamHostProbe { target ->
+                SteamHostProbeResult(
+                    target = target,
+                    status = SteamHostProbeStatus.AVAILABLE,
+                    latencyMillis = 45L,
+                    httpStatusCode = 200
+                )
+            },
+            providers = listOf(providerA),
+            targetHostnames = listOf(hostA),
+            minimumProbeAttemptsPerCandidate = 1,
+            minimumProbeAttemptsPerHost = 1,
+            minimumRecoveryProbeAttemptsPerCandidate = 2,
+            minimumRecoveryProbeAttemptsPerHost = 2
+        )
+
+        val result = scanner.scan()
+
+        assertTrue(result.isComplete)
+        assertEquals(2, resolveCalls.get())
+        assertEquals(3, result.probeResults.size)
+        assertEquals(45L, result.selectedRoutes.single().latencyMillis)
     }
 
     @Test

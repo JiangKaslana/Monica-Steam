@@ -61,4 +61,23 @@ class SteamHostsRuleParserTest {
         )
         assertTrue(result.addresses.isEmpty())
     }
+
+    @Test
+    fun rejectsReservedDocumentationAndCommonFakeIpRanges() {
+        listOf(
+            "100.64.0.1",
+            "192.0.2.1",
+            "198.18.0.1",
+            "198.51.100.1",
+            "203.0.113.1",
+            "2001:db8::1"
+        ).forEach { address ->
+            val result = SteamHostsRuleParser.parse("$address store.steampowered.com")
+            assertEquals(
+                address,
+                SteamHostsRuleErrorReason.UNUSABLE_ADDRESS,
+                result.errors.single().reason
+            )
+        }
+    }
 }

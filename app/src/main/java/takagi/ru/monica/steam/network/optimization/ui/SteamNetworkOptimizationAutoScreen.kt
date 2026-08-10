@@ -69,6 +69,10 @@ fun SteamNetworkOptimizationAutoScreen(
         .orEmpty()
     val showingScanResult = (scanState as? SteamAutoOptimizationUiState.Success)
         ?.applied == false
+    val missingHostnames = (scanState as? SteamAutoOptimizationUiState.Success)
+        ?.result
+        ?.missingHostnames
+        ?: summary?.missingHostnames.orEmpty()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -129,7 +133,8 @@ fun SteamNetworkOptimizationAutoScreen(
                 SteamNetworkCurrentSelectionCard(
                     summary = summary.takeUnless { showingScanResult },
                     routes = selectedRoutes,
-                    showingScanResult = showingScanResult
+                    showingScanResult = showingScanResult,
+                    missingHostnames = missingHostnames
                 )
             }
             item(key = "advanced_settings") {
