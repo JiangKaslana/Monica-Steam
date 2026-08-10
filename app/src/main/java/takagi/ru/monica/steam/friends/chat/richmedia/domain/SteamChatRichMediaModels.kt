@@ -2,6 +2,7 @@ package takagi.ru.monica.steam.friends.chat.richmedia.domain
 
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.net.URI
 import java.nio.charset.StandardCharsets
 
 data class SteamChatEmoticon(
@@ -377,6 +378,16 @@ object SteamChatRichContentParser {
                 spoiler = spoiler
             )
         }
+        val plainUrl = normalizeAttachmentUrl(body)
+            .takeIf { httpUrlPattern.matchEntire(it) != null }
+        if (plainUrl != null && attachmentKind(plainUrl) == SteamChatAttachmentKind.IMAGE) {
+            return SteamChatRichContent.Attachment(
+                url = plainUrl,
+                label = fileLabel(plainUrl),
+                kind = SteamChatAttachmentKind.IMAGE,
+                spoiler = spoiler
+            )
+        }
         return null
     }
 
@@ -503,13 +514,29 @@ object SteamChatRichContentParser {
         )
     }.getOrDefault("Steam attachment")
 
-    private fun attachmentKind(url: String): SteamChatAttachmentKind =
-        when (url.substringBefore('?').substringAfterLast('.').lowercase()) {
+    private fun attachmentKind(url: String): SteamChatAttachmentKind {
+        return when (url.substringBefore('?').substringAfterLast('.').lowercase()) {
             "jpg", "jpeg", "png", "gif", "webp", "avif" -> SteamChatAttachmentKind.IMAGE
             "webm", "mpg", "mpeg", "mp4", "ogv" -> SteamChatAttachmentKind.VIDEO
             "zip" -> SteamChatAttachmentKind.ARCHIVE
-            else -> SteamChatAttachmentKind.LINK
+            else -> if (isExtensionlessSteamUgcImage(url)) {
+                SteamChatAttachmentKind.IMAGE
+            } else {
+                SteamChatAttachmentKind.LINK
+            }
         }
+
+    }
+
+    private fun isExtensionlessSteamUgcImage(url: String): Boolean = runCatching {
+        val uri = URI(url)
+        if (!uri.scheme.equals("https", ignoreCase = true)) return@runCatching false
+        val host = uri.host?.lowercase() ?: return@runCatching false
+        val imageHost =
+            (host.startsWith("images.") && host.endsWith(".steamusercontent.com")) ||
+                host == "steamuserimages-a.akamaihd.net"
+        imageHost && uri.path.orEmpty().startsWith("/ugc/", ignoreCase = true)
+    }.getOrDefault(false)
 }
 
 object SteamChatUnicodeEmojiCatalog {

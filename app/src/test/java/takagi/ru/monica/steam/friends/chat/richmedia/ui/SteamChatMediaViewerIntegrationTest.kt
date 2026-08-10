@@ -24,6 +24,7 @@ class SteamChatMediaViewerIntegrationTest {
         assertTrue(attachment.contains("SteamImageDownloadPolicy.isAllowedUrl(content.url)"))
         assertTrue(attachment.contains("SteamFullscreenImageViewer("))
         assertTrue(attachment.contains("showImageViewer = true"))
+        assertTrue(attachment.contains("if (content.kind != SteamChatAttachmentKind.IMAGE)"))
         assertFalse(attachment.contains("SteamStoreScreenshotViewer"))
         assertTrue(viewer.contains("HorizontalPager("))
         assertTrue(viewer.contains("SteamImageDownloader("))

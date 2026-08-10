@@ -119,6 +119,22 @@ class SteamChatRichMediaModelsTest {
     }
 
     @Test
+    fun recognizesExtensionlessSteamUgcImageLinks() {
+        val url = "https://images.steamusercontent.com/ugc/124316100000000000/ABCDEF1234567890/"
+        val image = SteamChatRichContentParser.parse(
+            "[url=$url]$url[/url]"
+        ) as SteamChatRichContent.Attachment
+        val plainImage = SteamChatRichContentParser.parse(url) as SteamChatRichContent.Attachment
+        val genericAttachment = SteamChatRichContentParser.parse(
+            "[url=https://steamusercontent.com/ugc/archive]archive[/url]"
+        ) as SteamChatRichContent.Attachment
+
+        assertEquals(SteamChatAttachmentKind.IMAGE, image.kind)
+        assertEquals(SteamChatAttachmentKind.IMAGE, plainImage.kind)
+        assertEquals(SteamChatAttachmentKind.LINK, genericAttachment.kind)
+    }
+
+    @Test
     fun keepsOrdinaryTextUntouched() {
         val body = "hello :steamthumbsup:"
         assertEquals(SteamChatRichContent.Text(body), SteamChatRichContentParser.parse(body))

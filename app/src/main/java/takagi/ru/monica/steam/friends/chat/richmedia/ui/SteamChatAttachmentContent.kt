@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
@@ -120,26 +119,27 @@ internal fun AttachmentContent(
                                 .clickable(onClick = open)
                         )
                     }
-                    Row(
-                        modifier = Modifier.clickable(onClick = open),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = when (content.kind) {
-                                SteamChatAttachmentKind.IMAGE -> Icons.Default.Image
-                                SteamChatAttachmentKind.VIDEO -> Icons.Default.Movie
-                                else -> Icons.AutoMirrored.Filled.InsertDriveFile
-                            },
-                            contentDescription = null
-                        )
-                        Text(
-                            text = content.label,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    if (content.kind != SteamChatAttachmentKind.IMAGE) {
+                        Row(
+                            modifier = Modifier.clickable(onClick = open),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = when (content.kind) {
+                                    SteamChatAttachmentKind.VIDEO -> Icons.Default.Movie
+                                    else -> Icons.AutoMirrored.Filled.InsertDriveFile
+                                },
+                                contentDescription = null
+                            )
+                            Text(
+                                text = content.label,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
