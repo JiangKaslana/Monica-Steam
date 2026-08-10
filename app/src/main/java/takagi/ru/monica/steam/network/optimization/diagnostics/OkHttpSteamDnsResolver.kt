@@ -82,6 +82,6 @@ internal class OkHttpSteamDnsResolver(
         ((clockNanos() - startedAt) / 1_000_000L).coerceAtLeast(0L)
 
     private companion object {
-        const val MAX_ADDRESSES_PER_RESOLUTION = 4
+        const val MAX_ADDRESSES_PER_RESOLUTION = 8
     }
 }

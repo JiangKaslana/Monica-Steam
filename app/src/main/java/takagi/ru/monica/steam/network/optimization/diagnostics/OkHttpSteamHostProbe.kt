@@ -7,6 +7,8 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -19,6 +21,17 @@ internal class OkHttpSteamHostProbe(
     private val timeoutMillis: Long = 5_000L,
     private val clockNanos: () -> Long = System::nanoTime
 ) : SteamHostProbe {
+    private val sharedDispatcher = Dispatcher()
+    private val clientTemplate = OkHttpClient.Builder()
+        .dispatcher(sharedDispatcher)
+        .connectTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+        .readTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+        .callTimeout(timeoutMillis * 2L, TimeUnit.MILLISECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .retryOnConnectionFailure(false)
+        .build()
+
     override suspend fun probe(target: SteamHostProbeTarget): SteamHostProbeResult =
         withContext(Dispatchers.IO) {
             val numericAddress = runCatching { InetAddress.getByName(target.address) }
@@ -29,7 +42,7 @@ internal class OkHttpSteamHostProbe(
                         errorType = error::class.java.simpleName
                     )
                 }
-            val client = OkHttpClient.Builder()
+            val client = clientTemplate.newBuilder()
                 .dns(object : Dns {
                     override fun lookup(hostname: String): List<InetAddress> {
                         return if (
@@ -42,21 +55,16 @@ internal class OkHttpSteamHostProbe(
                         }
                     }
                 })
-                .connectTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
-                .readTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
-                .callTimeout(timeoutMillis * 2L, TimeUnit.MILLISECONDS)
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .retryOnConnectionFailure(false)
+                .connectionPool(ConnectionPool(0, 1L, TimeUnit.MILLISECONDS))
                 .build()
             val request = runCatching {
                 Request.Builder()
                     .url("https://${target.hostname}/")
                     .head()
                     .header("User-Agent", "Monica-Steam-Network-Diagnostics")
+                    .header("Connection", "close")
                     .build()
             }.getOrElse { error ->
-                client.dispatcher.executorService.shutdown()
                 return@withContext SteamHostProbeResult(
                     target = target,
                     status = SteamHostProbeStatus.CONNECTION_ERROR,
@@ -97,7 +105,6 @@ internal class OkHttpSteamHostProbe(
                 )
             } finally {
                 client.connectionPool.evictAll()
-                client.dispatcher.executorService.shutdown()
             }
         }
 
