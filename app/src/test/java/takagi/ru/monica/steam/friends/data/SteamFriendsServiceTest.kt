@@ -29,6 +29,7 @@ class SteamFriendsServiceTest {
                 val request = chain.request()
                 requests += request
                 val payload = when {
+                    request.url.host == "steamcommunity.com" -> "<html><body></body></html>"
                     request.url.encodedPath.contains("GetFriendList") -> """{
                         "friendslist":{"friends":[
                           {"steamid":"76561198000000002","relationship":"friend","friend_since":100},
@@ -74,11 +75,15 @@ class SteamFriendsServiceTest {
         assertEquals(
             listOf(
                 "/ISteamUserOAuth/GetFriendList/v1/",
+                "/my/friends/pending",
                 "/ISteamUserOAuth/GetUserSummaries/v1/"
             ),
             requests.map { it.url.encodedPath }
         )
-        assertTrue(requests.all { it.url.queryParameter("access_token") == "access-token" })
+        assertTrue(
+            requests.filter { it.url.host == "api.steampowered.com" }
+                .all { it.url.queryParameter("access_token") == "access-token" }
+        )
         assertEquals("all", requests.first().url.queryParameter("relationship"))
     }
 
@@ -88,6 +93,7 @@ class SteamFriendsServiceTest {
             .addInterceptor { chain ->
                 val request = chain.request()
                 val payload = when {
+                    request.url.host == "steamcommunity.com" -> "<html><body></body></html>"
                     request.url.encodedPath.contains("GetFriendList") -> """{
                         "friendslist":{"friends":[
                           {"steamid":"76561198000000002","relationship":"friend","nickname":"OAuth note"}
@@ -117,6 +123,92 @@ class SteamFriendsServiceTest {
 
         assertEquals("OAuth note", snapshot.acceptedFriends.single().displayName)
         assertEquals(43L, snapshot.fetchedAt)
+    }
+
+    @Test
+    fun pendingCommunityInvitesAreAddedToTheFriendSnapshot() {
+        val requests = mutableListOf<Request>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                requests += request
+                val payload = when {
+                    request.url.host == "steamcommunity.com" -> """
+                        <div class="invite_row">
+                          <div class="invite_row_content" data-miniprofile="43147274"></div>
+                        </div>
+                    """.trimIndent()
+                    request.url.encodedPath.contains("GetFriendList") ->
+                        """{"friendslist":{"friends":[]}}"""
+                    request.url.encodedPath.contains("GetUserSummaries") -> """{
+                        "response":{"players":[{
+                          "steamid":"76561198003413002",
+                          "personaname":"Pending Decks",
+                          "avatarfull":"https://avatars.fastly.steamstatic.com/pending.jpg"
+                        }]}
+                    }"""
+                    else -> error("Unexpected request: ${request.url}")
+                }
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(payload.toResponseBody("text/html".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val snapshot = SteamFriendsService(
+            api = SteamApiClient(client),
+            nicknameGateway = SteamFriendNicknameGateway { emptyMap() }
+        ).fetch(account(), fetchedAt = 44L)
+
+        val request = snapshot.incomingRequests.single()
+        assertEquals("76561198003413002", request.steamId)
+        assertEquals("Pending Decks", request.displayName)
+        val pendingRequest = requests.single { it.url.encodedPath == "/my/friends/pending" }
+        assertTrue(pendingRequest.header("Cookie").orEmpty().contains("steamLoginSecure="))
+    }
+
+    @Test
+    fun pendingCommunityFailureKeepsOAuthFriendsAvailable() {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val code = if (request.url.host == "steamcommunity.com") 503 else 200
+                val payload = when {
+                    request.url.host == "steamcommunity.com" -> "Unavailable"
+                    request.url.encodedPath.contains("GetFriendList") -> """{
+                        "friendslist":{"friends":[
+                          {"steamid":"76561198000000002","relationship":"friend"}
+                        ]}
+                    }"""
+                    request.url.encodedPath.contains("GetUserSummaries") -> """{
+                        "response":{"players":[{
+                          "steamid":"76561198000000002",
+                          "personaname":"Alyx"
+                        }]}
+                    }"""
+                    else -> error("Unexpected request: ${request.url}")
+                }
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(code)
+                    .message(if (code == 200) "OK" else "Unavailable")
+                    .body(payload.toResponseBody("application/json".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val snapshot = SteamFriendsService(
+            api = SteamApiClient(client),
+            nicknameGateway = SteamFriendNicknameGateway { emptyMap() }
+        ).fetch(account(), fetchedAt = 45L)
+
+        assertEquals("Alyx", snapshot.acceptedFriends.single().displayName)
+        assertTrue(snapshot.incomingRequests.isEmpty())
     }
 
     @Test

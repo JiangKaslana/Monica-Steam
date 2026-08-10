@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.Search
@@ -24,8 +25,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -81,54 +82,84 @@ internal fun SteamAddFriendScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item(key = "add-friend-search") {
-            Row(
+            OutlinedTextField(
+                value = query,
+                onValueChange = { value ->
+                    val nextQuery = value.take(MAX_QUERY_LENGTH)
+                    if (query.isNotBlank() && nextQuery.isBlank()) onSearch("")
+                    query = nextQuery
+                },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it.take(MAX_QUERY_LENGTH) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.steam_friend_add_search_label)) },
-                    placeholder = { Text(stringResource(R.string.steam_friend_add_search_hint)) },
-                    supportingText = {
-                        Text(stringResource(R.string.steam_friend_add_search_support))
-                    },
-                    leadingIcon = { Icon(Icons.Default.PersonSearch, contentDescription = null) },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { submitSearch() })
-                )
-                FilledIconButton(
-                    onClick = { submitSearch() },
-                    enabled = query.isNotBlank() && !discovery.searching,
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    if (discovery.searching) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = stringResource(R.string.steam_friend_add_search_action)
-                        )
+                singleLine = true,
+                shape = RoundedCornerShape(28.dp),
+                label = { Text(stringResource(R.string.steam_friend_add_search_label)) },
+                placeholder = {
+                    Text(
+                        text = stringResource(R.string.steam_friend_add_search_hint),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                leadingIcon = { Icon(Icons.Default.PersonSearch, contentDescription = null) },
+                trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (query.isNotBlank() && !discovery.searching) {
+                            IconButton(
+                                onClick = {
+                                    query = ""
+                                    onSearch("")
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(
+                                        R.string.steam_friend_clear_search
+                                    )
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = { submitSearch() },
+                            enabled = query.isNotBlank() && !discovery.searching
+                        ) {
+                            if (discovery.searching) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = stringResource(
+                                        R.string.steam_friend_add_search_action
+                                    )
+                                )
+                            }
+                        }
                     }
-                }
-            }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { submitSearch() })
+            )
         }
 
-        if (incomingRequests.isNotEmpty()) {
-            item(key = "add-friend-requests-title") {
-                SectionTitle(
-                    text = stringResource(
-                        R.string.steam_friend_requests_title,
-                        incomingRequests.size
-                    )
+        item(key = "add-friend-requests-title") {
+            SectionTitle(
+                text = stringResource(
+                    R.string.steam_friend_requests_title,
+                    incomingRequests.size
                 )
+            )
+        }
+        if (state.loading && state.snapshot == null) {
+            item(key = "add-friend-requests-loading") {
+                FriendLoadingCard()
             }
+        } else if (incomingRequests.isEmpty()) {
+            item(key = "add-friend-requests-empty") {
+                FriendRequestsEmptyState()
+            }
+        } else {
             items(incomingRequests, key = { "request-${it.steamId}" }) { friend ->
                 SteamFriendCard(
                     friend = friend,
@@ -174,13 +205,39 @@ internal fun SteamAddFriendScreen(
                     text = stringResource(R.string.steam_friend_search_empty)
                 )
             }
-        } else if (incomingRequests.isEmpty() && !discovery.searching) {
+        } else if (!discovery.searching) {
             item(key = "add-friend-search-intro") {
                 FriendDiscoveryMessage(
                     icon = Icons.Default.PersonAdd,
                     text = stringResource(R.string.steam_friend_add_intro)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun FriendRequestsEmptyState() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.PersonAdd,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(R.string.steam_friend_requests_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -278,9 +335,9 @@ private fun FriendRelationshipLabel(relationship: SteamFriendRelationship) {
 private fun SectionTitle(text: String) {
     Text(
         text = text,
-        modifier = Modifier.padding(start = 4.dp, top = 6.dp),
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Bold
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold
     )
 }
 
@@ -291,23 +348,23 @@ private fun FriendDiscoveryMessage(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(32.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

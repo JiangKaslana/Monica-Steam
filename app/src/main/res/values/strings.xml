@@ -4945,10 +4945,11 @@
     <string name="steam_friend_details_title">Friend details</string>
     <string name="steam_friend_add_title">Add friend</string>
     <string name="steam_friend_add_search_label">Find a Steam user</string>
-    <string name="steam_friend_add_search_hint">Name, friend code, or profile link</string>
-    <string name="steam_friend_add_search_support">Supports Steam friend codes, Steam IDs, profile links, and names</string>
+    <string name="steam_friend_add_search_hint">Name, friend code, Steam ID, or profile link</string>
     <string name="steam_friend_add_search_action">Search for friend</string>
+    <string name="steam_friend_clear_search">Clear search</string>
     <string name="steam_friend_requests_title">Friend requests (%1$d)</string>
+    <string name="steam_friend_requests_empty">No incoming friend requests</string>
     <string name="steam_friend_search_results_title">Search results (%1$d)</string>
     <string name="steam_friend_search_empty">No matching Steam users were found.</string>
     <string name="steam_friend_add_intro">Search for a user, then confirm the profile before sending an invitation.</string>

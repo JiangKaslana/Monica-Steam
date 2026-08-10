@@ -9,6 +9,7 @@ import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.domain.SteamFriendActionResult
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.domain.SteamFriendsGateway
 import takagi.ru.monica.steam.friends.domain.SteamFriendsSnapshot
@@ -46,6 +47,16 @@ class SteamFriendsService(
             accessToken = accessToken
         )
         val relationships = SteamFriendsParser.parseRelationships(relationshipsPayload)
+        fetchPendingIncomingSteamIds(account).forEach { steamId ->
+            if (steamId == account.steamId) return@forEach
+            val existing = relationships[steamId]
+            relationships[steamId] = SteamFriendRelationshipRecord(
+                steamId = steamId,
+                relationship = SteamFriendRelationship.REQUEST_INCOMING,
+                friendSince = existing?.friendSince ?: 0L,
+                nickname = existing?.nickname.orEmpty()
+            )
+        }
         if (relationships.isEmpty()) return SteamFriendsSnapshot(fetchedAt = fetchedAt)
 
         val profiles = relationships.keys.chunked(MAX_PROFILE_BATCH).flatMap { steamIds ->
@@ -72,6 +83,21 @@ class SteamFriendsService(
             fetchedAt = fetchedAt
         )
     }
+
+    private fun fetchPendingIncomingSteamIds(account: SteamAccount): List<String> = runCatching {
+        val sessionId = SteamInventoryService.newSessionId()
+        val html = api.communityGetText(
+            path = "/my/friends/pending",
+            query = mapOf("l" to "english"),
+            cookies = SteamInventoryService.marketCookies(account, sessionId),
+            referer = "https://steamcommunity.com/my/friends/"
+        )
+        SteamPendingFriendRequestsParser.parseSteamIds(html)
+    }.onFailure { error ->
+        SteamDiagLogger.append(
+            "friends pending_sync failed type=${error.javaClass.simpleName}"
+        )
+    }.getOrDefault(emptyList())
 
     override fun respondToInvite(
         account: SteamAccount,
