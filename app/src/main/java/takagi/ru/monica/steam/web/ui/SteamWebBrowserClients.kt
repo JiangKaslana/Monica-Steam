@@ -22,35 +22,35 @@ import takagi.ru.monica.steam.web.domain.SteamWebPageFailure
 
 internal class SteamBrowserWebViewClient(
     private val openExternal: (String) -> Boolean,
-    private val onPageStarted: (WebView, String) -> Unit,
-    private val onPageCommitVisible: (WebView, String) -> Unit,
-    private val onPageFinished: (WebView, String) -> Unit,
-    private val onHistoryChanged: (WebView, String) -> Unit,
-    private val onFailure: (SteamWebPageFailure) -> Unit,
-    private val onRendererGone: (WebView, Boolean) -> Unit,
+    private val onPageStartedCallback: (WebView, String) -> Unit,
+    private val onPageCommitVisibleCallback: (WebView, String) -> Unit,
+    private val onPageFinishedCallback: (WebView, String) -> Unit,
+    private val onHistoryChangedCallback: (WebView, String) -> Unit,
+    private val onFailureCallback: (SteamWebPageFailure) -> Unit,
+    private val onRendererGoneCallback: (WebView, Boolean) -> Unit,
 ) : WebViewClient() {
     private var hasCommittedContent = false
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         if (!hasCommittedContent) view.alpha = 0f
-        onPageStarted(view, url)
+        onPageStartedCallback(view, url)
     }
 
     override fun onPageCommitVisible(view: WebView, url: String) {
         hasCommittedContent = true
         view.alpha = 1f
-        onPageCommitVisible(view, url)
+        onPageCommitVisibleCallback(view, url)
     }
 
     override fun onPageFinished(view: WebView, url: String) {
         hasCommittedContent = true
         view.alpha = 1f
-        onPageFinished(view, url)
+        onPageFinishedCallback(view, url)
     }
 
     override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
         super.doUpdateVisitedHistory(view, url, isReload)
-        onHistoryChanged(view, url.orEmpty())
+        onHistoryChangedCallback(view, url.orEmpty())
     }
 
     override fun shouldOverrideUrlLoading(
@@ -61,7 +61,7 @@ internal class SteamBrowserWebViewClient(
         if (SteamWebNavigationPolicy.isAllowed(target)) return false
         if (!request.isForMainFrame) return true
         if (SteamWebNavigationPolicy.isSafeExternal(target) && openExternal(target)) return true
-        onFailure(
+        onFailureCallback(
             SteamWebPageFailure(
                 kind = SteamWebFailureKind.UNSAFE_NAVIGATION,
                 failingUrl = target
@@ -76,7 +76,7 @@ internal class SteamBrowserWebViewClient(
         error: WebResourceError
     ) {
         if (!request.isForMainFrame) return
-        onFailure(
+        onFailureCallback(
             SteamWebPageFailure(
                 kind = SteamWebFailureKind.NETWORK,
                 description = error.description?.toString(),
@@ -91,7 +91,7 @@ internal class SteamBrowserWebViewClient(
         errorResponse: WebResourceResponse
     ) {
         if (!request.isForMainFrame || errorResponse.statusCode < 400) return
-        onFailure(
+        onFailureCallback(
             SteamWebPageFailure(
                 kind = SteamWebFailureKind.HTTP,
                 description = errorResponse.reasonPhrase,
@@ -108,7 +108,7 @@ internal class SteamBrowserWebViewClient(
     ) {
         handler.cancel()
         view.stopLoading()
-        onFailure(
+        onFailureCallback(
             SteamWebPageFailure(
                 kind = SteamWebFailureKind.SSL,
                 failingUrl = error.url
@@ -123,7 +123,7 @@ internal class SteamBrowserWebViewClient(
         realm: String?
     ) {
         handler.cancel()
-        onFailure(
+        onFailureCallback(
             SteamWebPageFailure(
                 kind = SteamWebFailureKind.HTTP,
                 failingUrl = view.url,
@@ -140,29 +140,29 @@ internal class SteamBrowserWebViewClient(
         view: WebView,
         detail: RenderProcessGoneDetail
     ): Boolean {
-        onRendererGone(view, detail.didCrash())
+        onRendererGoneCallback(view, detail.didCrash())
         return true
     }
 }
 
 internal class SteamBrowserWebChromeClient(
-    private val onProgressChanged: (Int) -> Unit,
-    private val onTitleChanged: (String?) -> Unit,
-    private val onFileChooser: (
+    private val onProgressChangedCallback: (Int) -> Unit,
+    private val onTitleChangedCallback: (String?) -> Unit,
+    private val onFileChooserCallback: (
         ValueCallback<Array<Uri>>,
         FileChooserParams
     ) -> Boolean,
-    private val onPermissionRequest: (PermissionRequest) -> Unit,
-    private val onPermissionRequestCanceled: (PermissionRequest) -> Unit,
-    private val onShowCustomView: (View, CustomViewCallback) -> Unit,
-    private val onHideCustomView: () -> Unit,
+    private val onPermissionRequestCallback: (PermissionRequest) -> Unit,
+    private val onPermissionRequestCanceledCallback: (PermissionRequest) -> Unit,
+    private val onShowCustomViewCallback: (View, CustomViewCallback) -> Unit,
+    private val onHideCustomViewCallback: () -> Unit,
 ) : WebChromeClient() {
     override fun onProgressChanged(view: WebView?, newProgress: Int) {
-        onProgressChanged(newProgress.coerceIn(0, 100))
+        onProgressChangedCallback(newProgress.coerceIn(0, 100))
     }
 
     override fun onReceivedTitle(view: WebView?, title: String?) {
-        onTitleChanged(title?.trim()?.takeIf(String::isNotBlank))
+        onTitleChangedCallback(title?.trim()?.takeIf(String::isNotBlank))
     }
 
     override fun onShowFileChooser(
@@ -171,22 +171,22 @@ internal class SteamBrowserWebChromeClient(
         fileChooserParams: FileChooserParams?
     ): Boolean {
         if (filePathCallback == null || fileChooserParams == null) return false
-        return onFileChooser(filePathCallback, fileChooserParams)
+        return onFileChooserCallback(filePathCallback, fileChooserParams)
     }
 
     override fun onPermissionRequest(request: PermissionRequest) {
-        onPermissionRequest(request)
+        onPermissionRequestCallback(request)
     }
 
     override fun onPermissionRequestCanceled(request: PermissionRequest) {
-        onPermissionRequestCanceled(request)
+        onPermissionRequestCanceledCallback(request)
     }
 
     override fun onShowCustomView(view: View, callback: CustomViewCallback) {
-        onShowCustomView(view, callback)
+        onShowCustomViewCallback(view, callback)
     }
 
     override fun onHideCustomView() {
-        onHideCustomView()
+        onHideCustomViewCallback()
     }
 }

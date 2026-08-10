@@ -9,6 +9,38 @@ import org.junit.Test
 
 class SteamStoreWebSecurityGuardTest {
     @Test
+    fun browserClientCallbacksDoNotShadowFrameworkOverrides() {
+        val clients = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserClients.kt"
+        ).readText()
+
+        listOf(
+            "onPageStartedCallback",
+            "onPageCommitVisibleCallback",
+            "onPageFinishedCallback",
+            "onProgressChangedCallback",
+            "onTitleChangedCallback",
+            "onFileChooserCallback",
+            "onPermissionRequestCallback",
+            "onPermissionRequestCanceledCallback",
+            "onShowCustomViewCallback",
+            "onHideCustomViewCallback"
+        ).forEach { callbackName ->
+            assertTrue(clients.contains("private val $callbackName"))
+        }
+        listOf(
+            "onPageCommitVisibleCallback(view, url)",
+            "onPageFinishedCallback(view, url)",
+            "onPermissionRequestCallback(request)",
+            "onPermissionRequestCanceledCallback(request)",
+            "onShowCustomViewCallback(view, callback)",
+            "onHideCustomViewCallback()"
+        ).forEach { callbackInvocation ->
+            assertTrue(clients.contains(callbackInvocation))
+        }
+    }
+
+    @Test
     fun officialStoreWebViewKeepsCheckoutInsideSecurityBoundary() {
         val source = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserScreen.kt"

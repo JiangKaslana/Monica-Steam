@@ -339,19 +339,19 @@ fun SteamWebBrowserScreen(
                                 }
                             }
                             webChromeClient = SteamBrowserWebChromeClient(
-                                onProgressChanged = progressChanged@{ progress ->
+                                onProgressChangedCallback = progressChanged@{ progress ->
                                     if (controller.webView !== this@steamWebView) return@progressChanged
                                     browserState = browserState.copy(
                                         progress = progress,
                                         loading = progress in 0..99
                                     )
                                 },
-                                onTitleChanged = { pageTitle ->
+                                onTitleChangedCallback = { pageTitle ->
                                     if (controller.webView === this@steamWebView && pageTitle != null) {
                                         browserState = browserState.copy(pageTitle = pageTitle)
                                     }
                                 },
-                                onFileChooser = fileChooser@{ callback, params ->
+                                onFileChooserCallback = fileChooser@{ callback, params ->
                                     if (!SteamWebNavigationPolicy.isAllowed(this@steamWebView.url.orEmpty())) {
                                         callback.onReceiveValue(null)
                                         return@fileChooser true
@@ -381,7 +381,7 @@ fun SteamWebBrowserScreen(
                                     }
                                     true
                                 },
-                                onPermissionRequest = permissionRequest@{ request ->
+                                onPermissionRequestCallback = permissionRequest@{ request ->
                                     val origin = request.origin?.toString().orEmpty()
                                     if (!SteamWebNavigationPolicy.isAllowed(origin)) {
                                         request.deny()
@@ -421,16 +421,16 @@ fun SteamWebBrowserScreen(
                                             }
                                     }
                                 },
-                                onPermissionRequestCanceled = { request ->
+                                onPermissionRequestCanceledCallback = { request ->
                                     if (pendingPermission?.request === request) pendingPermission = null
                                 },
-                                onShowCustomView = { view, callback ->
+                                onShowCustomViewCallback = { view, callback ->
                                     hideCustomView()
                                     (view.parent as? ViewGroup)?.removeView(view)
                                     customView = view
                                     customViewCallback = callback
                                 },
-                                onHideCustomView = ::hideCustomView
+                                onHideCustomViewCallback = ::hideCustomView
                             )
                             webViewClient = SteamBrowserWebViewClient(
                                 openExternal = { target ->
@@ -439,7 +439,7 @@ fun SteamWebBrowserScreen(
                                         browserOnly = target.startsWith("http", ignoreCase = true)
                                     )
                                 },
-                                onPageStarted = pageStarted@{ view, pageUrl ->
+                                onPageStartedCallback = pageStarted@{ view, pageUrl ->
                                     if (controller.webView !== view) return@pageStarted
                                     browserState = browserState.copy(
                                         currentUrl = pageUrl,
@@ -450,7 +450,7 @@ fun SteamWebBrowserScreen(
                                         failure = null
                                     )
                                 },
-                                onPageCommitVisible = pageCommit@{ view, pageUrl ->
+                                onPageCommitVisibleCallback = pageCommit@{ view, pageUrl ->
                                     if (controller.webView !== view) return@pageCommit
                                     browserState = browserState.copy(
                                         currentUrl = pageUrl,
@@ -459,7 +459,7 @@ fun SteamWebBrowserScreen(
                                         canGoForward = view.canGoForward()
                                     )
                                 },
-                                onPageFinished = pageFinished@{ view, pageUrl ->
+                                onPageFinishedCallback = pageFinished@{ view, pageUrl ->
                                     if (controller.webView !== view) return@pageFinished
                                     val pageFailure = browserState.failure
                                     browserState = browserState.copy(
@@ -494,7 +494,7 @@ fun SteamWebBrowserScreen(
                                         }
                                     }
                                 },
-                                onHistoryChanged = { view, pageUrl ->
+                                onHistoryChangedCallback = { view, pageUrl ->
                                     if (controller.webView === view) {
                                         browserState = browserState.copy(
                                             currentUrl = pageUrl.ifBlank { browserState.currentUrl },
@@ -503,7 +503,7 @@ fun SteamWebBrowserScreen(
                                         )
                                     }
                                 },
-                                onFailure = { failure ->
+                                onFailureCallback = { failure ->
                                     if (controller.webView === this@steamWebView) {
                                         browserState = browserState.copy(
                                             loading = false,
@@ -512,7 +512,7 @@ fun SteamWebBrowserScreen(
                                         )
                                     }
                                 },
-                                onRendererGone = rendererGone@{ view, _ ->
+                                onRendererGoneCallback = rendererGone@{ view, _ ->
                                     if (controller.webView !== view) return@rendererGone
                                     val recoveryCount = browserState.rendererRecoveryCount + 1
                                     val lastUrl = view.url.orEmpty().ifBlank {
