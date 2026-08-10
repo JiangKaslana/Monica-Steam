@@ -2,6 +2,8 @@ package takagi.ru.monica.steam.store.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -261,8 +263,14 @@ fun SteamStoreScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         transitionSpec = {
-            easyNotesScreenEnter(reduceAnimations)
-                .togetherWith(easyNotesScreenExit(reduceAnimations))
+            if (initialState is SteamStoreDestination.Web ||
+                targetState is SteamStoreDestination.Web
+            ) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                easyNotesScreenEnter(reduceAnimations)
+                    .togetherWith(easyNotesScreenExit(reduceAnimations))
+            }
         },
         label = "SteamStoreNavigation"
     ) { destination ->
@@ -271,11 +279,6 @@ fun SteamStoreScreen(
                 url = destination.url,
                 title = if (destination.url == SteamStoreProductActivation.REGISTER_KEY_URL) {
                     stringResource(R.string.steam_store_activate_product_code)
-                } else {
-                    null
-                },
-                securityNote = if (destination.url == SteamStoreProductActivation.REGISTER_KEY_URL) {
-                    stringResource(R.string.steam_store_activate_product_code_note)
                 } else {
                     null
                 },

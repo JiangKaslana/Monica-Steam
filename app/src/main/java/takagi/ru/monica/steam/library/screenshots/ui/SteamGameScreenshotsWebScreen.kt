@@ -28,7 +28,6 @@ internal fun SteamGameScreenshotsWebScreen(
                 ?.let { token -> "${account.steamId}||$token" },
         expectedSteamId = account.steamId,
         title = stringResource(R.string.steam_library_screenshots_title),
-        securityNote = stringResource(R.string.steam_library_screenshots_security_note),
         requireAuthenticatedSession = true,
         clientMode = SteamWebClientMode.COMMUNITY_DESKTOP,
         onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,

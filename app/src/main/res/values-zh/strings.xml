@@ -4585,6 +4585,12 @@
     <string name="steam_account_picker_empty">请先在 Steam 令牌页添加账号，再进行全局切换。</string>
     <string name="steam_store_no_session">此账号没有可复用的 Steam 登录会话，官方页面可能要求重新登录。</string>
     <string name="steam_store_web_title">Steam 官方商店</string>
+    <string name="steam_web_back">网页后退</string>
+    <string name="steam_web_refresh">刷新网页</string>
+    <string name="steam_web_share">分享网页</string>
+    <string name="steam_web_share_chooser">分享 Steam 链接</string>
+    <string name="steam_web_open_external">使用浏览器打开</string>
+    <string name="steam_web_return_to_monica">回到 Monica Steam</string>
     <string name="steam_store_close">关闭商店</string>
     <string name="steam_store_security_note">结算与支付仅由 Steam 官方网页处理。</string>
     <string name="steam_web_session_unavailable">Steam 网页会话不可用</string>

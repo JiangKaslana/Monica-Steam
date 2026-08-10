@@ -24,9 +24,12 @@ class SteamStoreUiPolishGuardTest {
         assertTrue(store.contains("containerColor = MaterialTheme.colorScheme.background"))
         assertFalse(store.contains("OutlinedTextField("))
 
-        assertTrue(web.contains("shape = RoundedCornerShape(28.dp)"))
-        assertTrue(web.contains("statusBarsPadding()"))
-        assertTrue(web.contains("heightIn(min = 64.dp)"))
+        assertTrue(web.contains("SelectionActionBar("))
+        assertTrue(web.contains("showSelectionControls = false"))
+        assertTrue(web.contains("navigationBarsPadding()"))
+        assertTrue(web.contains("Icons.Default.Refresh"))
+        assertTrue(web.contains("Icons.Default.Share"))
+        assertFalse(web.contains("heightIn(min = 64.dp)"))
     }
 
     private fun projectFile(path: String): File {

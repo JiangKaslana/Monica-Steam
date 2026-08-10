@@ -7,7 +7,7 @@ import org.junit.Test
 
 class SteamLiquidGlassWebViewCompatibilityTest {
     @Test
-    fun officialStoreWebViewDisablesRuntimeBackdropCaptureWithoutHidingDock() {
+    fun officialSteamWebViewUsesFullscreenSurfaceAndHidesDock() {
         val activity = projectFile(
             "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
         ).readText()
@@ -17,10 +17,6 @@ class SteamLiquidGlassWebViewCompatibilityTest {
         val web = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreWebScreen.kt"
         ).readText()
-        val dock = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/navigation/liquidglass/ui/SteamLiquidGlassDock.kt"
-        ).readText()
-
         assertTrue(store.contains("onPlatformViewVisibilityChanged: (Boolean) -> Unit"))
         assertTrue(
             store.contains(
@@ -31,20 +27,18 @@ class SteamLiquidGlassWebViewCompatibilityTest {
         assertTrue(web.contains("platformViewVisibilityCallback(false)"))
         assertTrue(web.contains("withFrameNanos { }"))
         assertTrue(web.contains("else if (!platformViewReady)"))
+        assertTrue(web.contains("SelectionActionBar("))
+        assertTrue(web.contains("showSelectionControls = false"))
+        assertTrue(web.contains("setRendererPriorityPolicy("))
+        assertTrue(web.contains("setBackgroundColor(initialBackground.toArgb())"))
+        assertTrue(web.contains("CookieManager.getInstance().flush()"))
         assertTrue(activity.contains("isPlatformViewActive"))
+        assertTrue(activity.contains("dockVisible = shouldShowSteamDock("))
         assertTrue(activity.contains("platformViewActive = isPlatformViewActive"))
-        assertTrue(activity.contains("enabled = liquidGlassEffectsEnabled"))
-        assertTrue(activity.contains("runtimeEffectsEnabled = liquidGlassEffectsEnabled"))
-        assertTrue(dock.contains("runtimeEffectsEnabled: Boolean"))
-        assertTrue(
-            dock.contains(
-                "runtimeSupported = remember(runtimeEffectsEnabled)"
-            )
-        )
     }
 
     @Test
-    fun renderingPolicyKeepsDockButRejectsRuntimeEffectsForPlatformViews() {
+    fun renderingPolicyRejectsRuntimeEffectsAndHidesDockForPlatformViews() {
         assertTrue(
             shouldEnableSteamLiquidGlassRuntimeEffects(
                 dockStyle = SteamDockStyle.LIQUID_GLASS,
@@ -56,6 +50,22 @@ class SteamLiquidGlassWebViewCompatibilityTest {
             shouldEnableSteamLiquidGlassRuntimeEffects(
                 dockStyle = SteamDockStyle.LIQUID_GLASS,
                 dockVisible = true,
+                platformViewActive = true
+            )
+        )
+        assertTrue(
+            shouldShowSteamDock(
+                hasConfiguration = true,
+                isDockPage = true,
+                chatThreadOpen = false,
+                platformViewActive = false
+            )
+        )
+        assertFalse(
+            shouldShowSteamDock(
+                hasConfiguration = true,
+                isDockPage = true,
+                chatThreadOpen = false,
                 platformViewActive = true
             )
         )

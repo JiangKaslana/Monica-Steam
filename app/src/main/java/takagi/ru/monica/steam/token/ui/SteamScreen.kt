@@ -1638,7 +1638,6 @@ fun SteamScreen(
                         },
                     expectedSteamId = selectedAccount?.steamId,
                     title = stringResource(R.string.steam_gift_inbox_title),
-                    securityNote = stringResource(R.string.steam_gift_inbox_security_note),
                     requireAuthenticatedSession = true,
                     clientMode = SteamWebClientMode.COMMUNITY_DESKTOP,
                     onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,

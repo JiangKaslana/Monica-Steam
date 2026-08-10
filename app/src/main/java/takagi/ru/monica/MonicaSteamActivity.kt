@@ -56,6 +56,7 @@ import takagi.ru.monica.steam.navigation.SteamDockTab
 import takagi.ru.monica.steam.navigation.icon
 import takagi.ru.monica.steam.navigation.label
 import takagi.ru.monica.steam.navigation.shouldEnableSteamLiquidGlassRuntimeEffects
+import takagi.ru.monica.steam.navigation.shouldShowSteamDock
 import takagi.ru.monica.steam.navigation.liquidglass.render.rememberSteamLiquidGlassBackdrop
 import takagi.ru.monica.steam.navigation.liquidglass.render.steamLiquidGlassBackdropSource
 import takagi.ru.monica.steam.navigation.liquidglass.ui.SteamLiquidGlassDock
@@ -270,9 +271,12 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 val liquidGlassBackdrop = rememberSteamLiquidGlassBackdrop()
                 val dockBlurHeightPx = with(LocalDensity.current) { 130.dp.toPx() }
                 val homePage = activeDockOrder.firstOrNull()?.toPage() ?: MonicaSteamPage.STEAM
-                val dockVisible = dockConfiguration != null &&
-                    currentPage.isDockPage(dockStyle) &&
-                    !isSteamChatThreadOpen
+                val dockVisible = shouldShowSteamDock(
+                    hasConfiguration = dockConfiguration != null,
+                    isDockPage = currentPage.isDockPage(dockStyle),
+                    chatThreadOpen = isSteamChatThreadOpen,
+                    platformViewActive = isPlatformViewActive
+                )
                 val liquidGlassEffectsEnabled = shouldEnableSteamLiquidGlassRuntimeEffects(
                     dockStyle = dockStyle,
                     dockVisible = dockVisible,
@@ -420,9 +424,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                             ) {
                                 ProvideSteamContentDensity {
                                     CompositionLocalProvider(
-                                        LocalSteamDockContentClearance provides if (
-                                            currentPage.isDockPage(dockStyle) && !isSteamChatThreadOpen
-                                        ) {
+                                        LocalSteamDockContentClearance provides if (dockVisible) {
                                             SteamDockContentClearance
                                         } else {
                                             0.dp
@@ -433,8 +435,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                                 .fillMaxSize()
                                                 .steamDockProgressiveBlur(
                                                     enabled = dockStyle == SteamDockStyle.M3E &&
-                                                        currentPage.isDockPage(dockStyle) &&
-                                                        !isSteamChatThreadOpen,
+                                                        dockVisible,
                                                     blurRadius = 40f,
                                                     height = dockBlurHeightPx
                                                 )

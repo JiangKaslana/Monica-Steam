@@ -32,7 +32,6 @@ internal fun SteamGameDataWebScreen(
             ?: account.accessToken?.let { token -> "${account.steamId}||$token" },
         expectedSteamId = account.steamId,
         title = stringResource(R.string.steam_library_game_data_title),
-        securityNote = stringResource(R.string.steam_library_game_data_security_note),
         requireAuthenticatedSession = true,
         clientMode = SteamWebClientMode.COMMUNITY_DESKTOP,
         onDownloadRequested = { url ->

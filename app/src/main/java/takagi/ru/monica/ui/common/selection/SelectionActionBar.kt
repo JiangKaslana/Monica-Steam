@@ -30,6 +30,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 
+data class SelectionActionBarAction(
+    val icon: ImageVector,
+    val contentDescription: String,
+    val enabled: Boolean = true,
+    val onClick: () -> Unit
+)
+
 @Composable
 fun SelectionActionBar(
     modifier: Modifier = Modifier,
@@ -40,6 +47,10 @@ fun SelectionActionBar(
     onMoveToCategory: (() -> Unit)? = null,
     onStack: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
+    showSelectionControls: Boolean = true,
+    actions: List<SelectionActionBarAction> = emptyList(),
+    exitIcon: ImageVector = Icons.Default.Close,
+    exitContentDescription: String? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
     contentColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
@@ -56,25 +67,38 @@ fun SelectionActionBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Text(
-                    text = selectedCount.toString(),
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            if (showSelectionControls) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Text(
+                        text = selectedCount.toString(),
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                ActionIcon(
+                    icon = Icons.Outlined.CheckCircle,
+                    contentDescription = stringResource(id = R.string.select_all),
+                    onClick = onSelectAll
                 )
             }
 
-            Spacer(modifier = Modifier.width(4.dp))
-
-            ActionIcon(
-                icon = Icons.Outlined.CheckCircle,
-                contentDescription = stringResource(id = R.string.select_all),
-                onClick = onSelectAll
-            )
+            actions.forEach { action ->
+                ActionIcon(
+                    icon = action.icon,
+                    contentDescription = action.contentDescription,
+                    enabled = action.enabled,
+                    onClick = action.onClick
+                )
+            }
 
             onFavorite?.let {
                 ActionIcon(
@@ -111,8 +135,9 @@ fun SelectionActionBar(
             Spacer(modifier = Modifier.width(4.dp))
 
             ActionIcon(
-                icon = Icons.Default.Close,
-                contentDescription = stringResource(id = R.string.close),
+                icon = exitIcon,
+                contentDescription = exitContentDescription
+                    ?: stringResource(id = R.string.close),
                 onClick = onExit
             )
         }
@@ -120,15 +145,25 @@ fun SelectionActionBar(
 }
 
 @Composable
-private fun ActionIcon(icon: ImageVector, contentDescription: String, onClick: () -> Unit) {
+private fun ActionIcon(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
     IconButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.size(40.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+            }
         )
     }
 }

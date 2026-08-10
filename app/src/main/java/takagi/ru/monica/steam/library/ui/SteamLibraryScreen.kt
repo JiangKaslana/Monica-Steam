@@ -2,6 +2,8 @@ package takagi.ru.monica.steam.library.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -131,6 +133,9 @@ private sealed interface SteamLibraryDestination {
     data class Screenshots(val appId: Int) : SteamLibraryDestination
 }
 
+private fun SteamLibraryDestination.isSteamWebDestination(): Boolean =
+    this is SteamLibraryDestination.GameData || this is SteamLibraryDestination.Screenshots
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SteamLibraryScreen(
@@ -188,8 +193,12 @@ fun SteamLibraryScreen(
         targetState = libraryDestination,
         modifier = modifier,
         transitionSpec = {
-            easyNotesScreenEnter(reduceAnimations)
-                .togetherWith(easyNotesScreenExit(reduceAnimations))
+            if (initialState.isSteamWebDestination() || targetState.isSteamWebDestination()) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                easyNotesScreenEnter(reduceAnimations)
+                    .togetherWith(easyNotesScreenExit(reduceAnimations))
+            }
         },
         label = "SteamLibraryNavigation"
     ) { destination ->
