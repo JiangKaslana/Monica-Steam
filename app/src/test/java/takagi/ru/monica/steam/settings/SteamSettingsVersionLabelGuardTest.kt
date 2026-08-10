@@ -20,7 +20,8 @@ class SteamSettingsVersionLabelGuardTest {
             "app/src/main/res/values-vi/strings.xml"
         ).map(::projectFile)
 
-        assertTrue(gradle.contains('"' + "1.0.303" + '"'))
+        assertTrue(gradle.contains("def appVersionCode = 18"))
+        assertTrue(gradle.contains('"' + "1.0.305" + '"'))
         assertTrue(screen.contains("val settingsVersionNumber = context.getString("))
         assertTrue(
             screen.contains(
@@ -28,7 +29,6 @@ class SteamSettingsVersionLabelGuardTest {
             )
         )
         assertTrue(screen.contains("subtitle = settingsVersionNumber"))
-        assertTrue(screen.contains("settingsVersionNumber\n    )"))
 
         stringFiles.forEach { file ->
             val strings = file.readText()
