@@ -306,6 +306,7 @@ private enum class SteamSection(
 private sealed interface SteamTopBarMode {
     data object Root : SteamTopBarMode
     data object FriendDetail : SteamTopBarMode
+    data object AddFriend : SteamTopBarMode
     data class AccountDetail(val accountId: Long) : SteamTopBarMode
 }
 
@@ -445,6 +446,7 @@ fun SteamScreen(
     val detailAccount = uiState.accounts.firstOrNull { it.id == detailAccountId }
     var isChatThreadOpen by rememberSaveable { mutableStateOf(false) }
     var selectedFriendId by rememberSaveable { mutableStateOf<String?>(null) }
+    var addFriendOpen by rememberSaveable { mutableStateOf(false) }
     var steamSearchQuery by rememberSaveable { mutableStateOf("") }
     var isSteamSearchExpanded by rememberSaveable { mutableStateOf(false) }
     var showTopActionsMenu by remember { mutableStateOf(false) }
@@ -456,6 +458,7 @@ fun SteamScreen(
             steamSearchQuery = ""
             isSteamSearchExpanded = false
             selectedFriendId = null
+            addFriendOpen = false
             viewModel.refreshSteamNotifications()
             onNotificationsEntryConsumed()
         }
@@ -660,8 +663,9 @@ fun SteamScreen(
     }
 
     LaunchedEffect(selectedAccount?.id) {
+        selectedFriendId = null
+        addFriendOpen = false
         if (selectedAccount == null) {
-            selectedFriendId = null
             selectedSection = SteamSection.CODE
         }
     }
@@ -1719,6 +1723,9 @@ fun SteamScreen(
                 AnimatedContent(
                 targetState = when {
                     detailAccount != null -> SteamTopBarMode.AccountDetail(detailAccount.id)
+                    selectedSection == SteamSection.FRIENDS && addFriendOpen -> {
+                        SteamTopBarMode.AddFriend
+                    }
                     selectedSection == SteamSection.FRIENDS && selectedFriendId != null -> {
                         SteamTopBarMode.FriendDetail
                     }
@@ -1752,6 +1759,10 @@ fun SteamScreen(
                     SteamTopBarMode.FriendDetail -> SteamDetailTopBar(
                         title = stringResource(R.string.steam_friend_details_title),
                         onNavigateBack = { selectedFriendId = null }
+                    )
+                    SteamTopBarMode.AddFriend -> SteamDetailTopBar(
+                        title = stringResource(R.string.steam_friend_add_title),
+                        onNavigateBack = { addFriendOpen = false }
                     )
                     SteamTopBarMode.Root -> SteamRootTopBar(
                         title = stringResource(R.string.nav_steam),
@@ -1798,6 +1809,7 @@ fun SteamScreen(
                                     showTopActionsMenu = false
                                     clearSteamSearch()
                                     selectedFriendId = null
+                                    addFriendOpen = false
                                     selectedTokenAccountIds = emptyList()
                                     viewModel.clearSelectedConfirmations()
                                     if (section == SteamSection.CHAT) {
@@ -2052,6 +2064,15 @@ fun SteamScreen(
                                         focusManager.clearFocus()
                                     }
                                     selectedFriendId = friendId
+                                },
+                                addFriendOpen = addFriendOpen,
+                                onAddFriendOpenChange = { open ->
+                                    if (open) {
+                                        clearSteamSearch()
+                                        focusManager.clearFocus()
+                                        selectedFriendId = null
+                                    }
+                                    addFriendOpen = open
                                 },
                                 onStartChat = { partnerSteamId ->
                                     clearSteamSearch()

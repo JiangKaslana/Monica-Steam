@@ -19,4 +19,9 @@ interface SteamFriendsGateway {
         friendSteamId: String,
         action: SteamFriendRelationshipAction
     ): SteamFriendActionResult
+
+    fun findCandidates(
+        account: SteamAccount,
+        query: String
+    ): List<SteamFriend> = emptyList()
 }

@@ -152,6 +152,90 @@ class SteamFriendsServiceTest {
     }
 
     @Test
+    fun friendCodeLookupLoadsTheCalculatedSteamProfile() {
+        val requests = mutableListOf<Request>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                requests += request
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(
+                        """{
+                          "response":{"players":[{
+                            "steamid":"76561198003413002",
+                            "personaname":"Decks",
+                            "avatarfull":"https://avatars.fastly.steamstatic.com/decks.jpg"
+                          }]}
+                        }""".toResponseBody("application/json".toMediaType())
+                    )
+                    .build()
+            }
+            .build()
+
+        val candidates = SteamFriendsService(
+            api = SteamApiClient(client),
+            inviteLinkResolver = SteamFriendInviteLinkResolver { error("Unexpected invite link") }
+        ).findCandidates(account(), "43147274")
+
+        assertEquals(1, candidates.size)
+        assertEquals("76561198003413002", candidates.single().steamId)
+        assertEquals("Decks", candidates.single().personaName)
+        assertEquals(1, requests.size)
+        assertEquals(
+            "76561198003413002",
+            requests.single().url.queryParameter("steamids")
+        )
+    }
+
+    @Test
+    fun nameLookupUsesTheAuthenticatedCommunitySearch() {
+        val requests = mutableListOf<Request>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                requests += request
+                val payload = if (request.url.host == "steamcommunity.com") {
+                    """{
+                      "success":1,
+                      "html":"<div class='search_row'><div data-miniprofile='43147274'><div class='avatarMedium'><img src='https://avatars.fastly.steamstatic.com/fallback.jpg'></div></div><a class='searchPersonaName' href='https://steamcommunity.com/profiles/76561198003413002'>Decks</a></div>"
+                    }"""
+                } else {
+                    """{
+                      "response":{"players":[{
+                        "steamid":"76561198003413002",
+                        "personaname":"Decks",
+                        "avatarfull":"https://avatars.fastly.steamstatic.com/decks.jpg"
+                      }]}
+                    }"""
+                }
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(payload.toResponseBody("application/json".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val candidates = SteamFriendsService(
+            api = SteamApiClient(client),
+            inviteLinkResolver = SteamFriendInviteLinkResolver { error("Unexpected invite link") }
+        ).findCandidates(account(), "Decks")
+
+        assertEquals("Decks", candidates.single().displayName)
+        val communityRequest = requests.first { it.url.host == "steamcommunity.com" }
+        assertEquals("/search/SearchCommunityAjax", communityRequest.url.encodedPath)
+        assertEquals("Decks", communityRequest.url.queryParameter("text"))
+        assertEquals(account().steamId, communityRequest.url.queryParameter("steamid_user"))
+        assertTrue(communityRequest.header("Cookie").orEmpty().contains("steamLoginSecure="))
+    }
+
+    @Test
     fun removeBlockAndUnblockWaitForTheFriendsListStateEcho() {
         SteamFriendRelationshipAction.entries
             .filter { it != SteamFriendRelationshipAction.ADD }

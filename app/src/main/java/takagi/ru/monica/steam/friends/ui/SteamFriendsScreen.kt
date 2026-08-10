@@ -5,6 +5,12 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -19,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
@@ -36,6 +43,7 @@ import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 
 private sealed interface SteamFriendsDestination {
     data object List : SteamFriendsDestination
+    data object AddFriend : SteamFriendsDestination
     data class Detail(val steamId: String) : SteamFriendsDestination
     data class Profile(val steamId: String) : SteamFriendsDestination
 }
@@ -46,6 +54,8 @@ fun SteamFriendsScreen(
     refreshRequest: Long,
     selectedFriendId: String?,
     onSelectedFriendIdChange: (String?) -> Unit,
+    addFriendOpen: Boolean,
+    onAddFriendOpenChange: (Boolean) -> Unit,
     onStartChat: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -88,14 +98,22 @@ fun SteamFriendsScreen(
         if (refreshRequest > 0L) friendsViewModel.refresh()
     }
 
+    LaunchedEffect(addFriendOpen) {
+        if (!addFriendOpen) friendsViewModel.clearFriendDiscovery()
+    }
+
     val feedback = state.actionFeedback
     val acceptSuccessText = stringResource(R.string.steam_friend_accept_success)
     val ignoreSuccessText = stringResource(R.string.steam_friend_ignore_success)
     val actionFailedText = stringResource(R.string.steam_friend_action_failed)
     val relationshipSuccessText = stringResource(R.string.steam_friend_relationship_action_success)
+    val addFriendSuccessText = stringResource(R.string.steam_friend_add_success)
     LaunchedEffect(feedback) {
         if (feedback != null) {
             val text = when {
+                feedback.success &&
+                    feedback.relationshipAction == SteamFriendRelationshipAction.ADD ->
+                    addFriendSuccessText
                 feedback.success && feedback.relationshipAction != null -> relationshipSuccessText
                 feedback.success && feedback.accepted -> acceptSuccessText
                 feedback.success -> ignoreSuccessText
@@ -111,12 +129,19 @@ fun SteamFriendsScreen(
         profileSteamId = null
     }
 
-    BackHandler(enabled = profileSteamId == null && selectedFriendId != null) {
+    BackHandler(enabled = profileSteamId == null && addFriendOpen) {
+        onAddFriendOpenChange(false)
+    }
+
+    BackHandler(
+        enabled = profileSteamId == null && !addFriendOpen && selectedFriendId != null
+    ) {
         onSelectedFriendIdChange(null)
     }
 
     val destination: SteamFriendsDestination = when {
         profileSteamId != null -> SteamFriendsDestination.Profile(requireNotNull(profileSteamId))
+        addFriendOpen -> SteamFriendsDestination.AddFriend
         selectedFriendId != null -> SteamFriendsDestination.Detail(selectedFriendId)
         else -> SteamFriendsDestination.List
     }
@@ -151,6 +176,24 @@ fun SteamFriendsScreen(
                         )
                     }
                 }
+                SteamFriendsDestination.AddFriend -> {
+                    SteamAddFriendScreen(
+                        state = state,
+                        onSearch = friendsViewModel::findFriendCandidates,
+                        onOpenFriend = { friend ->
+                            onAddFriendOpenChange(false)
+                            onSelectedFriendIdChange(friend.steamId)
+                        },
+                        onAddFriend = { friend ->
+                            friendsViewModel.changeRelationship(
+                                friend,
+                                SteamFriendRelationshipAction.ADD
+                            )
+                        },
+                        onRespondToInvite = friendsViewModel::respondToInvite,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 is SteamFriendsDestination.Detail -> {
                     val animatedFriend = friendsById[animatedDestination.steamId]
                     if (animatedFriend != null) {
@@ -181,6 +224,24 @@ fun SteamFriendsScreen(
                         )
                     }
                 }
+            }
+        }
+        if (destination == SteamFriendsDestination.List && selectedAccount != null) {
+            FloatingActionButton(
+                onClick = {
+                    onSelectedFriendIdChange(null)
+                    onAddFriendOpenChange(true)
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .steamDockActionClearance(extraBottomSpacing = 12.dp)
+                    .padding(end = 18.dp)
+            ) {
+                Icon(
+                    Icons.Default.PersonAdd,
+                    contentDescription = stringResource(R.string.steam_friend_add_title)
+                )
             }
         }
         SnackbarHost(

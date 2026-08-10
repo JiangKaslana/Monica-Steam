@@ -180,6 +180,52 @@ class SteamFriendsViewModelTest {
         )
     }
 
+    @Test
+    fun discoveryMergesExistingRelationshipBeforeRenderingTheCandidate() = runTest(scheduler) {
+        val existing = SteamFriend(
+            steamId = "76561198000000002",
+            relationship = SteamFriendRelationship.REQUEST_OUTGOING,
+            personaName = "Known account"
+        )
+        val gateway = object : SteamFriendsGateway {
+            override fun fetch(account: SteamAccount, fetchedAt: Long) =
+                SteamFriendsSnapshot(listOf(existing), fetchedAt)
+
+            override fun respondToInvite(
+                account: SteamAccount,
+                friendSteamId: String,
+                accept: Boolean
+            ) = SteamFriendActionResult(success = true)
+
+            override fun changeRelationship(
+                account: SteamAccount,
+                friendSteamId: String,
+                action: SteamFriendRelationshipAction
+            ) = SteamFriendActionResult(success = true)
+
+            override fun findCandidates(account: SteamAccount, query: String) = listOf(
+                SteamFriend(
+                    steamId = existing.steamId,
+                    personaName = "Search result"
+                )
+            )
+        }
+        val viewModel = SteamFriendsViewModel(
+            gateway = gateway,
+            cache = MemoryFriendsCache(),
+            ioDispatcher = dispatcher
+        )
+
+        viewModel.selectAccount(account())
+        advanceUntilIdle()
+        viewModel.findFriendCandidates("Known account")
+        advanceUntilIdle()
+
+        val candidate = viewModel.uiState.value.discovery.results.single()
+        assertEquals(SteamFriendRelationship.REQUEST_OUTGOING, candidate.relationship)
+        assertEquals("Known account", candidate.personaName)
+    }
+
     private fun account(steamId: String = "76561198000000001") = SteamAccount(
         id = 1L,
         steamId = steamId,

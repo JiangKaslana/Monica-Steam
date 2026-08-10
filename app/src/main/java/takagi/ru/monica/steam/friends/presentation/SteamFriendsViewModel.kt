@@ -22,6 +22,7 @@ import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.domain.SteamFriendsGateway
+import takagi.ru.monica.steam.friends.domain.SteamFriendsSnapshot
 import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 import takagi.ru.monica.steam.session.domain.resolveOrKeep
@@ -38,6 +39,7 @@ class SteamFriendsViewModel(
     private var activeAccount: SteamAccount? = null
     private var requestGeneration = 0L
     private var actionGeneration = 0L
+    private var searchGeneration = 0L
 
     fun selectAccount(account: SteamAccount?) {
         if (account?.id == activeAccount?.id && account?.steamId == activeAccount?.steamId) {
@@ -47,6 +49,7 @@ class SteamFriendsViewModel(
         activeAccount = account
         val generation = ++requestGeneration
         actionGeneration++
+        searchGeneration++
         if (account == null) {
             _uiState.value = SteamFriendsUiState(
                 failure = SteamFriendsFailureReason.ACCOUNT_REQUIRED
@@ -84,6 +87,69 @@ class SteamFriendsViewModel(
             failure = null
         )
         fetch(account, generation, silent = false)
+    }
+
+    fun findFriendCandidates(query: String) {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) {
+            clearFriendDiscovery()
+            return
+        }
+        val account = activeAccount ?: run {
+            _uiState.value = _uiState.value.copy(
+                discovery = SteamFriendDiscoveryUiState(
+                    submittedQuery = normalizedQuery,
+                    searched = true,
+                    failure = SteamFriendsFailureReason.ACCOUNT_REQUIRED
+                )
+            )
+            return
+        }
+        val generation = ++searchGeneration
+        _uiState.value = _uiState.value.copy(
+            discovery = SteamFriendDiscoveryUiState(
+                submittedQuery = normalizedQuery,
+                searching = true
+            )
+        )
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(ioDispatcher) {
+                    withSessionRetry(account) { prepared ->
+                        gateway.findCandidates(prepared, normalizedQuery)
+                    }
+                }
+            }
+            if (!isSearchCurrent(account, generation)) return@launch
+            val error = result.exceptionOrNull()
+            if (error != null) {
+                SteamDiagLogger.append(
+                    "friends discovery failed type=${error.javaClass.simpleName}"
+                )
+                _uiState.value = _uiState.value.copy(
+                    discovery = SteamFriendDiscoveryUiState(
+                        submittedQuery = normalizedQuery,
+                        searched = true,
+                        failure = error.toFailureReason()
+                    )
+                )
+                return@launch
+            }
+            _uiState.value = _uiState.value.copy(
+                discovery = SteamFriendDiscoveryUiState(
+                    submittedQuery = normalizedQuery,
+                    results = mergeKnownRelationships(result.getOrThrow()),
+                    searched = true
+                )
+            )
+        }
+    }
+
+    fun clearFriendDiscovery() {
+        searchGeneration++
+        _uiState.value = _uiState.value.copy(
+            discovery = SteamFriendDiscoveryUiState()
+        )
     }
 
     fun respondToInvite(friend: SteamFriend, accept: Boolean) {
@@ -142,6 +208,16 @@ class SteamFriendsViewModel(
                     snapshot = updated,
                     fromCache = false,
                     actionSteamId = null,
+                    discovery = _uiState.value.discovery.copy(
+                        results = _uiState.value.discovery.results.map { candidate ->
+                            if (candidate.steamId != friend.steamId) candidate
+                            else if (accept) {
+                                candidate.copy(relationship = SteamFriendRelationship.FRIEND)
+                            } else {
+                                candidate.copy(relationship = SteamFriendRelationship.UNKNOWN)
+                            }
+                        }
+                    ),
                     actionFeedback = SteamFriendActionFeedback(
                         steamId = friend.steamId,
                         accepted = accept,
@@ -188,6 +264,26 @@ class SteamFriendsViewModel(
             val success = actionResult?.success == true
             _uiState.value = _uiState.value.copy(
                 actionSteamId = null,
+                discovery = if (success) {
+                    _uiState.value.discovery.copy(
+                        results = _uiState.value.discovery.results.map { candidate ->
+                            if (candidate.steamId != friend.steamId) candidate
+                            else candidate.copy(
+                                relationship = when (action) {
+                                    SteamFriendRelationshipAction.ADD ->
+                                        SteamFriendRelationship.REQUEST_OUTGOING
+                                    SteamFriendRelationshipAction.BLOCK ->
+                                        SteamFriendRelationship.BLOCKED
+                                    SteamFriendRelationshipAction.REMOVE,
+                                    SteamFriendRelationshipAction.UNBLOCK ->
+                                        SteamFriendRelationship.UNKNOWN
+                                }
+                            )
+                        }
+                    )
+                } else {
+                    _uiState.value.discovery
+                },
                 actionFeedback = SteamFriendActionFeedback(
                     steamId = friend.steamId,
                     accepted = false,
@@ -229,9 +325,23 @@ class SteamFriendsViewModel(
                 loading = false,
                 refreshing = false,
                 fromCache = false,
-                failure = null
+                failure = null,
+                discovery = _uiState.value.discovery.copy(
+                    results = mergeKnownRelationships(
+                        candidates = _uiState.value.discovery.results,
+                        snapshot = snapshot
+                    )
+                )
             )
         }
+    }
+
+    private fun mergeKnownRelationships(
+        candidates: List<SteamFriend>,
+        snapshot: SteamFriendsSnapshot? = _uiState.value.snapshot
+    ): List<SteamFriend> {
+        val knownById = snapshot?.friends.orEmpty().associateBy(SteamFriend::steamId)
+        return candidates.map { candidate -> knownById[candidate.steamId] ?: candidate }
     }
 
     private suspend fun prepareSession(
@@ -267,6 +377,10 @@ class SteamFriendsViewModel(
     private fun isActionCurrent(account: SteamAccount, generation: Long): Boolean =
         activeAccount?.id == account.id && activeAccount?.steamId == account.steamId &&
             actionGeneration == generation
+
+    private fun isSearchCurrent(account: SteamAccount, generation: Long): Boolean =
+        activeAccount?.id == account.id && activeAccount?.steamId == account.steamId &&
+            searchGeneration == generation
 
     private fun Throwable.toFailureReason(): SteamFriendsFailureReason = when (this) {
         is IOException -> SteamFriendsFailureReason.NETWORK

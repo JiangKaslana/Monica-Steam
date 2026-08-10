@@ -7,10 +7,12 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
+import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.domain.SteamFriendActionResult
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.domain.SteamFriendsGateway
 import takagi.ru.monica.steam.friends.domain.SteamFriendsSnapshot
+import takagi.ru.monica.steam.friends.domain.SteamPersonaState
 import takagi.ru.monica.steam.friends.nickname.data.SteamFriendNicknameService
 import takagi.ru.monica.steam.friends.nickname.domain.SteamFriendNicknameGateway
 import takagi.ru.monica.steam.market.SteamInventoryService
@@ -27,7 +29,9 @@ class SteamFriendsService(
     private val nicknameGateway: SteamFriendNicknameGateway = SteamFriendNicknameService(
         cm = cm,
         api = api
-    )
+    ),
+    private val inviteLinkResolver: SteamFriendInviteLinkResolver =
+        SteamFriendInviteLinkRedirectResolver()
 ) : SteamFriendsGateway {
     override fun fetch(account: SteamAccount, fetchedAt: Long): SteamFriendsSnapshot {
         require(account.hasRealSteamId) { "real Steam ID required" }
@@ -150,6 +154,136 @@ class SteamFriendsService(
         )
     }
 
+    override fun findCandidates(
+        account: SteamAccount,
+        query: String
+    ): List<SteamFriend> {
+        require(account.hasRealSteamId) { "real Steam ID required" }
+        val accessToken = account.accessToken?.takeIf(String::isNotBlank)
+            ?: throw IllegalStateException("Steam access token required")
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) return emptyList()
+        val sessionId = SteamInventoryService.newSessionId()
+        val cookies = SteamInventoryService.marketCookies(account, sessionId)
+        val hits = when (val lookup = SteamFriendDiscoveryParser.classify(normalizedQuery)) {
+            is SteamFriendLookup.SteamId -> listOf(
+                SteamFriendSearchHit(
+                    steamId = lookup.value,
+                    personaName = "",
+                    avatarUrl = "",
+                    profileUrl = "https://steamcommunity.com/profiles/${lookup.value}/"
+                )
+            )
+            is SteamFriendLookup.VanityName -> {
+                val html = api.communityGetText(
+                    path = "/id/${lookup.value}/",
+                    query = mapOf("xml" to "1"),
+                    cookies = cookies
+                )
+                SteamFriendDiscoveryParser.parseProfileSteamId(html)?.let { steamId ->
+                    listOf(
+                        SteamFriendSearchHit(
+                            steamId = steamId,
+                            personaName = "",
+                            avatarUrl = "",
+                            profileUrl = "https://steamcommunity.com/id/${lookup.value}/"
+                        )
+                    )
+                }.orEmpty()
+            }
+            is SteamFriendLookup.QuickInvite -> {
+                val target = inviteLinkResolver.resolve(lookup.url)
+                val html = api.communityGetText(
+                    path = target.encodedPath,
+                    query = target.queryParameterNames.associateWith { name ->
+                        target.queryParameter(name).orEmpty()
+                    },
+                    cookies = cookies,
+                    referer = lookup.url.takeIf { it.startsWith("https://steamcommunity.com/") }
+                )
+                SteamFriendDiscoveryParser.parseProfileSteamId(
+                    payload = html,
+                    baseUrl = target.toString(),
+                    excludedSteamId = account.steamId
+                )?.let { steamId ->
+                    listOf(
+                        SteamFriendSearchHit(
+                            steamId = steamId,
+                            personaName = "",
+                            avatarUrl = "",
+                            profileUrl = "https://steamcommunity.com/profiles/$steamId/"
+                        )
+                    )
+                }.orEmpty()
+            }
+            is SteamFriendLookup.PersonaName -> searchCommunity(
+                account = account,
+                query = lookup.value,
+                sessionId = sessionId,
+                cookies = cookies
+            )
+        }.filterNot { it.steamId == account.steamId }
+            .distinctBy(SteamFriendSearchHit::steamId)
+            .take(MAX_SEARCH_RESULTS)
+        if (hits.isEmpty()) return emptyList()
+
+        val profiles = fetchProfiles(
+            accessToken = accessToken,
+            steamIds = hits.map(SteamFriendSearchHit::steamId)
+        ).associateBy(SteamFriendProfile::steamId)
+        return hits.map { hit ->
+            val profile = profiles[hit.steamId]
+            SteamFriend(
+                steamId = hit.steamId,
+                personaName = profile?.personaName.orEmpty().ifBlank { hit.personaName },
+                realName = profile?.realName.orEmpty(),
+                avatarUrl = profile?.avatarUrl.orEmpty().ifBlank { hit.avatarUrl },
+                profileUrl = profile?.profileUrl.orEmpty().ifBlank { hit.profileUrl },
+                personaState = profile?.personaState
+                    ?: SteamPersonaState.OFFLINE,
+                lastLogoff = profile?.lastLogoff ?: 0L,
+                gameId = profile?.gameId.orEmpty(),
+                gameName = profile?.gameName.orEmpty(),
+                primaryClanId = profile?.primaryClanId.orEmpty(),
+                countryCode = profile?.countryCode.orEmpty()
+            )
+        }
+    }
+
+    private fun searchCommunity(
+        account: SteamAccount,
+        query: String,
+        sessionId: String,
+        cookies: Map<String, String>
+    ): List<SteamFriendSearchHit> {
+        if (query.isBlank()) return emptyList()
+        val payload = api.communityGetJson(
+            path = "/search/SearchCommunityAjax",
+            query = linkedMapOf(
+                "text" to query.take(MAX_SEARCH_QUERY_LENGTH),
+                "filter" to "users",
+                "sessionid" to sessionId,
+                "steamid_user" to account.steamId,
+                "page" to "1"
+            ),
+            cookies = cookies,
+            referer = "https://steamcommunity.com/search/users/"
+        )
+        return SteamFriendDiscoveryParser.parseSearchHtml(payload.text("html"))
+    }
+
+    private fun fetchProfiles(
+        accessToken: String,
+        steamIds: List<String>
+    ): List<SteamFriendProfile> = steamIds.chunked(MAX_PROFILE_BATCH).flatMap { batch ->
+        val payload = api.steamApiGetJson(
+            path = "/ISteamUserOAuth/GetUserSummaries/v1/",
+            query = mapOf("steamids" to batch.joinToString(",")),
+            accessToken = accessToken
+        )
+        SteamFriendsParser.parseProfiles(payload)
+    }
+
     private fun String.toSteamId64(): Long {
         require(matches(Regex("7656119\\d{10}"))) { "valid friend Steam ID required" }
         return toLong()
@@ -173,5 +307,7 @@ class SteamFriendsService(
 
     private companion object {
         const val MAX_PROFILE_BATCH = 100
+        const val MAX_SEARCH_RESULTS = 20
+        const val MAX_SEARCH_QUERY_LENGTH = 100
     }
 }

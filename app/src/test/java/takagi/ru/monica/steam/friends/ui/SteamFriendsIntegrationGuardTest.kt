@@ -88,6 +88,30 @@ class SteamFriendsIntegrationGuardTest {
     }
 
     @Test
+    fun addFriendUsesTheFriendsFabAndTheHoistedSteamTopBar() {
+        val tokenScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/token/ui/SteamScreen.kt"
+        ).readText()
+        val friendsScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/ui/SteamFriendsScreen.kt"
+        ).readText()
+        val addFriendScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/ui/SteamAddFriendScreen.kt"
+        ).readText()
+
+        assertTrue(tokenScreen.contains("SteamTopBarMode.AddFriend"))
+        assertTrue(tokenScreen.contains("R.string.steam_friend_add_title"))
+        assertTrue(friendsScreen.contains("addFriendOpen: Boolean"))
+        assertTrue(friendsScreen.contains("FloatingActionButton("))
+        assertTrue(friendsScreen.contains("SteamAddFriendScreen("))
+        assertTrue(addFriendScreen.contains("steam_friend_add_search_support"))
+        assertTrue(addFriendScreen.contains("incomingRequests"))
+        assertTrue(addFriendScreen.contains("SteamFriendSearchResultCard("))
+        assertFalse(addFriendScreen.contains("Scaffold("))
+        assertFalse(addFriendScreen.contains("TopAppBar("))
+    }
+
+    @Test
     fun friendsUseOAuthCacheAndAuthenticatedCommunityActions() {
         val service = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/data/SteamFriendsService.kt"
