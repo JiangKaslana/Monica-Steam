@@ -45,6 +45,7 @@ internal fun SteamNetworkAutomaticScanCard(
     state: SteamAutoOptimizationUiState,
     summary: SteamAutoHostsSummary?,
     enabled: Boolean,
+    canScan: Boolean,
     onScan: () -> Unit,
     onApply: () -> Unit,
     onDisable: () -> Unit
@@ -117,9 +118,17 @@ internal fun SteamNetworkAutomaticScanCard(
                 }
             }
 
+            if (!canScan && !state.isReadyToApply) {
+                Text(
+                    text = stringResource(R.string.steam_network_resolver_required),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
             Button(
                 onClick = if (state.isReadyToApply) onApply else onScan,
-                enabled = !state.isBusy,
+                enabled = !state.isBusy && (state.isReadyToApply || canScan),
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 54.dp)

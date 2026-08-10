@@ -4,9 +4,12 @@ data class SteamDnsProvider(
     val id: String,
     val displayName: String,
     val dohUrl: String? = null,
+    val udpServer: String? = null,
     val bootstrapAddresses: List<String> = emptyList()
 ) {
-    val isSystem: Boolean get() = dohUrl == null
+    val isSystem: Boolean get() = dohUrl == null && udpServer == null
+    val isDoh: Boolean get() = dohUrl != null
+    val isUdp: Boolean get() = udpServer != null
 
     companion object {
         val SYSTEM = SteamDnsProvider(
@@ -54,7 +57,33 @@ data class SteamDnsProvider(
         )
 
         fun displayNameFor(id: String): String =
-            DEFAULTS.firstOrNull { it.id == id }?.displayName ?: id
+            DEFAULTS.firstOrNull { it.id == id }?.displayName ?: when {
+                id.startsWith(CUSTOM_DNS_PREFIX) ->
+                    "DNS ${id.substringAfter(CUSTOM_DNS_PREFIX)}"
+                id.startsWith(CUSTOM_DOH_PREFIX) ->
+                    "DoH ${id.substringAfter(CUSTOM_DOH_PREFIX).substringBefore('|')}"
+                else -> id
+            }
+
+        fun customDns(server: String): SteamDnsProvider = SteamDnsProvider(
+            id = "$CUSTOM_DNS_PREFIX$server",
+            displayName = "DNS $server",
+            udpServer = server
+        )
+
+        fun customDoh(endpoint: String): SteamDnsProvider {
+            val host = runCatching { java.net.URI(endpoint).host }.getOrNull()
+                ?.takeIf(String::isNotBlank)
+                ?: "Custom"
+            return SteamDnsProvider(
+                id = "$CUSTOM_DOH_PREFIX$host|${Integer.toHexString(endpoint.hashCode())}",
+                displayName = "DoH $host",
+                dohUrl = endpoint
+            )
+        }
+
+        private const val CUSTOM_DNS_PREFIX = "custom_dns|"
+        private const val CUSTOM_DOH_PREFIX = "custom_doh|"
     }
 }
 

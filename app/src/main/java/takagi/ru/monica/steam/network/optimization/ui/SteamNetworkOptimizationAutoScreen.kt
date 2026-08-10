@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.network.optimization.SteamNetworkOptimizationRuntime
+import takagi.ru.monica.steam.network.optimization.SteamNetworkResolverSettingsRuntime
 import takagi.ru.monica.steam.network.optimization.domain.SteamAutoHostsFormatter
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkAdvancedSettingsCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkAutomaticScanCard
@@ -37,6 +38,7 @@ import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkSco
 @Composable
 fun SteamNetworkOptimizationAutoScreen(
     onNavigateBack: () -> Unit,
+    onOpenResolvers: () -> Unit,
     onOpenAdvanced: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -47,6 +49,7 @@ fun SteamNetworkOptimizationAutoScreen(
     }
     val dockClearance = LocalSteamDockContentClearance.current
     val settings by SteamNetworkOptimizationRuntime.settings.collectAsState()
+    val resolverSettings by SteamNetworkResolverSettingsRuntime.settings.collectAsState()
     val scanState by optimizationViewModel.scanState.collectAsState()
     val summary = remember(settings.hostsText) {
         SteamAutoHostsFormatter.summary(settings.hostsText)
@@ -57,7 +60,9 @@ fun SteamNetworkOptimizationAutoScreen(
 
     LaunchedEffect(context) {
         SteamNetworkOptimizationRuntime.initialize(context)
+        SteamNetworkResolverSettingsRuntime.initialize(context)
     }
+    val activeProviders = resolverSettings.activeProviders
 
     val selectedProviderIds = when (val state = scanState) {
         is SteamAutoOptimizationUiState.Success -> state.result.providerIds
@@ -107,8 +112,9 @@ fun SteamNetworkOptimizationAutoScreen(
                     state = scanState,
                     summary = summary,
                     enabled = settings.enabled,
+                    canScan = activeProviders.isNotEmpty(),
                     onScan = {
-                        optimizationViewModel.startScan(existingRoutes)
+                        optimizationViewModel.startScan(existingRoutes, activeProviders)
                     },
                     onApply = {
                         optimizationViewModel.applyScannedOptimization { result ->
@@ -126,7 +132,9 @@ fun SteamNetworkOptimizationAutoScreen(
             }
             item(key = "resolver_sources") {
                 SteamNetworkResolverSourcesSection(
-                    selectedProviderIds = selectedProviderIds
+                    activeProviders = activeProviders,
+                    selectedProviderIds = selectedProviderIds,
+                    onClick = onOpenResolvers
                 )
             }
             item(key = "current_selection") {

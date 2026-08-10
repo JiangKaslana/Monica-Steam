@@ -94,6 +94,15 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         val automaticCard = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamNetworkAutomaticScanCard.kt"
         ).readText()
+        val resolverScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/SteamNetworkResolverSettingsScreen.kt"
+        ).readText()
+        val resolverRuntime = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/SteamNetworkResolverSettingsRuntime.kt"
+        ).readText()
+        val dnsCodec = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/domain/SteamDnsWireCodec.kt"
+        ).readText()
 
         assertTrue(settingsHost.contains("homeHeaderContent ="))
         assertTrue(settingsHost.contains("SteamNetworkOptimizationPullCard("))
@@ -109,8 +118,16 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         assertFalse(automaticCard.contains("steam_network_auto_scan_apply"))
         assertTrue(models.contains("val DEFAULTS: List<SteamDnsProvider>"))
         assertTrue(resolver.contains("DnsOverHttps.Builder()"))
+        assertTrue(resolver.contains("DatagramSocket()"))
+        assertTrue(resolver.contains(".followRedirects(false)"))
+        assertTrue(resolver.contains(".followSslRedirects(false)"))
         assertTrue(scanner.contains("SteamHostProbeTarget(hostname, address)"))
         assertTrue(scanner.contains("evaluation.candidate.hostname == hostname && evaluation.isStable"))
+        assertTrue(automaticScreen.contains("resolverSettings.activeProviders"))
+        assertTrue(resolverScreen.contains("SteamNetworkResolverSettingsRuntime"))
+        assertTrue(resolverScreen.contains("OutlinedTextField("))
+        assertTrue(resolverRuntime.contains("MAX_CUSTOM_DNS"))
+        assertTrue(dnsCodec.contains("parseAResponse("))
         assertFalse(
             projectFile(
                 "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamNetworkOptimizationHeroCard.kt"

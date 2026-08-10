@@ -1,8 +1,14 @@
 package takagi.ru.monica.steam.network.optimization.diagnostics
 
+import java.io.EOFException
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,11 +18,12 @@ import okhttp3.OkHttpClient
 import okhttp3.dnsoverhttps.DnsOverHttps
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsResolutionResult
+import takagi.ru.monica.steam.network.optimization.domain.SteamDnsWireCodec
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRuleParser
 
 internal class OkHttpSteamDnsResolver(
     private val systemDns: Dns = Dns.SYSTEM,
-    timeoutMillis: Long = 4_000L,
+    private val timeoutMillis: Long = 4_000L,
     private val clockNanos: () -> Long = System::nanoTime
 ) : SteamDnsResolver {
     private val client = OkHttpClient.Builder()
@@ -24,6 +31,8 @@ internal class OkHttpSteamDnsResolver(
         .readTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
         .callTimeout(timeoutMillis * 2L, TimeUnit.MILLISECONDS)
         .retryOnConnectionFailure(false)
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
     private val dohResolvers = mutableMapOf<String, Dns>()
 
@@ -33,15 +42,19 @@ internal class OkHttpSteamDnsResolver(
     ): SteamDnsResolutionResult = withContext(Dispatchers.IO) {
         val startedAt = clockNanos()
         try {
-            val addresses = resolverFor(provider)
-                .lookup(hostname)
-                .asSequence()
-                .filterIsInstance<Inet4Address>()
-                .filter(SteamHostsRuleParser::isUsableAddress)
-                .mapNotNull { address -> address.hostAddress }
-                .distinct()
-                .take(MAX_ADDRESSES_PER_RESOLUTION)
-                .toList()
+            val addresses = if (provider.isUdp) {
+                resolveUdp(provider, hostname)
+            } else {
+                resolverFor(provider)
+                    .lookup(hostname)
+                    .asSequence()
+                    .filterIsInstance<Inet4Address>()
+                    .filter(SteamHostsRuleParser::isUsableAddress)
+                    .mapNotNull { address -> address.hostAddress }
+                    .distinct()
+                    .take(MAX_ADDRESSES_PER_RESOLUTION)
+                    .toList()
+            }
             SteamDnsResolutionResult(
                 provider = provider,
                 hostname = hostname,
@@ -65,16 +78,85 @@ internal class OkHttpSteamDnsResolver(
         return synchronized(dohResolvers) {
             dohResolvers.getOrPut(provider.id) {
                 val bootstrapHosts = provider.bootstrapAddresses.map(InetAddress::getByName)
-                DnsOverHttps.Builder()
+                val builder = DnsOverHttps.Builder()
                     .client(client)
                     .url(requireNotNull(provider.dohUrl).toHttpUrl())
-                    .bootstrapDnsHosts(bootstrapHosts)
                     .includeIPv6(false)
                     .post(true)
                     .resolvePrivateAddresses(false)
                     .resolvePublicAddresses(true)
-                    .build()
+                if (bootstrapHosts.isNotEmpty()) builder.bootstrapDnsHosts(bootstrapHosts)
+                builder.build()
             }
+        }
+    }
+
+    private fun resolveUdp(provider: SteamDnsProvider, hostname: String): List<String> {
+        val server = requireNotNull(provider.udpServer)
+        val transactionId = transactionIds.incrementAndGet() and 0xffff
+        val query = SteamDnsWireCodec.buildAQuery(hostname, transactionId)
+        val socket = DatagramSocket()
+        return try {
+            socket.soTimeout = timeoutMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            socket.connect(InetSocketAddress(server, DNS_PORT))
+            socket.send(DatagramPacket(query, query.size))
+            val buffer = ByteArray(MAX_DNS_MESSAGE_BYTES)
+            val response = DatagramPacket(buffer, buffer.size)
+            socket.receive(response)
+            val message = response.data.copyOf(response.length)
+            if (SteamDnsWireCodec.isTruncatedResponse(message, transactionId)) {
+                resolveTcp(server, hostname, query, transactionId)
+            } else {
+                SteamDnsWireCodec.parseAResponse(
+                    message = message,
+                    transactionId = transactionId,
+                    expectedHostname = hostname
+                ).take(MAX_ADDRESSES_PER_RESOLUTION)
+            }
+        } finally {
+            socket.close()
+        }
+    }
+
+    private fun resolveTcp(
+        server: String,
+        hostname: String,
+        query: ByteArray,
+        transactionId: Int
+    ): List<String> {
+        val socket = Socket()
+        return try {
+            val timeout = timeoutMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            socket.connect(InetSocketAddress(server, DNS_PORT), timeout)
+            socket.soTimeout = timeout
+            socket.getOutputStream().apply {
+                write((query.size ushr 8) and 0xff)
+                write(query.size and 0xff)
+                write(query)
+                flush()
+            }
+            val input = socket.getInputStream()
+            val high = input.read()
+            val low = input.read()
+            if (high < 0 || low < 0) throw EOFException("DNS TCP response has no length")
+            val size = (high shl 8) or low
+            if (size !in 12 until MAX_DNS_MESSAGE_BYTES) {
+                throw IllegalArgumentException("DNS TCP response is too large")
+            }
+            val message = ByteArray(size)
+            var offset = 0
+            while (offset < size) {
+                val read = input.read(message, offset, size - offset)
+                if (read < 0) throw EOFException("DNS TCP response ended early")
+                offset += read
+            }
+            SteamDnsWireCodec.parseAResponse(
+                message = message,
+                transactionId = transactionId,
+                expectedHostname = hostname
+            ).take(MAX_ADDRESSES_PER_RESOLUTION)
+        } finally {
+            socket.close()
         }
     }
 
@@ -83,5 +165,8 @@ internal class OkHttpSteamDnsResolver(
 
     private companion object {
         const val MAX_ADDRESSES_PER_RESOLUTION = 8
+        const val MAX_DNS_MESSAGE_BYTES = 65_536
+        const val DNS_PORT = 53
+        val transactionIds = AtomicInteger(0x4d53)
     }
 }

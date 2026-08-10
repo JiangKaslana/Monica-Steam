@@ -16,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsOptimizationScanResult
+import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsScanProgress
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsScanStage
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsSelectedRoute
@@ -41,7 +42,8 @@ class SteamNetworkOptimizationViewModelTest {
         var applied = false
         var scannedExistingRoutes = emptyList<SteamDnsSelectedRoute>()
         val viewModel = SteamNetworkOptimizationViewModel(
-            scan = { existingRoutes, onProgress ->
+            scan = { providers, existingRoutes, onProgress ->
+                assertEquals(SteamDnsProvider.DEFAULTS, providers)
                 scannedExistingRoutes = existingRoutes
                 onProgress(
                     SteamDnsScanProgress(

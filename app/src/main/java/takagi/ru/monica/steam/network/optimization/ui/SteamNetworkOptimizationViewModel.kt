@@ -17,6 +17,7 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamDnsSelectedRoute
 
 internal class SteamNetworkOptimizationViewModel(
     private val scan: suspend (
+        List<SteamDnsProvider>,
         List<SteamDnsSelectedRoute>,
         (SteamDnsScanProgress) -> Unit
     ) ->
@@ -29,19 +30,23 @@ internal class SteamNetworkOptimizationViewModel(
 
     private var scanJob: Job? = null
 
-    fun startScan(existingRoutes: List<SteamDnsSelectedRoute> = emptyList()) {
+    fun startScan(
+        existingRoutes: List<SteamDnsSelectedRoute> = emptyList(),
+        providers: List<SteamDnsProvider> = SteamDnsProvider.DEFAULTS
+    ) {
         if (scanJob?.isActive == true || mutableScanState.value.isBusy) return
+        if (providers.isEmpty()) return
         scanJob = viewModelScope.launch {
             mutableScanState.value = SteamAutoOptimizationUiState.Running(
                 SteamDnsScanProgress(
                     stage = SteamDnsScanStage.RESOLVING,
                     completed = 0,
-                    total = SteamDnsProvider.DEFAULTS.size *
+                    total = providers.size *
                         SteamDnsOptimizationScanner.DEFAULT_TARGET_HOSTNAMES.size
                 )
             )
             try {
-                val result = scan(existingRoutes) { progress ->
+                val result = scan(providers, existingRoutes) { progress ->
                     mutableScanState.value = SteamAutoOptimizationUiState.Running(progress)
                 }
                 if (!result.isApplicable) {
@@ -91,13 +96,13 @@ internal class SteamNetworkOptimizationViewModel(
 }
 
 private fun createDefaultNetworkScan(): suspend (
+    List<SteamDnsProvider>,
     List<SteamDnsSelectedRoute>,
     (SteamDnsScanProgress) -> Unit
 ) ->
     SteamDnsOptimizationScanResult {
-    val scanner = SteamDnsOptimizationScanner()
-    return { existingRoutes, onProgress ->
-        scanner.scan(
+    return { providers, existingRoutes, onProgress ->
+        SteamDnsOptimizationScanner(providers = providers).scan(
             onProgress = onProgress,
             preferredRoutes = existingRoutes
         )
