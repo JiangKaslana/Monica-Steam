@@ -98,9 +98,17 @@ class SteamFriendsIntegrationGuardTest {
         val addFriendScreen = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/ui/SteamAddFriendScreen.kt"
         ).readText()
+        val officialDialog = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/ui/SteamOfficialAddFriendDialog.kt"
+        ).readText()
 
         assertTrue(tokenScreen.contains("SteamTopBarMode.AddFriend"))
         assertTrue(tokenScreen.contains("R.string.steam_friend_add_title"))
+        assertTrue(tokenScreen.contains("compactTitle = true"))
+        assertTrue(tokenScreen.contains("onOpenOfficialAddFriend"))
+        assertTrue(tokenScreen.contains("SteamOfficialAddFriendDialog("))
+        assertTrue(officialDialog.contains("https://steamcommunity.com/my/friends/add"))
+        assertTrue(officialDialog.contains("requireAuthenticatedSession = true"))
         assertTrue(friendsScreen.contains("addFriendOpen: Boolean"))
         assertTrue(friendsScreen.contains("FloatingActionButton("))
         assertTrue(friendsScreen.contains("SteamAddFriendScreen("))

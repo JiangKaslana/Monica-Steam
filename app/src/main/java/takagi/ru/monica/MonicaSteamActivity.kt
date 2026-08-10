@@ -608,6 +608,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onThreadVisibilityChange = { open ->
                                     isSteamChatThreadOpen = open
                                 },
+                                onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                                 onOpenStoreApp = { appId ->
                                     pendingStoreAppId = appId
                                     navigateTo(MonicaSteamPage.STORE)

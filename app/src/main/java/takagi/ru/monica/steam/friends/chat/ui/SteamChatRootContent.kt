@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwitchAccount
@@ -51,6 +52,7 @@ internal fun SteamChatRootContent(
     onShowAccounts: () -> Unit,
     onToggleFriends: () -> Unit,
     onAddFriendOpenChange: (Boolean) -> Unit,
+    onOpenOfficialAddFriend: () -> Unit,
     onFindFriendCandidates: (String) -> Unit,
     onAddFriend: (SteamFriend) -> Unit,
     onRespondToInvite: (SteamFriend, Boolean) -> Unit,
@@ -83,12 +85,27 @@ internal fun SteamChatRootContent(
                     onSearchExpandedChange = onSearchExpandedChange,
                     searchHint = stringResource(R.string.steam_chat_search_hint),
                     modifier = Modifier.statusBarsPadding(),
-                    actions = {
-                        if (addFriendOpen) {
+                    navigationIcon = if (addFriendOpen) {
+                        {
                             IconButton(onClick = { onAddFriendOpenChange(false) }) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = stringResource(R.string.back)
+                                )
+                            }
+                        }
+                    } else {
+                        null
+                    },
+                    compact = addFriendOpen,
+                    actions = {
+                        if (addFriendOpen) {
+                            IconButton(onClick = onOpenOfficialAddFriend) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.OpenInNew,
+                                    contentDescription = stringResource(
+                                        R.string.steam_friend_add_on_steam
+                                    )
                                 )
                             }
                         } else {

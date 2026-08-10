@@ -4774,6 +4774,7 @@
     <string name="steam_friend_action_failed">Steam 未能处理此好友邀请。</string>
     <string name="steam_friend_details_title">好友详情</string>
     <string name="steam_friend_add_title">添加好友</string>
+    <string name="steam_friend_add_on_steam">前往 Steam 添加好友</string>
     <string name="steam_friend_add_search_label">查找 Steam 用户</string>
     <string name="steam_friend_add_search_hint">名称、好友码、Steam ID 或个人资料链接</string>
     <string name="steam_friend_add_search_action">查找好友</string>

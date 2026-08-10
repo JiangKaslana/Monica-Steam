@@ -34,6 +34,7 @@ import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessage
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaViewModel
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
+import takagi.ru.monica.steam.friends.ui.SteamOfficialAddFriendDialog
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatViewModel
 import takagi.ru.monica.steam.friends.chat.info.data.SteamChatInfoPreferencesStore
 import takagi.ru.monica.steam.friends.chat.info.domain.SteamChatConversationId
@@ -52,6 +53,7 @@ fun SteamChatScreen(
     onConsumeRequestedPartner: () -> Unit = {},
     onUnreadCountChange: (Int) -> Unit = {},
     onThreadVisibilityChange: (Boolean) -> Unit = {},
+    onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
     onOpenStoreApp: (Int) -> Unit = {},
     onAddSteamAccount: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -118,6 +120,7 @@ fun SteamChatScreen(
     var showAccounts by rememberSaveable { mutableStateOf(false) }
     var showFriends by rememberSaveable { mutableStateOf(false) }
     var addFriendOpen by rememberSaveable { mutableStateOf(false) }
+    var officialAddFriendOpen by rememberSaveable { mutableStateOf(false) }
     var showCreateGroup by rememberSaveable { mutableStateOf(false) }
     var showInviteFriend by rememberSaveable { mutableStateOf(false) }
     var initialGroupInvitees by remember { mutableStateOf(emptySet<String>()) }
@@ -376,6 +379,7 @@ fun SteamChatScreen(
                         friendsViewModel.clearFriendDiscovery()
                     }
                 },
+                onOpenOfficialAddFriend = { officialAddFriendOpen = true },
                 onFindFriendCandidates = friendsViewModel::findFriendCandidates,
                 onAddFriend = { friend ->
                     friendsViewModel.changeRelationship(
@@ -467,4 +471,12 @@ fun SteamChatScreen(
         onShowInviteFriendChange = { showInviteFriend = it },
         onInitialGroupInviteesChange = { initialGroupInvitees = it }
     )
+
+    if (officialAddFriendOpen) {
+        SteamOfficialAddFriendDialog(
+            account = selectedAccount,
+            onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
+            onDismiss = { officialAddFriendOpen = false }
+        )
+    }
 }

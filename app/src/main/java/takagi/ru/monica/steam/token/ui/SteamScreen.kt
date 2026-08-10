@@ -200,6 +200,7 @@ import takagi.ru.monica.steam.gifts.domain.SteamPendingGift
 import takagi.ru.monica.steam.notifications.ui.SteamNotificationsScreen
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarImage
 import takagi.ru.monica.steam.friends.ui.SteamFriendsScreen
+import takagi.ru.monica.steam.friends.ui.SteamOfficialAddFriendDialog
 import takagi.ru.monica.steam.friends.chat.ui.SteamChatScreen
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatViewModel
 import takagi.ru.monica.steam.profile.ui.SteamMiniProfileBackgroundLayer
@@ -452,6 +453,7 @@ fun SteamScreen(
     var showTopActionsMenu by remember { mutableStateOf(false) }
     var showStorageSourceMenu by remember { mutableStateOf(false) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
+    var showOfficialAddFriend by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(openNotificationsOnEntry) {
         if (openNotificationsOnEntry) {
             selectedSection = SteamSection.NOTIFICATIONS
@@ -1652,6 +1654,14 @@ fun SteamScreen(
         }
     }
 
+    if (showOfficialAddFriend) {
+        SteamOfficialAddFriendDialog(
+            account = selectedAccount,
+            onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
+            onDismiss = { showOfficialAddFriend = false }
+        )
+    }
+
     pendingGiftAction?.let { request ->
         AlertDialog(
             onDismissRequest = {
@@ -1762,7 +1772,9 @@ fun SteamScreen(
                     )
                     SteamTopBarMode.AddFriend -> SteamDetailTopBar(
                         title = stringResource(R.string.steam_friend_add_title),
-                        onNavigateBack = { addFriendOpen = false }
+                        onNavigateBack = { addFriendOpen = false },
+                        compactTitle = true,
+                        onOpenOfficialAddFriend = { showOfficialAddFriend = true }
                     )
                     SteamTopBarMode.Root -> SteamRootTopBar(
                         title = stringResource(R.string.nav_steam),
@@ -2093,6 +2105,7 @@ fun SteamScreen(
                                     onThreadVisibilityChange(open)
                                 },
                                 onOpenStoreApp = onOpenStoreApp,
+                                onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                                 modifier = Modifier.fillMaxSize()
                             )
                             SteamSection.NOTIFICATIONS -> SteamNotificationsScreen(
@@ -2299,6 +2312,8 @@ private fun SteamRootTopBar(
 private fun SteamDetailTopBar(
     title: String,
     onNavigateBack: () -> Unit,
+    compactTitle: Boolean = false,
+    onOpenOfficialAddFriend: (() -> Unit)? = null,
     onRemoveAuthenticator: (() -> Unit)? = null,
     onRebindAccount: (() -> Unit)? = null
 ) {
@@ -2306,6 +2321,11 @@ private fun SteamDetailTopBar(
         title = {
             Text(
                 text = title,
+                style = if (compactTitle) {
+                    MaterialTheme.typography.titleMedium
+                } else {
+                    MaterialTheme.typography.titleLarge
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -2320,6 +2340,15 @@ private fun SteamDetailTopBar(
             }
         },
         actions = {
+            if (onOpenOfficialAddFriend != null) {
+                IconButton(onClick = onOpenOfficialAddFriend) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = stringResource(R.string.steam_friend_add_on_steam),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             if (onRebindAccount != null) {
                 IconButton(onClick = onRebindAccount) {
                     Icon(

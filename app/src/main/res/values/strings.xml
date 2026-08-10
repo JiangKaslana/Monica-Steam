@@ -4944,6 +4944,7 @@
     <string name="steam_friend_action_failed">Steam could not update this friend request.</string>
     <string name="steam_friend_details_title">Friend details</string>
     <string name="steam_friend_add_title">Add friend</string>
+    <string name="steam_friend_add_on_steam">Add friends on Steam</string>
     <string name="steam_friend_add_search_label">Find a Steam user</string>
     <string name="steam_friend_add_search_hint">Name, friend code, Steam ID, or profile link</string>
     <string name="steam_friend_add_search_action">Search for friend</string>
