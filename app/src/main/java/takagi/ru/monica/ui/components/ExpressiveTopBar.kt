@@ -1,5 +1,6 @@
 package takagi.ru.monica.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -63,6 +64,12 @@ fun ExpressiveTopBar(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val resolvedSearchHint = searchHint ?: stringResource(R.string.topbar_search_hint)
+
+    BackHandler(enabled = isSearchExpanded) {
+        onSearchExpandedChange(false)
+        onSearchQueryChange("")
+        focusManager.clearFocus()
+    }
 
     // 动画状态：使用 Alpha 而不是 Visibility，避免布局重排导致挤压搜索框
     val titleAlpha by animateFloatAsState(
