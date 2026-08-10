@@ -65,6 +65,36 @@ class SteamTokenPageLockScopeGuardTest {
     }
 
     @Test
+    fun startupWaitsForPersistedLockScopeAndDockHomeBeforeRenderingAuthentication() {
+        val activity = projectFile(
+            "app/src/main/java/takagi/ru/monica/MonicaSteamActivity.kt"
+        ).readText()
+        val normalized = activity.replace(Regex("\\s+"), " ")
+
+        assertTrue(normalized.contains(
+            "val loadedSettings by settingsManager.settingsFlow.collectAsState( initial = null )"
+        ))
+        assertTrue(normalized.contains(
+            "val loadedDockConfiguration by dockPreferences.configuration.collectAsState( " +
+                "initial = null )"
+        ))
+        assertTrue(normalized.contains(
+            "if (settings == null || dockConfiguration == null) { " +
+                "SteamStartupSurface() return@steamContent }"
+        ))
+        assertTrue(normalized.contains(
+            "var currentPage by rememberSaveable { mutableStateOf(homePage) }"
+        ))
+        assertFalse(activity.contains(
+            "settingsManager.settingsFlow.collectAsState(initial = AppSettings())"
+        ))
+        assertTrue(
+            activity.indexOf("SteamStartupSurface()") in
+                0 until activity.indexOf("SteamAppLockGate(")
+        )
+    }
+
+    @Test
     fun masterPasswordSecurityPagesStayProtectedWhenTheOuterGateIsBypassed() {
         val steamSettings = projectFile(
             "app/src/main/java/takagi/ru/monica/ui/screens/MonicaSteamSettingsScreen.kt"

@@ -68,7 +68,6 @@ import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.SteamToolbarItem
 import takagi.ru.monica.steam.navigation.ui.steamDockSwipe
 import takagi.ru.monica.steam.navigation.ui.steamDockProgressiveBlur
-import takagi.ru.monica.data.AppSettings
 import takagi.ru.monica.data.PasswordDatabase
 import takagi.ru.monica.data.ThemeMode
 import takagi.ru.monica.repository.PasswordRepository
@@ -136,6 +135,16 @@ private const val STEAM_LAST_BACKUP_TIME_KEY = "last_backup_time"
 private const val STEAM_AUTO_BACKUP_INIT_DELAY_MS = 1_500L
 private const val STEAM_AUTO_BACKUP_INTERVAL_HOURS = 12L
 
+@Composable
+private fun SteamStartupSurface() {
+    MonicaTheme(darkTheme = isSystemInDarkTheme()) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {}
+    }
+}
+
 class MonicaSteamActivity : BaseMonicaActivity() {
     private val pendingChatNotificationRequest =
         MutableStateFlow<SteamChatNotificationTarget?>(null)
@@ -153,8 +162,33 @@ class MonicaSteamActivity : BaseMonicaActivity() {
         }
         initializeWebDavAutoBackupDeferred()
 
-        setSteamUiScaledContent {
-            val settings by settingsManager.settingsFlow.collectAsState(initial = AppSettings())
+        setSteamUiScaledContent steamContent@{
+            val loadedSettings by settingsManager.settingsFlow.collectAsState(
+                initial = null
+            )
+            val dockPreferences = remember {
+                SteamDockPreferences(this@MonicaSteamActivity.applicationContext)
+            }
+            val loadedDockConfiguration by dockPreferences.configuration.collectAsState(
+                initial = null
+            )
+            val settings = loadedSettings
+            val dockConfiguration = loadedDockConfiguration
+            if (settings == null || dockConfiguration == null) {
+                SteamStartupSurface()
+                return@steamContent
+            }
+
+            val dockStyle = dockConfiguration.style
+            val dockOrder = dockConfiguration.m3eOrder
+            val liquidGlassDockOrder = dockConfiguration.liquidGlassOrder
+            val fixedDockOrder = dockConfiguration.fixedOrder
+            val activeDockOrder = when (dockStyle) {
+                SteamDockStyle.M3E -> dockOrder
+                SteamDockStyle.LIQUID_GLASS -> liquidGlassDockOrder
+                SteamDockStyle.FIXED -> fixedDockOrder
+            }
+            val homePage = activeDockOrder.firstOrNull()?.toPage() ?: MonicaSteamPage.STEAM
             val systemDarkTheme = isSystemInDarkTheme()
             val darkTheme = when (settings.themeMode) {
                 ThemeMode.SYSTEM -> systemDarkTheme
@@ -233,7 +267,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                     )
                 }
                 var scannerAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
-                var currentPage by rememberSaveable { mutableStateOf(MonicaSteamPage.STEAM) }
+                var currentPage by rememberSaveable { mutableStateOf(homePage) }
                 var pageHistory by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
                 var pendingQrResult by rememberSaveable { mutableStateOf<String?>(null) }
                 var pendingQrAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -253,26 +287,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 }
                 var backPressedOnce by remember { mutableStateOf(false) }
                 val composeScope = rememberCoroutineScope()
-                val dockPreferences = remember {
-                    SteamDockPreferences(this@MonicaSteamActivity.applicationContext)
-                }
-                val dockConfiguration by dockPreferences.configuration.collectAsState(
-                    initial = null
-                )
-                val dockStyle = dockConfiguration?.style ?: SteamDockStyle.M3E
-                val dockOrder = dockConfiguration?.m3eOrder.orEmpty()
-                val liquidGlassDockOrder = dockConfiguration?.liquidGlassOrder.orEmpty()
-                val fixedDockOrder = dockConfiguration?.fixedOrder.orEmpty()
-                val activeDockOrder = when (dockStyle) {
-                    SteamDockStyle.M3E -> dockOrder
-                    SteamDockStyle.LIQUID_GLASS -> liquidGlassDockOrder
-                    SteamDockStyle.FIXED -> fixedDockOrder
-                }
                 val liquidGlassBackdrop = rememberSteamLiquidGlassBackdrop()
                 val dockBlurHeightPx = with(LocalDensity.current) { 130.dp.toPx() }
-                val homePage = activeDockOrder.firstOrNull()?.toPage() ?: MonicaSteamPage.STEAM
                 val dockVisible = shouldShowSteamDock(
-                    hasConfiguration = dockConfiguration != null,
+                    hasConfiguration = true,
                     isDockPage = currentPage.isDockPage(dockStyle),
                     chatThreadOpen = isSteamChatThreadOpen,
                     platformViewActive = isPlatformViewActive
@@ -284,7 +302,7 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 )
                 var appliedInitialDockPage by rememberSaveable { mutableStateOf(false) }
                 LaunchedEffect(dockConfiguration, homePage) {
-                    if (!appliedInitialDockPage && dockConfiguration != null) {
+                    if (!appliedInitialDockPage) {
                         currentPage = homePage
                         pageHistory = emptyList()
                         appliedInitialDockPage = true
