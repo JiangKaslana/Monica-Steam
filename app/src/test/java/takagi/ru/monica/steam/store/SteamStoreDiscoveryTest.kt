@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.store.data.SteamStoreParser
 import takagi.ru.monica.steam.store.catalog.data.SteamStoreCatalogParser
-import takagi.ru.monica.steam.store.data.SteamStoreNavigationPolicy
+import takagi.ru.monica.steam.web.domain.SteamWebNavigationPolicy
 import takagi.ru.monica.steam.store.domain.SteamStoreBrowseFilter
 import takagi.ru.monica.steam.store.domain.SteamStoreHome
 import takagi.ru.monica.steam.store.domain.SteamStoreItem
@@ -101,12 +101,12 @@ class SteamStoreDiscoveryTest {
     @Test
     fun eventAndPointsShopLinksStayInsideTrustedSteamWebSurface() {
         assertTrue(
-            SteamStoreNavigationPolicy.isAllowed(
+            SteamWebNavigationPolicy.isAllowed(
                 "https://store.steampowered.com/sale/SimFest2026"
             )
         )
         assertTrue(
-            SteamStoreNavigationPolicy.isAllowed(
+            SteamWebNavigationPolicy.isAllowed(
                 "https://store.steampowered.com/points/shop/"
             )
         )

@@ -1,17 +1,27 @@
-package takagi.ru.monica.steam.store.data
+package takagi.ru.monica.steam.web.domain
 
 import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-object SteamStoreNavigationPolicy {
+object SteamWebNavigationPolicy {
     fun isAllowed(url: String): Boolean = runCatching {
         val uri = URI(url)
         if (!uri.scheme.equals("https", ignoreCase = true)) return false
         val host = uri.host?.lowercase().orEmpty()
-        host == "s.team" || host == "steampowered.com" || host.endsWith(".steampowered.com") ||
-            host == "steamcommunity.com" || host.endsWith(".steamcommunity.com")
+        host == "s.team" ||
+            host == "steampowered.com" ||
+            host.endsWith(".steampowered.com") ||
+            host == "steamcommunity.com" ||
+            host.endsWith(".steamcommunity.com")
+    }.getOrDefault(false)
+
+    fun isSafeExternal(url: String): Boolean = runCatching {
+        when (URI(url).scheme?.lowercase()) {
+            "http", "https", "steam", "mailto" -> true
+            else -> false
+        }
     }.getOrDefault(false)
 }
 
@@ -140,9 +150,6 @@ object SteamWebClientPolicy {
         )
     }
 
-    fun usesDesktopLayout(mode: SteamWebClientMode): Boolean =
-        mode == SteamWebClientMode.COMMUNITY_DESKTOP
-
     private fun normalizeMobileUserAgent(defaultUserAgent: String): String {
         val source = defaultUserAgent.trim().ifEmpty {
             "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 " +
@@ -156,7 +163,7 @@ object SteamWebClientPolicy {
     }
 }
 
-object SteamStoreSessionPolicy {
+object SteamWebSessionCookiePolicy {
     fun cookies(steamLoginSecure: String?, sessionId: String): List<String> =
         domainCookies(
             domain = ".steampowered.com",
@@ -169,39 +176,37 @@ object SteamStoreSessionPolicy {
         steamLoginSecure: String?,
         sessionId: String,
         clientMode: SteamWebClientMode = SteamWebClientMode.DEFAULT
-    ): List<SteamWebCookieWrite> {
-        return buildList {
-            domainCookies(
-                domain = ".steampowered.com",
-                steamLoginSecure = steamLoginSecure,
-                sessionId = sessionId,
-                includeAgeGate = true
-            ).forEach { value ->
-                add(SteamWebCookieWrite("https://store.steampowered.com", value))
-            }
-            domainCookies(
-                domain = ".steamcommunity.com",
-                steamLoginSecure = steamLoginSecure,
-                sessionId = sessionId,
-                includeAgeGate = false,
-                includeMobileClient = clientMode != SteamWebClientMode.COMMUNITY_DESKTOP
-            ).forEach { value ->
-                add(SteamWebCookieWrite("https://steamcommunity.com", value))
-            }
-            if (clientMode == SteamWebClientMode.COMMUNITY_DESKTOP) {
-                add(
-                    SteamWebCookieWrite(
-                        "https://steamcommunity.com",
-                        "mobileClient=; Domain=.steamcommunity.com; Path=/; Max-Age=0; Secure"
-                    )
+    ): List<SteamWebCookieWrite> = buildList {
+        domainCookies(
+            domain = ".steampowered.com",
+            steamLoginSecure = steamLoginSecure,
+            sessionId = sessionId,
+            includeAgeGate = true
+        ).forEach { value ->
+            add(SteamWebCookieWrite("https://store.steampowered.com", value))
+        }
+        domainCookies(
+            domain = ".steamcommunity.com",
+            steamLoginSecure = steamLoginSecure,
+            sessionId = sessionId,
+            includeAgeGate = false,
+            includeMobileClient = clientMode != SteamWebClientMode.COMMUNITY_DESKTOP
+        ).forEach { value ->
+            add(SteamWebCookieWrite("https://steamcommunity.com", value))
+        }
+        if (clientMode == SteamWebClientMode.COMMUNITY_DESKTOP) {
+            add(
+                SteamWebCookieWrite(
+                    "https://steamcommunity.com",
+                    "mobileClient=; Domain=.steamcommunity.com; Path=/; Max-Age=0; Secure"
                 )
-                add(
-                    SteamWebCookieWrite(
-                        "https://steamcommunity.com",
-                        "mobileClientVersion=; Domain=.steamcommunity.com; Path=/; Max-Age=0; Secure"
-                    )
+            )
+            add(
+                SteamWebCookieWrite(
+                    "https://steamcommunity.com",
+                    "mobileClientVersion=; Domain=.steamcommunity.com; Path=/; Max-Age=0; Secure"
                 )
-            }
+            )
         }
     }
 

@@ -12,7 +12,10 @@ class SteamStoreUiPolishGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
         val web = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreWebScreen.kt"
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserScreen.kt"
+        ).readText()
+        val actionBar = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserActionBar.kt"
         ).readText()
 
         assertTrue(store.contains("ExpressiveTopBar("))
@@ -24,11 +27,11 @@ class SteamStoreUiPolishGuardTest {
         assertTrue(store.contains("containerColor = MaterialTheme.colorScheme.background"))
         assertFalse(store.contains("OutlinedTextField("))
 
-        assertTrue(web.contains("SelectionActionBar("))
-        assertTrue(web.contains("showSelectionControls = false"))
+        assertTrue(actionBar.contains("SelectionActionBar("))
+        assertTrue(actionBar.contains("showSelectionControls = false"))
         assertTrue(web.contains("navigationBarsPadding()"))
-        assertTrue(web.contains("Icons.Default.Refresh"))
-        assertTrue(web.contains("Icons.Default.Share"))
+        assertTrue(actionBar.contains("Icons.Default.Refresh"))
+        assertTrue(actionBar.contains("Icons.Default.Share"))
         assertFalse(web.contains("heightIn(min = 64.dp)"))
     }
 

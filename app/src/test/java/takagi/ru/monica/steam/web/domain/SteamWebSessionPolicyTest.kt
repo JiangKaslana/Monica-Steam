@@ -1,13 +1,11 @@
-package takagi.ru.monica.steam.store
-
-import takagi.ru.monica.steam.store.data.*
+package takagi.ru.monica.steam.web.domain
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class SteamStoreSessionPolicyTest {
+class SteamWebSessionPolicyTest {
     @Test
     fun accountSessionAcceptsMatchingRawAndEncodedIdentities() {
         val raw = SteamWebAccountSessionPolicy.decide(
@@ -73,18 +71,22 @@ class SteamStoreSessionPolicyTest {
 
     @Test
     fun allowsOnlyOfficialSteamHttpsNavigation() {
-        assertTrue(SteamStoreNavigationPolicy.isAllowed("https://store.steampowered.com/cart/"))
-        assertTrue(SteamStoreNavigationPolicy.isAllowed("https://checkout.steampowered.com/"))
-        assertTrue(SteamStoreNavigationPolicy.isAllowed("https://steamcommunity.com/login/home/"))
-        assertTrue(SteamStoreNavigationPolicy.isAllowed("https://s.team/p/example"))
-        assertFalse(SteamStoreNavigationPolicy.isAllowed("http://store.steampowered.com/cart/"))
-        assertFalse(SteamStoreNavigationPolicy.isAllowed("https://store.steampowered.com.evil.example/"))
-        assertFalse(SteamStoreNavigationPolicy.isAllowed("javascript:alert(1)"))
+        assertTrue(SteamWebNavigationPolicy.isAllowed("https://store.steampowered.com/cart/"))
+        assertTrue(SteamWebNavigationPolicy.isAllowed("https://checkout.steampowered.com/"))
+        assertTrue(SteamWebNavigationPolicy.isAllowed("https://steamcommunity.com/login/home/"))
+        assertTrue(SteamWebNavigationPolicy.isAllowed("https://s.team/p/example"))
+        assertFalse(SteamWebNavigationPolicy.isAllowed("http://store.steampowered.com/cart/"))
+        assertFalse(SteamWebNavigationPolicy.isAllowed("https://store.steampowered.com.evil.example/"))
+        assertFalse(SteamWebNavigationPolicy.isAllowed("javascript:alert(1)"))
+        assertTrue(SteamWebNavigationPolicy.isSafeExternal("https://example.com"))
+        assertTrue(SteamWebNavigationPolicy.isSafeExternal("steam://open/main"))
+        assertFalse(SteamWebNavigationPolicy.isSafeExternal("file:///sdcard/secret"))
+        assertFalse(SteamWebNavigationPolicy.isSafeExternal("intent://host/#Intent;end"))
     }
 
     @Test
     fun buildsEncodedSecureLoginCookie() {
-        val cookies = SteamStoreSessionPolicy.cookies(
+        val cookies = SteamWebSessionCookiePolicy.cookies(
             steamLoginSecure = "76561198000000000||token/value+with spaces",
             sessionId = "abcdef0123456789abcdef01"
         )
@@ -98,7 +100,7 @@ class SteamStoreSessionPolicyTest {
 
     @Test
     fun writesSessionCookiesToStoreAndCommunityDomains() {
-        val writes = SteamStoreSessionPolicy.cookieWrites(
+        val writes = SteamWebSessionCookiePolicy.cookieWrites(
             steamLoginSecure = "76561198000000000||token",
             sessionId = "abcdef0123456789abcdef01"
         )
@@ -123,7 +125,7 @@ class SteamStoreSessionPolicyTest {
             mode = SteamWebClientMode.COMMUNITY_DESKTOP,
             defaultUserAgent = defaultUserAgent
         )
-        val writes = SteamStoreSessionPolicy.cookieWrites(
+        val writes = SteamWebSessionCookiePolicy.cookieWrites(
             steamLoginSecure = "76561198000000000||token",
             sessionId = "abcdef0123456789abcdef01",
             clientMode = SteamWebClientMode.COMMUNITY_DESKTOP
@@ -178,7 +180,7 @@ class SteamStoreSessionPolicyTest {
 
     @Test
     fun keepsPreviouslyEncodedSteamLoginSecureAtSingleEncodingLevel() {
-        val raw = SteamStoreSessionPolicy.cookies(
+        val raw = SteamWebSessionCookiePolicy.cookies(
             steamLoginSecure = "76561198000000000%7C%7Ctoken%2Fvalue",
             sessionId = "abcdef0123456789abcdef01"
         ).single { it.startsWith("steamLoginSecure=") }

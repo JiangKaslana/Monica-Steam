@@ -11,7 +11,7 @@ class SteamGameDataIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/library/ui/SteamLibraryScreen.kt"
         ).readText()
         val web = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreWebScreen.kt"
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserScreen.kt"
         ).readText()
         val gameDataWeb = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/gamedata/ui/SteamGameDataWebScreen.kt"

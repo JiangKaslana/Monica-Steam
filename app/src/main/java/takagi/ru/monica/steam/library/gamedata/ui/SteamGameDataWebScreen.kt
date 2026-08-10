@@ -13,8 +13,8 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.library.gamedata.domain.SteamGameDataPage
 import takagi.ru.monica.steam.library.gamedata.domain.SteamReplayBrowserPolicy
-import takagi.ru.monica.steam.store.data.SteamWebClientMode
-import takagi.ru.monica.steam.store.ui.SteamStoreWebScreen
+import takagi.ru.monica.steam.web.domain.SteamWebClientMode
+import takagi.ru.monica.steam.web.ui.SteamWebBrowserScreen
 
 @Composable
 internal fun SteamGameDataWebScreen(
@@ -26,7 +26,7 @@ internal fun SteamGameDataWebScreen(
 ) {
     val context = LocalContext.current
     val downloadFailureMessage = stringResource(R.string.steam_library_replay_browser_failed)
-    SteamStoreWebScreen(
+    SteamWebBrowserScreen(
         url = page.url,
         steamLoginSecure = account.steamLoginSecure
             ?: account.accessToken?.let { token -> "${account.steamId}||$token" },

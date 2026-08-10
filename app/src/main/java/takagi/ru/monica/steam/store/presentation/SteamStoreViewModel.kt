@@ -64,6 +64,7 @@ import takagi.ru.monica.steam.store.gift.domain.toSteamStoreGiftRecipient
 import takagi.ru.monica.steam.store.gift.presentation.SteamStoreGiftUiState
 import takagi.ru.monica.steam.store.interest.domain.withoutIgnoredGames
 import takagi.ru.monica.steam.store.interest.domain.SteamStoreIgnoreSyncState
+import takagi.ru.monica.steam.web.domain.SteamWebNavigationPolicy
 
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -1586,7 +1587,7 @@ class SteamStoreViewModel internal constructor(
     }
 
     fun openStoreWeb(url: String) {
-        if (SteamStoreNavigationPolicy.isAllowed(url)) {
+        if (SteamWebNavigationPolicy.isAllowed(url)) {
             _uiState.value = _uiState.value.copy(
                 webUrl = url,
                 webRequiresAuthenticatedSession = false
@@ -1595,7 +1596,7 @@ class SteamStoreViewModel internal constructor(
     }
 
     fun openAuthenticatedStoreWeb(url: String) {
-        if (SteamStoreNavigationPolicy.isAllowed(url)) {
+        if (SteamWebNavigationPolicy.isAllowed(url)) {
             _uiState.value = _uiState.value.copy(
                 webUrl = url,
                 webRequiresAuthenticatedSession = true

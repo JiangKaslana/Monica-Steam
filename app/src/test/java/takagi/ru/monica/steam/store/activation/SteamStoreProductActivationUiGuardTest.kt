@@ -4,7 +4,7 @@ import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.store.activation.domain.SteamStoreProductActivation
-import takagi.ru.monica.steam.store.data.SteamStoreNavigationPolicy
+import takagi.ru.monica.steam.web.domain.SteamWebNavigationPolicy
 
 class SteamStoreProductActivationUiGuardTest {
     @Test
@@ -21,7 +21,7 @@ class SteamStoreProductActivationUiGuardTest {
 
         assertTrue(activation.contains("https://store.steampowered.com/account/registerkey"))
         assertTrue(
-            SteamStoreNavigationPolicy.isAllowed(
+            SteamWebNavigationPolicy.isAllowed(
                 SteamStoreProductActivation.REGISTER_KEY_URL
             )
         )

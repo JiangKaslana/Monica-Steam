@@ -2,6 +2,7 @@ package takagi.ru.monica.steam.store.data
 
 import android.content.Context
 import java.util.concurrent.TimeUnit
+import takagi.ru.monica.steam.web.domain.normalizeSteamCookieValue
 import java.util.concurrent.ConcurrentHashMap
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets

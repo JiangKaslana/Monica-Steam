@@ -205,8 +205,8 @@ import takagi.ru.monica.steam.friends.chat.presentation.SteamChatViewModel
 import takagi.ru.monica.steam.profile.ui.SteamMiniProfileBackgroundLayer
 import takagi.ru.monica.steam.scanner.data.readLastSteamQrAccountId
 import takagi.ru.monica.steam.scanner.data.saveLastSteamQrAccountId
-import takagi.ru.monica.steam.store.data.SteamWebClientMode
-import takagi.ru.monica.steam.store.ui.SteamStoreWebScreen
+import takagi.ru.monica.steam.web.domain.SteamWebClientMode
+import takagi.ru.monica.steam.web.ui.SteamWebBrowserScreen
 import takagi.ru.monica.steam.trade.SteamTradeOffer
 import takagi.ru.monica.steam.trade.SteamTradeOfferAction
 import takagi.ru.monica.steam.trade.ui.SteamTradeOffersContent
@@ -1630,7 +1630,7 @@ fun SteamScreen(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
             ) {
-                SteamStoreWebScreen(
+                SteamWebBrowserScreen(
                     url = selectedAccount?.let { steamGiftInboxUrl(it.steamId) }.orEmpty(),
                     steamLoginSecure = selectedAccount?.steamLoginSecure
                         ?: selectedAccount?.accessToken?.let { token ->

@@ -1,6 +1,6 @@
 package takagi.ru.monica.steam.store
 
-import takagi.ru.monica.steam.store.ui.*
+import takagi.ru.monica.steam.store.gift.data.isSteamCartPage
 
 import java.io.File
 import org.junit.Assert.assertFalse
@@ -11,10 +11,19 @@ class SteamStoreWebSecurityGuardTest {
     @Test
     fun officialStoreWebViewKeepsCheckoutInsideSecurityBoundary() {
         val source = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreWebScreen.kt"
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserScreen.kt"
+        ).readText()
+        val clients = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserClients.kt"
+        ).readText()
+        val configuration = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebViewConfiguration.kt"
         ).readText()
         val installer = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/data/SteamWebCookieInstaller.kt"
+            "app/src/main/java/takagi/ru/monica/steam/web/data/SteamWebCookieInstaller.kt"
+        ).readText()
+        val checkoutAutomation = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/gift/data/SteamStoreCheckoutWebAutomation.kt"
         ).readText()
         val store = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
@@ -23,14 +32,14 @@ class SteamStoreWebSecurityGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/store/presentation/SteamStoreViewModel.kt"
         ).readText()
 
-        assertTrue(source.contains("settings.allowFileAccess = false"))
-        assertTrue(source.contains("settings.allowContentAccess = false"))
-        assertTrue(source.contains("WebSettings.MIXED_CONTENT_NEVER_ALLOW"))
-        assertTrue(source.contains("setAcceptThirdPartyCookies(this, false)"))
-        assertTrue(source.contains("SteamStoreNavigationPolicy.isAllowed(target)"))
+        assertTrue(configuration.contains("allowFileAccess = false"))
+        assertTrue(configuration.contains("allowContentAccess = false"))
+        assertTrue(configuration.contains("WebSettings.MIXED_CONTENT_NEVER_ALLOW"))
+        assertTrue(configuration.contains("setAcceptThirdPartyCookies(this, false)"))
+        assertTrue(clients.contains("SteamWebNavigationPolicy.isAllowed(target)"))
         assertTrue(source.contains("SteamWebAccountSessionPolicy.decide("))
-        assertTrue(source.contains("SteamWebClientPolicy.displayPolicy(clientMode)"))
-        assertTrue(source.contains("settings.textZoom = displayPolicy.textZoomPercent"))
+        assertTrue(configuration.contains("SteamWebClientPolicy.displayPolicy(clientMode)"))
+        assertTrue(configuration.contains("textZoom = displayPolicy.textZoomPercent"))
         assertTrue(source.contains("clearSteamCookies()"))
         assertTrue(source.contains("replaceSteamCookies("))
         assertTrue(installer.contains("removeAllCookies"))
@@ -42,10 +51,11 @@ class SteamStoreWebSecurityGuardTest {
         )
         assertTrue(viewModel.contains("fun openAuthenticatedStoreWeb"))
         assertTrue(viewModel.contains("webRequiresAuthenticatedSession = true"))
-        assertTrue(source.contains("SteamStoreGiftCheckoutProtocol.addToCartBody("))
-        assertTrue(source.contains("Intent(Intent.ACTION_VIEW, Uri.parse(target))"))
+        assertTrue(checkoutAutomation.contains("SteamStoreGiftCheckoutProtocol.addToCartBody("))
+        assertTrue(source.contains("Intent(Intent.ACTION_VIEW, uri)"))
+        assertTrue(clients.contains("handler.cancel()"))
         assertFalse(source.contains("addJavascriptInterface"))
-        assertFalse(source.contains("onReceivedHttpAuthRequest"))
+        assertFalse(configuration.contains("addJavascriptInterface"))
     }
 
     @Test

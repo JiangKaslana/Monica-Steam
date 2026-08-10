@@ -11,7 +11,7 @@ class SteamGiftInboxIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/token/ui/SteamScreen.kt"
         ).readText()
         val web = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreWebScreen.kt"
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserScreen.kt"
         ).readText()
 
         assertTrue(screen.contains("SteamSection.NOTIFICATIONS"))
@@ -19,12 +19,12 @@ class SteamGiftInboxIntegrationGuardTest {
         assertTrue(screen.contains("onGiftAction"))
         assertTrue(screen.contains("selectedAccount?.steamLoginSecure"))
         assertTrue(screen.contains("selectedAccount?.accessToken"))
-        assertTrue(screen.contains("SteamStoreWebScreen("))
+        assertTrue(screen.contains("SteamWebBrowserScreen("))
         assertTrue(screen.contains("expectedSteamId = selectedAccount?.steamId"))
         assertTrue(screen.contains("requireAuthenticatedSession = true"))
         assertTrue(screen.contains("clientMode = SteamWebClientMode.COMMUNITY_DESKTOP"))
         assertTrue(web.contains("title: String"))
-        assertTrue(web.contains("SteamStoreNavigationPolicy.isAllowed(target)"))
+        assertTrue(web.contains("SteamWebNavigationPolicy.isAllowed(target)"))
         assertTrue(web.contains("replaceSteamCookies"))
     }
 

@@ -15,7 +15,13 @@ class SteamLiquidGlassWebViewCompatibilityTest {
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
         val web = projectFile(
-            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreWebScreen.kt"
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserScreen.kt"
+        ).readText()
+        val webConfig = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebViewConfiguration.kt"
+        ).readText()
+        val actionBar = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/web/ui/SteamWebBrowserActionBar.kt"
         ).readText()
         assertTrue(store.contains("onPlatformViewVisibilityChanged: (Boolean) -> Unit"))
         assertTrue(
@@ -26,12 +32,13 @@ class SteamLiquidGlassWebViewCompatibilityTest {
         assertTrue(web.contains("platformViewVisibilityCallback(true)"))
         assertTrue(web.contains("platformViewVisibilityCallback(false)"))
         assertTrue(web.contains("withFrameNanos { }"))
-        assertTrue(web.contains("else if (!platformViewReady)"))
-        assertTrue(web.contains("SelectionActionBar("))
-        assertTrue(web.contains("showSelectionControls = false"))
-        assertTrue(web.contains("setRendererPriorityPolicy("))
-        assertTrue(web.contains("setBackgroundColor(initialBackground.toArgb())"))
+        assertTrue(web.contains("!platformViewReady -> Surface("))
+        assertTrue(actionBar.contains("SelectionActionBar("))
+        assertTrue(actionBar.contains("showSelectionControls = false"))
+        assertTrue(webConfig.contains("setRendererPriorityPolicy("))
+        assertTrue(web.contains("backgroundColor = initialBackground.toArgb()"))
         assertTrue(web.contains("CookieManager.getInstance().flush()"))
+        assertTrue(web.contains("onRendererGone"))
         assertTrue(activity.contains("isPlatformViewActive"))
         assertTrue(activity.contains("dockVisible = shouldShowSteamDock("))
         assertTrue(activity.contains("platformViewActive = isPlatformViewActive"))

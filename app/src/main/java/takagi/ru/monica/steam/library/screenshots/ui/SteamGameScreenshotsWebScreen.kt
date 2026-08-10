@@ -6,8 +6,8 @@ import androidx.compose.ui.res.stringResource
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.library.screenshots.domain.SteamGameScreenshotsPage
-import takagi.ru.monica.steam.store.data.SteamWebClientMode
-import takagi.ru.monica.steam.store.ui.SteamStoreWebScreen
+import takagi.ru.monica.steam.web.domain.SteamWebClientMode
+import takagi.ru.monica.steam.web.ui.SteamWebBrowserScreen
 
 @Composable
 internal fun SteamGameScreenshotsWebScreen(
@@ -17,7 +17,7 @@ internal fun SteamGameScreenshotsWebScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SteamStoreWebScreen(
+    SteamWebBrowserScreen(
         url = page.url,
         steamLoginSecure = account.steamLoginSecure
             ?.trim()

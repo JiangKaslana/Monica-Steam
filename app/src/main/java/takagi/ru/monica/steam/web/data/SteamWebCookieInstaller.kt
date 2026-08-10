@@ -1,13 +1,12 @@
-package takagi.ru.monica.steam.store.data
+package takagi.ru.monica.steam.web.data
 
 import android.webkit.CookieManager
 import java.util.concurrent.atomic.AtomicInteger
+import takagi.ru.monica.steam.web.domain.SteamWebCookieWrite
 
 /**
- * Android WebView owns one process-wide cookie jar. Serialize replacement so an
- * older account cannot finish installing cookies after a newer account switch.
- * Pending requests are latest-wins; every executed request starts by clearing
- * the jar, which also removes host-only Steam cookies created by web pages.
+ * WebView exposes one process-wide cookie jar. Cookie replacement is serialized
+ * and latest-wins so a slow account switch cannot reinstall an older session.
  */
 private object SteamWebCookieSessionCoordinator {
     private data class Request(
@@ -63,9 +62,7 @@ private object SteamWebCookieSessionCoordinator {
         val stillLatest = notifyReady && synchronized(lock) {
             request.generation == latestGeneration && !active && pending == null
         }
-        if (stillLatest) {
-            request.onCookiesReady()
-        }
+        if (stillLatest) request.onCookiesReady()
         next?.let(::execute)
     }
 }
@@ -81,7 +78,7 @@ internal fun CookieManager.clearSteamCookies(onCookiesCleared: () -> Unit = {}) 
     SteamWebCookieSessionCoordinator.replace(this, emptyList(), onCookiesCleared)
 }
 
-internal fun CookieManager.installSteamCookies(
+private fun CookieManager.installSteamCookies(
     writes: List<SteamWebCookieWrite>,
     onCookiesReady: () -> Unit
 ) {

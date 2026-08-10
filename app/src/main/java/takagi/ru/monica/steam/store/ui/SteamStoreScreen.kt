@@ -118,6 +118,7 @@ import takagi.ru.monica.steam.store.hints.domain.resolveSteamStoreItemHints
 import takagi.ru.monica.steam.store.hints.ui.SteamStoreHintBadges
 import takagi.ru.monica.steam.store.gift.ui.SteamStoreGiftPurchaseSplitButton
 import takagi.ru.monica.steam.store.gift.ui.SteamStoreGiftRecipientSheet
+import takagi.ru.monica.steam.store.gift.data.steamStoreCheckoutAutomationFactory
 import takagi.ru.monica.steam.store.presentation.SteamStoreViewModel
 import takagi.ru.monica.steam.store.points.ui.SteamPointsShopScreen
 import takagi.ru.monica.steam.store.purchase.domain.SteamStoreOwnershipStatus
@@ -135,6 +136,7 @@ import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
+import takagi.ru.monica.steam.web.ui.SteamWebBrowserScreen
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
@@ -233,6 +235,9 @@ fun SteamStoreScreen(
     val webUrl = state.webUrl
     val detailAppId = state.detailAppId
     val selectedStoreAccount = viewModel.selectedAccount()
+    val checkoutAutomationFactory = remember(state.checkoutLines) {
+        steamStoreCheckoutAutomationFactory(state.checkoutLines)
+    }
     val storeDestination = when {
         webUrl != null -> SteamStoreDestination.Web(webUrl)
         detailAppId != null -> SteamStoreDestination.Detail(detailAppId)
@@ -275,7 +280,7 @@ fun SteamStoreScreen(
         label = "SteamStoreNavigation"
     ) { destination ->
         when (destination) {
-            is SteamStoreDestination.Web -> SteamStoreWebScreen(
+            is SteamStoreDestination.Web -> SteamWebBrowserScreen(
                 url = destination.url,
                 title = if (destination.url == SteamStoreProductActivation.REGISTER_KEY_URL) {
                     stringResource(R.string.steam_store_activate_product_code)
@@ -287,7 +292,7 @@ fun SteamStoreScreen(
                         "${selectedStoreAccount.steamId}||$token"
                     },
                 expectedSteamId = selectedStoreAccount?.steamId,
-                checkoutLines = state.checkoutLines,
+                automationFactory = checkoutAutomationFactory,
                 requireAuthenticatedSession = state.webRequiresAuthenticatedSession,
                 onPlatformViewVisibilityChanged = onPlatformViewVisibilityChanged,
                 onClose = viewModel::closeStoreWeb,

@@ -12,7 +12,7 @@ import okhttp3.Request
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.SteamHttpClientProvider
-import takagi.ru.monica.steam.store.data.SteamWebAccountSessionPolicy
+import takagi.ru.monica.steam.web.domain.SteamWebAccountSessionPolicy
 import takagi.ru.monica.steam.store.data.buildSteamStoreRequest
 import takagi.ru.monica.steam.store.data.encodeSteamCookieValue
 import takagi.ru.monica.steam.store.data.SteamStoreService
