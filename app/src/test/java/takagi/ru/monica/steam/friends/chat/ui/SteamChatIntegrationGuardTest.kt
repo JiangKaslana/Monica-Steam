@@ -46,15 +46,28 @@ class SteamChatIntegrationGuardTest {
     }
 
     @Test
-    fun friendPickerUsesFriendsTitleInsteadOfChatTitle() {
+    fun friendPickerAndAddFriendUseTheStandaloneChatTopBar() {
         val chatRoot = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatRootContent.kt"
+        ).readText()
+        val friendPicker = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatFriendPicker.kt"
+        ).readText()
+        val chatScreen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatScreen.kt"
         ).readText()
 
         val topBarTitle = chatRoot.substringAfter("ExpressiveTopBar(")
             .substringBefore("searchQuery =")
-        assertTrue(topBarTitle.contains("if (showFriends) R.string.steam_friends_title"))
-        assertTrue(topBarTitle.contains("else R.string.steam_chat_title"))
+        assertTrue(topBarTitle.contains("addFriendOpen -> R.string.steam_friend_add_title"))
+        assertTrue(topBarTitle.contains("showFriends -> R.string.steam_friends_title"))
+        assertTrue(topBarTitle.contains("else -> R.string.steam_chat_title"))
+        assertTrue(chatRoot.contains("SteamAddFriendScreen("))
+        assertTrue(chatRoot.contains("Icons.AutoMirrored.Filled.ArrowBack"))
+        assertTrue(friendPicker.contains("FloatingActionButton("))
+        assertTrue(friendPicker.contains("steamDockActionClearance"))
+        assertTrue(chatScreen.contains("onFindFriendCandidates"))
+        assertTrue(chatScreen.contains("SteamFriendRelationshipAction.ADD"))
     }
 
     @Test

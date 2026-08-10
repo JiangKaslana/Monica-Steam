@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwitchAccount
@@ -20,8 +21,10 @@ import takagi.ru.monica.R
 import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.steam.data.SteamAccountSourceState
 import takagi.ru.monica.steam.friends.chat.presentation.SteamChatUiState
+import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatUiState
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsUiState
+import takagi.ru.monica.steam.friends.ui.SteamAddFriendScreen
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
 import takagi.ru.monica.ui.components.ExpressiveTopBar
@@ -32,6 +35,7 @@ import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 internal fun SteamChatRootContent(
     standalone: Boolean,
     showFriends: Boolean,
+    addFriendOpen: Boolean,
     standaloneSearchQuery: String,
     searchExpanded: Boolean,
     accountSourceState: SteamAccountSourceState,
@@ -46,6 +50,10 @@ internal fun SteamChatRootContent(
     onSearchExpandedChange: (Boolean) -> Unit,
     onShowAccounts: () -> Unit,
     onToggleFriends: () -> Unit,
+    onAddFriendOpenChange: (Boolean) -> Unit,
+    onFindFriendCandidates: (String) -> Unit,
+    onAddFriend: (SteamFriend) -> Unit,
+    onRespondToInvite: (SteamFriend, Boolean) -> Unit,
     onOpenDirect: (String) -> Unit,
     onOpenGroup: (String, String) -> Unit,
     onRefreshFriends: () -> Unit,
@@ -64,45 +72,59 @@ internal fun SteamChatRootContent(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
                 ExpressiveTopBar(
-                    title = stringResource(
-                        if (showFriends) R.string.steam_friends_title
-                        else R.string.steam_chat_title
-                    ),
-                    searchQuery = standaloneSearchQuery,
+                    title = stringResource(when {
+                        addFriendOpen -> R.string.steam_friend_add_title
+                        showFriends -> R.string.steam_friends_title
+                        else -> R.string.steam_chat_title
+                    }),
+                    searchQuery = if (addFriendOpen) "" else standaloneSearchQuery,
                     onSearchQueryChange = onStandaloneSearchQueryChange,
-                    isSearchExpanded = searchExpanded,
+                    isSearchExpanded = !addFriendOpen && searchExpanded,
                     onSearchExpandedChange = onSearchExpandedChange,
                     searchHint = stringResource(R.string.steam_chat_search_hint),
                     modifier = Modifier.statusBarsPadding(),
                     actions = {
-                        IconButton(
-                            onClick = onShowAccounts,
-                            enabled = accountSourceState.accounts.isNotEmpty() ||
-                                accountSourceState.mdbxDatabases.isNotEmpty()
-                        ) {
-                            Icon(
-                                Icons.Default.SwitchAccount,
-                                contentDescription = stringResource(R.string.steam_switch_account)
-                            )
-                        }
-                        IconButton(onClick = onToggleFriends) {
-                            Icon(
-                                Icons.Default.Groups,
-                                contentDescription = stringResource(R.string.steam_friends_title)
-                            )
-                        }
-                        IconButton(onClick = { onSearchExpandedChange(true) }) {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = stringResource(R.string.steam_store_search)
-                            )
+                        if (addFriendOpen) {
+                            IconButton(onClick = { onAddFriendOpenChange(false) }) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(R.string.back)
+                                )
+                            }
+                        } else {
+                            IconButton(
+                                onClick = onShowAccounts,
+                                enabled = accountSourceState.accounts.isNotEmpty() ||
+                                    accountSourceState.mdbxDatabases.isNotEmpty()
+                            ) {
+                                Icon(
+                                    Icons.Default.SwitchAccount,
+                                    contentDescription = stringResource(R.string.steam_switch_account)
+                                )
+                            }
+                            IconButton(onClick = onToggleFriends) {
+                                Icon(
+                                    Icons.Default.Groups,
+                                    contentDescription = stringResource(R.string.steam_friends_title)
+                                )
+                            }
+                            IconButton(onClick = { onSearchExpandedChange(true) }) {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = stringResource(R.string.steam_store_search)
+                                )
+                            }
                         }
                     }
                 )
             }
         ) { padding ->
             AnimatedContent(
-                targetState = if (showFriends) 1 else 0,
+                targetState = when {
+                    addFriendOpen -> 2
+                    showFriends -> 1
+                    else -> 0
+                },
                 modifier = Modifier.fillMaxSize().padding(padding),
                 transitionSpec = {
                     easyNotesScreenEnter(reduceAnimations)
@@ -110,17 +132,28 @@ internal fun SteamChatRootContent(
                 },
                 label = "SteamChatRootMode"
             ) { rootMode ->
-                if (rootMode == 1) {
-                    SteamChatFriendPicker(
+                when (rootMode) {
+                    2 -> SteamAddFriendScreen(
+                        state = friendsState,
+                        onSearch = onFindFriendCandidates,
+                        onOpenFriend = { friend ->
+                            onAddFriendOpenChange(false)
+                            onOpenDirect(friend.steamId)
+                        },
+                        onAddFriend = onAddFriend,
+                        onRespondToInvite = onRespondToInvite,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    1 -> SteamChatFriendPicker(
                         friends = friendsState.snapshot?.acceptedFriends.orEmpty(),
                         loading = friendsState.loading && friendsState.snapshot == null,
                         query = effectiveSearchQuery,
                         onOpenThread = onOpenDirect,
                         onRefresh = onRefreshFriends,
+                        onAddFriend = { onAddFriendOpenChange(true) },
                         modifier = Modifier.fillMaxSize()
                     )
-                } else {
-                    SteamChatConversationRoot(
+                    else -> SteamChatConversationRoot(
                         chatState = chatState,
                         groupChatState = groupChatState,
                         friendsState = friendsState,

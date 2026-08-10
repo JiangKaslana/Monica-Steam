@@ -32,6 +32,7 @@ import takagi.ru.monica.steam.friends.chat.presentation.SteamChatViewModel
 import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionResult
 import takagi.ru.monica.steam.friends.chat.actions.presentation.SteamChatMessageActionViewModel
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaViewModel
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.friends.presentation.SteamFriendsViewModel
 import takagi.ru.monica.steam.friends.groupchat.presentation.SteamGroupChatViewModel
 import takagi.ru.monica.steam.friends.chat.info.data.SteamChatInfoPreferencesStore
@@ -116,6 +117,7 @@ fun SteamChatScreen(
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var showAccounts by rememberSaveable { mutableStateOf(false) }
     var showFriends by rememberSaveable { mutableStateOf(false) }
+    var addFriendOpen by rememberSaveable { mutableStateOf(false) }
     var showCreateGroup by rememberSaveable { mutableStateOf(false) }
     var showInviteFriend by rememberSaveable { mutableStateOf(false) }
     var initialGroupInvitees by remember { mutableStateOf(emptySet<String>()) }
@@ -180,6 +182,7 @@ fun SteamChatScreen(
         richMediaViewModel.selectAccount(selectedAccount)
         messageActionViewModel.selectAccount(selectedAccount)
         friendsViewModel.selectAccount(selectedAccount)
+        addFriendOpen = false
     }
     LaunchedEffect(
         accountSourceState.loading,
@@ -206,6 +209,23 @@ fun SteamChatScreen(
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
+    LaunchedEffect(friendsState.actionFeedback) {
+        val feedback = friendsState.actionFeedback ?: return@LaunchedEffect
+        val message = when {
+            feedback.success &&
+                feedback.relationshipAction == SteamFriendRelationshipAction.ADD ->
+                context.getString(R.string.steam_friend_add_success)
+            feedback.success && feedback.relationshipAction != null ->
+                context.getString(R.string.steam_friend_relationship_action_success)
+            feedback.success && feedback.accepted ->
+                context.getString(R.string.steam_friend_accept_success)
+            feedback.success -> context.getString(R.string.steam_friend_ignore_success)
+            !feedback.message.isNullOrBlank() -> feedback.message
+            else -> context.getString(R.string.steam_friend_action_failed)
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        friendsViewModel.consumeActionFeedback()
+    }
     LaunchedEffect(voiceState.failure) {
         val failure = voiceState.failure ?: return@LaunchedEffect
         val message = if (failure.contains("Microphone permission", ignoreCase = true)) {
@@ -229,6 +249,7 @@ fun SteamChatScreen(
         val partner = requestedPartnerSteamId?.takeIf(String::isNotBlank) ?: return@LaunchedEffect
         if (selectedAccount != null) {
             showFriends = false
+            addFriendOpen = false
             chatViewModel.openThread(partner)
             onConsumeRequestedPartner()
         }
@@ -244,6 +265,7 @@ fun SteamChatScreen(
         if (createdGroup != null) {
             showCreateGroup = false
             showFriends = false
+            addFriendOpen = false
             initialGroupInvitees = emptySet()
             subpage = null
             chatViewModel.closeThread()
@@ -296,10 +318,15 @@ fun SteamChatScreen(
     SteamChatBackHandlers(
         standalone = standalone,
         showFriends = showFriends,
+        addFriendOpen = addFriendOpen,
         subpage = subpage,
         directThreadOpen = chatState.selectedPartnerSteamId != null,
         groupThreadOpen = groupChatState.selectedChatId != null,
         onShowFriendsChange = { showFriends = it },
+        onAddFriendOpenChange = { open ->
+            addFriendOpen = open
+            if (!open) friendsViewModel.clearFriendDiscovery()
+        },
         onSubpageChange = { subpage = it },
         onCloseDirectThread = chatViewModel::closeThread,
         onCloseGroupThread = groupChatViewModel::closeRoom
@@ -318,6 +345,7 @@ fun SteamChatScreen(
             SteamChatRootContent(
                 standalone = standalone,
                 showFriends = showFriends,
+                addFriendOpen = addFriendOpen,
                 standaloneSearchQuery = standaloneSearchQuery,
                 searchExpanded = searchExpanded,
                 accountSourceState = accountSourceState,
@@ -334,9 +362,31 @@ fun SteamChatScreen(
                     if (!expanded) standaloneSearchQuery = ""
                 },
                 onShowAccounts = { showAccounts = true },
-                onToggleFriends = { showFriends = !showFriends },
+                onToggleFriends = {
+                    addFriendOpen = false
+                    showFriends = !showFriends
+                },
+                onAddFriendOpenChange = { open ->
+                    addFriendOpen = open
+                    if (open) {
+                        showFriends = true
+                        searchExpanded = false
+                        standaloneSearchQuery = ""
+                    } else {
+                        friendsViewModel.clearFriendDiscovery()
+                    }
+                },
+                onFindFriendCandidates = friendsViewModel::findFriendCandidates,
+                onAddFriend = { friend ->
+                    friendsViewModel.changeRelationship(
+                        friend,
+                        SteamFriendRelationshipAction.ADD
+                    )
+                },
+                onRespondToInvite = friendsViewModel::respondToInvite,
                 onOpenDirect = { steamId ->
                     showFriends = false
+                    addFriendOpen = false
                     groupChatViewModel.closeRoom()
                     chatViewModel.openThread(steamId)
                 },
