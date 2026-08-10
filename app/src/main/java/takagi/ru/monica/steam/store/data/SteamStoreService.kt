@@ -276,8 +276,6 @@ class SteamStoreService(
                 countryCode = countryCode ?: "US",
                 forceRefresh = forceRefresh
             ).intersect(visibleAppIds)
-        } catch (error: SteamStoreSessionException) {
-            throw error
         } catch (error: Throwable) {
             SteamDiagLogger.append(
                 "store_ignored_state failed type=${error.javaClass.simpleName}"
@@ -308,8 +306,6 @@ class SteamStoreService(
                 steamLoginSecure = steamLoginSecure,
                 accessToken = accessToken
             )
-        } catch (error: SteamStoreSessionException) {
-            throw error
         } catch (error: Throwable) {
             SteamDiagLogger.append(
                 "store_interest_state failed appid=${detail.appId} " +

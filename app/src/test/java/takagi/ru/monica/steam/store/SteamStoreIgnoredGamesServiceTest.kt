@@ -21,12 +21,47 @@ import takagi.ru.monica.steam.store.interest.data.parseSteamGameInterestState
 import takagi.ru.monica.steam.store.interest.data.parseSteamIgnoredAppIds
 import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestService
 import takagi.ru.monica.steam.store.interest.domain.withoutIgnoredGames
+import takagi.ru.monica.steam.store.data.SteamStoreReviewService
+import takagi.ru.monica.steam.store.data.SteamStoreService
 import takagi.ru.monica.steam.store.domain.SteamStoreBrowseFilter
 import takagi.ru.monica.steam.store.domain.SteamStoreCatalogPage
 import takagi.ru.monica.steam.store.domain.SteamStoreHome
 import takagi.ru.monica.steam.store.domain.SteamStoreItem
 
 class SteamStoreIgnoredGamesServiceTest {
+    @Test
+    fun featuredContentSurvivesUnavailableIgnoredPreferenceSession() {
+        val requests = mutableListOf<okhttp3.Request>()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            requests += chain.request()
+            val payload = when (chain.request().url.encodedPath) {
+                "/api/featuredcategories" ->
+                    """{"specials":{"items":[{"id":620,"name":"Portal 2"}]}}"""
+                else -> "<html></html>"
+            }
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(payload.toResponseBody("text/plain".toMediaType()))
+                .build()
+        }.build()
+        val service = SteamStoreService(
+            client = client,
+            api = SteamApiClient(client),
+            reviewService = SteamStoreReviewService(client)
+        )
+
+        val home = service.featured(steamId = "76561198000000000")
+
+        assertEquals(listOf(620), home.specials.map(SteamStoreItem::appId))
+        assertEquals(
+            listOf("/api/featuredcategories", "/"),
+            requests.map { it.url.encodedPath }
+        )
+    }
+
     @Test
     fun refreshedAccessTokenReplacesAStaleStoreCookieToken() {
         assertEquals(
@@ -92,6 +127,55 @@ class SteamStoreIgnoredGamesServiceTest {
         )
         assertEquals(2, requests.size)
         assertEquals("POST", requests.last().method)
+    }
+
+    @Test
+    fun cachedIgnoredAppsSurvivePreferenceSessionRefreshFailure() {
+        var rejectSession = false
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(if (rejectSession) 401 else 200)
+                .message(if (rejectSession) "Unauthorized" else "OK")
+                .body(
+                    "{\"rgIgnoredApps\":{\"730\":0}}"
+                        .toResponseBody("application/json".toMediaType())
+                )
+                .build()
+        }.build()
+        val service = SteamStoreInterestService(
+            client = client,
+            api = SteamApiClient(client),
+            nowMillis = { 1_000L }
+        )
+        val credentials = Triple(
+            "76561198000000000",
+            "76561198000000000||token",
+            "token"
+        )
+        assertEquals(
+            setOf(730),
+            service.ignoredAppIds(
+                steamId = credentials.first,
+                steamLoginSecure = credentials.second,
+                accessToken = credentials.third,
+                countryCode = "CN"
+            )
+        )
+
+        rejectSession = true
+
+        assertEquals(
+            setOf(730),
+            service.ignoredAppIds(
+                steamId = credentials.first,
+                steamLoginSecure = credentials.second,
+                accessToken = credentials.third,
+                countryCode = "CN",
+                forceRefresh = true
+            )
+        )
     }
 
     @Test

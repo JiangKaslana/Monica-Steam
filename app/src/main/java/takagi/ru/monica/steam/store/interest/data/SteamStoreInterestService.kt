@@ -71,7 +71,6 @@ internal class SteamStoreInterestService(
                 }
             }
         } catch (error: Throwable) {
-            if (error is SteamStoreIgnoreSessionException) throw error
             cached?.appIds ?: throw error
         }
     }

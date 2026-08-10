@@ -173,6 +173,7 @@ class SteamStoreViewModel internal constructor(
     private var libraryHintRequestGeneration: Long = 0L
     private var giftFriendsRequestGeneration: Long = 0L
     private val freeLicenseVerificationJobs = mutableMapOf<Int, Job>()
+    private val accountLoadTracker = SteamStoreAccountLoadTracker()
     private val _uiState = MutableStateFlow(SteamStoreUiState())
     val uiState: StateFlow<SteamStoreUiState> = _uiState.asStateFlow()
 
@@ -180,8 +181,6 @@ class SteamStoreViewModel internal constructor(
         viewModelScope.launch {
             accountSourceRepository.state.collect { sourceState ->
                 val accounts = sourceState.accounts.filter { it.hasAuthenticatedSession }
-                val previousId = _uiState.value.selectedAccountId
-                val previousSource = _uiState.value.storageSource
                 val selected = accounts.firstOrNull { it.id == sourceState.selectedAccountId }
                     ?: accounts.firstOrNull()
                 _uiState.value = _uiState.value.copy(
@@ -192,11 +191,7 @@ class SteamStoreViewModel internal constructor(
                     accountsLoading = sourceState.loading,
                     accountSourceError = sourceState.errorMessage
                 )
-                if (
-                    previousId != selected?.id ||
-                    previousSource != sourceState.storageSource ||
-                    _uiState.value.home == null
-                ) {
+                if (accountLoadTracker.shouldInitialize(selected?.id, sourceState.storageSource)) {
                     resetStoreForAccount(selected?.id)
                     loadLibraryHints(selected?.id, sourceState.storageSource)
                     loadCart(selected?.id)
