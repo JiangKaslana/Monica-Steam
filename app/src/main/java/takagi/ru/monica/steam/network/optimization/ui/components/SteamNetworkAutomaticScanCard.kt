@@ -83,19 +83,12 @@ internal fun SteamNetworkAutomaticScanCard(
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = stringResource(R.string.steam_network_auto_flow_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.content
-                )
-                Text(
-                    text = stringResource(R.string.steam_network_auto_card_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.content.copy(alpha = 0.78f)
-                )
-            }
+            Text(
+                text = stringResource(R.string.steam_network_auto_flow_title),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = colors.content
+            )
 
             when (state) {
                 is SteamAutoOptimizationUiState.Running -> ScanProgressContent(

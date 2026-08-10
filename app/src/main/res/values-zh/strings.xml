@@ -5107,7 +5107,7 @@
     <string name="steam_network_auto_card_subtitle">解析、验证并自动优选 Steam 节点</string>
     <string name="steam_network_auto_pull_hint">下拉或点按进入网络优化</string>
     <string name="steam_network_auto_pull_release">松手进入网络优化</string>
-    <string name="steam_network_auto_flow_title">解析、验证、优选</string>
+    <string name="steam_network_auto_flow_title">优化 Steam 网络</string>
     <string name="steam_network_auto_status_idle">等待开始</string>
     <string name="steam_network_auto_status_active">优化已启用</string>
     <string name="steam_network_auto_status_failed">扫描未完成</string>
@@ -5117,7 +5117,6 @@
     <string name="steam_network_auto_latency">%1$d 毫秒</string>
     <string name="steam_network_advanced_title">高级网络设置</string>
     <string name="steam_network_advanced_description">管理应用内 Hosts 规则、系统 DNS 回退、导入导出和单节点测试。</string>
-    <string name="steam_network_auto_card_description">同时查询系统 DNS 与 5 个公共 DoH 服务，对 Steam 商店、社区和 API 节点执行完整 HTTPS 验证，再自动应用每个域名最快的可用地址。</string>
     <string name="steam_network_auto_resolving">正在解析多个 DNS 来源…</string>
     <string name="steam_network_auto_verifying">正在验证 Steam 节点…</string>
     <string name="steam_network_auto_applying">正在应用优选结果…</string>

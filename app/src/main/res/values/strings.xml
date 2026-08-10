@@ -5280,7 +5280,7 @@
     <string name="steam_network_auto_card_subtitle">Resolve, verify, and select faster Steam routes</string>
     <string name="steam_network_auto_pull_hint">Pull down or tap to open network optimization</string>
     <string name="steam_network_auto_pull_release">Release to open network optimization</string>
-    <string name="steam_network_auto_flow_title">Resolve, verify, select</string>
+    <string name="steam_network_auto_flow_title">Optimize Steam network</string>
     <string name="steam_network_auto_status_idle">Waiting to start</string>
     <string name="steam_network_auto_status_active">Optimization active</string>
     <string name="steam_network_auto_status_failed">Scan incomplete</string>
@@ -5290,7 +5290,6 @@
     <string name="steam_network_auto_latency">%1$d ms</string>
     <string name="steam_network_advanced_title">Advanced network settings</string>
     <string name="steam_network_advanced_description">Manage app-only Hosts rules, fallback behavior, import, export, and individual route tests.</string>
-    <string name="steam_network_auto_card_description">Queries system DNS and five public DoH services, verifies Steam Store, Community, and API routes with full HTTPS checks, then applies the fastest available address for each domain.</string>
     <string name="steam_network_auto_resolving">Resolving multiple DNS sources…</string>
     <string name="steam_network_auto_verifying">Verifying Steam routes…</string>
     <string name="steam_network_auto_applying">Applying selected routes…</string>
