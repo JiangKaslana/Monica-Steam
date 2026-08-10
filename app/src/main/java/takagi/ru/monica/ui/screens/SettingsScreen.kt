@@ -138,6 +138,8 @@ fun SettingsScreen(
     surfacePolicy: SettingsSurfacePolicy = SettingsSurfacePolicy(),
     screenMode: SettingsScreenMode = SettingsScreenMode.FULL,
     screenTitle: String? = null,
+    homeHeaderContent: (@Composable () -> Unit)? = null,
+    homeHeaderSearchTexts: List<String> = emptyList(),
     compactHomeSections: List<SettingsNavigationSection> = emptyList(),
     appearanceSectionTitle: String? = null,
     applicationSectionTitle: String? = null,
@@ -640,6 +642,11 @@ fun SettingsScreen(
     } else {
         emptyList()
     }
+    val showHomeHeaderContent = isHomeMode && homeHeaderContent != null &&
+        matchesSettingsSearch(
+            settingsSearchQuery,
+            *homeHeaderSearchTexts.toTypedArray()
+        )
 
     val showMonicaPlusCard = isHomeMode &&
         (surfacePolicy.forceMonicaPlusActivated || !settings.isPlusActivated) && matchesSettingsSearch(
@@ -878,6 +885,7 @@ fun SettingsScreen(
         *developerSubSettingsSearchTexts
     )
     val hasVisibleResults = listOf(
+        showHomeHeaderContent,
         visibleCompactHomeSections.isNotEmpty(),
         showMonicaPlusCard,
         showSecurityAnalysisCard,
@@ -946,6 +954,19 @@ fun SettingsScreen(
         ) {
             // Top padding spacer for edge-to-edge scrolling
             Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding()))
+
+            if (showHomeHeaderContent) {
+                Box(
+                    modifier = Modifier.padding(
+                        start = 16.dp,
+                        top = 16.dp,
+                        end = 16.dp,
+                        bottom = 4.dp
+                    )
+                ) {
+                    homeHeaderContent?.invoke()
+                }
+            }
 
             if (isHomeMode) {
                 SettingsSearchField(

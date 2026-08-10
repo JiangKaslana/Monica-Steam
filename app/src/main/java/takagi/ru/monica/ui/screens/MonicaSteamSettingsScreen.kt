@@ -57,7 +57,6 @@ private enum class SteamSettingsChild {
     APPEARANCE,
     STEAM_FEATURES,
     NAVIGATION,
-    CONNECTIVITY,
     APP_SUPPORT,
     DOCK,
     COLORS,
@@ -80,10 +79,11 @@ private fun SteamSettingsChild.parent(): SteamSettingsChild? = when (this) {
     SteamSettingsChild.APPEARANCE,
     SteamSettingsChild.STEAM_FEATURES,
     SteamSettingsChild.NAVIGATION,
-    SteamSettingsChild.CONNECTIVITY,
     SteamSettingsChild.APP_SUPPORT,
     SteamSettingsChild.MASTER_PASSWORD_SETUP,
-    SteamSettingsChild.MASTER_PASSWORD_LOCKING -> null
+    SteamSettingsChild.MASTER_PASSWORD_LOCKING,
+    SteamSettingsChild.NOTIFICATIONS,
+    SteamSettingsChild.NETWORK_OPTIMIZATION -> null
 
     SteamSettingsChild.COLORS -> SteamSettingsChild.APPEARANCE
 
@@ -94,9 +94,6 @@ private fun SteamSettingsChild.parent(): SteamSettingsChild? = when (this) {
 
     SteamSettingsChild.CUSTOM_COLORS -> SteamSettingsChild.COLORS
     SteamSettingsChild.STORE_HINTS -> SteamSettingsChild.STEAM_FEATURES
-
-    SteamSettingsChild.NOTIFICATIONS,
-    SteamSettingsChild.NETWORK_OPTIMIZATION -> SteamSettingsChild.CONNECTIVITY
 
     SteamSettingsChild.RESET_PASSWORD,
     SteamSettingsChild.SECURITY_QUESTIONS -> SteamSettingsChild.MASTER_PASSWORD_LOCKING
@@ -132,7 +129,6 @@ fun MonicaSteamSettingsScreen(
     val appearanceScrollState = rememberScrollState()
     val steamFeaturesScrollState = rememberScrollState()
     val navigationScrollState = rememberScrollState()
-    val connectivityScrollState = rememberScrollState()
     val appSupportScrollState = rememberScrollState()
     val context = LocalContext.current
     val dockContentClearance = LocalSteamDockContentClearance.current
@@ -152,7 +148,7 @@ fun MonicaSteamSettingsScreen(
             onOpenAppearance = { child = SteamSettingsChild.APPEARANCE },
             onOpenNavigation = { child = SteamSettingsChild.NAVIGATION },
             onOpenSteamExperience = { child = SteamSettingsChild.STEAM_FEATURES },
-            onOpenConnectivity = { child = SteamSettingsChild.CONNECTIVITY },
+            onOpenNotifications = { child = SteamSettingsChild.NOTIFICATIONS },
             onOpenAppSupport = { child = SteamSettingsChild.APP_SUPPORT }
         )
     }
@@ -187,7 +183,6 @@ fun MonicaSteamSettingsScreen(
             onOpenPlus = { child = SteamSettingsChild.PLUS },
             onOpenDeveloper = { child = SteamSettingsChild.DEVELOPER },
             onOpenExtensions = { child = SteamSettingsChild.EXTENSIONS },
-            onOpenNotifications = { child = SteamSettingsChild.NOTIFICATIONS },
             onOpenNetworkOptimization = { child = SteamSettingsChild.NETWORK_OPTIMIZATION },
             onOpenStoreHints = { child = SteamSettingsChild.STORE_HINTS },
             onOpenDataManagement = { child = SteamSettingsChild.DATA_MANAGEMENT },
@@ -249,14 +244,6 @@ fun MonicaSteamSettingsScreen(
                     showBack = true,
                     onBack = { child = null },
                     additionalGroup = SteamSettingsAdditionalGroup.NAVIGATION
-                )
-                SteamSettingsChild.CONNECTIVITY -> SharedSettingsSurface(
-                    mode = SettingsScreenMode.ADDITIONAL,
-                    title = context.getString(R.string.steam_settings_connectivity_title),
-                    scrollState = connectivityScrollState,
-                    showBack = true,
-                    onBack = { child = null },
-                    additionalGroup = SteamSettingsAdditionalGroup.CONNECTIVITY
                 )
                 SteamSettingsChild.APP_SUPPORT -> SharedSettingsSurface(
                     mode = SettingsScreenMode.APP_SUPPORT,
@@ -396,11 +383,11 @@ fun MonicaSteamSettingsScreen(
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.NOTIFICATIONS -> SteamNotificationSettingsScreen(
-                    onNavigateBack = { child = SteamSettingsChild.CONNECTIVITY },
+                    onNavigateBack = { child = null },
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.NETWORK_OPTIMIZATION -> SteamNetworkOptimizationSettingsScreen(
-                    onNavigateBack = { child = SteamSettingsChild.CONNECTIVITY },
+                    onNavigateBack = { child = null },
                     modifier = Modifier.fillMaxSize()
                 )
                 SteamSettingsChild.STORE_HINTS -> SteamStoreHintSettingsScreen(

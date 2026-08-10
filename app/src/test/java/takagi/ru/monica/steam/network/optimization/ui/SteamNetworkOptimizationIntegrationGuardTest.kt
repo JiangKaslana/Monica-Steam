@@ -36,11 +36,12 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         assertTrue(application.contains("SteamNetworkOptimizationRuntime.initialize(this)"))
         assertTrue(settings.contains("SteamSettingsChild.NETWORK_OPTIMIZATION"))
         assertTrue(settings.contains("SteamNetworkOptimizationSettingsScreen("))
-        assertTrue(settingsHost.contains("SteamNetworkOptimizationSettingsEntry("))
+        assertTrue(settingsHost.contains("SteamNetworkOptimizationHeroCard("))
         assertTrue(provider.contains("SteamCustomHostsDns()"))
         assertFalse(apiClient.contains("SteamCommunityDns"))
         assertTrue(runtime.contains("KEY_CUSTOM_HOSTS"))
         assertTrue(runtime.contains("saveHosts("))
+        assertTrue(runtime.contains("applyAutoOptimization("))
         assertTrue(advancedEditor.contains("OutlinedTextField("))
         assertTrue(optimizationScreen.contains("SteamHostsRuleParser.parse("))
         assertTrue(optimizationScreen.contains("SteamNetworkOptimizationRuntime.saveHosts("))
@@ -66,6 +67,34 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         ).forEach { path ->
             assertTrue(path, projectFile(path).readText().contains("SteamHttpClientProvider"))
         }
+    }
+
+    @Test
+    fun automaticOptimizationUsesMultipleResolversAndHttpsVerification() {
+        val settingsHost = projectFile(
+            "app/src/main/java/takagi/ru/monica/ui/screens/MonicaSteamSharedSettingsHost.kt"
+        ).readText()
+        val heroCard = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/ui/components/SteamNetworkOptimizationHeroCard.kt"
+        ).readText()
+        val models = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/domain/SteamDnsOptimizationModels.kt"
+        ).readText()
+        val resolver = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/diagnostics/OkHttpSteamDnsResolver.kt"
+        ).readText()
+        val scanner = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/network/optimization/diagnostics/SteamDnsOptimizationScanner.kt"
+        ).readText()
+
+        assertTrue(settingsHost.contains("homeHeaderContent ="))
+        assertTrue(settingsHost.contains("SteamNetworkOptimizationHeroCard("))
+        assertTrue(heroCard.contains("SteamDnsOptimizationScanner()"))
+        assertTrue(heroCard.contains("applyAutoOptimization(context, result)"))
+        assertTrue(models.contains("val DEFAULTS: List<SteamDnsProvider>"))
+        assertTrue(resolver.contains("DnsOverHttps.Builder()"))
+        assertTrue(scanner.contains("SteamHostProbeTarget(hostname, address)"))
+        assertTrue(scanner.contains("it.target.hostname == hostname && it.isAvailable"))
     }
 
     @Test

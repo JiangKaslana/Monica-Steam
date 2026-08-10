@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.SteamHttpClientProvider
+import takagi.ru.monica.steam.network.optimization.domain.SteamAutoHostsFormatter
+import takagi.ru.monica.steam.network.optimization.domain.SteamDnsOptimizationScanResult
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostsParseResult
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRuleParser
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkOptimizationSettings
@@ -104,6 +106,45 @@ object SteamNetworkOptimizationRuntime {
             SteamDiagLogger.append("custom_hosts saved hosts=${parsed.hostCount} enabled=$enabled")
         }
         return parsed
+    }
+
+    @Synchronized
+    fun applyAutoOptimization(
+        context: Context,
+        result: SteamDnsOptimizationScanResult
+    ): Boolean {
+        initialize(context)
+        if (!result.isComplete) return false
+        val mergedHosts = runCatching {
+            SteamAutoHostsFormatter.merge(
+                existingText = mutableSettings.value.hostsText,
+                result = result
+            )
+        }.getOrNull() ?: return false
+        val parsed = SteamHostsRuleParser.parse(mergedHosts)
+        if (!parsed.isValid || parsed.addresses.isEmpty()) return false
+
+        preferences.edit()
+            .putString(KEY_CUSTOM_HOSTS, mergedHosts)
+            .putBoolean(KEY_ENABLED, true)
+            .putBoolean(KEY_FALLBACK_TO_SYSTEM_DNS, true)
+            .apply()
+        hostOverrides = parsed.addresses
+        mutableSettings.value = SteamNetworkOptimizationSettings(
+            enabled = true,
+            hostsText = mergedHosts,
+            hostCount = parsed.hostCount,
+            fallbackToSystemDns = true
+        )
+        SteamHttpClientProvider.onCustomHostsChanged()
+        runCatching {
+            SteamDiagLogger.append(
+                "auto_dns applied hosts=${result.availableHostCount} " +
+                    "providers=${result.providerIds.size} " +
+                    "average_ms=${result.averageLatencyMillis ?: -1L} scope=app"
+            )
+        }
+        return true
     }
 
     internal fun addressesForHost(hostname: String): List<InetAddress> {

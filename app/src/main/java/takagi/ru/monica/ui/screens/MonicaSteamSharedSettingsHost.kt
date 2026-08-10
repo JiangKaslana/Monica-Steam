@@ -31,8 +31,7 @@ import takagi.ru.monica.steam.quickaccess.SteamQuickAccessInstaller
 import takagi.ru.monica.steam.foundation.ui.SteamUiScalePreferences
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarShapeOption
 import takagi.ru.monica.steam.foundation.ui.SteamAvatarShapePreferences
-import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSettingsEntry
-import takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationSettingsEntry
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkOptimizationHeroCard
 import takagi.ru.monica.steam.store.hints.ui.SteamStoreHintSettingsEntry
 import takagi.ru.monica.utils.SettingsManager
 import takagi.ru.monica.viewmodel.SettingsViewModel
@@ -60,7 +59,6 @@ internal fun MonicaSteamSharedSettingsHost(
     onOpenPlus: () -> Unit,
     onOpenDeveloper: () -> Unit,
     onOpenExtensions: () -> Unit,
-    onOpenNotifications: () -> Unit,
     onOpenNetworkOptimization: () -> Unit,
     onOpenStoreHints: () -> Unit,
     onOpenDataManagement: () -> Unit,
@@ -138,6 +136,20 @@ internal fun MonicaSteamSharedSettingsHost(
         ),
         screenMode = screenMode,
         screenTitle = screenTitle,
+        homeHeaderContent = {
+            SteamNetworkOptimizationHeroCard(
+                onOpenAdvanced = onOpenNetworkOptimization
+            )
+        },
+        homeHeaderSearchTexts = listOf(
+            context.getString(R.string.steam_network_auto_card_title),
+            context.getString(R.string.steam_network_auto_card_subtitle),
+            context.getString(R.string.steam_network_optimization_title),
+            context.getString(R.string.steam_network_optimization_description),
+            "DNS",
+            "DoH",
+            "Hosts"
+        ),
         compactHomeSections = compactHomeSections,
         appearanceSectionTitle = context.getString(R.string.settings_appearance_entry_title),
         applicationSectionTitle = context.getString(
@@ -153,10 +165,6 @@ internal fun MonicaSteamSharedSettingsHost(
         additionalSettingsEntrySearchTexts = listOf(
             context.getString(R.string.steam_store_hint_settings_title),
             context.getString(R.string.steam_store_hint_settings_description),
-            context.getString(R.string.steam_notification_settings_title),
-            context.getString(R.string.steam_notification_settings_description),
-            context.getString(R.string.steam_network_optimization_title),
-            context.getString(R.string.steam_network_optimization_description),
             context.getString(R.string.steam_link_handling_title),
             context.getString(R.string.steam_link_handling_description)
         ),
@@ -181,10 +189,6 @@ internal fun MonicaSteamSharedSettingsHost(
                 SteamSettingsAdditionalGroup.STEAM_EXPERIENCE -> {
                     SteamLinkHandlingSettingsEntry()
                     SteamStoreHintSettingsEntry(onClick = onOpenStoreHints)
-                }
-                SteamSettingsAdditionalGroup.CONNECTIVITY -> {
-                    SteamNotificationSettingsEntry(onClick = onOpenNotifications)
-                    SteamNetworkOptimizationSettingsEntry(onClick = onOpenNetworkOptimization)
                 }
             }
         },

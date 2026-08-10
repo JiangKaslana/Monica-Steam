@@ -14,8 +14,7 @@ import takagi.ru.monica.R
 internal enum class SteamSettingsAdditionalGroup {
     NONE,
     NAVIGATION,
-    STEAM_EXPERIENCE,
-    CONNECTIVITY
+    STEAM_EXPERIENCE
 }
 
 internal fun buildMonicaSteamSettingsHomeSections(
@@ -25,7 +24,7 @@ internal fun buildMonicaSteamSettingsHomeSections(
     onOpenAppearance: () -> Unit,
     onOpenNavigation: () -> Unit,
     onOpenSteamExperience: () -> Unit,
-    onOpenConnectivity: () -> Unit,
+    onOpenNotifications: () -> Unit,
     onOpenAppSupport: () -> Unit
 ): List<SettingsNavigationSection> = listOf(
     SettingsNavigationSection(
@@ -100,9 +99,9 @@ internal fun buildMonicaSteamSettingsHomeSections(
                 subtitle = context.getString(R.string.steam_settings_connectivity_description),
                 searchTexts = listOf(
                     context.getString(R.string.steam_notification_settings_title),
-                    context.getString(R.string.steam_network_optimization_title)
+                    context.getString(R.string.steam_notification_settings_description)
                 ),
-                onClick = onOpenConnectivity
+                onClick = onOpenNotifications
             )
         )
     ),

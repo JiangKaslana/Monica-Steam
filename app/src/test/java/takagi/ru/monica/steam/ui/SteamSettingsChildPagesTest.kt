@@ -46,14 +46,12 @@ class SteamSettingsChildPagesTest {
         assertTrue(navigation.contains("mode = SettingsScreenMode.APPEARANCE"))
         assertTrue(navigation.contains("SteamSettingsChild.STEAM_FEATURES"))
         assertTrue(navigation.contains("SteamSettingsChild.NAVIGATION"))
-        assertTrue(navigation.contains("SteamSettingsChild.CONNECTIVITY"))
         assertTrue(navigation.contains("SteamSettingsChild.APP_SUPPORT"))
         assertTrue(navigation.contains("SteamSettingsAdditionalGroup.STEAM_EXPERIENCE"))
         assertTrue(navigation.contains("SteamSettingsAdditionalGroup.NAVIGATION"))
-        assertTrue(navigation.contains("SteamSettingsAdditionalGroup.CONNECTIVITY"))
         assertTrue(navigation.contains("mode = SettingsScreenMode.APP_SUPPORT"))
-        assertTrue(navigation.contains("SteamSettingsChild.NOTIFICATIONS,"))
-        assertTrue(navigation.contains("onNavigateBack = { child = SteamSettingsChild.CONNECTIVITY }"))
+        assertTrue(navigation.contains("onOpenNotifications = { child = SteamSettingsChild.NOTIFICATIONS }"))
+        assertTrue(navigation.contains("onNavigateBack = { child = null }"))
     }
 
     @Test
@@ -69,10 +67,9 @@ class SteamSettingsChildPagesTest {
         assertTrue(host.contains("onNavigateToWebDavBackup = onOpenWebDavBackup"))
         assertTrue(host.contains("onNavigateToMdbx = onOpenMdbx"))
         assertTrue(host.contains("SteamStoreHintSettingsEntry(onClick = onOpenStoreHints)"))
-        assertTrue(host.contains("SteamNotificationSettingsEntry(onClick = onOpenNotifications)"))
-        assertTrue(
-            host.contains("SteamNetworkOptimizationSettingsEntry(onClick = onOpenNetworkOptimization)")
-        )
+        assertTrue(host.contains("homeHeaderContent ="))
+        assertTrue(host.contains("SteamNetworkOptimizationHeroCard("))
+        assertTrue(host.contains("onOpenAdvanced = onOpenNetworkOptimization"))
         assertTrue(host.contains("SteamSettingsAdditionalGroup.NAVIGATION"))
         assertTrue(host.contains("showLanguage = screenMode == SettingsScreenMode.APP_SUPPORT"))
         assertTrue(host.contains("showBottomNavigation = false"))

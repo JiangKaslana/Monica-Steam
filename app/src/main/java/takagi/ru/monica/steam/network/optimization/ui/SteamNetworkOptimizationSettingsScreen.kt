@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -52,21 +51,6 @@ import takagi.ru.monica.steam.network.optimization.ui.components.SteamHostsAdvan
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamHostsActionsMenu
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamHostsRulesSection
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkOverviewCard
-import takagi.ru.monica.ui.screens.SettingsItem
-import takagi.ru.monica.ui.screens.SettingsSection
-
-@Composable
-fun SteamNetworkOptimizationSettingsEntry(onClick: () -> Unit) {
-    val context = LocalContext.current
-    SettingsSection(title = context.getString(R.string.steam_network_optimization_section)) {
-        SettingsItem(
-            icon = Icons.Default.Dns,
-            title = context.getString(R.string.steam_network_optimization_title),
-            subtitle = context.getString(R.string.steam_network_optimization_description),
-            onClick = onClick
-        )
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
