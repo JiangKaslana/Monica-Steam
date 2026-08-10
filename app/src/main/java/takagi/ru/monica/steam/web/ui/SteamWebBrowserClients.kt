@@ -39,12 +39,14 @@ internal class SteamBrowserWebViewClient(
     override fun onPageCommitVisible(view: WebView, url: String) {
         hasCommittedContent = true
         view.alpha = 1f
+        view.applySteamStoreMenuScrollFix(url)
         onPageCommitVisibleCallback(view, url)
     }
 
     override fun onPageFinished(view: WebView, url: String) {
         hasCommittedContent = true
         view.alpha = 1f
+        view.applySteamStoreMenuScrollFix(url)
         onPageFinishedCallback(view, url)
     }
 
@@ -190,3 +192,39 @@ internal class SteamBrowserWebChromeClient(
         onHideCustomViewCallback()
     }
 }
+
+private fun WebView.applySteamStoreMenuScrollFix(pageUrl: String) {
+    val host = runCatching { Uri.parse(pageUrl).host.orEmpty() }.getOrDefault("")
+    if (!host.equals("store.steampowered.com", ignoreCase = true)) return
+    evaluateJavascript(STEAM_STORE_MENU_SCROLL_FIX_SCRIPT, null)
+}
+
+private val STEAM_STORE_MENU_SCROLL_FIX_SCRIPT = """
+    (() => {
+        const observerKey = '__monicaSteamStoreMenuScrollFixObserver';
+        const applyFix = () => {
+            const menuRoot = document.querySelector('[data-featuretarget="store-menu-v7"]');
+            if (!menuRoot) return false;
+            const stickyContainer = Array.from(menuRoot.querySelectorAll('*')).find((element) => {
+                return window.getComputedStyle(element).position === 'sticky';
+            });
+            if (!stickyContainer) return false;
+            stickyContainer.style.setProperty('position', 'relative', 'important');
+            stickyContainer.style.setProperty('top', 'auto', 'important');
+            return true;
+        };
+        if (applyFix() || window[observerKey]) return;
+        const observer = new MutationObserver(() => {
+            if (applyFix()) {
+                observer.disconnect();
+                window[observerKey] = null;
+            }
+        });
+        window[observerKey] = observer;
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+        window.setTimeout(() => {
+            observer.disconnect();
+            window[observerKey] = null;
+        }, 5000);
+    })();
+""".trimIndent()
