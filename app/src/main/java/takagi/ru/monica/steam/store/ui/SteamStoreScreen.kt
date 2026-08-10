@@ -41,10 +41,12 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -99,6 +101,7 @@ import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.interest.ui.SteamStoreIgnoreButton
+import takagi.ru.monica.steam.store.interest.domain.SteamStoreIgnoreSyncState
 import takagi.ru.monica.steam.store.freebie.ui.SteamFreebieScreen
 import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieClaimResult
 import takagi.ru.monica.steam.store.filters.domain.resolveSteamStoreTagLabels
@@ -373,6 +376,7 @@ fun SteamStoreScreen(
                         ignored = detail.ignored,
                         ignoreAvailable = viewModel.selectedAccount()?.hasRealSteamId == true,
                         ignoreMutating = detail.appId in state.ignoredMutatingAppIds,
+                        ignoreSyncState = state.ignoredSyncStates[detail.appId],
                         ignoredError = state.ignoredError,
                         regionalPrices = state.regionalPrices,
                         regionalPricesFromCache = state.regionalPricesFromCache,
@@ -1023,6 +1027,7 @@ private fun SteamStoreDetailContent(
     ignored: Boolean,
     ignoreAvailable: Boolean,
     ignoreMutating: Boolean,
+    ignoreSyncState: SteamStoreIgnoreSyncState?,
     ignoredError: String?,
     regionalPrices: List<SteamRegionalPrice>,
     regionalPricesFromCache: Boolean,
@@ -1263,6 +1268,7 @@ private fun SteamStoreDetailContent(
                     ignored = ignored,
                     ignoreAvailable = ignoreAvailable,
                     ignoreMutating = ignoreMutating,
+                    ignoreSyncState = ignoreSyncState,
                     ignoredError = ignoredError,
                     onAddForSelf = { onAddToCart(selectedPackage) },
                     onAddAsGift = { onAddAsGift(selectedPackage) },
@@ -1503,6 +1509,7 @@ private fun SteamStorePurchaseActions(
     ignored: Boolean,
     ignoreAvailable: Boolean,
     ignoreMutating: Boolean,
+    ignoreSyncState: SteamStoreIgnoreSyncState?,
     ignoredError: String?,
     onAddForSelf: () -> Unit,
     onAddAsGift: () -> Unit,
@@ -1586,6 +1593,43 @@ private fun SteamStorePurchaseActions(
                 onClick = onToggleIgnored,
                 modifier = Modifier.weight(1f)
             )
+        }
+        if (ignoreSyncState == SteamStoreIgnoreSyncState.PENDING ||
+            ignoreSyncState == SteamStoreIgnoreSyncState.LOCAL_ONLY
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (ignoreSyncState == SteamStoreIgnoreSyncState.PENDING) {
+                            Icons.Default.Sync
+                        } else {
+                            Icons.Default.CloudOff
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = stringResource(
+                            if (ignoreSyncState == SteamStoreIgnoreSyncState.PENDING) {
+                                R.string.steam_store_ignore_sync_pending
+                            } else {
+                                R.string.steam_store_ignore_local_only
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
         }
         OutlinedButton(
             onClick = onOpenOfficial,

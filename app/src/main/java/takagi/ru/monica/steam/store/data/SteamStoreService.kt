@@ -1,5 +1,6 @@
 package takagi.ru.monica.steam.store.data
 
+import android.content.Context
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
 import java.net.URLEncoder
@@ -32,6 +33,14 @@ import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentService
 import takagi.ru.monica.steam.store.purchase.data.SteamStorePackageMetadataService
 import takagi.ru.monica.steam.store.purchase.data.SteamStorePurchasePageService
 import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestService
+import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestMemoryDataSource
+import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestPreferences
+import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestPreferencesDataSource
+import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestRepository
+import takagi.ru.monica.steam.store.interest.data.SteamStoreInterestSyncSettings
+import takagi.ru.monica.steam.store.interest.domain.SteamStoreIgnoreSyncState
+import takagi.ru.monica.steam.store.interest.domain.SteamStoreInterestAccount
+import takagi.ru.monica.steam.store.interest.domain.SteamStoreInterestSyncResult
 import takagi.ru.monica.steam.store.interest.domain.withoutIgnoredGames
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -58,7 +67,8 @@ class SteamStoreService(
         .followSslRedirects(false)
         .build(),
     private val api: SteamApiClient = SteamApiClient(client),
-    private val reviewService: SteamStoreReviewService = SteamStoreReviewService(client)
+    private val reviewService: SteamStoreReviewService = SteamStoreReviewService(client),
+    context: Context? = null
 ) {
     private val countryBySession = ConcurrentHashMap<String, String>()
     private val catalogService = SteamStoreCatalogService(client)
@@ -67,6 +77,15 @@ class SteamStoreService(
     private val packageMetadataService = SteamStorePackageMetadataService(client)
     private val purchasePageService = SteamStorePurchasePageService(client, relatedContentService)
     private val ignoredGamesService = SteamStoreInterestService(client, api)
+    private val interestRepository = SteamStoreInterestRepository(
+        local = context?.let(::SteamStoreInterestPreferencesDataSource)
+            ?: SteamStoreInterestMemoryDataSource(),
+        remote = ignoredGamesService,
+        syncSettings = context?.let(::SteamStoreInterestPreferences)
+            ?: object : SteamStoreInterestSyncSettings {
+                override val syncWithSteam: Boolean = true
+            }
+    )
 
     fun accountCountryCode(account: SteamAccount): String? = accountCountryOrFail(
         steamLoginSecure = account.steamLoginSecure,
@@ -268,14 +287,14 @@ class SteamStoreService(
     ): Set<Int> {
         val visibleAppIds = items.asSequence().map(SteamStoreItem::appId).toSet()
         if (visibleAppIds.isEmpty()) return emptySet()
+        val account = steamStoreInterestAccount(
+            steamId = steamId,
+            steamLoginSecure = steamLoginSecure,
+            accessToken = accessToken,
+            countryCode = countryCode
+        ) ?: return emptySet()
         return try {
-            ignoredGamesService.ignoredAppIds(
-                steamId = steamId,
-                steamLoginSecure = steamLoginSecure,
-                accessToken = accessToken,
-                countryCode = countryCode ?: "US",
-                forceRefresh = forceRefresh
-            ).intersect(visibleAppIds)
+            interestRepository.ignoredAppIds(account, forceRefresh).intersect(visibleAppIds)
         } catch (error: Throwable) {
             SteamDiagLogger.append(
                 "store_ignored_state failed type=${error.javaClass.simpleName}"
@@ -299,20 +318,14 @@ class SteamStoreService(
         discoveryCountryCode = discoveryCountryCode
     ).let { detail ->
         val effectiveAccessToken = effectiveSteamStoreAccessToken(accessToken, steamLoginSecure)
-        val ignored = try {
-            ignoredGamesService.isIgnored(
-                appId = detail.appId,
-                steamId = steamId,
-                steamLoginSecure = steamLoginSecure,
-                accessToken = accessToken
-            )
-        } catch (error: Throwable) {
-            SteamDiagLogger.append(
-                "store_interest_state failed appid=${detail.appId} " +
-                    "type=${error.javaClass.simpleName}"
-            )
-            false
-        }
+        val ignored = steamStoreInterestAccount(
+            steamId = steamId,
+            steamLoginSecure = steamLoginSecure,
+            accessToken = accessToken,
+            countryCode = detail.accountCountryCode ?: detail.priceCountryCode
+        )?.let { account ->
+            interestRepository.ignoredAppIds(account).contains(detail.appId)
+        } ?: false
         val purchasePage = purchasePageService.fetch(
             appId = detail.appId,
             countryCode = detail.priceCountryCode,
@@ -352,14 +365,58 @@ class SteamStoreService(
         steamLoginSecure: String?,
         accessToken: String?
     ) {
-        ignoredGamesService.setIgnored(
-            appId = appId,
-            ignored = ignored,
-            steamId = steamId,
+        val resolvedSteamId = steamId?.trim()?.takeIf(String::isNotBlank)
+            ?: throw SteamStoreIgnoreSessionException()
+        interestRepository.applyLocal(resolvedSteamId, appId, ignored)
+        syncIgnored(
+            steamId = resolvedSteamId,
             steamLoginSecure = steamLoginSecure,
             accessToken = accessToken
         )
     }
+
+    fun applyIgnoredLocally(
+        appId: Int,
+        ignored: Boolean,
+        steamId: String?
+    ): SteamStoreIgnoreSyncState {
+        val resolvedSteamId = steamId?.trim()?.takeIf(String::isNotBlank)
+            ?: throw SteamStoreIgnoreSessionException()
+        return interestRepository.applyLocal(resolvedSteamId, appId, ignored)
+    }
+
+    fun syncIgnored(
+        steamId: String?,
+        steamLoginSecure: String?,
+        accessToken: String?
+    ): SteamStoreInterestSyncResult {
+        val account = steamStoreInterestAccount(
+            steamId = steamId,
+            steamLoginSecure = steamLoginSecure,
+            accessToken = accessToken,
+            countryCode = null
+        ) ?: throw SteamStoreIgnoreSessionException()
+        return interestRepository.syncPending(account)
+    }
+
+    fun ignoredSyncState(
+        steamId: String?,
+        appId: Int
+    ): SteamStoreIgnoreSyncState? = steamId
+        ?.trim()
+        ?.takeIf(String::isNotBlank)
+        ?.let { interestRepository.syncState(it, appId) }
+
+    fun localIgnoredAppIds(steamId: String?): Set<Int> = steamId
+        ?.trim()
+        ?.takeIf(String::isNotBlank)
+        ?.let(interestRepository::localIgnoredAppIds)
+        .orEmpty()
+
+    fun localIgnoredState(steamId: String?, appId: Int): Boolean? = steamId
+        ?.trim()
+        ?.takeIf(String::isNotBlank)
+        ?.let { interestRepository.localIgnoredState(it, appId) }
 
     fun compactDetail(
         appId: Int,
@@ -732,6 +789,21 @@ private fun steamStoreSearchRelevance(query: String, name: String): Int {
 }
 
 private const val MAX_GLOBAL_SEARCH_RESULTS = 48
+
+private fun steamStoreInterestAccount(
+    steamId: String?,
+    steamLoginSecure: String?,
+    accessToken: String?,
+    countryCode: String?
+): SteamStoreInterestAccount? {
+    val resolvedSteamId = steamId?.trim()?.takeIf(String::isNotBlank) ?: return null
+    return SteamStoreInterestAccount(
+        steamId = resolvedSteamId,
+        steamLoginSecure = steamLoginSecure,
+        accessToken = accessToken,
+        countryCode = countryCode?.trim()?.uppercase()?.takeIf { it.length == 2 } ?: "US"
+    )
+}
 
 internal fun effectiveSteamStoreAccessToken(
     accessToken: String?,

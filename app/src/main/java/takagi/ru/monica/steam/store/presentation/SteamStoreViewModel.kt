@@ -63,6 +63,7 @@ import takagi.ru.monica.steam.store.gift.domain.SteamStoreGiftFailure
 import takagi.ru.monica.steam.store.gift.domain.toSteamStoreGiftRecipient
 import takagi.ru.monica.steam.store.gift.presentation.SteamStoreGiftUiState
 import takagi.ru.monica.steam.store.interest.domain.withoutIgnoredGames
+import takagi.ru.monica.steam.store.interest.domain.SteamStoreIgnoreSyncState
 
 data class SteamStoreUiState(
     val accounts: List<SteamAccount> = emptyList(),
@@ -116,6 +117,7 @@ data class SteamStoreUiState(
     val wishlistError: String? = null,
     val wishlistMutatingAppIds: Set<Int> = emptySet(),
     val ignoredMutatingAppIds: Set<Int> = emptySet(),
+    val ignoredSyncStates: Map<Int, SteamStoreIgnoreSyncState> = emptyMap(),
     val ignoredError: String? = null,
     val ownedAppIds: Set<Int> = emptySet(),
     val familySharedAppIds: Set<Int> = emptySet(),
@@ -131,18 +133,30 @@ data class SteamStoreUiState(
 
 internal fun SteamStoreUiState.withIgnoredGameState(
     appId: Int,
-    ignored: Boolean
+    ignored: Boolean,
+    syncState: SteamStoreIgnoreSyncState? = null
 ): SteamStoreUiState {
     val updatedDetail = detail?.let { current ->
         if (current.appId == appId) current.copy(ignored = ignored) else current
     }
-    if (!ignored) return copy(detail = updatedDetail)
+    val updatedSyncStates = when {
+        syncState != null -> ignoredSyncStates + (appId to syncState)
+        !ignored -> ignoredSyncStates - appId
+        else -> ignoredSyncStates
+    }
+    if (!ignored) {
+        return copy(
+            detail = updatedDetail,
+            ignoredSyncStates = updatedSyncStates
+        )
+    }
     val ignoredIds = setOf(appId)
     return copy(
         home = home?.withoutIgnoredGames(ignoredIds),
         catalogPage = catalogPage?.withoutIgnoredGames(ignoredIds),
         searchResults = searchResults.withoutIgnoredGames(ignoredIds),
-        detail = updatedDetail
+        detail = updatedDetail,
+        ignoredSyncStates = updatedSyncStates
     )
 }
 
@@ -209,7 +223,11 @@ class SteamStoreViewModel internal constructor(
         val account = selectedAccount()
         viewModelScope.launch {
             if (_uiState.value.home == null) {
-                val cached = withContext(Dispatchers.IO) { cache.readHome(accountId) }
+                val cached = withContext(Dispatchers.IO) {
+                    cache.readHome(accountId)?.withoutIgnoredGames(
+                        service.localIgnoredAppIds(account?.steamId)
+                    )
+                }
                 if (_uiState.value.selectedAccountId != accountId) return@launch
                 if (cached != null) {
                     _uiState.value = _uiState.value.copy(home = cached, homeFromCache = true)
@@ -443,7 +461,13 @@ class SteamStoreViewModel internal constructor(
         )
         viewModelScope.launch {
             val cached = runCatching {
-                withContext(Dispatchers.IO) { cache.readDetail(accountId, appId) }
+                withContext(Dispatchers.IO) {
+                    cache.readDetail(accountId, appId)?.let { cachedDetail ->
+                        service.localIgnoredState(account?.steamId, appId)?.let { ignored ->
+                            cachedDetail.copy(ignored = ignored)
+                        } ?: cachedDetail
+                    }
+                }
             }.getOrNull()
             if (generation != detailRequestGeneration ||
                 _uiState.value.selectedAccountId != accountId ||
@@ -477,6 +501,9 @@ class SteamStoreViewModel internal constructor(
                         )
                     ) return@onSuccess
                     val refreshedDetail = detail.preserveCachedReviews(cached)
+                    val ignoredSyncState = withContext(Dispatchers.IO) {
+                        service.ignoredSyncState(account?.steamId, appId)
+                    }
                     withContext(Dispatchers.IO) {
                         cache.writeDetail(accountId, refreshedDetail)
                     }
@@ -492,7 +519,10 @@ class SteamStoreViewModel internal constructor(
                         detail = refreshedDetail,
                         detailFromCache = false,
                         loadingDetail = false,
-                        reviewLoadError = null
+                        reviewLoadError = null,
+                        ignoredSyncStates = ignoredSyncState?.let {
+                            _uiState.value.ignoredSyncStates + (appId to it)
+                        } ?: (_uiState.value.ignoredSyncStates - appId)
                     )
                     if (!refreshedDetail.isDlc) {
                         _uiState.value = _uiState.value.copy(
@@ -1125,49 +1155,76 @@ class SteamStoreViewModel internal constructor(
             ignoredError = null
         )
         viewModelScope.launch {
+            val localResult = runCatching {
+                withContext(Dispatchers.IO) {
+                    service.applyIgnoredLocally(
+                        appId = detail.appId,
+                        ignored = ignored,
+                        steamId = account.steamId
+                    )
+                }
+            }
+            val localSyncState = localResult.getOrElse { error ->
+                if (_uiState.value.selectedAccountId != accountId) return@launch
+                _uiState.value = _uiState.value.copy(
+                    ignoredMutatingAppIds = _uiState.value.ignoredMutatingAppIds - detail.appId,
+                    ignoredError = error.message ?: "本地忽略状态保存失败"
+                )
+                return@launch
+            }
+            if (_uiState.value.selectedAccountId != accountId) return@launch
+            val updated = _uiState.value.withIgnoredGameState(
+                appId = detail.appId,
+                ignored = ignored,
+                syncState = localSyncState
+            ).copy(
+                ignoredMutatingAppIds = _uiState.value.ignoredMutatingAppIds - detail.appId,
+                ignoredError = null
+            )
+            _uiState.value = updated
+            withContext(Dispatchers.IO) {
+                updated.detail?.takeIf { it.appId == detail.appId }?.let {
+                    cache.writeDetail(accountId, it)
+                }
+                updated.home?.let { cache.writeHome(accountId, it) }
+                updated.catalogPage?.let {
+                    cache.writeCatalog(accountId, it, updated.storeFilters)
+                }
+            }
+
             runCatching {
                 withContext(Dispatchers.IO) {
                     executeStoreRequest(account) { credentials ->
-                        service.setIgnored(
-                            appId = detail.appId,
-                            ignored = ignored,
+                        service.syncIgnored(
                             steamId = credentials.steamId,
                             steamLoginSecure = credentials.steamLoginSecure,
                             accessToken = credentials.accessToken
                         )
                     }
                 }
-            }.onSuccess {
-                if (_uiState.value.selectedAccountId != accountId) return@onSuccess
-                val updated = _uiState.value.withIgnoredGameState(detail.appId, ignored).copy(
-                    ignoredMutatingAppIds = _uiState.value.ignoredMutatingAppIds - detail.appId,
-                    ignoredError = null
-                )
-                _uiState.value = updated
-                withContext(Dispatchers.IO) {
-                    updated.detail?.takeIf { it.appId == detail.appId }?.let {
-                        cache.writeDetail(accountId, it)
-                    }
-                    updated.home?.let { cache.writeHome(accountId, it) }
-                    updated.catalogPage?.let {
-                        cache.writeCatalog(accountId, it, updated.storeFilters)
-                    }
-                }
-                loadHome(force = true)
-                if (!ignored) {
-                    if (updated.browseFilter != SteamStoreBrowseFilter.ALL ||
-                        updated.storeFilters.isActive
-                    ) {
-                        loadCatalog(force = true)
-                    }
-                    if (updated.query.isNotBlank()) search()
-                }
             }.onFailure { error ->
-                if (_uiState.value.selectedAccountId != accountId) return@onFailure
-                _uiState.value = _uiState.value.copy(
-                    ignoredMutatingAppIds = _uiState.value.ignoredMutatingAppIds - detail.appId,
-                    ignoredError = error.message ?: "Steam 忽略状态修改失败"
+                SteamDiagLogger.append(
+                    "store_ignored_sync deferred appid=${detail.appId} " +
+                        "type=${error.javaClass.simpleName}"
                 )
+            }
+            if (_uiState.value.selectedAccountId != accountId) return@launch
+            val finalSyncState = withContext(Dispatchers.IO) {
+                service.ignoredSyncState(account.steamId, detail.appId)
+            }
+            _uiState.value = _uiState.value.copy(
+                ignoredSyncStates = finalSyncState?.let {
+                    _uiState.value.ignoredSyncStates + (detail.appId to it)
+                } ?: (_uiState.value.ignoredSyncStates - detail.appId)
+            )
+            if (!ignored) {
+                loadHome(force = true)
+                if (updated.browseFilter != SteamStoreBrowseFilter.ALL ||
+                    updated.storeFilters.isActive
+                ) {
+                    loadCatalog(force = true)
+                }
+                if (updated.query.isNotBlank()) search()
             }
         }
     }
@@ -1289,7 +1346,9 @@ class SteamStoreViewModel internal constructor(
         catalogRequestJob = viewModelScope.launch {
             if (!force && !loadMore && _uiState.value.catalogPage == null) {
                 val cached = withContext(Dispatchers.IO) {
-                    cache.readCatalog(accountId, filter, filters)
+                    cache.readCatalog(accountId, filter, filters)?.withoutIgnoredGames(
+                        service.localIgnoredAppIds(account?.steamId)
+                    )
                 }
                 if (catalogRequestIsCurrent(accountId, filter, filters, generation) && cached != null) {
                     _uiState.value = _uiState.value.copy(
@@ -1420,6 +1479,7 @@ class SteamStoreViewModel internal constructor(
             wishlistError = null,
             wishlistMutatingAppIds = emptySet(),
             ignoredMutatingAppIds = emptySet(),
+            ignoredSyncStates = emptyMap(),
             ignoredError = null,
             ownedAppIds = emptySet(),
             familySharedAppIds = emptySet(),
@@ -1924,6 +1984,7 @@ class SteamStoreViewModel internal constructor(
                     return SteamStoreViewModel(
                         accountSourceRepository = accountSourceRepository,
                         cache = SteamStoreCache(appContext),
+                        service = SteamStoreService(context = appContext),
                         sessionResolver = accountSourceRepository.sessionResolver(),
                         purchaseContextCache = SteamStorePurchasePreferencesCache(appContext),
                         libraryCacheRepository = SteamLibraryCacheRepository(

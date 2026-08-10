@@ -4555,6 +4555,9 @@
     <string name="steam_store_hint_settings_description">Control ownership, Family Sharing, wishlist, and tag hints.</string>
     <string name="steam_store_hint_status_section">Account status hints</string>
     <string name="steam_store_hint_content_section">Store content</string>
+    <string name="steam_store_ignore_settings_section">Hidden products</string>
+    <string name="steam_store_ignore_sync_title">Sync Steam ignored games</string>
+    <string name="steam_store_ignore_sync_description">When disabled, hidden games stay local to Monica Steam. When enabled, changes are also synced to the Steam account in the background.</string>
     <string name="steam_store_hint_owned_title">Owned games</string>
     <string name="steam_store_hint_owned_description">Mark games already owned by the selected Steam account.</string>
     <string name="steam_store_hint_family_title">Family Sharing</string>
@@ -4642,6 +4645,8 @@
     <string name="steam_store_remove_wishlist">Remove from wishlist</string>
     <string name="steam_store_ignore_game">Ignore</string>
     <string name="steam_store_unignore_game">Undo ignore</string>
+    <string name="steam_store_ignore_sync_pending">Already applied in Monica Steam · waiting for Steam background sync</string>
+    <string name="steam_store_ignore_local_only">Only hidden in Monica Steam</string>
     <string name="steam_store_account">Store account</string>
     <string name="steam_store_specials">Special offers</string>
     <string name="steam_store_top_sellers">Top sellers</string>

@@ -20,13 +20,14 @@ import takagi.ru.monica.steam.store.data.SteamStoreIgnoreSessionException
 import takagi.ru.monica.steam.store.data.buildSteamStoreRequest
 import takagi.ru.monica.steam.store.data.effectiveSteamStoreAccessToken
 import takagi.ru.monica.steam.store.data.encodeSteamCookieValue
+import takagi.ru.monica.steam.store.interest.domain.SteamStoreInterestAccount
 
 internal class SteamStoreInterestService(
     private val client: OkHttpClient,
     private val api: SteamApiClient,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val sessionIdFactory: () -> String = ::newSteamStoreSessionId
-) {
+) : SteamStoreInterestRemoteDataSource {
     private val ignoredAppsByAccount = ConcurrentHashMap<Long, IgnoredAppsCacheEntry>()
 
     @Synchronized
@@ -75,6 +76,17 @@ internal class SteamStoreInterestService(
         }
     }
 
+    override fun ignoredAppIds(
+        account: SteamStoreInterestAccount,
+        forceRefresh: Boolean
+    ): Set<Int> = ignoredAppIds(
+        steamId = account.steamId,
+        steamLoginSecure = account.steamLoginSecure,
+        accessToken = account.accessToken,
+        countryCode = account.countryCode,
+        forceRefresh = forceRefresh
+    )
+
     fun isIgnored(
         appId: Int,
         steamId: String?,
@@ -102,6 +114,16 @@ internal class SteamStoreInterestService(
             ignoredAppsByAccount[accountId]?.appIds?.contains(appId) ?: throw error
         }
     }
+
+    override fun isIgnored(
+        appId: Int,
+        account: SteamStoreInterestAccount
+    ): Boolean = isIgnored(
+        appId = appId,
+        steamId = account.steamId,
+        steamLoginSecure = account.steamLoginSecure,
+        accessToken = account.accessToken
+    )
 
     @Synchronized
     fun setIgnored(
@@ -140,6 +162,18 @@ internal class SteamStoreInterestService(
             fetchedAt = nowMillis()
         )
     }
+
+    override fun setIgnored(
+        appId: Int,
+        ignored: Boolean,
+        account: SteamStoreInterestAccount
+    ) = setIgnored(
+        appId = appId,
+        ignored = ignored,
+        steamId = account.steamId,
+        steamLoginSecure = account.steamLoginSecure,
+        accessToken = account.accessToken
+    )
 
     private data class IgnoredAppsCacheEntry(
         val appIds: Set<Int>,

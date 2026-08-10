@@ -9,6 +9,7 @@ import takagi.ru.monica.steam.store.domain.SteamStoreCatalogPage
 import takagi.ru.monica.steam.store.domain.SteamStoreDetail
 import takagi.ru.monica.steam.store.domain.SteamStoreHome
 import takagi.ru.monica.steam.store.domain.SteamStoreItem
+import takagi.ru.monica.steam.store.interest.domain.SteamStoreIgnoreSyncState
 import takagi.ru.monica.steam.store.presentation.SteamStoreUiState
 import takagi.ru.monica.steam.store.presentation.withIgnoredGameState
 
@@ -52,6 +53,25 @@ class SteamStoreIgnoredUiStateTest {
         assertFalse(updated.detail?.ignored == true)
         assertFalse(updated.home.orEmptyAppIds().contains(2))
         assertFalse(updated.searchResults.any { it.appId == 2 })
+    }
+
+    @Test
+    fun localMutationPublishesItsBackgroundSyncState() {
+        val state = SteamStoreUiState(
+            detail = SteamStoreDetail(appId = 2, name = "Ignored game")
+        )
+
+        val updated = state.withIgnoredGameState(
+            appId = 2,
+            ignored = true,
+            syncState = SteamStoreIgnoreSyncState.PENDING
+        )
+
+        assertTrue(updated.detail?.ignored == true)
+        assertEquals(
+            SteamStoreIgnoreSyncState.PENDING,
+            updated.ignoredSyncStates[2]
+        )
     }
 
     private fun item(appId: Int) = SteamStoreItem(appId = appId, name = "Game $appId")

@@ -4385,6 +4385,9 @@
     <string name="steam_store_hint_settings_description">控制已拥有、家庭共享、愿望单和游戏标签提示。</string>
     <string name="steam_store_hint_status_section">账号状态提示</string>
     <string name="steam_store_hint_content_section">商店内容</string>
+    <string name="steam_store_ignore_settings_section">商品屏蔽</string>
+    <string name="steam_store_ignore_sync_title">同步 Steam 忽略列表</string>
+    <string name="steam_store_ignore_sync_description">关闭后仅在 Monica Steam 中屏蔽；开启后会在后台同步至 Steam 官方账号。</string>
     <string name="steam_store_hint_owned_title">已拥有提示</string>
     <string name="steam_store_hint_owned_description">标记当前 Steam 账号已经拥有的游戏。</string>
     <string name="steam_store_hint_family_title">家庭共享提示</string>
@@ -4472,6 +4475,8 @@
     <string name="steam_store_remove_wishlist">移出愿望单</string>
     <string name="steam_store_ignore_game">忽略</string>
     <string name="steam_store_unignore_game">取消忽略</string>
+    <string name="steam_store_ignore_sync_pending">已在 Monica Steam 中生效，等待 Steam 后台同步</string>
+    <string name="steam_store_ignore_local_only">仅在 Monica Steam 中生效</string>
     <string name="steam_store_account">商店账号</string>
     <string name="steam_store_specials">特别优惠</string>
     <string name="steam_store_top_sellers">热销商品</string>
