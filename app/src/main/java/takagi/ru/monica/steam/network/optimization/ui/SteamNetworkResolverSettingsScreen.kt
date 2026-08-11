@@ -48,10 +48,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 import takagi.ru.monica.steam.network.optimization.SteamNetworkResolverSettingsRuntime
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkResolverSettings
 import takagi.ru.monica.steam.network.optimization.domain.SteamResolverInputValidator
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamDynamicDnsSettingsCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,9 +65,14 @@ fun SteamNetworkResolverSettingsScreen(
     val applicationContext = context.applicationContext
     val settings by SteamNetworkResolverSettingsRuntime.settings.collectAsState()
     val dockClearance = LocalSteamDockContentClearance.current
+    var cacheCount by rememberSaveable { mutableStateOf(SteamHttpClientProvider.dynamicDnsCacheSize()) }
 
     LaunchedEffect(context) {
         SteamNetworkResolverSettingsRuntime.initialize(context)
+        cacheCount = SteamHttpClientProvider.dynamicDnsCacheSize()
+    }
+    LaunchedEffect(settings) {
+        cacheCount = SteamHttpClientProvider.dynamicDnsCacheSize()
     }
 
     Scaffold(
@@ -96,6 +103,16 @@ fun SteamNetworkResolverSettingsScreen(
         ) {
             item(key = "resolver_status") {
                 ResolverStatusCard(settings)
+            }
+            item(key = "dynamic_dns") {
+                SteamDynamicDnsSettingsCard(
+                    activeProviderCount = settings.activeProviders.count { !it.isSystem },
+                    cacheCount = cacheCount,
+                    onClearCache = {
+                        SteamHttpClientProvider.clearDynamicDnsCache()
+                        cacheCount = SteamHttpClientProvider.dynamicDnsCacheSize()
+                    }
+                )
             }
             item(key = "resolver_defaults") {
                 ResolverDefaultsCard(
