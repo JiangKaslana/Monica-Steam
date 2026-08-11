@@ -13,7 +13,7 @@
     <string name="steam_network_dynamic_dns_scope">Coverage includes Steam mobile APIs and service subdomains under steampowered.com, steamcommunity.com, steamstatic.com, steamusercontent.com, steam-chat.com and known Steam CDN host families.</string>
     <string name="steam_network_resolver_live_summary">When Dynamic DNS is enabled, these sources resolve live app-scoped Steam requests and also participate in network-quality scans.</string>
     <string name="steam_network_dynamic_dns_privacy">DNS and DoH providers can see the public Steam hostnames queried by Monica Steam. Account credentials, Steam Guard secrets, cookies, tokens and chat message contents are never sent to DNS providers.</string>
-    <string name="steam_network_resolver_servers_title">Servers</string>
+    <string name="steam_network_resolver_servers_title">Public DoH servers</string>
     <string name="steam_network_resolver_benchmark_all">Benchmark all</string>
     <string name="steam_network_resolver_benchmark_one">Test</string>
     <string name="steam_network_resolver_benchmark_running">Testing…</string>
@@ -21,5 +21,5 @@
     <string name="steam_network_resolver_benchmark_partial">%1$d/%2$d hosts · %3$d ms</string>
     <string name="steam_network_resolver_benchmark_unavailable">Unavailable</string>
     <string name="steam_network_resolver_system_endpoint">Android network DNS</string>
-    <string name="steam_network_resolver_benchmark_hint">This quick test measures DNS resolution for representative Steam mobile endpoints. The full optimizer still performs HTTPS and certificate verification.</string>
+    <string name="steam_network_resolver_benchmark_hint">Only built-in public DoH services are shown here; private or custom DoH endpoints are never promoted into this built-in list. The quick test resolves representative Steam mobile hosts, while the full optimizer still performs HTTPS, SNI and certificate verification.</string>
 </resources>
