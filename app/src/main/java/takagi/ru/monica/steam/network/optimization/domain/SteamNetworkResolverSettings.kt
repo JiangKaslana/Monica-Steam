@@ -8,17 +8,34 @@ data class SteamNetworkResolverSettings(
     val useSystemDns: Boolean = true,
     val useBuiltInDoh: Boolean = true,
     val customDnsServers: List<String> = emptyList(),
-    val customDohEndpoints: List<String> = emptyList()
+    val customDohEndpoints: List<String> = emptyList(),
+    val preferredProviderIds: List<String> = emptyList()
 ) {
     val activeProviders: List<SteamDnsProvider>
-        get() = buildList {
-            if (useSystemDns) add(SteamDnsProvider.SYSTEM)
-            if (useBuiltInDoh) addAll(SteamDnsProvider.DEFAULTS.filterNot { it.isSystem })
-            addAll(customDnsServers.map(SteamDnsProvider::customDns))
-            addAll(customDohEndpoints.map(SteamDnsProvider::customDoh))
-        }.distinctBy(SteamDnsProvider::id)
+        get() {
+            val available = buildList {
+                if (useSystemDns) add(SteamDnsProvider.SYSTEM)
+                if (useBuiltInDoh) addAll(SteamDnsProvider.DEFAULTS.filterNot { it.isSystem })
+                addAll(customDnsServers.map(SteamDnsProvider::customDns))
+                addAll(customDohEndpoints.map(SteamDnsProvider::customDoh))
+            }.distinctBy(SteamDnsProvider::id)
+            if (preferredProviderIds.isEmpty()) return available
+
+            val byId = available.associateBy(SteamDnsProvider::id)
+            return buildList {
+                preferredProviderIds.forEach { providerId ->
+                    byId[providerId]?.let { provider ->
+                        if (none { it.id == provider.id }) add(provider)
+                    }
+                }
+                available.forEach { provider ->
+                    if (none { it.id == provider.id }) add(provider)
+                }
+            }
+        }
 
     val hasResolver: Boolean get() = activeProviders.isNotEmpty()
+    val hasPreferredProviders: Boolean get() = preferredProviderIds.isNotEmpty()
 
     companion object {
         const val MAX_CUSTOM_DNS = 8
