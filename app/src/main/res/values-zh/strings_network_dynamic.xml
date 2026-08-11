@@ -11,4 +11,6 @@
     <string name="steam_network_dynamic_dns_cache_hint">缓存会自动过期；清空后，下次 Steam 请求会重新动态解析。</string>
     <string name="steam_network_dynamic_dns_cache_clear">清空缓存</string>
     <string name="steam_network_dynamic_dns_scope">覆盖 Steam 手机版常用 API 与服务子域，包括 steampowered.com、steamcommunity.com、steamstatic.com、steamusercontent.com、steam-chat.com 及已知 Steam CDN 域名族。</string>
+    <string name="steam_network_resolver_live_summary">开启动态 DNS 后，这些解析来源会直接参与 Monica Steam 应用内的实时 Steam 域名解析，同时也用于网络质量扫描。</string>
+    <string name="steam_network_dynamic_dns_privacy">DNS / DoH 服务可以看到 Monica Steam 查询的公开 Steam 域名；账号凭据、Steam Guard 密钥、Cookie、令牌和聊天正文不会发送给 DNS 服务。</string>
 </resources>
