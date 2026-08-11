@@ -4,6 +4,7 @@
     <string name="steam_network_dynamic_dns_description">Steam API、商店、社区、聊天、媒体与 CDN 域名动态解析，不再长期固定某个 IP。</string>
     <string name="steam_network_dynamic_dns_active">%1$d 路动态解析来源</string>
     <string name="steam_network_dynamic_dns_system_only">仅使用系统 DNS 回退</string>
+    <string name="steam_network_dynamic_dns_disabled">动态 DNS 已关闭</string>
     <string name="steam_network_dynamic_dns_cache_title">本地 DNS 缓存</string>
     <string name="steam_network_dynamic_dns_cache_count">当前缓存 %1$d 个 Steam 域名</string>
     <string name="steam_network_dynamic_dns_cache_empty">暂未缓存 Steam DNS 记录</string>
