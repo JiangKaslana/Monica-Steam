@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
@@ -45,7 +44,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import takagi.ru.monica.R
@@ -164,7 +162,18 @@ fun SteamNetworkResolverSettingsScreen(
             }
             item(key = "resolver_servers") {
                 SteamResolverServerBenchmarkCard(
-                    providers = settings.activeProviders
+                    onRemoveCustomDns = {
+                        SteamNetworkResolverSettingsRuntime.removeCustomDns(
+                            applicationContext,
+                            it
+                        )
+                    },
+                    onRemoveCustomDoh = {
+                        SteamNetworkResolverSettingsRuntime.removeCustomDoh(
+                            applicationContext,
+                            it
+                        )
+                    }
                 )
             }
             item(key = "custom_dns") {
@@ -178,12 +187,6 @@ fun SteamNetworkResolverSettingsScreen(
                     normalize = SteamResolverInputValidator::normalizeDnsServer,
                     onAdd = {
                         SteamNetworkResolverSettingsRuntime.addCustomDns(
-                            applicationContext,
-                            it
-                        )
-                    },
-                    onRemove = {
-                        SteamNetworkResolverSettingsRuntime.removeCustomDns(
                             applicationContext,
                             it
                         )
@@ -201,12 +204,6 @@ fun SteamNetworkResolverSettingsScreen(
                     normalize = SteamResolverInputValidator::normalizeDohEndpoint,
                     onAdd = {
                         SteamNetworkResolverSettingsRuntime.addCustomDoh(
-                            applicationContext,
-                            it
-                        )
-                    },
-                    onRemove = {
-                        SteamNetworkResolverSettingsRuntime.removeCustomDoh(
                             applicationContext,
                             it
                         )
@@ -336,8 +333,7 @@ private fun ResolverEditorCard(
     values: List<String>,
     limit: Int,
     normalize: (String) -> String?,
-    onAdd: (String) -> Boolean,
-    onRemove: (String) -> Unit
+    onAdd: (String) -> Boolean
 ) {
     var input by rememberSaveable(title) { mutableStateOf("") }
     val normalized = normalize(input)
@@ -415,40 +411,6 @@ private fun ResolverEditorCard(
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
-
-            values.forEach { value ->
-                ResolverEndpointRow(value = value, onRemove = { onRemove(value) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun ResolverEndpointRow(value: String, onRemove: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Surface(
-            modifier = Modifier.weight(1f),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh
-        ) {
-            Text(
-                text = value,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        IconButton(onClick = onRemove) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = stringResource(R.string.delete),
-                tint = MaterialTheme.colorScheme.error
-            )
         }
     }
 }
