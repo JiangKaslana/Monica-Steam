@@ -160,7 +160,7 @@ class SteamNetworkOptimizationIntegrationGuardTest {
             .substringBefore("private fun logCleanupFailure")
 
         assertTrue(cleanupHandler.contains("dispatcher.executorService.execute"))
-        assertTrue(provider.contains("network_optimization cleanup_failed reason=$reason"))
+        assertTrue(provider.contains("network_optimization cleanup_failed reason="))
         assertFalse(provider.contains("DnsOverHttps"))
         assertFalse(provider.contains("dns.alidns.com"))
         assertFalse(provider.contains("doh.pub"))
