@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.SteamHttpClientProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsOptimizationScanResult
+import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkResolverSettings
 import takagi.ru.monica.steam.network.optimization.domain.SteamResolverInputValidator
 
@@ -19,6 +20,7 @@ object SteamNetworkResolverSettingsRuntime {
     private const val KEY_CUSTOM_DOH = "resolver_custom_doh"
     private const val KEY_PREFERRED_PROVIDER_IDS = "resolver_preferred_provider_ids"
     private const val KEY_DYNAMIC_DNS_ENABLED = "resolver_dynamic_dns_enabled"
+    private const val KEY_DISABLED_BUILT_IN_PROVIDER_IDS = "resolver_disabled_builtin_provider_ids"
 
     private val mutableSettings = MutableStateFlow(SteamNetworkResolverSettings())
     val settings: StateFlow<SteamNetworkResolverSettings> = mutableSettings.asStateFlow()
@@ -34,6 +36,10 @@ object SteamNetworkResolverSettingsRuntime {
             PREFERENCES_NAME,
             Context.MODE_PRIVATE
         )
+        val validBuiltInIds = SteamDnsProvider.DEFAULTS
+            .filterNot { it.isSystem }
+            .map(SteamDnsProvider::id)
+            .toSet()
         mutableSettings.value = SteamNetworkResolverSettings(
             useSystemDns = preferences.getBoolean(KEY_USE_SYSTEM_DNS, true),
             useBuiltInDoh = preferences.getBoolean(KEY_USE_BUILT_IN_DOH, true),
@@ -54,7 +60,11 @@ object SteamNetworkResolverSettingsRuntime {
                 .filter(String::isNotEmpty)
                 .distinct()
                 .toList(),
-            dynamicDnsEnabled = preferences.getBoolean(KEY_DYNAMIC_DNS_ENABLED, false)
+            dynamicDnsEnabled = preferences.getBoolean(KEY_DYNAMIC_DNS_ENABLED, false),
+            disabledBuiltInProviderIds = preferences
+                .getStringSet(KEY_DISABLED_BUILT_IN_PROVIDER_IDS, emptySet())
+                .orEmpty()
+                .filterTo(linkedSetOf()) { it in validBuiltInIds }
         )
         initialized = true
     }
@@ -83,6 +93,32 @@ object SteamNetworkResolverSettingsRuntime {
         preferences.edit().putBoolean(KEY_USE_BUILT_IN_DOH, enabled).apply()
         mutableSettings.value = mutableSettings.value.copy(useBuiltInDoh = enabled)
         notifyResolverChanged()
+    }
+
+    @Synchronized
+    fun setBuiltInProviderEnabled(context: Context, providerId: String, enabled: Boolean) {
+        initialize(context)
+        val provider = SteamDnsProvider.DEFAULTS.firstOrNull {
+            it.id == providerId && !it.isSystem
+        } ?: return
+        val disabled = mutableSettings.value.disabledBuiltInProviderIds.toMutableSet()
+        if (enabled) {
+            disabled.remove(provider.id)
+        } else {
+            disabled.add(provider.id)
+        }
+        preferences.edit()
+            .putStringSet(KEY_DISABLED_BUILT_IN_PROVIDER_IDS, disabled)
+            .apply()
+        mutableSettings.value = mutableSettings.value.copy(
+            disabledBuiltInProviderIds = disabled.toSet()
+        )
+        notifyResolverChanged()
+        runCatching {
+            SteamDiagLogger.append(
+                "dynamic_dns builtin_provider id=${provider.id} enabled=$enabled"
+            )
+        }
     }
 
     @Synchronized
