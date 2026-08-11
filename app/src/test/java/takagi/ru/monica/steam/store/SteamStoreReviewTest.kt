@@ -173,7 +173,9 @@ class SteamStoreReviewTest {
             "app/src/main/java/takagi/ru/monica/steam/store/presentation/SteamStoreViewModel.kt"
         ).readText()
 
-        assertTrue(detailUi.contains("onOpenWebsite = viewModel::openStoreWeb"))
+        assertTrue(detailUi.contains("normalizeSteamStoreWebsiteUrl(rawUrl)"))
+        assertTrue(detailUi.contains("SteamWebNavigationPolicy.isAllowed(normalizedUrl)"))
+        assertTrue(detailUi.contains("openExternalStoreWebsite(context, normalizedUrl)"))
         assertTrue(detailUi.contains("onClick = { onOpenWebsite(detail.website) }"))
         assertTrue(detailUi.contains("heightIn(min = 48.dp)"))
         assertTrue(reviewUi.contains("SingleChoiceSegmentedButtonRow"))

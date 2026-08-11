@@ -5128,6 +5128,7 @@
     <string name="steam_store_recommendations">推荐数量</string>
     <string name="steam_store_achievements">成就数量</string>
     <string name="steam_store_website">官方网站</string>
+    <string name="steam_store_website_open_failed">无法打开官方网站</string>
     <string name="steam_library_filter_steam_cloud">Steam 云</string>
     <string name="steam_library_context_owned_by_account">当前账号已拥有</string>
     <string name="steam_library_context_family_shared">通过 Steam 家庭共享</string>

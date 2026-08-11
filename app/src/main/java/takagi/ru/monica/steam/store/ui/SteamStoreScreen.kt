@@ -1,5 +1,9 @@
 package takagi.ru.monica.steam.store.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
@@ -141,6 +145,7 @@ import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
 import takagi.ru.monica.steam.navigation.ui.steamWindowTopPadding
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 import takagi.ru.monica.steam.web.ui.SteamWebBrowserScreen
+import takagi.ru.monica.steam.web.domain.SteamWebNavigationPolicy
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
@@ -374,7 +379,15 @@ fun SteamStoreScreen(
                         freeLicenseClaimResult = state.freeLicenseClaimResults[detail.appId],
                         onBack = viewModel::closeDetail,
                         onOpenOfficial = { viewModel.openStoreWeb(detail.storeUrl) },
-                        onOpenWebsite = viewModel::openStoreWeb,
+                        onOpenWebsite = { rawUrl ->
+                            val normalizedUrl = normalizeSteamStoreWebsiteUrl(rawUrl)
+                            when {
+                                normalizedUrl == null -> showStoreWebsiteOpenFailure(context)
+                                SteamWebNavigationPolicy.isAllowed(normalizedUrl) ->
+                                    viewModel.openStoreWeb(normalizedUrl)
+                                else -> openExternalStoreWebsite(context, normalizedUrl)
+                            }
+                        },
                         reviewFilters = state.reviewFilters,
                         loadingMoreReviews = state.loadingMoreReviews,
                         reviewLoadError = state.reviewLoadError,
@@ -2030,6 +2043,24 @@ private fun SteamStoreWebsiteButton(onClick: () -> Unit) {
         )
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
     }
+}
+
+private fun openExternalStoreWebsite(context: Context, url: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        addCategory(Intent.CATEGORY_BROWSABLE)
+        if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    if (runCatching { context.startActivity(intent) }.isFailure) {
+        showStoreWebsiteOpenFailure(context)
+    }
+}
+
+private fun showStoreWebsiteOpenFailure(context: Context) {
+    android.widget.Toast.makeText(
+        context,
+        R.string.steam_store_website_open_failed,
+        android.widget.Toast.LENGTH_LONG
+    ).show()
 }
 
 @OptIn(ExperimentalLayoutApi::class)

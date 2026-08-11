@@ -5301,6 +5301,7 @@
     <string name="steam_store_recommendations">Recommendations</string>
     <string name="steam_store_achievements">Achievements</string>
     <string name="steam_store_website">Website</string>
+    <string name="steam_store_website_open_failed">Unable to open the official website</string>
     <string name="steam_library_filter_steam_cloud">Steam Cloud</string>
     <string name="steam_library_context_owned_by_account">Owned by this account</string>
     <string name="steam_library_context_family_shared">Shared through Steam Families</string>
