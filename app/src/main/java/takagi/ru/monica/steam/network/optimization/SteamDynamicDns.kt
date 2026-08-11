@@ -6,6 +6,7 @@ import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorCompletionService
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -67,7 +68,13 @@ internal class SteamDynamicDns(
         }
 
         val secureProviders = providers.filterNot(SteamDnsProvider::isSystem)
-        val resolved = raceResolvers(secureProviders, normalized)
+        val preferFirst = settings.preferredProviderIds.isNotEmpty() &&
+            secureProviders.firstOrNull()?.id in settings.preferredProviderIds
+        val resolved = raceResolvers(
+            providers = secureProviders,
+            hostname = normalized,
+            preferFirst = preferFirst
+        )
         if (resolved.isNotEmpty()) {
             cache[cacheKey] = CacheEntry(
                 addresses = resolved,
@@ -75,7 +82,10 @@ internal class SteamDynamicDns(
                 staleUntilMillis = now + STALE_TTL_MILLIS
             )
             pruneExpired(now)
-            logSafely("dynamic_dns resolved host=$normalized addresses=${resolved.size}")
+            logSafely(
+                "dynamic_dns resolved host=$normalized addresses=${resolved.size} " +
+                    "preferred_head_start=$preferFirst"
+            )
             return resolved
         }
 
@@ -108,29 +118,40 @@ internal class SteamDynamicDns(
 
     private fun raceResolvers(
         providers: List<SteamDnsProvider>,
-        hostname: String
+        hostname: String,
+        preferFirst: Boolean
     ): List<InetAddress> {
         if (providers.isEmpty()) return emptyList()
 
+        val candidates = providers.take(MAX_RACE_PROVIDERS)
         val completion = ExecutorCompletionService<List<InetAddress>>(executor)
-        val futures = providers.map { provider ->
-            completion.submit(Callable {
-                val result = runBlocking { resolver.resolve(provider, hostname) }
-                if (!result.isAvailable) {
-                    emptyList()
-                } else {
-                    result.addresses
-                        .mapNotNull { raw -> runCatching { InetAddress.getByName(raw) }.getOrNull() }
-                        .filter(SteamHostsRuleParser::isUsableAddress)
-                        .distinctBy(InetAddress::getHostAddress)
-                }
-            })
+        val futures = mutableListOf<Future<List<InetAddress>>>()
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RACE_TIMEOUT_MILLIS)
+        var completed = 0
+        var answer: List<InetAddress> = emptyList()
+
+        fun submit(provider: SteamDnsProvider) {
+            futures += completion.submit(Callable { resolveProvider(provider, hostname) })
         }
 
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RACE_TIMEOUT_MILLIS)
-        var answer: List<InetAddress> = emptyList()
-        var completed = 0
         try {
+            if (preferFirst && candidates.size > 1) {
+                submit(candidates.first())
+                val early = completion.poll(
+                    PREFERRED_HEAD_START_MILLIS,
+                    TimeUnit.MILLISECONDS
+                )
+                if (early != null) {
+                    completed += 1
+                    answer = runCatching { early.get() }.getOrDefault(emptyList())
+                }
+                if (answer.isEmpty()) {
+                    candidates.drop(1).forEach(::submit)
+                }
+            } else {
+                candidates.forEach(::submit)
+            }
+
             while (completed < futures.size && answer.isEmpty()) {
                 val remaining = deadline - System.nanoTime()
                 if (remaining <= 0L) break
@@ -145,6 +166,18 @@ internal class SteamDynamicDns(
             }
         }
         return answer
+    }
+
+    private fun resolveProvider(
+        provider: SteamDnsProvider,
+        hostname: String
+    ): List<InetAddress> {
+        val result = runBlocking { resolver.resolve(provider, hostname) }
+        if (!result.isAvailable) return emptyList()
+        return result.addresses
+            .mapNotNull { raw -> runCatching { InetAddress.getByName(raw) }.getOrNull() }
+            .filter(SteamHostsRuleParser::isUsableAddress)
+            .distinctBy(InetAddress::getHostAddress)
     }
 
     private fun buildCacheKey(hostname: String, providers: List<SteamDnsProvider>): String {
@@ -187,10 +220,12 @@ internal class SteamDynamicDns(
     }
 
     private companion object {
-        const val MAX_PARALLEL_RESOLVERS = 4
+        const val MAX_PARALLEL_RESOLVERS = 6
+        const val MAX_RACE_PROVIDERS = 8
         const val MAX_CACHE_ENTRIES = 256
         const val RESOLVER_TIMEOUT_MILLIS = 2_500L
         const val RACE_TIMEOUT_MILLIS = 3_000L
+        const val PREFERRED_HEAD_START_MILLIS = 150L
         const val CACHE_TTL_MILLIS = 5 * 60 * 1_000L
         const val STALE_TTL_MILLIS = 30 * 60 * 1_000L
         val threadIds = AtomicInteger(0)
