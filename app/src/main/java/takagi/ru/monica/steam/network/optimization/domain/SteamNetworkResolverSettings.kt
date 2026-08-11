@@ -11,7 +11,8 @@ data class SteamNetworkResolverSettings(
     val customDohEndpoints: List<String> = emptyList(),
     val preferredProviderIds: List<String> = emptyList(),
     val dynamicDnsEnabled: Boolean = false,
-    val disabledBuiltInProviderIds: Set<String> = emptySet()
+    val disabledBuiltInProviderIds: Set<String> = emptySet(),
+    val preferIpv6: Boolean = false
 ) {
     val configuredProviders: List<SteamDnsProvider>
         get() = buildList {
