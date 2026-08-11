@@ -51,11 +51,11 @@ fun SteamNetworkOptimizationAutoScreen(
     val settings by SteamNetworkOptimizationRuntime.settings.collectAsState()
     val resolverSettings by SteamNetworkResolverSettingsRuntime.settings.collectAsState()
     val scanState by optimizationViewModel.scanState.collectAsState()
-    val summary = remember(settings.hostsText) {
-        SteamAutoHostsFormatter.summary(settings.hostsText)
+    val summary = remember(settings.hostsText, settings.enabled) {
+        if (settings.enabled) SteamAutoHostsFormatter.summary(settings.hostsText) else null
     }
-    val existingRoutes = remember(settings.hostsText) {
-        SteamAutoHostsFormatter.routes(settings.hostsText)
+    val existingRoutes = remember(settings.hostsText, settings.enabled) {
+        if (settings.enabled) SteamAutoHostsFormatter.routes(settings.hostsText) else emptyList()
     }
 
     LaunchedEffect(context) {
@@ -66,7 +66,8 @@ fun SteamNetworkOptimizationAutoScreen(
 
     val selectedProviderIds = when (val state = scanState) {
         is SteamAutoOptimizationUiState.Success -> state.result.providerIds
-        else -> summary?.providerIds.orEmpty()
+        else -> resolverSettings.preferredProviderIds.takeIf { it.isNotEmpty() }
+            ?: summary?.providerIds.orEmpty()
     }.toSet()
     val selectedRoutes = (scanState as? SteamAutoOptimizationUiState.Success)
         ?.result
@@ -78,6 +79,7 @@ fun SteamNetworkOptimizationAutoScreen(
         ?.result
         ?.missingHostnames
         ?: summary?.missingHostnames.orEmpty()
+    val dynamicOptimizationEnabled = resolverSettings.hasPreferredProviders
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -111,21 +113,29 @@ fun SteamNetworkOptimizationAutoScreen(
                 SteamNetworkAutomaticScanCard(
                     state = scanState,
                     summary = summary,
-                    enabled = settings.enabled,
+                    enabled = dynamicOptimizationEnabled || settings.enabled,
                     canScan = activeProviders.isNotEmpty(),
                     onScan = {
                         optimizationViewModel.startScan(existingRoutes, activeProviders)
                     },
                     onApply = {
                         optimizationViewModel.applyScannedOptimization { result ->
-                            SteamNetworkOptimizationRuntime.applyAutoOptimization(
+                            val applied = SteamNetworkResolverSettingsRuntime.applyScanPreference(
                                 applicationContext,
                                 result
                             )
+                            if (applied) {
+                                SteamNetworkOptimizationRuntime.setEnabled(
+                                    applicationContext,
+                                    false
+                                )
+                            }
+                            applied
                         }
                     },
                     onDisable = {
                         optimizationViewModel.cancelScan()
+                        SteamNetworkResolverSettingsRuntime.clearScanPreference(applicationContext)
                         SteamNetworkOptimizationRuntime.setEnabled(applicationContext, false)
                     }
                 )
