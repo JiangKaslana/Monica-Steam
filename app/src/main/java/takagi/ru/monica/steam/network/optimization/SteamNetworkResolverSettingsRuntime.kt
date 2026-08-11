@@ -21,6 +21,7 @@ object SteamNetworkResolverSettingsRuntime {
     private const val KEY_PREFERRED_PROVIDER_IDS = "resolver_preferred_provider_ids"
     private const val KEY_DYNAMIC_DNS_ENABLED = "resolver_dynamic_dns_enabled"
     private const val KEY_DISABLED_BUILT_IN_PROVIDER_IDS = "resolver_disabled_builtin_provider_ids"
+    private const val KEY_PREFER_IPV6 = "resolver_prefer_ipv6"
 
     private val mutableSettings = MutableStateFlow(SteamNetworkResolverSettings())
     val settings: StateFlow<SteamNetworkResolverSettings> = mutableSettings.asStateFlow()
@@ -64,7 +65,8 @@ object SteamNetworkResolverSettingsRuntime {
             disabledBuiltInProviderIds = preferences
                 .getStringSet(KEY_DISABLED_BUILT_IN_PROVIDER_IDS, emptySet())
                 .orEmpty()
-                .filterTo(linkedSetOf()) { it in validBuiltInIds }
+                .filterTo(linkedSetOf()) { it in validBuiltInIds },
+            preferIpv6 = preferences.getBoolean(KEY_PREFER_IPV6, false)
         )
         initialized = true
     }
@@ -77,6 +79,16 @@ object SteamNetworkResolverSettingsRuntime {
         mutableSettings.value = mutableSettings.value.copy(dynamicDnsEnabled = enabled)
         notifyResolverChanged()
         runCatching { SteamDiagLogger.append("dynamic_dns enabled=$enabled") }
+    }
+
+    @Synchronized
+    fun setPreferIpv6(context: Context, enabled: Boolean) {
+        initialize(context)
+        if (mutableSettings.value.preferIpv6 == enabled) return
+        preferences.edit().putBoolean(KEY_PREFER_IPV6, enabled).apply()
+        mutableSettings.value = mutableSettings.value.copy(preferIpv6 = enabled)
+        notifyResolverChanged()
+        runCatching { SteamDiagLogger.append("dynamic_dns prefer_ipv6=$enabled") }
     }
 
     @Synchronized
