@@ -5,8 +5,10 @@ import java.net.UnknownHostException
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorCompletionService
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.FutureTask
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -14,8 +16,10 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.Dns
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.optimization.diagnostics.OkHttpSteamDnsResolver
+import takagi.ru.monica.steam.network.optimization.diagnostics.SteamDnsResolver
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRuleParser
+import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkResolverSettings
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCatalog
 
 /**
@@ -28,10 +32,13 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCata
  */
 internal class SteamDynamicDns(
     private val systemDns: Dns = Dns.SYSTEM,
-    private val resolver: OkHttpSteamDnsResolver = OkHttpSteamDnsResolver(
+    private val resolver: SteamDnsResolver = OkHttpSteamDnsResolver(
         systemDns = systemDns,
         timeoutMillis = RESOLVER_TIMEOUT_MILLIS
     ),
+    private val settingsProvider: () -> SteamNetworkResolverSettings = {
+        SteamNetworkResolverSettingsRuntime.settings.value
+    },
     private val clockMillis: () -> Long = System::currentTimeMillis,
     private val logger: (String) -> Unit = SteamDiagLogger::append
 ) : Dns {
@@ -42,6 +49,7 @@ internal class SteamDynamicDns(
     )
 
     private val cache = ConcurrentHashMap<String, CacheEntry>()
+    private val inFlight = ConcurrentHashMap<String, FutureTask<List<InetAddress>>>()
     private val executor = Executors.newFixedThreadPool(
         MAX_PARALLEL_RESOLVERS,
         ResolverThreadFactory()
@@ -53,35 +61,28 @@ internal class SteamDynamicDns(
             return systemDns.lookup(hostname)
         }
 
-        val settings = SteamNetworkResolverSettingsRuntime.settings.value
+        val settings = settingsProvider()
         if (!settings.dynamicDnsEnabled) {
             return systemDns.lookup(hostname)
         }
 
         val providers = settings.activeProviders
+        if (providers.isEmpty()) {
+            return systemDns.lookup(hostname)
+        }
         val cacheKey = buildCacheKey(normalized, providers)
         val now = clockMillis()
         val cached = cache[cacheKey]
         if (cached != null && now < cached.expiresAtMillis) {
-            logSafely("dynamic_dns cache_hit host=$normalized addresses=${cached.addresses.size}")
             return cached.addresses
         }
 
-        val resolved = raceResolvers(
+        val resolved = resolveShared(
+            cacheKey = cacheKey,
             providers = providers,
             hostname = normalized
         )
         if (resolved.isNotEmpty()) {
-            cache[cacheKey] = CacheEntry(
-                addresses = resolved,
-                expiresAtMillis = now + CACHE_TTL_MILLIS,
-                staleUntilMillis = now + STALE_TTL_MILLIS
-            )
-            pruneExpired(now)
-            logSafely(
-                "dynamic_dns resolved host=$normalized addresses=${resolved.size} " +
-                    "sources=${providers.size}"
-            )
             return resolved
         }
 
@@ -111,6 +112,43 @@ internal class SteamDynamicDns(
     }
 
     fun cacheSize(): Int = cache.size
+
+    private fun resolveShared(
+        cacheKey: String,
+        providers: List<SteamDnsProvider>,
+        hostname: String
+    ): List<InetAddress> {
+        val candidate = FutureTask {
+            val resolved = raceResolvers(providers = providers, hostname = hostname)
+            if (resolved.isNotEmpty()) {
+                val resolvedAt = clockMillis()
+                cache[cacheKey] = CacheEntry(
+                    addresses = resolved,
+                    expiresAtMillis = resolvedAt + CACHE_TTL_MILLIS,
+                    staleUntilMillis = resolvedAt + STALE_TTL_MILLIS
+                )
+                pruneExpired(resolvedAt)
+                logSafely(
+                    "dynamic_dns resolved host=$hostname addresses=${resolved.size} " +
+                        "sources=${providers.size}"
+                )
+            }
+            resolved
+        }
+        val active = inFlight.putIfAbsent(cacheKey, candidate) ?: candidate
+        val ownsResolution = active === candidate
+        if (ownsResolution) candidate.run()
+        return try {
+            active.get()
+        } catch (interrupted: InterruptedException) {
+            Thread.currentThread().interrupt()
+            emptyList()
+        } catch (_: ExecutionException) {
+            emptyList()
+        } finally {
+            if (ownsResolution) inFlight.remove(cacheKey, candidate)
+        }
+    }
 
     private fun raceResolvers(
         providers: List<SteamDnsProvider>,

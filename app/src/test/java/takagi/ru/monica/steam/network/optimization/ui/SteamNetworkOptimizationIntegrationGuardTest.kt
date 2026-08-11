@@ -143,6 +143,8 @@ class SteamNetworkOptimizationIntegrationGuardTest {
         assertTrue(scanner.contains("SteamHostProbeTarget(hostname, address)"))
         assertTrue(scanner.contains("evaluation.candidate.hostname == hostname && evaluation.isStable"))
         assertTrue(dynamicDns.contains("candidates.forEach"))
+        assertTrue(dynamicDns.contains("inFlight.putIfAbsent"))
+        assertFalse(dynamicDns.contains("dynamic_dns cache_hit"))
         assertFalse(dynamicDns.contains("PREFERRED_HEAD_START_MILLIS"))
         assertTrue(dynamicDns.contains("CACHE_TTL_MILLIS"))
         assertTrue(automaticScreen.contains("resolverSettings.activeProviders"))

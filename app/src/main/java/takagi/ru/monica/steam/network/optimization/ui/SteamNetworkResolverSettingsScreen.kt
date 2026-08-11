@@ -108,6 +108,7 @@ fun SteamNetworkResolverSettingsScreen(
                     activeProviderCount = settings.activeProviders.size,
                     cacheCount = cacheCount,
                     refreshing = refreshing,
+                    canEnable = settings.hasResolver,
                     onEnabledChange = {
                         SteamNetworkResolverSettingsRuntime.setDynamicDnsEnabled(
                             applicationContext,

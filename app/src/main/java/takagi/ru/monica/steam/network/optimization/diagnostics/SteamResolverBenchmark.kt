@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 
@@ -26,13 +28,20 @@ internal data class SteamResolverBenchmarkResult(
  */
 internal class SteamResolverBenchmark(
     private val resolver: SteamDnsResolver = OkHttpSteamDnsResolver(timeoutMillis = 3_000L),
-    private val hostnames: List<String> = DEFAULT_HOSTNAMES
+    private val hostnames: List<String> = DEFAULT_HOSTNAMES,
+    maxConcurrentResolutions: Int = MAX_CONCURRENT_RESOLUTIONS
 ) {
+    private val resolutionSemaphore = Semaphore(maxConcurrentResolutions.coerceAtLeast(1))
+
     suspend fun benchmark(provider: SteamDnsProvider): SteamResolverBenchmarkResult =
         withContext(Dispatchers.IO) {
             val results = coroutineScope {
                 hostnames.map { hostname ->
-                    async { resolver.resolve(provider, hostname) }
+                    async {
+                        resolutionSemaphore.withPermit {
+                            resolver.resolve(provider, hostname)
+                        }
+                    }
                 }.awaitAll()
             }
             val successful = results.filter { it.isAvailable }
@@ -50,6 +59,8 @@ internal class SteamResolverBenchmark(
         }
 
     companion object {
+        private const val MAX_CONCURRENT_RESOLUTIONS = 6
+
         val DEFAULT_HOSTNAMES: List<String> = listOf(
             "store.steampowered.com",
             "steamcommunity.com",

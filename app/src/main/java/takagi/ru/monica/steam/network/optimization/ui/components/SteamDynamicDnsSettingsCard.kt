@@ -30,6 +30,7 @@ internal fun SteamDynamicDnsSettingsCard(
     activeProviderCount: Int,
     cacheCount: Int,
     refreshing: Boolean,
+    canEnable: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     onClearCache: () -> Unit,
     onForceRefresh: () -> Unit
@@ -85,6 +86,7 @@ internal fun SteamDynamicDnsSettingsCard(
                 }
                 Switch(
                     checked = enabled,
+                    enabled = enabled || canEnable,
                     onCheckedChange = onEnabledChange
                 )
             }
