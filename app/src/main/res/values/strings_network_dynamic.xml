@@ -11,4 +11,6 @@
     <string name="steam_network_dynamic_dns_cache_hint">Entries expire automatically. Clearing the cache makes the next Steam request resolve again.</string>
     <string name="steam_network_dynamic_dns_cache_clear">Clear cache</string>
     <string name="steam_network_dynamic_dns_scope">Coverage includes Steam mobile APIs and service subdomains under steampowered.com, steamcommunity.com, steamstatic.com, steamusercontent.com, steam-chat.com and known Steam CDN host families.</string>
+    <string name="steam_network_resolver_live_summary">When Dynamic DNS is enabled, these sources resolve live app-scoped Steam requests and also participate in network-quality scans.</string>
+    <string name="steam_network_dynamic_dns_privacy">DNS and DoH providers can see the public Steam hostnames queried by Monica Steam. Account credentials, Steam Guard secrets, cookies, tokens and chat message contents are never sent to DNS providers.</string>
 </resources>
