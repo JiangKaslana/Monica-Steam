@@ -4,6 +4,7 @@
     <string name="steam_network_dynamic_dns_description">选择解析来源后，Steam API、商店、社区、聊天、媒体与 CDN 域名会在请求时动态解析，不需要先扫描并固定 IP。</string>
     <string name="steam_network_dynamic_dns_active">已启用 %1$d 个解析来源</string>
     <string name="steam_network_dynamic_dns_system_only">仅使用系统 DNS</string>
+    <string name="steam_network_dynamic_dns_no_sources">当前没有启用任何解析来源</string>
     <string name="steam_network_dynamic_dns_disabled">动态 DNS / DoH 已关闭</string>
     <string name="steam_network_dynamic_dns_cache_title">本地 DNS 缓存</string>
     <string name="steam_network_dynamic_dns_cache_count">当前缓存 %1$d 个 Steam 域名</string>
