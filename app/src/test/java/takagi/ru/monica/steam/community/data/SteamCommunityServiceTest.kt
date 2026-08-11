@@ -33,23 +33,34 @@ class SteamCommunityServiceTest {
         assertEquals("Alyx", snapshot.profile?.displayName)
         assertEquals(42, snapshot.steamLevel)
         assertEquals("Portal 2", snapshot.recentGames.single().name)
-        assertEquals("Community Ambassador", snapshot.badges.single().name)
-        assertEquals("https://cdn.example/community.png", snapshot.badges.single().iconUrl)
+        assertEquals(2, snapshot.badges.size)
+        assertEquals(
+            "Community Ambassador",
+            snapshot.badges.first { it.badgeId == 1 }.name
+        )
+        assertEquals(
+            "https://cdn.example/community.png",
+            snapshot.badges.first { it.badgeId == 1 }.iconUrl
+        )
+        assertFalse(snapshot.badges.first { it.appId == 620 }.isUnlocked)
         assertTrue(snapshot.unavailableSections.isEmpty())
-        assertEquals(5, requests.size)
+        assertEquals(6, requests.size)
         val profileRequest = requests.single {
             it.url.encodedPath.contains("GetUserSummaries")
         }
-        val badgePageRequest = requests.single {
+        val badgePageRequests = requests.filter {
             it.url.encodedPath.endsWith("/badges/")
         }
-        assertTrue(badgePageRequest.header("Cookie").orEmpty().contains("steamLoginSecure="))
-        assertTrue(requests.filterNot { it === badgePageRequest }.all {
+        assertEquals(listOf("1", "2"), badgePageRequests.map { it.url.queryParameter("p") })
+        assertTrue(badgePageRequests.all {
+            it.header("Cookie").orEmpty().contains("steamLoginSecure=")
+        })
+        assertTrue(requests.filterNot { it in badgePageRequests }.all {
             it.url.queryParameter("access_token") == "access-token"
         })
         assertEquals(ACCOUNT_ID, profileRequest.url.queryParameter("steamids"))
         assertEquals(null, profileRequest.url.queryParameter("steamid"))
-        requests.filterNot { it === profileRequest || it === badgePageRequest }.forEach { request ->
+        requests.filterNot { it === profileRequest || it in badgePageRequests }.forEach { request ->
             assertEquals(ACCOUNT_ID, request.url.queryParameter("steamid"))
         }
     }
@@ -109,8 +120,21 @@ class SteamCommunityServiceTest {
                 """{"response":{"player_level":42}}"""
             request.url.encodedPath.contains("GetBadges") ->
                 """{"response":{"badges":[{"badgeid":1,"level":2,"xp":200}],"player_xp":4200,"player_xp_needed_to_level_up":800}}"""
+            request.url.encodedPath.endsWith("/badges/") &&
+                request.url.queryParameter("p") == "2" ->
+                """
+                <div id="badge_gamebadge_620_0_0" class="badge_row is_link">
+                  <a class="badge_row_overlay" href="/profiles/$ACCOUNT_ID/gamecards/620/"></a>
+                  <div class="badge_title">Portal 2</div>
+                  <div class="badge_info_title">Badge not crafted</div>
+                  <div class="badge_info_description">0 XP</div>
+                </div>
+                """
             request.url.encodedPath.endsWith("/badges/") ->
                 """
+                <div class="pageLinks">
+                  <a class="pagelink" href="?p=2&amp;l=english">2</a>
+                </div>
                 <div id="badge_badge_1" class="badge_row is_link">
                   <a class="badge_row_overlay" href="https://steamcommunity.com/profiles/$ACCOUNT_ID/badges/1"></a>
                   <div class="badge_title">Community Ambassador</div>

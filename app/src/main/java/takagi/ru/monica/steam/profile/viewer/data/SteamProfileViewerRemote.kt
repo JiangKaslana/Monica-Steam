@@ -1,6 +1,8 @@
 package takagi.ru.monica.steam.profile.viewer.data
 
 import kotlinx.serialization.json.JsonObject
+import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.market.SteamInventoryService
 import takagi.ru.monica.steam.network.SteamApiClient
 import takagi.ru.monica.steam.network.SteamProtoWriter
 
@@ -16,6 +18,18 @@ internal interface SteamProfileViewerRemote {
     ): ByteArray
     fun fetchAchievementDefinitions(accessToken: String, appId: Int, language: String): ByteArray
     fun fetchUserAchievements(accessToken: String, targetSteamId: Long, appId: Int): ByteArray
+    fun fetchCommunityProfile(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String
+    fun fetchBadges(accessToken: String, targetSteamId: String): JsonObject
+    fun fetchBadgePage(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String,
+        page: Int
+    ): String
 }
 
 internal class SteamProfileViewerSteamRemote(
@@ -103,4 +117,40 @@ internal class SteamProfileViewerSteamRemote(
         accessToken = accessToken,
         useGet = true
     )
+
+    override fun fetchCommunityProfile(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String = api.communityGetText(
+        path = "/profiles/$targetSteamId/",
+        query = mapOf("l" to language),
+        cookies = communityCookies(viewer),
+        referer = "https://steamcommunity.com/profiles/$targetSteamId/"
+    )
+
+    override fun fetchBadges(accessToken: String, targetSteamId: String): JsonObject =
+        api.steamApiGetJson(
+            path = "/IPlayerService/GetBadges/v1/",
+            query = mapOf("steamid" to targetSteamId),
+            accessToken = accessToken
+        )
+
+    override fun fetchBadgePage(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String,
+        page: Int
+    ): String = api.communityGetText(
+        path = "/profiles/$targetSteamId/badges/",
+        query = mapOf("p" to page.toString(), "l" to language),
+        cookies = communityCookies(viewer),
+        referer = "https://steamcommunity.com/profiles/$targetSteamId/"
+    )
+
+    private fun communityCookies(account: SteamAccount): Map<String, String> =
+        SteamInventoryService.marketCookies(
+            account = account,
+            sessionId = SteamInventoryService.newSessionId()
+        )
 }

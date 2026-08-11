@@ -3,7 +3,9 @@ package takagi.ru.monica.steam.community.data
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.community.domain.SteamCommunityBadge
 
@@ -161,6 +163,39 @@ class SteamCommunityParserTest {
             "https://steamcommunity.com/profiles/76561198000000001/gamecards/570/",
             merged.detailUrl
         )
+    }
+
+    @Test
+    fun parsesBadgePageCountAndLockedState() {
+        val html = """
+            <div class="pageLinks">
+              <span class="page_current">1</span>
+              <a class="pagelink" href="?p=2&amp;l=english">2</a>
+              <a class="pagelink" href="?p=7&amp;l=english">7</a>
+            </div>
+            <div id="badge_badge_1" class="badge_row is_link">
+              <a class="badge_row_overlay" href="/profiles/76561198000000001/badges/1"></a>
+              <div class="badge_info_title">Years of Service</div>
+              <div class="badge_info_description">Level 4, 200 XP</div>
+              <div class="badge_info_unlocked">Unlocked 1 Jan</div>
+            </div>
+            <div id="badge_gamebadge_620_0_0" class="badge_row is_link">
+              <a class="badge_row_overlay" href="/profiles/76561198000000001/gamecards/620/"></a>
+              <div class="badge_title">Portal 2</div>
+              <div class="badge_info_title">Badge not crafted</div>
+              <div class="badge_info_description">0 XP</div>
+            </div>
+        """.trimIndent()
+
+        val badges = SteamCommunityParser.badgeDetails(
+            html = html,
+            steamId = "76561198000000001"
+        )
+
+        assertEquals(7, SteamCommunityParser.badgePageCount(html))
+        assertEquals(2, badges.size)
+        assertTrue(badges.first { it.badgeId == 1 }.isUnlocked)
+        assertFalse(badges.first { it.appId == 620 }.isUnlocked)
     }
 
     private fun jsonObject(raw: String) = Json.parseToJsonElement(raw).jsonObject

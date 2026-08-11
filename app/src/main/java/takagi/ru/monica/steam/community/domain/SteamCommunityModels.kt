@@ -32,7 +32,8 @@ data class SteamCommunityBadge(
     val gameName: String = "",
     val iconUrl: String = "",
     val detailUrl: String = "",
-    val unlockedAt: String = ""
+    val unlockedAt: String = "",
+    val isUnlocked: Boolean = true
 )
 
 @Serializable

@@ -78,22 +78,23 @@ class SteamCommunityService(
                 )
             )
         }
-        val liveBadges = if (badges.badges.isEmpty()) {
-            badges.badges
-        } else {
-            val details = runCatching {
-                SteamCommunityParser.badgeDetails(
-                    html = api.communityGetText(
+        val badgeDetails = runCatching {
+            SteamCommunityBadgeCatalogLoader.load(account.steamId) { page ->
+                api.communityGetText(
                         path = "/profiles/${account.steamId}/badges/",
-                        query = mapOf("l" to communityLanguage()),
+                        query = mapOf(
+                            "p" to page.toString(),
+                            "l" to communityLanguage()
+                        ),
                         cookies = communityCookies(account),
                         referer = "https://steamcommunity.com/profiles/${account.steamId}/"
-                    ),
-                    steamId = account.steamId
                 )
-            }.getOrDefault(emptyList())
-            SteamCommunityParser.mergeBadgeDetails(badges.badges, details)
-        }
+            }
+        }.getOrDefault(emptyList())
+        val liveBadges = SteamCommunityParser.mergeBadgeDetails(
+            badges = badges.badges,
+            details = badgeDetails
+        )
 
         if (
             failures.containsAll(STEAM_COMMUNITY_CORE_SECTIONS) &&

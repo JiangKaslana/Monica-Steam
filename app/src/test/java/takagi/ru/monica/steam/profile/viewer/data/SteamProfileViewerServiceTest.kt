@@ -30,6 +30,25 @@ class SteamProfileViewerServiceTest {
                 game(30, "Viewer only", 400)
             )
             progress[FRIEND_STEAM_ID] = achievementProgressResponse(10, 5, 10)
+            communityProfileHtml = communityCounts(friends = 12, groups = 3, badges = 2)
+            badgePayload = badgeResponse(1)
+            badgePages[1] = """
+                <div class="pageLinks"><a class="pagelink" href="?p=2">2</a></div>
+                <div id="badge_badge_1" class="badge_row is_link">
+                  <a class="badge_row_overlay" href="/profiles/$FRIEND_STEAM_ID/badges/1"></a>
+                  <div class="badge_info_title">Community Ambassador</div>
+                  <div class="badge_info_description">Level 2, 200 XP</div>
+                  <div class="badge_info_unlocked">Unlocked 1 Jan</div>
+                </div>
+            """.trimIndent()
+            badgePages[2] = """
+                <div id="badge_gamebadge_620_0_0" class="badge_row is_link">
+                  <a class="badge_row_overlay" href="/profiles/$FRIEND_STEAM_ID/gamecards/620/"></a>
+                  <div class="badge_title">Portal 2</div>
+                  <div class="badge_info_title">Badge not crafted</div>
+                  <div class="badge_info_description">0 XP</div>
+                </div>
+            """.trimIndent()
         }
         val result = SteamProfileViewerService(remote).fetchProfile(
             viewer = account(),
@@ -40,6 +59,11 @@ class SteamProfileViewerServiceTest {
         assertEquals(42, result.value.target.steamLevel)
         assertEquals(2, result.value.targetGameCount)
         assertEquals(1, result.value.commonGameCount)
+        assertEquals(12, result.value.friendCount)
+        assertEquals(3, result.value.groupCount)
+        assertEquals(2, result.value.badgeCount)
+        assertEquals(2, result.value.badges.size)
+        assertTrue(!result.value.badges.first { it.appId == 620 }.isUnlocked)
         assertEquals(5, result.value.targetGames.first { it.appId == 10 }.achievementUnlockedCount)
         assertEquals(SteamProfileGameDataVisibility.AVAILABLE, result.value.gameDataVisibility)
     }
@@ -80,6 +104,30 @@ class SteamProfileViewerServiceTest {
         ) as SteamProfileViewerResult.Success
 
         assertEquals(SteamProfileGameDataVisibility.PRIVATE, result.value.gameDataVisibility)
+    }
+
+    @Test
+    fun optionalCommunityDataFailureDoesNotHideProfileAndGames() {
+        val remote = FakeProfileViewerRemote().apply {
+            summaries[FRIEND_STEAM_ID] = summary(FRIEND_STEAM_ID, visibility = 3)
+            levels[FRIEND_STEAM_ID] = levelResponse(7)
+            games[FRIEND_STEAM_ID] = ownedGamesResponse(game(10, "Shared", 100))
+            games[VIEWER_STEAM_ID] = ownedGamesResponse(game(10, "Shared", 200))
+            optionalCommunityFailure = SteamApiException(
+                message = "community unavailable",
+                httpStatusCode = 500
+            )
+        }
+        val result = SteamProfileViewerService(remote).fetchProfile(
+            viewer = account(),
+            target = SteamProfileViewerTarget(FRIEND_STEAM_ID),
+            language = "schinese"
+        ) as SteamProfileViewerResult.Success
+
+        assertEquals(1, result.value.targetGameCount)
+        assertEquals(null, result.value.friendCount)
+        assertEquals(null, result.value.groupCount)
+        assertTrue(result.value.badges.isEmpty())
     }
 
     @Test
@@ -179,6 +227,27 @@ class SteamProfileViewerServiceTest {
         })
     }.toByteArray()
 
+    private fun communityCounts(friends: Int, groups: Int, badges: Int): String = """
+        <div class="profile_friend_links"><span class="profile_count_link_total">$friends</span></div>
+        <div class="profile_group_links"><span class="profile_count_link_total">$groups</span></div>
+        <a href="/profiles/$FRIEND_STEAM_ID/badges/">
+          <span class="count_link_label">Badges</span>
+          <span class="profile_count_link_total">$badges</span>
+        </a>
+    """.trimIndent()
+
+    private fun badgeResponse(id: Int): JsonObject = buildJsonObject {
+        put("response", buildJsonObject {
+            put("badges", buildJsonArray {
+                add(buildJsonObject {
+                    put("badgeid", id)
+                    put("level", 2)
+                    put("xp", 200)
+                })
+            })
+        })
+    }
+
     private companion object {
         const val VIEWER_STEAM_ID = "76561198000000001"
         const val FRIEND_STEAM_ID = "76561198000000002"
@@ -191,6 +260,10 @@ private class FakeProfileViewerRemote : SteamProfileViewerRemote {
     val games = mutableMapOf<String, ByteArray>()
     val progress = mutableMapOf<String, ByteArray>()
     val gameFailures = mutableMapOf<String, Throwable>()
+    var communityProfileHtml: String = ""
+    var badgePayload: JsonObject = buildJsonObject { put("response", buildJsonObject {}) }
+    val badgePages = mutableMapOf<Int, String>()
+    var optionalCommunityFailure: Throwable? = null
     var targetOwnedGameRequests = 0
     var userAchievementRequests = 0
 
@@ -231,5 +304,29 @@ private class FakeProfileViewerRemote : SteamProfileViewerRemote {
     ): ByteArray {
         userAchievementRequests++
         return ByteArray(0)
+    }
+
+    override fun fetchCommunityProfile(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String {
+        optionalCommunityFailure?.let { throw it }
+        return communityProfileHtml
+    }
+
+    override fun fetchBadges(accessToken: String, targetSteamId: String): JsonObject {
+        optionalCommunityFailure?.let { throw it }
+        return badgePayload
+    }
+
+    override fun fetchBadgePage(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String,
+        page: Int
+    ): String {
+        optionalCommunityFailure?.let { throw it }
+        return badgePages[page].orEmpty()
     }
 }

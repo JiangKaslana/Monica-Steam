@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.profile.viewer.domain
 import java.util.Locale
 import kotlinx.serialization.Serializable
 import takagi.ru.monica.steam.friends.domain.SteamPersonaState
+import takagi.ru.monica.steam.community.domain.SteamCommunityBadge
 import takagi.ru.monica.steam.library.SteamAchievement
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamGameAchievements
@@ -55,7 +56,11 @@ data class SteamProfileViewerSnapshot(
     val targetGames: List<SteamGame>,
     val viewerGames: List<SteamGame>,
     val gameDataVisibility: SteamProfileGameDataVisibility,
-    val fetchedAt: Long
+    val fetchedAt: Long,
+    val friendCount: Int? = null,
+    val groupCount: Int? = null,
+    val badgeCount: Int? = null,
+    val badges: List<SteamCommunityBadge> = emptyList()
 ) {
     val isSelf: Boolean get() = viewerSteamId == target.steamId
     val targetGameCount: Int get() = targetGames.distinctBy(SteamGame::appId).size

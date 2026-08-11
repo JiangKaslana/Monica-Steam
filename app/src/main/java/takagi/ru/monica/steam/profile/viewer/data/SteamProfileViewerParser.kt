@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
+import org.jsoup.Jsoup
 import takagi.ru.monica.steam.friends.domain.SteamPersonaState
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamGameAchievementProgress
@@ -79,6 +80,25 @@ internal object SteamProfileViewerParser {
         )
     }
 
+    fun parseCommunityCounts(html: String): SteamProfileCommunityCounts? {
+        if (html.isBlank()) return null
+        val document = Jsoup.parse(html)
+        val counts = SteamProfileCommunityCounts(
+            friendCount = document.selectFirst(
+                ".profile_friend_links .profile_count_link_total"
+            )?.text().toProfileCount(),
+            groupCount = document.selectFirst(
+                ".profile_group_links .profile_count_link_total"
+            )?.text().toProfileCount(),
+            badgeCount = document.selectFirst(
+                "a[href*=\"/badges/\"] .profile_count_link_total"
+            )?.text().toProfileCount()
+        )
+        return counts.takeIf {
+            it.friendCount != null || it.groupCount != null || it.badgeCount != null
+        }
+    }
+
     private fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject
     private fun JsonObject.array(key: String): JsonArray =
         this[key] as? JsonArray ?: JsonArray(emptyList())
@@ -95,4 +115,16 @@ internal object SteamProfileViewerParser {
         val value = this[key] as? JsonPrimitive ?: return 0L
         return value.longOrNull ?: value.contentOrNull?.toLongOrNull() ?: 0L
     }
+
+    private fun String?.toProfileCount(): Int? = this
+        ?.replace(",", "")
+        ?.replace(" ", "")
+        ?.trim()
+        ?.toIntOrNull()
 }
+
+internal data class SteamProfileCommunityCounts(
+    val friendCount: Int?,
+    val groupCount: Int?,
+    val badgeCount: Int?
+)

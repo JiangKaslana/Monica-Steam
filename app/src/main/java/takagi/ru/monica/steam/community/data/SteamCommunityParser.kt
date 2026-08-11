@@ -67,6 +67,21 @@ internal object SteamCommunityParser {
             .distinctBy(::badgeMergeKey)
     }
 
+    fun badgePageCount(html: String): Int {
+        if (html.isBlank()) return 1
+        return Jsoup.parse(html)
+            .select(".pagelink[href], .pagebtn[href]")
+            .mapNotNull { link ->
+                BADGE_PAGE_NUMBER.find(link.attr("href"))
+                    ?.groupValues
+                    ?.getOrNull(1)
+                    ?.toIntOrNull()
+            }
+            .maxOrNull()
+            ?.coerceAtLeast(1)
+            ?: 1
+    }
+
     fun mergeBadgeDetails(
         badges: List<SteamCommunityBadge>,
         details: List<SteamCommunityBadge>
@@ -81,7 +96,8 @@ internal object SteamCommunityParser {
                 gameName = detail.gameName.ifBlank { badge.gameName },
                 iconUrl = detail.iconUrl.ifBlank { badge.iconUrl },
                 detailUrl = detail.detailUrl.ifBlank { badge.detailUrl },
-                unlockedAt = detail.unlockedAt.ifBlank { badge.unlockedAt }
+                unlockedAt = detail.unlockedAt.ifBlank { badge.unlockedAt },
+                isUnlocked = badge.isUnlocked || detail.isUnlocked
             )
         }
         val knownKeys = badges.mapTo(hashSetOf(), ::badgeMergeKey)
@@ -129,9 +145,11 @@ internal object SteamCommunityParser {
             .takeIf(::isSafeCommunityUrl)
             .orEmpty()
         val infoText = row.selectFirst(".badge_info_description")?.text().orEmpty()
+        val level = BADGE_LEVEL.find(infoText)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+        val unlockedAt = row.selectFirst(".badge_info_unlocked")?.text().orEmpty().trim()
         return SteamCommunityBadge(
             badgeId = key.badgeId,
-            level = BADGE_LEVEL.find(infoText)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0,
+            level = level,
             xp = BADGE_XP.find(infoText)?.groupValues?.getOrNull(1)
                 ?.replace(",", "")
                 ?.replace(" ", "")
@@ -145,7 +163,8 @@ internal object SteamCommunityParser {
             gameName = pageTitle.takeIf { key.appId > 0 }.orEmpty(),
             iconUrl = icon,
             detailUrl = detailUrl,
-            unlockedAt = row.selectFirst(".badge_info_unlocked")?.text().orEmpty().trim()
+            unlockedAt = unlockedAt,
+            isUnlocked = unlockedAt.isNotBlank() || level > 0
         )
     }
 
@@ -199,6 +218,7 @@ internal object SteamCommunityParser {
     private val GAME_BADGE_HREF = Regex("/gamecards/(\\d+)/?", RegexOption.IGNORE_CASE)
     private val BADGE_LEVEL = Regex("(?i)\\blevel\\s+([0-9]+)")
     private val BADGE_XP = Regex("(?i)([0-9][0-9, ]*)\\s*(?:XP|经验值?)")
+    private val BADGE_PAGE_NUMBER = Regex("[?&]p=(\\d+)", RegexOption.IGNORE_CASE)
 
     private data class BadgeKey(val appId: Int, val badgeId: Int, val borderColor: Int)
 }

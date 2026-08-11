@@ -1,6 +1,8 @@
 package takagi.ru.monica.steam.profile.viewer.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.friends.domain.SteamPersonaState
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileGameDataVisibility
@@ -30,6 +32,28 @@ class SteamProfileViewerCacheTest {
                 SteamProfileViewerCacheCodec.encodeProfile(snapshot)
             )
         )
+    }
+
+    @Test
+    fun legacyProfileSnapshotUsesSafeDefaultsForNewCommunityFields() {
+        val legacy = """
+            {
+              "viewerAccountId":1,
+              "viewerSteamId":"$VIEWER",
+              "target":{"steamId":"$TARGET","personaName":"Target"},
+              "targetGames":[],
+              "viewerGames":[],
+              "gameDataVisibility":"PRIVATE",
+              "fetchedAt":123
+            }
+        """.trimIndent()
+
+        val decoded = requireNotNull(SteamProfileViewerCacheCodec.decodeProfile(legacy))
+
+        assertNull(decoded.friendCount)
+        assertNull(decoded.groupCount)
+        assertNull(decoded.badgeCount)
+        assertTrue(decoded.badges.isEmpty())
     }
 
     private companion object {

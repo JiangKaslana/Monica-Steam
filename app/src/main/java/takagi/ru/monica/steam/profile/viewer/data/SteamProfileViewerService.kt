@@ -1,6 +1,8 @@
 package takagi.ru.monica.steam.profile.viewer.data
 
 import takagi.ru.monica.steam.data.SteamAccount
+import takagi.ru.monica.steam.community.data.SteamCommunityBadgeCatalogLoader
+import takagi.ru.monica.steam.community.data.SteamCommunityParser
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamGameAchievementProgress
 import takagi.ru.monica.steam.library.SteamGameLibraryService
@@ -43,6 +45,30 @@ internal class SteamProfileViewerService(
                 )
             }.getOrNull()
             val resolvedSummary = summary.copy(steamLevel = level)
+            val communityCounts = runCatching {
+                SteamProfileViewerParser.parseCommunityCounts(
+                    remote.fetchCommunityProfile(viewer, target.steamId, language)
+                )
+            }.getOrNull()
+            val apiBadges = runCatching {
+                SteamCommunityParser.badges(
+                    remote.fetchBadges(accessToken, target.steamId)
+                ).badges
+            }.getOrDefault(emptyList())
+            val badgeDetails = runCatching {
+                SteamCommunityBadgeCatalogLoader.load(target.steamId) { page ->
+                    remote.fetchBadgePage(
+                        viewer = viewer,
+                        targetSteamId = target.steamId,
+                        language = language,
+                        page = page
+                    )
+                }
+            }.getOrDefault(emptyList())
+            val profileBadges = SteamCommunityParser.mergeBadgeDetails(
+                badges = apiBadges,
+                details = badgeDetails
+            )
             val isSelf = viewer.steamId == target.steamId
             val targetGameResult = loadTargetGames(
                 accessToken = accessToken,
@@ -70,7 +96,13 @@ internal class SteamProfileViewerService(
                     targetGames = targetGames,
                     viewerGames = viewerGames,
                     gameDataVisibility = targetGameResult.visibility,
-                    fetchedAt = System.currentTimeMillis()
+                    fetchedAt = System.currentTimeMillis(),
+                    friendCount = communityCounts?.friendCount,
+                    groupCount = communityCounts?.groupCount,
+                    badgeCount = communityCounts?.badgeCount
+                        ?: profileBadges.takeIf { it.isNotEmpty() }
+                            ?.count { it.isUnlocked },
+                    badges = profileBadges
                 )
             )
         }.getOrElse { error -> failure(error, targetIsOtherUser = false) }
