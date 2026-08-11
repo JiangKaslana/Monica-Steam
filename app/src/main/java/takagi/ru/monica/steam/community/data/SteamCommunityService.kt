@@ -79,17 +79,15 @@ class SteamCommunityService(
             )
         }
         val badgeDetails = runCatching {
-            SteamCommunityBadgeCatalogLoader.load(account.steamId) { page ->
-                api.communityGetText(
-                        path = "/profiles/${account.steamId}/badges/",
-                        query = mapOf(
-                            "p" to page.toString(),
-                            "l" to communityLanguage()
-                        ),
-                        cookies = communityCookies(account),
-                        referer = "https://steamcommunity.com/profiles/${account.steamId}/"
-                )
-            }
+            SteamCommunityParser.badgeDetails(
+                html = api.communityGetText(
+                    path = "/profiles/${account.steamId}/badges/",
+                    query = mapOf("p" to "1", "l" to communityLanguage()),
+                    cookies = communityCookies(account),
+                    referer = "https://steamcommunity.com/profiles/${account.steamId}/"
+                ),
+                steamId = account.steamId
+            )
         }.getOrDefault(emptyList())
         val liveBadges = SteamCommunityParser.mergeBadgeDetails(
             badges = badges.badges,

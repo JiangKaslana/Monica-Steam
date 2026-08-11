@@ -34,7 +34,7 @@ internal class SteamProfileViewerPreferencesCache(context: Context) : SteamProfi
     override fun saveProfile(snapshot: SteamProfileViewerSnapshot) {
         preferences.edit().putString(
             profileKey(snapshot.viewerSteamId, snapshot.target.steamId),
-            SteamProfileViewerCacheCodec.encodeProfile(snapshot)
+            SteamProfileViewerCacheCodec.encodeProfileForStorage(snapshot)
         ).apply()
     }
 
@@ -82,6 +82,14 @@ internal object SteamProfileViewerCacheCodec {
     fun encodeProfile(snapshot: SteamProfileViewerSnapshot): String =
         json.encodeToString(SteamProfileViewerSnapshot.serializer(), snapshot)
 
+    fun encodeProfileForStorage(snapshot: SteamProfileViewerSnapshot): String = encodeProfile(
+        if (snapshot.badges.size <= MAX_CACHED_BADGES) {
+            snapshot
+        } else {
+            snapshot.copy(badges = snapshot.badges.take(MAX_CACHED_BADGES))
+        }
+    )
+
     fun decodeProfile(raw: String): SteamProfileViewerSnapshot? = runCatching {
         json.decodeFromString(SteamProfileViewerSnapshot.serializer(), raw)
     }.getOrNull()
@@ -92,4 +100,6 @@ internal object SteamProfileViewerCacheCodec {
     fun decodeAchievements(raw: String): SteamAchievementComparison? = runCatching {
         json.decodeFromString(SteamAchievementComparison.serializer(), raw)
     }.getOrNull()
+
+    private const val MAX_CACHED_BADGES = 250
 }
