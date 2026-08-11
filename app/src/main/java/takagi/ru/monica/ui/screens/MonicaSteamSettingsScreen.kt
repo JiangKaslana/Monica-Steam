@@ -39,6 +39,7 @@ import takagi.ru.monica.steam.navigation.reorderDockOrder
 import takagi.ru.monica.steam.navigation.reorderFixedDockOrder
 import takagi.ru.monica.steam.navigation.reorderLiquidGlassDockOrder
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.itad.ui.ItadSettingsScreen
 import takagi.ru.monica.steam.notifications.settings.ui.SteamNotificationSettingsScreen
 import takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationAutoScreen
 import takagi.ru.monica.steam.network.optimization.ui.SteamNetworkResolverSettingsScreen
@@ -75,7 +76,8 @@ private enum class SteamSettingsChild {
     NETWORK_OPTIMIZATION,
     NETWORK_OPTIMIZATION_RESOLVERS,
     NETWORK_OPTIMIZATION_ADVANCED,
-    STORE_HINTS
+    STORE_HINTS,
+    PRICE_DATA
 }
 
 private fun SteamSettingsChild.parent(): SteamSettingsChild? = when (this) {
@@ -97,7 +99,8 @@ private fun SteamSettingsChild.parent(): SteamSettingsChild? = when (this) {
     SteamSettingsChild.DEVELOPER -> SteamSettingsChild.APP_SUPPORT
 
     SteamSettingsChild.CUSTOM_COLORS -> SteamSettingsChild.COLORS
-    SteamSettingsChild.STORE_HINTS -> SteamSettingsChild.STEAM_FEATURES
+    SteamSettingsChild.STORE_HINTS,
+    SteamSettingsChild.PRICE_DATA -> SteamSettingsChild.STEAM_FEATURES
     SteamSettingsChild.NETWORK_OPTIMIZATION_RESOLVERS,
     SteamSettingsChild.NETWORK_OPTIMIZATION_ADVANCED -> SteamSettingsChild.NETWORK_OPTIMIZATION
 
@@ -191,6 +194,7 @@ fun MonicaSteamSettingsScreen(
             onOpenExtensions = { child = SteamSettingsChild.EXTENSIONS },
             onOpenNetworkOptimization = { child = SteamSettingsChild.NETWORK_OPTIMIZATION },
             onOpenStoreHints = { child = SteamSettingsChild.STORE_HINTS },
+            onOpenItad = { child = SteamSettingsChild.PRICE_DATA },
             onOpenDataManagement = { child = SteamSettingsChild.DATA_MANAGEMENT },
             onOpenAppearance = { child = SteamSettingsChild.APPEARANCE },
             onOpenSteamFeatures = { child = SteamSettingsChild.STEAM_FEATURES },
@@ -415,6 +419,10 @@ fun MonicaSteamSettingsScreen(
                     )
                 }
                 SteamSettingsChild.STORE_HINTS -> SteamStoreHintSettingsScreen(
+                    onNavigateBack = { child = SteamSettingsChild.STEAM_FEATURES },
+                    modifier = Modifier.fillMaxSize()
+                )
+                SteamSettingsChild.PRICE_DATA -> ItadSettingsScreen(
                     onNavigateBack = { child = SteamSettingsChild.STEAM_FEATURES },
                     modifier = Modifier.fillMaxSize()
                 )

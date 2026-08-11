@@ -89,7 +89,9 @@ internal fun buildMonicaSteamSettingsHomeSections(
                 subtitle = context.getString(R.string.steam_settings_features_description),
                 searchTexts = listOf(
                     context.getString(R.string.steam_link_handling_title),
-                    context.getString(R.string.steam_store_hint_settings_title)
+                    context.getString(R.string.steam_store_hint_settings_title),
+                    context.getString(R.string.itad_settings_title),
+                    context.getString(R.string.itad_settings_description)
                 ),
                 onClick = onOpenSteamExperience
             ),
