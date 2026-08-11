@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkResolverSettings
 import takagi.ru.monica.steam.network.optimization.domain.SteamResolverInputValidator
 
@@ -51,6 +52,7 @@ object SteamNetworkResolverSettingsRuntime {
         initialize(context)
         preferences.edit().putBoolean(KEY_USE_SYSTEM_DNS, enabled).apply()
         mutableSettings.value = mutableSettings.value.copy(useSystemDns = enabled)
+        notifyResolverChanged()
     }
 
     @Synchronized
@@ -58,6 +60,7 @@ object SteamNetworkResolverSettingsRuntime {
         initialize(context)
         preferences.edit().putBoolean(KEY_USE_BUILT_IN_DOH, enabled).apply()
         mutableSettings.value = mutableSettings.value.copy(useBuiltInDoh = enabled)
+        notifyResolverChanged()
     }
 
     @Synchronized
@@ -71,6 +74,7 @@ object SteamNetworkResolverSettingsRuntime {
         val updated = (current + value).distinct().sorted()
         saveStringSet(KEY_CUSTOM_DNS, updated)
         mutableSettings.value = mutableSettings.value.copy(customDnsServers = updated)
+        notifyResolverChanged()
         return true
     }
 
@@ -80,6 +84,7 @@ object SteamNetworkResolverSettingsRuntime {
         val updated = mutableSettings.value.customDnsServers - value
         saveStringSet(KEY_CUSTOM_DNS, updated)
         mutableSettings.value = mutableSettings.value.copy(customDnsServers = updated)
+        notifyResolverChanged()
     }
 
     @Synchronized
@@ -93,6 +98,7 @@ object SteamNetworkResolverSettingsRuntime {
         val updated = (current + value).distinct().sorted()
         saveStringSet(KEY_CUSTOM_DOH, updated)
         mutableSettings.value = mutableSettings.value.copy(customDohEndpoints = updated)
+        notifyResolverChanged()
         return true
     }
 
@@ -102,9 +108,14 @@ object SteamNetworkResolverSettingsRuntime {
         val updated = mutableSettings.value.customDohEndpoints - value
         saveStringSet(KEY_CUSTOM_DOH, updated)
         mutableSettings.value = mutableSettings.value.copy(customDohEndpoints = updated)
+        notifyResolverChanged()
     }
 
     private fun saveStringSet(key: String, values: Collection<String>) {
         preferences.edit().putStringSet(key, values.toSet()).apply()
+    }
+
+    private fun notifyResolverChanged() {
+        runCatching { SteamHttpClientProvider.onResolverSettingsChanged() }
     }
 }
