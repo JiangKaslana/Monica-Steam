@@ -13,6 +13,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +39,8 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 @Composable
 internal fun SteamResolverServerBenchmarkCard(
     providers: List<SteamDnsProvider>,
+    enabledProviderIds: Set<String>,
+    onBuiltInProviderEnabledChange: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -117,10 +120,18 @@ internal fun SteamResolverServerBenchmarkCard(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
                     )
                 }
+                val isBuiltInDoh = provider.isDoh && SteamDnsProvider.DEFAULTS.any {
+                    !it.isSystem && it.id == provider.id
+                }
                 ResolverBenchmarkRow(
                     provider = provider,
                     result = results[provider.id],
                     running = provider.id in runningIds,
+                    enabled = provider.id in enabledProviderIds,
+                    canToggle = isBuiltInDoh,
+                    onEnabledChange = { enabled ->
+                        onBuiltInProviderEnabledChange(provider.id, enabled)
+                    },
                     onBenchmark = { benchmarkOne(provider) }
                 )
             }
@@ -133,6 +144,9 @@ private fun ResolverBenchmarkRow(
     provider: SteamDnsProvider,
     result: SteamResolverBenchmarkResult?,
     running: Boolean,
+    enabled: Boolean,
+    canToggle: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
     onBenchmark: () -> Unit
 ) {
     Row(
@@ -146,7 +160,12 @@ private fun ResolverBenchmarkRow(
             Text(
                 text = provider.displayName,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                color = if (enabled || !canToggle) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
             Text(
                 text = provider.dohUrl
@@ -158,38 +177,46 @@ private fun ResolverBenchmarkRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Text(
-            text = when {
-                running -> stringResource(R.string.steam_network_resolver_benchmark_running)
-                result == null -> "—"
-                !result.isAvailable -> stringResource(
-                    R.string.steam_network_resolver_benchmark_unavailable
-                )
-                result.successfulHosts == result.totalHosts && result.averageLatencyMillis != null ->
-                    stringResource(
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = when {
+                    running -> stringResource(R.string.steam_network_resolver_benchmark_running)
+                    result == null -> "—"
+                    !result.isAvailable -> stringResource(
+                        R.string.steam_network_resolver_benchmark_unavailable
+                    )
+                    result.successfulHosts == result.totalHosts &&
+                        result.averageLatencyMillis != null -> stringResource(
                         R.string.steam_network_resolver_benchmark_latency,
                         result.averageLatencyMillis
                     )
-                result.averageLatencyMillis != null -> stringResource(
-                    R.string.steam_network_resolver_benchmark_partial,
-                    result.successfulHosts,
-                    result.totalHosts,
-                    result.averageLatencyMillis
-                )
-                else -> stringResource(R.string.steam_network_resolver_benchmark_unavailable)
-            },
-            style = MaterialTheme.typography.labelLarge,
-            color = if (result?.isAvailable == true) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+                    result.averageLatencyMillis != null -> stringResource(
+                        R.string.steam_network_resolver_benchmark_partial,
+                        result.successfulHosts,
+                        result.totalHosts,
+                        result.averageLatencyMillis
+                    )
+                    else -> stringResource(R.string.steam_network_resolver_benchmark_unavailable)
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = if (result?.isAvailable == true) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+            TextButton(
+                onClick = onBenchmark,
+                enabled = !running
+            ) {
+                Text(stringResource(R.string.steam_network_resolver_benchmark_one))
             }
-        )
-        TextButton(
-            onClick = onBenchmark,
-            enabled = !running
-        ) {
-            Text(stringResource(R.string.steam_network_resolver_benchmark_one))
+        }
+        if (canToggle) {
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange
+            )
         }
     }
 }
