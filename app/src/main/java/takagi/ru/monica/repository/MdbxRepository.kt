@@ -17,6 +17,11 @@ import takagi.ru.monica.data.SecureItem
  * and ViewModel code do not grow their own MDBX table behavior.
  */
 interface MdbxRepository {
+    suspend fun requiresStrictMutationConsistency(databaseId: Long): Boolean = false
+
+    suspend fun readStoredEntries(databaseId: Long): List<MdbxStoredVaultEntry>
+    suspend fun readStoredAttachments(databaseId: Long): List<MdbxStoredAttachment>
+
     suspend fun createFolder(
         databaseId: Long,
         name: String,
@@ -24,6 +29,28 @@ interface MdbxRepository {
     ): MdbxStoredFolderEntry
 
     suspend fun listFolders(databaseId: Long): List<MdbxStoredFolderEntry>
+
+    suspend fun renameFolder(
+        databaseId: Long,
+        folderId: String,
+        name: String
+    ): MdbxStoredFolderEntry = throw UnsupportedOperationException("MDBX folder rename is unavailable")
+
+    suspend fun moveFolder(
+        databaseId: Long,
+        folderId: String,
+        parentFolderId: String?
+    ): MdbxStoredFolderEntry = throw UnsupportedOperationException("MDBX folder move is unavailable")
+
+    suspend fun deleteFolder(databaseId: Long, folderId: String) {
+        throw UnsupportedOperationException("MDBX folder deletion is unavailable")
+    }
+
+    suspend fun restoreFolder(
+        databaseId: Long,
+        folderId: String,
+        parentFolderId: String?
+    ): MdbxStoredFolderEntry = throw UnsupportedOperationException("MDBX folder restore is unavailable")
 
     suspend fun upsertPassword(entry: PasswordEntry)
     suspend fun deletePassword(entry: PasswordEntry)
@@ -64,6 +91,17 @@ interface MdbxRepository {
     suspend fun getVaultDiagnostics(databaseId: Long): MdbxVaultDiagnostics
     suspend fun getPendingSyncCount(databaseId: Long): Int
 
+    suspend fun planHealthRepair(databaseId: Long): MdbxHealthRepairPlan =
+        throw UnsupportedOperationException("MDBX health repair is only available for MDBX2")
+
+    suspend fun applyHealthRepair(
+        databaseId: Long,
+        planToken: String,
+        operationId: String,
+        decisions: List<MdbxHealthRepairDecision>
+    ): MdbxHealthRepairApplyResult =
+        throw UnsupportedOperationException("MDBX health repair is only available for MDBX2")
+
     suspend fun setProjectTags(databaseId: Long, projectId: String, tags: List<String>)
     suspend fun listProjectTags(databaseId: Long, projectId: String): List<String>
     suspend fun listAllProjectTags(databaseId: Long): List<MdbxProjectTagSummary>
@@ -73,6 +111,7 @@ interface MdbxRepository {
         requiredTags: List<String> = emptyList()
     ): List<MdbxProjectSearchResult>
 
+    suspend fun getCurrentHeadCommitId(databaseId: Long): String?
     suspend fun listDeltaHistory(databaseId: Long): List<MdbxDeltaSummary>
     suspend fun listCommitDiff(databaseId: Long, commitId: String): List<MdbxCommitDiff>
     suspend fun revertCommit(databaseId: Long, commitId: String): Int
@@ -86,6 +125,11 @@ interface MdbxRepository {
     ): MdbxSnapshotSummary
     suspend fun deleteSnapshot(databaseId: Long, snapshotId: String)
     suspend fun revertToSnapshot(databaseId: Long, snapshotId: String): Int
+    suspend fun pruneAutomaticSnapshots(
+        databaseId: Long,
+        keepCount: Int? = null,
+        maxBytes: Long? = null
+    ): Int
     suspend fun getSnapshotStructurePreview(
         databaseId: Long,
         snapshotId: String

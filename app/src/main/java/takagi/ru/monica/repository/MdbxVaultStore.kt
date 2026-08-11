@@ -49,6 +49,79 @@ private const val MDBX_ANDROID_CAPABILITY_FLAGS =
     "android-official-1.0,sky-portable,tiga-selectable,legacy-test-compatible"
 private const val STEAM_MAFILE_ENTRY_TYPE = "steam-mafile"
 
+enum class MdbxHealthSeverity {
+    INFO,
+    WARNING,
+    ERROR,
+    CRITICAL;
+
+    val requiresAction: Boolean
+        get() = this == ERROR || this == CRITICAL
+}
+
+data class MdbxHealthIssueDiagnostic(
+    val severity: MdbxHealthSeverity,
+    val category: String,
+    val description: String
+)
+
+enum class MdbxHealthRepairItemKind {
+    MISSING_TOMBSTONE,
+    DUPLICATE_TOMBSTONES,
+    ACTIVE_OBJECT_TOMBSTONE_CONFLICT
+}
+
+data class MdbxHealthRepairItem(
+    val repairId: String,
+    val kind: MdbxHealthRepairItemKind,
+    val objectType: String,
+    val objectId: String,
+    val tombstoneCount: Int
+)
+
+data class MdbxHealthRepairBlocker(
+    val category: String,
+    val description: String
+)
+
+data class MdbxHealthRepairPlan(
+    val token: String,
+    val automaticItems: List<MdbxHealthRepairItem>,
+    val conflictItems: List<MdbxHealthRepairItem>,
+    val blockers: List<MdbxHealthRepairBlocker>,
+    val canApply: Boolean
+) {
+    val repairableItemCount: Int
+        get() = automaticItems.size + conflictItems.size
+}
+
+enum class MdbxHealthRepairChoice {
+    KEEP_CONTENT,
+    DELETE_OBJECT,
+    CANCEL
+}
+
+data class MdbxHealthRepairDecision(
+    val repairId: String,
+    val choice: MdbxHealthRepairChoice
+)
+
+enum class MdbxHealthRepairStatus {
+    APPLIED,
+    CANCELLED,
+    NO_CHANGES
+}
+
+data class MdbxHealthRepairApplyResult(
+    val status: MdbxHealthRepairStatus,
+    val snapshotId: String?,
+    val commitId: String?,
+    val repairedCount: Int,
+    val alreadyCommitted: Boolean,
+    val healthy: Boolean,
+    val remainingIssues: List<MdbxHealthIssueDiagnostic>
+)
+
 data class MdbxVaultDiagnostics(
     val databaseId: Long,
     val filePath: String?,
@@ -63,6 +136,7 @@ data class MdbxVaultDiagnostics(
     val defaultTigaMode: String? = null,
     val integrityOk: Boolean = false,
     val integrityMessage: String? = null,
+    val healthIssues: List<MdbxHealthIssueDiagnostic> = emptyList(),
     val unresolvedConflictCount: Int = 0,
     val pendingSyncCount: Int = 0,
     val commitCount: Int = 0,
@@ -90,8 +164,19 @@ data class MdbxVaultDiagnostics(
             danglingDeviceHeadCount + attachmentChunkMismatchCount
 
     val healthIssueCount: Int
-        get() = (if (!integrityOk) 1 else 0) + structuralIssueCount +
-            (if (!isReadable) 1 else 0)
+        get() {
+            val reportedIssueCount = if (healthIssues.isNotEmpty()) {
+                healthIssues.count { it.severity.requiresAction }
+            } else {
+                (if (!integrityOk) 1 else 0) + structuralIssueCount
+            }
+            return reportedIssueCount + if (!isReadable) 1 else 0
+        }
+
+    val healthNoticeCount: Int
+        get() = healthIssues.count {
+            it.severity == MdbxHealthSeverity.INFO || it.severity == MdbxHealthSeverity.WARNING
+        }
 }
 
 data class MdbxConflictSummary(
@@ -119,7 +204,20 @@ data class MdbxDeltaSummary(
     val changedObjectPreview: String,
     val changedFieldSummary: String,
     val parentCount: Int,
-    val createdAt: String
+    val createdAt: String,
+    val operationId: String? = null,
+    val operationKind: String? = null,
+    val branchName: String? = null,
+    val message: String? = null,
+    val changes: List<MdbxCommitChangeSummary> = emptyList(),
+    val legacy: Boolean = false
+)
+
+data class MdbxCommitChangeSummary(
+    val objectType: String,
+    val objectId: String,
+    val action: String,
+    val fields: List<String>
 )
 
 data class MdbxCommitDiff(
@@ -135,7 +233,8 @@ data class MdbxCommitDiff(
     val previousDeleted: Boolean?,
     val currentDeleted: Boolean,
     val changedFields: List<String>,
-    val createdAt: String
+    val createdAt: String,
+    val contentType: String? = null
 )
 
 data class MdbxSyncBundle(
@@ -1028,6 +1127,26 @@ class MdbxVaultStore(
         }
     }
 
+    override suspend fun getCurrentHeadCommitId(databaseId: Long): String? =
+        withContext(Dispatchers.IO) {
+            val dbInfo = databaseDao.getDatabaseById(databaseId) ?: return@withContext null
+            val file = resolveWritableFile(dbInfo) ?: return@withContext null
+            if (!file.exists()) return@withContext null
+            runCatching {
+                openReadOnly(file).use { db ->
+                    if (missingRequiredTables(db).isNotEmpty()) return@withContext null
+                    queryString(
+                        db,
+                        "SELECT head_commit_id FROM branches WHERE branch_id = 'main' OR branch_name = 'main' LIMIT 1"
+                    ) ?: queryString(
+                        db,
+                        "SELECT head_commit_id FROM device_heads WHERE device_id = ? LIMIT 1",
+                        arrayOf(deviceId)
+                    )
+                }
+            }.getOrNull()
+        }
+
     override suspend fun listDeltaHistory(databaseId: Long): List<MdbxDeltaSummary> =
         withContext(Dispatchers.IO) {
             val dbInfo = databaseDao.getDatabaseById(databaseId) ?: return@withContext emptyList()
@@ -1331,10 +1450,10 @@ class MdbxVaultStore(
         }
     }
 
-    suspend fun pruneAutomaticSnapshots(
+    override suspend fun pruneAutomaticSnapshots(
         databaseId: Long,
-        keepCount: Int? = null,
-        maxBytes: Long? = null
+        keepCount: Int?,
+        maxBytes: Long?
     ): Int = withContext(Dispatchers.IO) {
         val dbInfo = databaseDao.getDatabaseById(databaseId)
             ?: throw IllegalStateException("MDBX vault not found: $databaseId")
@@ -2493,7 +2612,7 @@ class MdbxVaultStore(
         }
     }
 
-    suspend fun readStoredEntries(databaseId: Long): List<MdbxStoredVaultEntry> =
+    override suspend fun readStoredEntries(databaseId: Long): List<MdbxStoredVaultEntry> =
         withContext(Dispatchers.IO) {
             val dbInfo = databaseDao.getDatabaseById(databaseId)
                 ?: throw IllegalStateException("MDBX vault not found: $databaseId")
@@ -2536,7 +2655,7 @@ class MdbxVaultStore(
             }
         }
 
-    suspend fun readStoredAttachments(databaseId: Long): List<MdbxStoredAttachment> =
+    override suspend fun readStoredAttachments(databaseId: Long): List<MdbxStoredAttachment> =
         withContext(Dispatchers.IO) {
             val dbInfo = databaseDao.getDatabaseById(databaseId)
                 ?: throw IllegalStateException("MDBX vault not found: $databaseId")
@@ -6633,9 +6752,7 @@ class MdbxVaultStore(
     }
 
     private fun passwordObjectId(entry: PasswordEntry): String =
-        entry.replicaGroupId
-            ?.takeIf(::isMdbxPasswordObjectId)
-            ?: "password:${entry.id}"
+        mdbxPasswordObjectId(entry)
 
     private fun legacyPasswordObjectId(entry: PasswordEntry): String? =
         entry.replicaGroupId
