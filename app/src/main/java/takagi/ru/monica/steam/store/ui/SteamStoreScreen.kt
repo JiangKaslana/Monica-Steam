@@ -103,6 +103,7 @@ import takagi.ru.monica.steam.foundation.ui.SteamPageOverflowMenu
 import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamRegionalPrice
 import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
+import takagi.ru.monica.steam.itad.ui.ItadHistoryLowSection
 import takagi.ru.monica.steam.store.domain.*
 import takagi.ru.monica.steam.store.interest.ui.SteamStoreIgnoreButton
 import takagi.ru.monica.steam.store.interest.domain.SteamStoreIgnoreSyncState
@@ -418,6 +419,7 @@ fun SteamStoreScreen(
                         },
                         onOpenRelatedApp = viewModel::openRelatedDetail,
                         onOpenBundle = viewModel::openStoreWeb,
+                        onOpenItadSettings = onOpenSettings,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1057,6 +1059,7 @@ private fun SteamStoreDetailContent(
     onRetryRegionalPrices: () -> Unit,
     onOpenRelatedApp: (Int) -> Unit,
     onOpenBundle: (String) -> Unit,
+    onOpenItadSettings: () -> Unit,
     modifier: Modifier
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
@@ -1313,6 +1316,14 @@ private fun SteamStoreDetailContent(
                     }
                 }
             }
+        }
+        item(key = "itad_history_low_${detail.appId}") {
+            ItadHistoryLowSection(
+                appId = detail.appId,
+                countryCode = detail.accountCountryCode ?: detail.priceCountryCode,
+                onOpenSettings = onOpenItadSettings,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
         }
         if (detail.fullGame != null || detail.demos.isNotEmpty() || detail.relatedDlc.isNotEmpty()) {
             item(key = "store_related_${detail.appId}") {
