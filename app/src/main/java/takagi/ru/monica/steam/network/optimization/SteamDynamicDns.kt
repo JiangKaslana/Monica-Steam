@@ -53,6 +53,10 @@ internal class SteamDynamicDns(
         }
 
         val settings = SteamNetworkResolverSettingsRuntime.settings.value
+        if (!settings.dynamicDnsEnabled) {
+            return systemDns.lookup(hostname)
+        }
+
         val providers = settings.activeProviders
         val cacheKey = buildCacheKey(normalized, providers)
         val now = clockMillis()
