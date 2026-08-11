@@ -28,10 +28,10 @@ import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.network.optimization.SteamNetworkOptimizationRuntime
 import takagi.ru.monica.steam.network.optimization.SteamNetworkResolverSettingsRuntime
 import takagi.ru.monica.steam.network.optimization.domain.SteamAutoHostsFormatter
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamDynamicResolverEntryCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkAdvancedSettingsCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkAutomaticScanCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkCurrentSelectionCard
-import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkResolverSourcesSection
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkScopeCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,11 +64,6 @@ fun SteamNetworkOptimizationAutoScreen(
     }
     val activeProviders = resolverSettings.activeProviders
 
-    val selectedProviderIds = when (val state = scanState) {
-        is SteamAutoOptimizationUiState.Success -> state.result.providerIds
-        else -> resolverSettings.preferredProviderIds.takeIf { it.isNotEmpty() }
-            ?: summary?.providerIds.orEmpty()
-    }.toSet()
     val selectedRoutes = (scanState as? SteamAutoOptimizationUiState.Success)
         ?.result
         ?.selectedRoutes
@@ -79,7 +74,6 @@ fun SteamNetworkOptimizationAutoScreen(
         ?.result
         ?.missingHostnames
         ?: summary?.missingHostnames.orEmpty()
-    val dynamicOptimizationEnabled = resolverSettings.dynamicDnsEnabled
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -109,49 +103,37 @@ fun SteamNetworkOptimizationAutoScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item(key = "automatic_scan") {
+            item(key = "dynamic_dns") {
+                SteamDynamicResolverEntryCard(
+                    enabled = resolverSettings.dynamicDnsEnabled,
+                    activeProviders = activeProviders,
+                    onClick = onOpenResolvers
+                )
+            }
+            item(key = "static_hosts_scan") {
                 SteamNetworkAutomaticScanCard(
                     state = scanState,
                     summary = summary,
-                    enabled = dynamicOptimizationEnabled || settings.enabled,
+                    enabled = settings.enabled,
                     canScan = activeProviders.isNotEmpty(),
                     onScan = {
                         optimizationViewModel.startScan(existingRoutes, activeProviders)
                     },
                     onApply = {
                         optimizationViewModel.applyScannedOptimization { result ->
-                            val applied = SteamNetworkResolverSettingsRuntime.applyScanPreference(
+                            SteamNetworkOptimizationRuntime.applyAutoOptimization(
                                 applicationContext,
                                 result
                             )
-                            if (applied) {
-                                SteamNetworkOptimizationRuntime.setEnabled(
-                                    applicationContext,
-                                    false
-                                )
-                            }
-                            applied
                         }
                     },
                     onDisable = {
                         optimizationViewModel.cancelScan()
-                        SteamNetworkResolverSettingsRuntime.setDynamicDnsEnabled(
-                            applicationContext,
-                            false
-                        )
-                        SteamNetworkResolverSettingsRuntime.clearScanPreference(applicationContext)
                         SteamNetworkOptimizationRuntime.setEnabled(applicationContext, false)
                     }
                 )
             }
-            item(key = "resolver_sources") {
-                SteamNetworkResolverSourcesSection(
-                    activeProviders = activeProviders,
-                    selectedProviderIds = selectedProviderIds,
-                    onClick = onOpenResolvers
-                )
-            }
-            item(key = "current_selection") {
+            item(key = "static_hosts_selection") {
                 SteamNetworkCurrentSelectionCard(
                     summary = summary.takeUnless { showingScanResult },
                     routes = selectedRoutes,
@@ -159,7 +141,7 @@ fun SteamNetworkOptimizationAutoScreen(
                     missingHostnames = missingHostnames
                 )
             }
-            item(key = "advanced_settings") {
+            item(key = "advanced_hosts") {
                 SteamNetworkAdvancedSettingsCard(onClick = onOpenAdvanced)
             }
             item(key = "scope") {
