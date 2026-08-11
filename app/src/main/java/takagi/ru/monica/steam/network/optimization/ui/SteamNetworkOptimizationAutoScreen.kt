@@ -28,10 +28,10 @@ import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.network.optimization.SteamNetworkOptimizationRuntime
 import takagi.ru.monica.steam.network.optimization.SteamNetworkResolverSettingsRuntime
 import takagi.ru.monica.steam.network.optimization.domain.SteamAutoHostsFormatter
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamDynamicResolverEntryCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkAdvancedSettingsCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkAutomaticScanCard
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkCurrentSelectionCard
-import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkResolverSourcesSection
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamNetworkScopeCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,11 +51,11 @@ fun SteamNetworkOptimizationAutoScreen(
     val settings by SteamNetworkOptimizationRuntime.settings.collectAsState()
     val resolverSettings by SteamNetworkResolverSettingsRuntime.settings.collectAsState()
     val scanState by optimizationViewModel.scanState.collectAsState()
-    val summary = remember(settings.hostsText) {
-        SteamAutoHostsFormatter.summary(settings.hostsText)
+    val summary = remember(settings.hostsText, settings.enabled) {
+        if (settings.enabled) SteamAutoHostsFormatter.summary(settings.hostsText) else null
     }
-    val existingRoutes = remember(settings.hostsText) {
-        SteamAutoHostsFormatter.routes(settings.hostsText)
+    val existingRoutes = remember(settings.hostsText, settings.enabled) {
+        if (settings.enabled) SteamAutoHostsFormatter.routes(settings.hostsText) else emptyList()
     }
 
     LaunchedEffect(context) {
@@ -64,10 +64,6 @@ fun SteamNetworkOptimizationAutoScreen(
     }
     val activeProviders = resolverSettings.activeProviders
 
-    val selectedProviderIds = when (val state = scanState) {
-        is SteamAutoOptimizationUiState.Success -> state.result.providerIds
-        else -> summary?.providerIds.orEmpty()
-    }.toSet()
     val selectedRoutes = (scanState as? SteamAutoOptimizationUiState.Success)
         ?.result
         ?.selectedRoutes
@@ -107,7 +103,14 @@ fun SteamNetworkOptimizationAutoScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item(key = "automatic_scan") {
+            item(key = "dynamic_dns") {
+                SteamDynamicResolverEntryCard(
+                    enabled = resolverSettings.dynamicDnsEnabled,
+                    activeProviders = activeProviders,
+                    onClick = onOpenResolvers
+                )
+            }
+            item(key = "static_hosts_scan") {
                 SteamNetworkAutomaticScanCard(
                     state = scanState,
                     summary = summary,
@@ -130,14 +133,7 @@ fun SteamNetworkOptimizationAutoScreen(
                     }
                 )
             }
-            item(key = "resolver_sources") {
-                SteamNetworkResolverSourcesSection(
-                    activeProviders = activeProviders,
-                    selectedProviderIds = selectedProviderIds,
-                    onClick = onOpenResolvers
-                )
-            }
-            item(key = "current_selection") {
+            item(key = "static_hosts_selection") {
                 SteamNetworkCurrentSelectionCard(
                     summary = summary.takeUnless { showingScanResult },
                     routes = selectedRoutes,
@@ -145,7 +141,7 @@ fun SteamNetworkOptimizationAutoScreen(
                     missingHostnames = missingHostnames
                 )
             }
-            item(key = "advanced_settings") {
+            item(key = "advanced_hosts") {
                 SteamNetworkAdvancedSettingsCard(onClick = onOpenAdvanced)
             }
             item(key = "scope") {
