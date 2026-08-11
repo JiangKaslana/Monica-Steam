@@ -219,7 +219,7 @@ private fun ResolverStatusCard(settings: SteamNetworkResolverSettings) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = stringResource(R.string.steam_network_resolver_summary),
+                text = stringResource(R.string.steam_network_resolver_live_summary),
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -433,7 +433,7 @@ private fun ResolverPrivacyCard() {
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = stringResource(R.string.steam_network_resolver_privacy),
+                text = stringResource(R.string.steam_network_dynamic_dns_privacy),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
