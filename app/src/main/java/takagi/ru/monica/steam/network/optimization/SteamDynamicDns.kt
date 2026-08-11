@@ -68,8 +68,9 @@ internal class SteamDynamicDns(
         }
 
         val secureProviders = providers.filterNot(SteamDnsProvider::isSystem)
-        val preferFirst = settings.preferredProviderIds.isNotEmpty() &&
-            secureProviders.firstOrNull()?.id in settings.preferredProviderIds
+        val firstProviderId = secureProviders.firstOrNull()?.id
+        val preferFirst = firstProviderId != null &&
+            firstProviderId in settings.preferredProviderIds
         val resolved = raceResolvers(
             providers = secureProviders,
             hostname = normalized,
