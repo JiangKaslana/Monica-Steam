@@ -1,9 +1,12 @@
 package takagi.ru.monica.steam.network
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.optimization.SteamCustomHostsDns
 import takagi.ru.monica.steam.network.optimization.SteamDynamicDns
+import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCatalog
 
 object SteamHttpClientProvider {
     private val baseClientDelegate = lazy { OkHttpClient.Builder().build() }
@@ -39,6 +42,26 @@ object SteamHttpClientProvider {
                 .onFailure { error -> logCleanupFailure("resolver_cache", error) }
         }
         evictInitializedConnections("resolver_cache")
+    }
+
+    internal suspend fun refreshDynamicDnsCache(): Int = withContext(Dispatchers.IO) {
+        val dynamicDns = dynamicDnsDelegate.value
+        dynamicDns.clearCache()
+        SteamNetworkTargetCatalog.hostnames
+            .take(4)
+            .forEach { hostname ->
+                runCatching { dynamicDns.lookup(hostname) }
+                    .onFailure { error ->
+                        runCatching {
+                            SteamDiagLogger.append(
+                                "dynamic_dns refresh_failed host=$hostname " +
+                                    "type=${error::class.java.simpleName}"
+                            )
+                        }
+                    }
+            }
+        evictInitializedConnections("resolver_force_refresh")
+        dynamicDns.cacheSize()
     }
 
     internal fun dynamicDnsCacheSize(): Int =
