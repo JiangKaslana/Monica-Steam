@@ -5191,6 +5191,7 @@
     <string name="steam_group_chat_groups">Groups</string>
     <string name="steam_group_chat_direct">Direct messages</string>
     <string name="steam_community_title">Community</string>
+    <string name="steam_community_link_open_failed">Unable to open this Steam Community page</string>
     <string name="steam_community_account_required">No Steam account selected</string>
     <string name="steam_community_account_required_summary">Select an account with a valid Steam ID to view Community data.</string>
     <string name="steam_community_session_required">The Steam session expired. Sign in again, then refresh this page.</string>

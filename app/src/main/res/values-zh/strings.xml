@@ -5018,6 +5018,7 @@
     <string name="steam_friend_confirm_action">确认操作</string>
     <string name="steam_friend_confirm_action_summary">此操作会修改与 %1$s 的 Steam 好友关系。</string>
     <string name="steam_community_title">社区</string>
+    <string name="steam_community_link_open_failed">无法打开此 Steam 社区页面</string>
     <string name="steam_community_account_required">尚未选择 Steam 账号</string>
     <string name="steam_community_account_required_summary">请选择具有有效 Steam ID 的账号以查看社区数据。</string>
     <string name="steam_community_session_required">Steam 会话已过期，请重新登录后刷新此页面。</string>

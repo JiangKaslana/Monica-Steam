@@ -34,6 +34,10 @@ class SteamCommunityIntegrationGuardTest {
         assertTrue(screen.contains("initialSteamId"))
         assertTrue(screen.contains("accountSource.selectAccount(requestedAccount.id)"))
         assertTrue(screen.contains("statusBarsPadding()"))
+        assertTrue(screen.contains("SteamWebBrowserScreen("))
+        assertTrue(screen.contains("communityWebUrl = url"))
+        assertTrue(screen.contains("SteamWebNavigationPolicy.isAllowed(url)"))
+        assertFalse(screen.contains("Intent.ACTION_VIEW"))
         assertFalse(screen.contains("TopAppBar("))
     }
 

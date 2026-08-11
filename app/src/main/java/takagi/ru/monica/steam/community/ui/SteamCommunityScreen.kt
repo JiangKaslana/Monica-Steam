@@ -1,8 +1,5 @@
 package takagi.ru.monica.steam.community.ui
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -34,6 +31,8 @@ import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.data.hasAuthenticatedSession
 import takagi.ru.monica.steam.foundation.ui.SteamAccountSwitcherSheet
 import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
+import takagi.ru.monica.steam.web.domain.SteamWebNavigationPolicy
+import takagi.ru.monica.steam.web.ui.SteamWebBrowserScreen
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +65,7 @@ fun SteamCommunityScreen(
         it.id == storedSelectedAccount?.id
     } ?: sessionAccounts.firstOrNull()
     var showAccountSheet by rememberSaveable { mutableStateOf(false) }
+    var communityWebUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(accountState.selectedAccountId, selectedAccount?.id) {
         if (selectedAccount != null && selectedAccount.id != accountState.selectedAccountId) {
@@ -112,6 +112,21 @@ fun SteamCommunityScreen(
             onRefresh = accountSource::refreshCurrentSource,
             onDismiss = { showAccountSheet = false }
         )
+    }
+
+    communityWebUrl?.let { url ->
+        SteamWebBrowserScreen(
+            url = url,
+            steamLoginSecure = selectedAccount?.steamLoginSecure
+                ?: selectedAccount?.accessToken?.let { token ->
+                    "${selectedAccount.steamId}||$token"
+                },
+            expectedSteamId = selectedAccount?.steamId,
+            requireAuthenticatedSession = false,
+            onClose = { communityWebUrl = null },
+            modifier = modifier.fillMaxSize()
+        )
+        return
     }
 
     Scaffold(
@@ -175,19 +190,21 @@ fun SteamCommunityScreen(
                 account = selectedAccount,
                 state = state,
                 onRetry = viewModel::refresh,
-                onOpenUrl = { url -> openCommunityUrl(context, url) },
+                onOpenUrl = { url ->
+                    if (SteamWebNavigationPolicy.isAllowed(url)) {
+                        communityWebUrl = url
+                    } else {
+                        android.widget.Toast.makeText(
+                            context,
+                            R.string.steam_community_link_open_failed,
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
                 onOpenStoreApp = onOpenStoreApp,
                 onOpenStore = onOpenStore,
                 modifier = Modifier.fillMaxSize()
             )
         }
-    }
-}
-
-private fun openCommunityUrl(context: Context, url: String) {
-    runCatching {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
     }
 }
