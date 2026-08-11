@@ -25,7 +25,7 @@ class SteamEssentialsFloatingToolbarGuardTest {
         assertTrue(toolbar.contains("LocalConfiguration.current"))
         assertTrue(toolbar.contains("screenWidth < 400"))
         assertTrue(toolbar.contains("items.size > 3"))
-        assertTrue(toolbar.contains("windowInsetsPadding(WindowInsets.navigationBars)"))
+        assertTrue(toolbar.contains(".steamWindowBottomPadding()"))
         assertTrue(toolbar.contains("HorizontalFloatingToolbar("))
         assertTrue(
             toolbar.contains(

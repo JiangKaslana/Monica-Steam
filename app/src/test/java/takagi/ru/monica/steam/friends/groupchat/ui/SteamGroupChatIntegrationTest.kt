@@ -70,7 +70,7 @@ class SteamGroupChatIntegrationTest {
         assertTrue(thread.contains("SteamChatRichMessageContent"))
         assertTrue(thread.contains("SteamChatComposer("))
         assertTrue(thread.contains("onUploadAttachment"))
-        assertTrue(thread.contains("statusBarsPadding()"))
+        assertTrue(thread.contains("steamWindowTopPadding()"))
         assertTrue(dialogs.contains("SteamCreateGroupDialog("))
         assertTrue(dialogs.contains("SteamInviteFriendDialog("))
         assertTrue(dialogs.contains("FriendSelectionList"))
@@ -180,6 +180,7 @@ class SteamGroupChatIntegrationTest {
         val manifest = projectFile("app/src/main/AndroidManifest.xml").readText()
 
         assertTrue(thread.contains("imePadding()"))
+        assertTrue(thread.contains("steamWindowBottomPadding(suppressWhenImeVisible = true)"))
         assertTrue(manifest.contains("android:windowSoftInputMode=\"adjustResize\""))
     }
 

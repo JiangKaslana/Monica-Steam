@@ -31,6 +31,7 @@ class SteamLiquidGlassDockGuardTest {
         assertTrue(dock.contains("VELOCITY_SCALE_CLAMP = 0.2f"))
         assertTrue(dock.contains("rememberSteamCombinedBackdrop("))
         assertTrue(dock.contains(".layerBackdrop(tabsBackdrop)"))
+        assertTrue(dock.contains(".steamWindowBottomPadding()"))
         assertTrue(motion.contains("KERNEL_SU_PRESSED_SCALE = 78f / 56f"))
         assertTrue(motion.contains("flingProjectionTimeSeconds: Float = 0.20f"))
         assertTrue(motion.contains("maxReleaseStepCount: Int = 1"))

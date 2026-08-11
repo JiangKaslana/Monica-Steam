@@ -22,10 +22,12 @@ internal fun SteamFixedBottomBar(
     selected: SteamDockTab,
     onSelected: (SteamDockTab) -> Unit
 ) {
+    val windowInsets = rememberSteamWindowBottomInsets()
     NavigationBar(
         modifier = modifier.fillMaxWidth(),
         tonalElevation = 0.dp,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = MaterialTheme.colorScheme.surface,
+        windowInsets = windowInsets
     ) {
         SteamDockTab.completeFixedOrder(order).forEach { tab ->
             val label = tab.label()

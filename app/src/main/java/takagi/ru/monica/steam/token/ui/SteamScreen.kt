@@ -39,7 +39,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -192,6 +191,7 @@ import takagi.ru.monica.steam.market.SteamWalletInfo
 import takagi.ru.monica.steam.market.ui.SteamBatchSellSheet
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
+import takagi.ru.monica.steam.navigation.ui.steamWindowTopPadding
 import takagi.ru.monica.steam.network.SteamAuthorizedDevice
 import takagi.ru.monica.steam.network.SteamConfirmation
 import takagi.ru.monica.steam.network.SteamPendingLogin
@@ -2257,7 +2257,7 @@ private fun SteamRootTopBar(
     topActionsMenu: @Composable () -> Unit
 ) {
     ExpressiveTopBar(
-        modifier = Modifier.statusBarsPadding(),
+        modifier = Modifier.steamWindowTopPadding(),
         title = title,
         searchQuery = searchQuery,
         onSearchQueryChange = onSearchQueryChange,

@@ -107,6 +107,7 @@ import takagi.ru.monica.steam.library.screenshots.domain.steamGameScreenshotsPag
 import takagi.ru.monica.steam.library.screenshots.ui.SteamGameScreenshotsEntry
 import takagi.ru.monica.steam.library.screenshots.ui.SteamGameScreenshotsScreen
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.navigation.ui.steamWindowTopPadding
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecor
 import takagi.ru.monica.steam.profile.SteamMiniProfileDecorRepository
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
@@ -214,7 +215,7 @@ fun SteamLibraryScreen(
                         isSearchExpanded = searchExpanded,
                         onSearchExpandedChange = { searchExpanded = it },
                         searchHint = stringResource(R.string.steam_library_search_hint),
-                        modifier = Modifier.statusBarsPadding(),
+                        modifier = Modifier.steamWindowTopPadding(),
                         navigationIcon = if (showNavigationBack) {
                             {
                                 IconButton(onClick = onNavigateBack) {

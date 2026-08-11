@@ -15,7 +15,10 @@ class SteamBottomSafeAreaGuardTest {
         ).forEach { path ->
             val source = projectFile(path).readText()
             assertTrue("$path must keep IME handling", source.contains(".imePadding()"))
-            assertTrue("$path must keep the composer above system navigation", source.contains(".navigationBarsPadding()"))
+            assertTrue(
+                "$path must keep the composer above window navigation",
+                source.contains(".steamWindowBottomPadding(suppressWhenImeVisible = true)")
+            )
         }
     }
 

@@ -135,6 +135,7 @@ import takagi.ru.monica.steam.store.activation.domain.SteamStoreProductActivatio
 import takagi.ru.monica.steam.library.sortedRegionalPricesForDisplay
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.navigation.ui.steamDockActionClearance
+import takagi.ru.monica.steam.navigation.ui.steamWindowTopPadding
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 import takagi.ru.monica.steam.web.ui.SteamWebBrowserScreen
 import takagi.ru.monica.ui.components.ExpressiveTopBar
@@ -433,7 +434,7 @@ fun SteamStoreScreen(
                             if (!expanded) viewModel.updateQuery("")
                         },
                         searchHint = stringResource(R.string.steam_store_search_hint),
-                        modifier = Modifier.statusBarsPadding(),
+                        modifier = Modifier.steamWindowTopPadding(),
                         navigationIcon = if (showNavigationBack) {
                             {
                                 IconButton(onClick = onNavigateBack) {

@@ -29,13 +29,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -92,6 +89,7 @@ import takagi.ru.monica.steam.navigation.liquidglass.render.isSteamLiquidGlassRu
 import takagi.ru.monica.steam.navigation.liquidglass.render.liquidGlassInnerShadow
 import takagi.ru.monica.steam.navigation.liquidglass.render.liquidGlassLens
 import takagi.ru.monica.steam.navigation.liquidglass.render.rememberSteamCombinedBackdrop
+import takagi.ru.monica.steam.navigation.ui.steamWindowBottomPadding
 import takagi.ru.monica.ui.LocalReduceAnimations
 import takagi.ru.monica.ui.haptic.rememberHapticFeedback
 import top.yukonga.miuix.kmp.blur.BackdropEffectScope
@@ -226,7 +224,9 @@ internal fun SteamLiquidGlassDock(
     }
 
     BoxWithConstraints(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .steamWindowBottomPadding(),
         contentAlignment = Alignment.BottomCenter
     ) {
         val dockWidth = resolveLiquidGlassDockWidth(
@@ -287,12 +287,9 @@ internal fun SteamLiquidGlassDock(
             velocityItemsPerSecond = motionState.deformationVelocityItemsPerSecond
         )
         val sampledItemScale = lerp(1f, 1.2f, motionState.pressProgress)
-        val navigationBottomPadding =
-            WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-
         Box(
             modifier = Modifier
-                .padding(bottom = 12.dp + navigationBottomPadding)
+                .padding(bottom = 12.dp)
                 .width(dockWidth)
                 .height(64.dp),
             contentAlignment = Alignment.CenterStart

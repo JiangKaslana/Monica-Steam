@@ -11,11 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -69,6 +67,8 @@ import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
+import takagi.ru.monica.steam.navigation.ui.steamWindowBottomPadding
+import takagi.ru.monica.steam.navigation.ui.steamWindowTopPadding
 @Composable
 internal fun SteamChatThread(
     state: SteamChatUiState,
@@ -160,7 +160,7 @@ internal fun SteamChatThread(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .navigationBarsPadding()
+            .steamWindowBottomPadding(suppressWhenImeVisible = true)
             .imePadding()
     ) {
         ChatThreadHeader(
@@ -342,7 +342,7 @@ private fun ChatThreadHeader(
     onStopVoice: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().statusBarsPadding()
+        modifier = Modifier.fillMaxWidth().steamWindowTopPadding()
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

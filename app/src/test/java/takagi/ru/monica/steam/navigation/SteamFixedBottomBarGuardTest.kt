@@ -22,6 +22,8 @@ class SteamFixedBottomBarGuardTest {
         assertTrue(component.contains("alwaysShowLabel = true"))
         assertTrue(component.contains("SteamDockTab.completeFixedOrder(order)"))
         assertTrue(component.contains("TextOverflow.Ellipsis"))
+        assertTrue(component.contains("rememberSteamWindowBottomInsets()"))
+        assertTrue(component.contains("windowInsets = windowInsets"))
         assertTrue(settings.contains("FIXED_ORDER_KEY"))
         assertTrue(settings.contains("updateFixedOrder"))
         assertTrue(activity.contains("SteamFixedBottomBar("))

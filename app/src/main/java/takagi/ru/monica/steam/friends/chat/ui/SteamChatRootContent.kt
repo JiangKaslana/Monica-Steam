@@ -5,7 +5,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -28,6 +27,7 @@ import takagi.ru.monica.steam.friends.presentation.SteamFriendsUiState
 import takagi.ru.monica.steam.friends.ui.SteamAddFriendScreen
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceCallState
+import takagi.ru.monica.steam.navigation.ui.steamWindowTopPadding
 import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
@@ -84,7 +84,7 @@ internal fun SteamChatRootContent(
                     isSearchExpanded = !addFriendOpen && searchExpanded,
                     onSearchExpandedChange = onSearchExpandedChange,
                     searchHint = stringResource(R.string.steam_chat_search_hint),
-                    modifier = Modifier.statusBarsPadding(),
+                    modifier = Modifier.steamWindowTopPadding(),
                     navigationIcon = if (addFriendOpen) {
                         {
                             IconButton(onClick = { onAddFriendOpenChange(false) }) {

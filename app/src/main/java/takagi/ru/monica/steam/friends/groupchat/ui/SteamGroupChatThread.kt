@@ -11,10 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
@@ -82,6 +80,8 @@ import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceAudioRoute
 import takagi.ru.monica.steam.friends.voice.domain.SteamVoiceTargetType
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceChannelPanel
 import takagi.ru.monica.steam.friends.voice.ui.SteamVoiceStatusBanner
+import takagi.ru.monica.steam.navigation.ui.steamWindowBottomPadding
+import takagi.ru.monica.steam.navigation.ui.steamWindowTopPadding
 
 @Composable
 internal fun SteamGroupChatThread(
@@ -177,7 +177,7 @@ internal fun SteamGroupChatThread(
     Column(
         modifier
             .fillMaxSize()
-            .navigationBarsPadding()
+            .steamWindowBottomPadding(suppressWhenImeVisible = true)
             .imePadding()
     ) {
         GroupThreadHeader(group, groupMembers, onBack, onOpenInfo, onInvite)
@@ -351,7 +351,10 @@ private fun GroupThreadHeader(
     onInvite: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .steamWindowTopPadding()
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
