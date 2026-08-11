@@ -1,5 +1,6 @@
 package takagi.ru.monica.steam.friends.data
 
+import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -212,6 +213,42 @@ class SteamFriendsServiceTest {
     }
 
     @Test
+    fun successfulCommunityFriendInviteActionsDoNotRequireAJsonBody() {
+        val requests = mutableListOf<Request>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                requests += request
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body("".toResponseBody("text/plain".toMediaType()))
+                    .build()
+            }
+            .build()
+        val service = SteamFriendsService(api = SteamApiClient(client))
+
+        val accepted = service.respondToInvite(account(), FRIEND_STEAM_ID, accept = true)
+        val ignored = service.respondToInvite(account(), FRIEND_STEAM_ID, accept = false)
+
+        assertTrue(accepted.success)
+        assertTrue(ignored.success)
+        assertEquals(
+            listOf("/actions/AddFriendAjax", "/actions/IgnoreFriendInviteAjax"),
+            requests.map { it.url.encodedPath }
+        )
+        val acceptForm = requests[0].body as FormBody
+        assertEquals(FRIEND_STEAM_ID, acceptForm.value("steamid"))
+        assertEquals("1", acceptForm.value("accept_invite"))
+        assertTrue(acceptForm.value("sessionID").orEmpty().isNotBlank())
+        val ignoreForm = requests[1].body as FormBody
+        assertEquals(FRIEND_STEAM_ID, ignoreForm.value("steamid"))
+        assertTrue(ignoreForm.value("accept_invite") == null)
+    }
+
+    @Test
     fun parserAcceptsNumericRelationshipCodesAndMissingProfiles() {
         val relationships = SteamFriendsParser.parseRelationships(
             kotlinx.serialization.json.Json.parseToJsonElement(
@@ -377,6 +414,9 @@ class SteamFriendsServiceTest {
         const val FRIEND_STEAM_ID = "76561198000000002"
     }
 }
+
+private fun FormBody.value(name: String): String? =
+    (0 until size).firstOrNull { encodedName(it) == name }?.let(::value)
 
 private class FakeFriendsCm(private val response: ByteArray) : SteamCmGateway {
     var requestEMsg: Int = 0
