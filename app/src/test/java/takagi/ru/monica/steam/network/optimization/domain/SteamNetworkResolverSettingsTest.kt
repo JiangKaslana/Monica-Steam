@@ -57,6 +57,16 @@ class SteamNetworkResolverSettingsTest {
     }
 
     @Test
+    fun ipv6PreferenceIsOptInAndIndependentFromResolverSelection() {
+        val defaults = SteamNetworkResolverSettings()
+        val ipv6Preferred = defaults.copy(preferIpv6 = true)
+
+        assertFalse(defaults.preferIpv6)
+        assertTrue(ipv6Preferred.preferIpv6)
+        assertEquals(defaults.activeProviders.map { it.id }, ipv6Preferred.activeProviders.map { it.id })
+    }
+
+    @Test
     fun customDohRemainsCustomAndNeverBecomesABuiltInDefault() {
         val customEndpoint = "https://resolver.example/dns-query"
         val settings = SteamNetworkResolverSettings(
