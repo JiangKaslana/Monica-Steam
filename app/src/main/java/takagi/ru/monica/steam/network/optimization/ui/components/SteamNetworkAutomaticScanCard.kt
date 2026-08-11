@@ -153,8 +153,8 @@ internal fun SteamNetworkAutomaticScanCard(
                     text = stringResource(
                         when {
                             state.isReadyToApply -> R.string.steam_network_auto_apply
-                            state === SteamAutoOptimizationUiState.Idle && summary == null ->
-                                R.string.steam_network_auto_scan
+                            state === SteamAutoOptimizationUiState.Idle &&
+                                summary == null && !enabled -> R.string.steam_network_auto_scan
                             else -> R.string.steam_network_auto_rescan
                         }
                     )
