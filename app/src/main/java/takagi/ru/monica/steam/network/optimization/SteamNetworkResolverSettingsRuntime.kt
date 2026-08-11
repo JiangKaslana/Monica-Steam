@@ -107,10 +107,14 @@ object SteamNetworkResolverSettingsRuntime {
         } else {
             disabled.add(provider.id)
         }
-        preferences.edit()
+        val editor = preferences.edit()
             .putStringSet(KEY_DISABLED_BUILT_IN_PROVIDER_IDS, disabled)
-            .apply()
+        if (enabled) {
+            editor.putBoolean(KEY_USE_BUILT_IN_DOH, true)
+        }
+        editor.apply()
         mutableSettings.value = mutableSettings.value.copy(
+            useBuiltInDoh = if (enabled) true else mutableSettings.value.useBuiltInDoh,
             disabledBuiltInProviderIds = disabled.toSet()
         )
         notifyResolverChanged()
