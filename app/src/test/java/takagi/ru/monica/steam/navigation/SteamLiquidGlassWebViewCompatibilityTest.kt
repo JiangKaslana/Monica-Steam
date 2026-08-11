@@ -42,6 +42,8 @@ class SteamLiquidGlassWebViewCompatibilityTest {
         assertTrue(activity.contains("isPlatformViewActive"))
         assertTrue(activity.contains("dockVisible = shouldShowSteamDock("))
         assertTrue(activity.contains("platformViewActive = isPlatformViewActive"))
+        assertTrue(activity.contains("imeVisible = imeVisible"))
+        assertTrue(activity.contains("if (!imeVisible)"))
     }
 
     @Test
@@ -65,7 +67,8 @@ class SteamLiquidGlassWebViewCompatibilityTest {
                 hasConfiguration = true,
                 isDockPage = true,
                 chatThreadOpen = false,
-                platformViewActive = false
+                platformViewActive = false,
+                imeVisible = false
             )
         )
         assertFalse(
@@ -73,7 +76,17 @@ class SteamLiquidGlassWebViewCompatibilityTest {
                 hasConfiguration = true,
                 isDockPage = true,
                 chatThreadOpen = false,
-                platformViewActive = true
+                platformViewActive = true,
+                imeVisible = false
+            )
+        )
+        assertFalse(
+            shouldShowSteamDock(
+                hasConfiguration = true,
+                isDockPage = true,
+                chatThreadOpen = false,
+                platformViewActive = false,
+                imeVisible = true
             )
         )
         assertFalse(

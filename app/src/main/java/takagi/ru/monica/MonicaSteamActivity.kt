@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
@@ -288,12 +289,15 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 var backPressedOnce by remember { mutableStateOf(false) }
                 val composeScope = rememberCoroutineScope()
                 val liquidGlassBackdrop = rememberSteamLiquidGlassBackdrop()
-                val dockBlurHeightPx = with(LocalDensity.current) { 130.dp.toPx() }
+                val density = LocalDensity.current
+                val imeVisible = WindowInsets.ime.getBottom(density) > 0
+                val dockBlurHeightPx = with(density) { 130.dp.toPx() }
                 val dockVisible = shouldShowSteamDock(
                     hasConfiguration = true,
                     isDockPage = currentPage.isDockPage(dockStyle),
                     chatThreadOpen = isSteamChatThreadOpen,
-                    platformViewActive = isPlatformViewActive
+                    platformViewActive = isPlatformViewActive,
+                    imeVisible = imeVisible
                 )
                 val liquidGlassEffectsEnabled = shouldEnableSteamLiquidGlassRuntimeEffects(
                     dockStyle = dockStyle,
@@ -755,22 +759,24 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                     }
                                 )
                             }
-                            SteamLiquidGlassDockVisibility(
-                                visible = dockStyle == SteamDockStyle.LIQUID_GLASS && dockVisible,
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .zIndex(1f)
-                            ) {
-                                SteamLiquidGlassDock(
-                                    order = liquidGlassDockOrder,
-                                    selected = currentPage.toDockTab(),
-                                    backdrop = liquidGlassBackdrop,
-                                    runtimeEffectsEnabled = liquidGlassEffectsEnabled,
-                                    onSelected = { tab ->
-                                        pageHistory = emptyList()
-                                        currentPage = tab.toPage()
-                                    }
-                                )
+                            if (!imeVisible) {
+                                SteamLiquidGlassDockVisibility(
+                                    visible = dockStyle == SteamDockStyle.LIQUID_GLASS && dockVisible,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .zIndex(1f)
+                                ) {
+                                    SteamLiquidGlassDock(
+                                        order = liquidGlassDockOrder,
+                                        selected = currentPage.toDockTab(),
+                                        backdrop = liquidGlassBackdrop,
+                                        runtimeEffectsEnabled = liquidGlassEffectsEnabled,
+                                        onSelected = { tab ->
+                                            pageHistory = emptyList()
+                                            currentPage = tab.toPage()
+                                        }
+                                    )
+                                }
                             }
                             if (dockStyle == SteamDockStyle.FIXED && dockVisible) {
                                 SteamFixedBottomBar(

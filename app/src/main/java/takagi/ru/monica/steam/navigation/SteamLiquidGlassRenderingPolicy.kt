@@ -17,8 +17,10 @@ internal fun shouldShowSteamDock(
     hasConfiguration: Boolean,
     isDockPage: Boolean,
     chatThreadOpen: Boolean,
-    platformViewActive: Boolean
+    platformViewActive: Boolean,
+    imeVisible: Boolean
 ): Boolean = hasConfiguration &&
     isDockPage &&
     !chatThreadOpen &&
-    !platformViewActive
+    !platformViewActive &&
+    !imeVisible
