@@ -19,8 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -49,9 +49,12 @@ internal fun SteamResolverServerBenchmarkCard(
         if (provider.id in runningIds) return
         runningIds = runningIds + provider.id
         scope.launch {
-            val result = benchmark.benchmark(provider)
-            results = results + (provider.id to result)
-            runningIds = runningIds - provider.id
+            try {
+                val result = benchmark.benchmark(provider)
+                results = results + (provider.id to result)
+            } finally {
+                runningIds = runningIds - provider.id
+            }
         }
     }
 
@@ -83,15 +86,19 @@ internal fun SteamResolverServerBenchmarkCard(
                 FilledTonalButton(
                     enabled = providers.isNotEmpty() && runningIds.isEmpty(),
                     onClick = {
-                        if (providers.isEmpty() || runningIds.isNotEmpty()) return@FilledTonalButton
-                        val ids = providers.map(SteamDnsProvider::id).toSet()
-                        runningIds = ids
-                        scope.launch {
-                            val measured = providers.map { provider ->
-                                async { provider.id to benchmark.benchmark(provider) }
-                            }.awaitAll().toMap()
-                            results = results + measured
-                            runningIds = emptySet()
+                        if (providers.isNotEmpty() && runningIds.isEmpty()) {
+                            val ids = providers.map(SteamDnsProvider::id).toSet()
+                            runningIds = ids
+                            scope.launch {
+                                try {
+                                    val measured = providers.map { provider ->
+                                        async { provider.id to benchmark.benchmark(provider) }
+                                    }.awaitAll().toMap()
+                                    results = results + measured
+                                } finally {
+                                    runningIds = emptySet()
+                                }
+                            }
                         }
                     }
                 ) {
