@@ -12,6 +12,7 @@ data class SteamNetworkResolverSettings(
     val preferredProviderIds: List<String> = emptyList(),
     val dynamicDnsEnabled: Boolean = false,
     val disabledBuiltInProviderIds: Set<String> = emptySet(),
+    val disabledCustomProviderIds: Set<String> = emptySet(),
     val preferIpv6: Boolean = false
 ) {
     val configuredProviders: List<SteamDnsProvider>
@@ -25,8 +26,12 @@ data class SteamNetworkResolverSettings(
     val activeProviders: List<SteamDnsProvider>
         get() {
             val available = configuredProviders.filterNot { provider ->
-                provider.isDoh && provider.id in disabledBuiltInProviderIds &&
-                    SteamDnsProvider.DEFAULTS.any { it.id == provider.id }
+                when {
+                    provider.id in disabledCustomProviderIds -> true
+                    provider.isDoh && provider.id in disabledBuiltInProviderIds &&
+                        SteamDnsProvider.DEFAULTS.any { it.id == provider.id } -> true
+                    else -> false
+                }
             }
             if (preferredProviderIds.isEmpty()) return available
 
