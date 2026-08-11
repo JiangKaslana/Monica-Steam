@@ -3,7 +3,7 @@ package takagi.ru.monica.steam.network.optimization.diagnostics
 import java.io.EOFException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
-import java.net.Inet4Address
+import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -16,6 +16,7 @@ import okhttp3.Dns
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.dnsoverhttps.DnsOverHttps
+import takagi.ru.monica.steam.network.optimization.SteamNetworkResolverSettingsRuntime
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsResolutionResult
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsWireCodec
@@ -45,12 +46,20 @@ internal class OkHttpSteamDnsResolver(
             val addresses = if (provider.isUdp) {
                 resolveUdp(provider, hostname)
             } else {
+                val preferIpv6 = SteamNetworkResolverSettingsRuntime.settings.value.preferIpv6
                 resolverFor(provider)
                     .lookup(hostname)
                     .asSequence()
-                    .filterIsInstance<Inet4Address>()
                     .filter(SteamHostsRuleParser::isUsableAddress)
-                    .mapNotNull { address -> address.hostAddress }
+                    .sortedBy { address ->
+                        when {
+                            preferIpv6 && address is Inet6Address -> 0
+                            preferIpv6 -> 1
+                            address is Inet6Address -> 1
+                            else -> 0
+                        }
+                    }
+                    .mapNotNull(InetAddress::getHostAddress)
                     .distinct()
                     .take(MAX_ADDRESSES_PER_RESOLUTION)
                     .toList()
@@ -81,7 +90,7 @@ internal class OkHttpSteamDnsResolver(
                 val builder = DnsOverHttps.Builder()
                     .client(client)
                     .url(requireNotNull(provider.dohUrl).toHttpUrl())
-                    .includeIPv6(false)
+                    .includeIPv6(true)
                     .post(true)
                     .resolvePrivateAddresses(false)
                     .resolvePublicAddresses(true)

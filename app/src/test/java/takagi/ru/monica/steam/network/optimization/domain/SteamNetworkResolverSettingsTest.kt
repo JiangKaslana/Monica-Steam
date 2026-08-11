@@ -24,6 +24,80 @@ class SteamNetworkResolverSettingsTest {
     }
 
     @Test
+    fun builtInDefaultsArePublicDohProvidersBeyondSystemFallback() {
+        val publicBuiltIns = SteamDnsProvider.DEFAULTS.filterNot(SteamDnsProvider::isSystem)
+
+        assertTrue(publicBuiltIns.isNotEmpty())
+        assertTrue(publicBuiltIns.all { it.isDoh })
+        assertTrue(publicBuiltIns.all { it.dohUrl?.startsWith("https://") == true })
+        assertFalse(publicBuiltIns.any { it.id.startsWith("custom_") })
+    }
+
+    @Test
+    fun disabledBuiltInProviderIsRemovedFromActiveProviders() {
+        val settings = SteamNetworkResolverSettings(
+            useSystemDns = false,
+            useBuiltInDoh = true,
+            disabledBuiltInProviderIds = setOf(SteamDnsProvider.CLOUDFLARE.id)
+        )
+
+        assertFalse(settings.activeProviders.any { it.id == SteamDnsProvider.CLOUDFLARE.id })
+        assertTrue(settings.activeProviders.any { it.id == SteamDnsProvider.DNSPOD.id })
+    }
+
+    @Test
+    fun customDnsAndDohCanBeDisabledIndependentlyWithoutDeletingThem() {
+        val customDns = SteamDnsProvider.customDns("1.1.1.1")
+        val customDoh = SteamDnsProvider.customDoh("https://resolver.example/dns-query")
+        val settings = SteamNetworkResolverSettings(
+            useSystemDns = false,
+            useBuiltInDoh = false,
+            customDnsServers = listOf("1.1.1.1"),
+            customDohEndpoints = listOf("https://resolver.example/dns-query"),
+            disabledCustomProviderIds = setOf(customDns.id)
+        )
+
+        assertTrue(settings.configuredProviders.any { it.id == customDns.id })
+        assertTrue(settings.configuredProviders.any { it.id == customDoh.id })
+        assertFalse(settings.activeProviders.any { it.id == customDns.id })
+        assertTrue(settings.activeProviders.any { it.id == customDoh.id })
+        assertFalse(settings.isProviderEnabled(customDns))
+        assertTrue(settings.isProviderEnabled(customDoh))
+    }
+
+    @Test
+    fun learnedProviderPreferenceMovesThatPublicResolverToTheFront() {
+        val settings = SteamNetworkResolverSettings(
+            useSystemDns = false,
+            useBuiltInDoh = true,
+            preferredProviderIds = listOf(SteamDnsProvider.GOOGLE.id)
+        )
+
+        assertEquals(SteamDnsProvider.GOOGLE.id, settings.activeProviders.first().id)
+    }
+
+    @Test
+    fun ipv6PreferenceIsOptInAndIndependentFromResolverSelection() {
+        val defaults = SteamNetworkResolverSettings()
+        val ipv6Preferred = defaults.copy(preferIpv6 = true)
+
+        assertFalse(defaults.preferIpv6)
+        assertTrue(ipv6Preferred.preferIpv6)
+        assertEquals(defaults.activeProviders.map { it.id }, ipv6Preferred.activeProviders.map { it.id })
+    }
+
+    @Test
+    fun customDohRemainsCustomAndNeverBecomesABuiltInDefault() {
+        val customEndpoint = "https://resolver.example/dns-query"
+        val settings = SteamNetworkResolverSettings(
+            customDohEndpoints = listOf(customEndpoint)
+        )
+
+        assertTrue(settings.configuredProviders.any { it.dohUrl == customEndpoint })
+        assertFalse(SteamDnsProvider.DEFAULTS.any { it.dohUrl == customEndpoint })
+    }
+
+    @Test
     fun validatesDnsAndDohWithoutAcceptingPortsOrUnsafeSchemes() {
         assertEquals("1.1.1.1", SteamResolverInputValidator.normalizeDnsServer(" 1.1.1.1 "))
         assertEquals(

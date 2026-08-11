@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
@@ -21,7 +20,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,14 +43,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.network.SteamHttpClientProvider
 import takagi.ru.monica.steam.network.optimization.SteamNetworkResolverSettingsRuntime
-import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkResolverSettings
 import takagi.ru.monica.steam.network.optimization.domain.SteamResolverInputValidator
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamDynamicDnsSettingsCard
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamResolverServerBenchmarkCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,9 +64,16 @@ fun SteamNetworkResolverSettingsScreen(
     val applicationContext = context.applicationContext
     val settings by SteamNetworkResolverSettingsRuntime.settings.collectAsState()
     val dockClearance = LocalSteamDockContentClearance.current
+    val scope = rememberCoroutineScope()
+    var cacheCount by rememberSaveable { mutableStateOf(SteamHttpClientProvider.dynamicDnsCacheSize()) }
+    var refreshing by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(context) {
         SteamNetworkResolverSettingsRuntime.initialize(context)
+        cacheCount = SteamHttpClientProvider.dynamicDnsCacheSize()
+    }
+    LaunchedEffect(settings) {
+        cacheCount = SteamHttpClientProvider.dynamicDnsCacheSize()
     }
 
     Scaffold(
@@ -94,20 +102,46 @@ fun SteamNetworkResolverSettingsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item(key = "resolver_status") {
-                ResolverStatusCard(settings)
-            }
-            item(key = "resolver_defaults") {
-                ResolverDefaultsCard(
-                    settings = settings,
-                    onUseSystemDns = {
-                        SteamNetworkResolverSettingsRuntime.setUseSystemDns(
+            item(key = "dynamic_dns") {
+                SteamDynamicDnsSettingsCard(
+                    enabled = settings.dynamicDnsEnabled,
+                    activeProviderCount = settings.activeProviders.size,
+                    cacheCount = cacheCount,
+                    refreshing = refreshing,
+                    onEnabledChange = {
+                        SteamNetworkResolverSettingsRuntime.setDynamicDnsEnabled(
                             applicationContext,
                             it
                         )
                     },
-                    onUseBuiltInDoh = {
-                        SteamNetworkResolverSettingsRuntime.setUseBuiltInDoh(
+                    onClearCache = {
+                        SteamHttpClientProvider.clearDynamicDnsCache()
+                        cacheCount = SteamHttpClientProvider.dynamicDnsCacheSize()
+                    },
+                    onForceRefresh = {
+                        if (!refreshing) {
+                            refreshing = true
+                            scope.launch {
+                                try {
+                                    cacheCount = SteamHttpClientProvider.refreshDynamicDnsCache()
+                                } finally {
+                                    refreshing = false
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+            item(key = "resolver_servers") {
+                SteamResolverServerBenchmarkCard(
+                    onRemoveCustomDns = {
+                        SteamNetworkResolverSettingsRuntime.removeCustomDns(
+                            applicationContext,
+                            it
+                        )
+                    },
+                    onRemoveCustomDoh = {
+                        SteamNetworkResolverSettingsRuntime.removeCustomDoh(
                             applicationContext,
                             it
                         )
@@ -115,7 +149,7 @@ fun SteamNetworkResolverSettingsScreen(
                 )
             }
             item(key = "custom_dns") {
-                ResolverEditorCard(
+                ResolverAddCard(
                     title = stringResource(R.string.steam_network_custom_dns_title),
                     description = stringResource(R.string.steam_network_custom_dns_description),
                     placeholder = stringResource(R.string.steam_network_custom_dns_placeholder),
@@ -128,17 +162,11 @@ fun SteamNetworkResolverSettingsScreen(
                             applicationContext,
                             it
                         )
-                    },
-                    onRemove = {
-                        SteamNetworkResolverSettingsRuntime.removeCustomDns(
-                            applicationContext,
-                            it
-                        )
                     }
                 )
             }
             item(key = "custom_doh") {
-                ResolverEditorCard(
+                ResolverAddCard(
                     title = stringResource(R.string.steam_network_custom_doh_title),
                     description = stringResource(R.string.steam_network_custom_doh_description),
                     placeholder = stringResource(R.string.steam_network_custom_doh_placeholder),
@@ -151,9 +179,14 @@ fun SteamNetworkResolverSettingsScreen(
                             applicationContext,
                             it
                         )
-                    },
-                    onRemove = {
-                        SteamNetworkResolverSettingsRuntime.removeCustomDoh(
+                    }
+                )
+            }
+            item(key = "resolver_strategy") {
+                ResolverStrategyCard(
+                    preferIpv6 = settings.preferIpv6,
+                    onPreferIpv6 = {
+                        SteamNetworkResolverSettingsRuntime.setPreferIpv6(
                             applicationContext,
                             it
                         )
@@ -168,45 +201,9 @@ fun SteamNetworkResolverSettingsScreen(
 }
 
 @Composable
-private fun ResolverStatusCard(settings: SteamNetworkResolverSettings) {
-    val activeCount = settings.activeProviders.size
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = if (settings.hasResolver) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.errorContainer
-            }
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = if (settings.hasResolver) {
-                    stringResource(R.string.steam_network_resolver_active_count, activeCount)
-                } else {
-                    stringResource(R.string.steam_network_resolver_none)
-                },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = stringResource(R.string.steam_network_resolver_summary),
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-@Composable
-private fun ResolverDefaultsCard(
-    settings: SteamNetworkResolverSettings,
-    onUseSystemDns: (Boolean) -> Unit,
-    onUseBuiltInDoh: (Boolean) -> Unit
+private fun ResolverStrategyCard(
+    preferIpv6: Boolean,
+    onPreferIpv6: (Boolean) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -216,22 +213,10 @@ private fun ResolverDefaultsCard(
         )
     ) {
         ResolverToggleRow(
-            title = stringResource(R.string.steam_network_system_dns),
-            description = stringResource(R.string.steam_network_system_dns_description),
-            checked = settings.useSystemDns,
-            onCheckedChange = onUseSystemDns
-        )
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 18.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-        )
-        ResolverToggleRow(
-            title = stringResource(R.string.steam_network_builtin_doh),
-            description = SteamDnsProvider.DEFAULTS
-                .filterNot(SteamDnsProvider::isSystem)
-                .joinToString(" · ", transform = SteamDnsProvider::displayName),
-            checked = settings.useBuiltInDoh,
-            onCheckedChange = onUseBuiltInDoh
+            title = stringResource(R.string.steam_network_ipv6_prefer),
+            description = stringResource(R.string.steam_network_ipv6_prefer_description),
+            checked = preferIpv6,
+            onCheckedChange = onPreferIpv6
         )
     }
 }
@@ -264,7 +249,7 @@ private fun ResolverToggleRow(
 }
 
 @Composable
-private fun ResolverEditorCard(
+private fun ResolverAddCard(
     title: String,
     description: String,
     placeholder: String,
@@ -272,8 +257,7 @@ private fun ResolverEditorCard(
     values: List<String>,
     limit: Int,
     normalize: (String) -> String?,
-    onAdd: (String) -> Boolean,
-    onRemove: (String) -> Unit
+    onAdd: (String) -> Boolean
 ) {
     var input by rememberSaveable(title) { mutableStateOf("") }
     val normalized = normalize(input)
@@ -351,40 +335,6 @@ private fun ResolverEditorCard(
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
-
-            values.forEach { value ->
-                ResolverEndpointRow(value = value, onRemove = { onRemove(value) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun ResolverEndpointRow(value: String, onRemove: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Surface(
-            modifier = Modifier.weight(1f),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh
-        ) {
-            Text(
-                text = value,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        IconButton(onClick = onRemove) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = stringResource(R.string.delete),
-                tint = MaterialTheme.colorScheme.error
-            )
         }
     }
 }
@@ -409,7 +359,7 @@ private fun ResolverPrivacyCard() {
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = stringResource(R.string.steam_network_resolver_privacy),
+                text = stringResource(R.string.steam_network_dynamic_dns_privacy),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

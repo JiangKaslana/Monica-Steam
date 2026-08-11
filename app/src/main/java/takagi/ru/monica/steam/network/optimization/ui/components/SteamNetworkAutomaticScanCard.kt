@@ -86,10 +86,15 @@ internal fun SteamNetworkAutomaticScanCard(
             }
 
             Text(
-                text = stringResource(R.string.steam_network_auto_flow_title),
+                text = stringResource(R.string.steam_network_static_hosts_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = colors.content
+            )
+            Text(
+                text = stringResource(R.string.steam_network_static_hosts_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.content.copy(alpha = 0.82f)
             )
 
             when (state) {
@@ -152,10 +157,10 @@ internal fun SteamNetworkAutomaticScanCard(
                 Text(
                     text = stringResource(
                         when {
-                            state.isReadyToApply -> R.string.steam_network_auto_apply
-                            state === SteamAutoOptimizationUiState.Idle && summary == null ->
-                                R.string.steam_network_auto_scan
-                            else -> R.string.steam_network_auto_rescan
+                            state.isReadyToApply -> R.string.steam_network_static_hosts_apply
+                            state === SteamAutoOptimizationUiState.Idle &&
+                                summary == null && !enabled -> R.string.steam_network_static_hosts_scan
+                            else -> R.string.steam_network_static_hosts_rescan
                         }
                     )
                 )
@@ -168,7 +173,7 @@ internal fun SteamNetworkAutomaticScanCard(
                 ) {
                     Icon(Icons.Default.NetworkCheck, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.steam_network_auto_rescan))
+                    Text(stringResource(R.string.steam_network_static_hosts_rescan))
                 }
             } else if (enabled) {
                 TextButton(
@@ -177,7 +182,7 @@ internal fun SteamNetworkAutomaticScanCard(
                 ) {
                     Icon(Icons.Default.PowerSettingsNew, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.steam_network_auto_disable))
+                    Text(stringResource(R.string.steam_network_static_hosts_disable))
                 }
             }
         }
