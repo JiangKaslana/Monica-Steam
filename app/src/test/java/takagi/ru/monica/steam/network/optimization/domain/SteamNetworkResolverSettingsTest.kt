@@ -46,6 +46,17 @@ class SteamNetworkResolverSettingsTest {
     }
 
     @Test
+    fun learnedProviderPreferenceMovesThatPublicResolverToTheFront() {
+        val settings = SteamNetworkResolverSettings(
+            useSystemDns = false,
+            useBuiltInDoh = true,
+            preferredProviderIds = listOf(SteamDnsProvider.GOOGLE.id)
+        )
+
+        assertEquals(SteamDnsProvider.GOOGLE.id, settings.activeProviders.first().id)
+    }
+
+    @Test
     fun customDohRemainsCustomAndNeverBecomesABuiltInDefault() {
         val customEndpoint = "https://resolver.example/dns-query"
         val settings = SteamNetworkResolverSettings(
