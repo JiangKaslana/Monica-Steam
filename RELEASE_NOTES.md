@@ -31,6 +31,14 @@
 
 ## 商店与游戏库
 
+- 商店游戏详情新增 IsThereAnyDeal 全平台史低价格，可按当前 Steam 账号地区显示价格、
+  原价、折扣、来源商店和记录日期。
+- 史低功能使用用户自行申请的 IsThereAnyDeal API Key；密钥经过 Android Keystore 支持的
+  加密存储，仅通过 `ITAD-API-Key` 请求头发送，不会写入请求地址或日志。
+- 新增史低成功缓存、离线缓存回退和 `Retry-After` 限流处理。ITAD 暂时不可用时不会阻塞
+  Steam 商店详情加载。
+- 史低卡片可打开 IsThereAnyDeal 官方游戏页面，并明确标注数据来源。Monica Steam 与
+  IsThereAnyDeal 没有隶属或授权关系。
 - 游戏库详情页的价格标题会根据当前 Steam 账号地区显示，不再出现港币价格配“国区价格”
   等错误组合。
 - 删除拥有状态卡片中“已按照当前选择的 Steam 账号核对”的冗余说明；缓存、网络异常及
