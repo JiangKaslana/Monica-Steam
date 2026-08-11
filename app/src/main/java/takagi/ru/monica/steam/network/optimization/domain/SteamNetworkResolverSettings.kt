@@ -9,7 +9,8 @@ data class SteamNetworkResolverSettings(
     val useBuiltInDoh: Boolean = true,
     val customDnsServers: List<String> = emptyList(),
     val customDohEndpoints: List<String> = emptyList(),
-    val preferredProviderIds: List<String> = emptyList()
+    val preferredProviderIds: List<String> = emptyList(),
+    val dynamicDnsEnabled: Boolean = false
 ) {
     val activeProviders: List<SteamDnsProvider>
         get() {
