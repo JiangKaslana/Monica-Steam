@@ -334,6 +334,7 @@ private fun scanStatusText(
     )
 }
 
+@Composable
 private fun automaticCardColors(
     enabled: Boolean,
     state: SteamAutoOptimizationUiState
