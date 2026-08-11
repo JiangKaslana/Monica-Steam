@@ -46,6 +46,26 @@ class SteamNetworkResolverSettingsTest {
     }
 
     @Test
+    fun customDnsAndDohCanBeDisabledIndependentlyWithoutDeletingThem() {
+        val customDns = SteamDnsProvider.customDns("1.1.1.1")
+        val customDoh = SteamDnsProvider.customDoh("https://resolver.example/dns-query")
+        val settings = SteamNetworkResolverSettings(
+            useSystemDns = false,
+            useBuiltInDoh = false,
+            customDnsServers = listOf("1.1.1.1"),
+            customDohEndpoints = listOf("https://resolver.example/dns-query"),
+            disabledCustomProviderIds = setOf(customDns.id)
+        )
+
+        assertTrue(settings.configuredProviders.any { it.id == customDns.id })
+        assertTrue(settings.configuredProviders.any { it.id == customDoh.id })
+        assertFalse(settings.activeProviders.any { it.id == customDns.id })
+        assertTrue(settings.activeProviders.any { it.id == customDoh.id })
+        assertFalse(settings.isProviderEnabled(customDns))
+        assertTrue(settings.isProviderEnabled(customDoh))
+    }
+
+    @Test
     fun learnedProviderPreferenceMovesThatPublicResolverToTheFront() {
         val settings = SteamNetworkResolverSettings(
             useSystemDns = false,
