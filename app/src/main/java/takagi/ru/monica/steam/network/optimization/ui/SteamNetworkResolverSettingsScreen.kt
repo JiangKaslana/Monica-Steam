@@ -54,6 +54,7 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkResolverSettings
 import takagi.ru.monica.steam.network.optimization.domain.SteamResolverInputValidator
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamDynamicDnsSettingsCard
+import takagi.ru.monica.steam.network.optimization.ui.components.SteamResolverServerBenchmarkCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,6 +137,11 @@ fun SteamNetworkResolverSettingsScreen(
                             it
                         )
                     }
+                )
+            }
+            item(key = "resolver_servers") {
+                SteamResolverServerBenchmarkCard(
+                    providers = settings.activeProviders
                 )
             }
             item(key = "custom_dns") {
