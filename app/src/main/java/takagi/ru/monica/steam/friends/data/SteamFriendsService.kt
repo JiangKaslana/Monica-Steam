@@ -123,7 +123,7 @@ class SteamFriendsService(
             cookies = SteamInventoryService.marketCookies(account, sessionId),
             referer = "https://steamcommunity.com/my/friends/pending"
         )
-        val success = payload.successCode() == 1
+        val success = payload["success"]?.let { payload.successCode() == 1 } ?: true
         return SteamFriendActionResult(
             success = success,
             message = payload.text("error")
