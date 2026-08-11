@@ -20,7 +20,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,7 +49,6 @@ import takagi.ru.monica.R
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.network.SteamHttpClientProvider
 import takagi.ru.monica.steam.network.optimization.SteamNetworkResolverSettingsRuntime
-import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkResolverSettings
 import takagi.ru.monica.steam.network.optimization.domain.SteamResolverInputValidator
 import takagi.ru.monica.steam.network.optimization.ui.components.SteamDynamicDnsSettingsCard
@@ -104,13 +102,10 @@ fun SteamNetworkResolverSettingsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item(key = "resolver_status") {
-                ResolverStatusCard(settings)
-            }
             item(key = "dynamic_dns") {
                 SteamDynamicDnsSettingsCard(
                     enabled = settings.dynamicDnsEnabled,
-                    activeProviderCount = settings.activeProviders.count { !it.isSystem },
+                    activeProviderCount = settings.activeProviders.size,
                     cacheCount = cacheCount,
                     refreshing = refreshing,
                     onEnabledChange = {
@@ -137,29 +132,6 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
-            item(key = "resolver_defaults") {
-                ResolverDefaultsCard(
-                    settings = settings,
-                    onUseSystemDns = {
-                        SteamNetworkResolverSettingsRuntime.setUseSystemDns(
-                            applicationContext,
-                            it
-                        )
-                    },
-                    onUseBuiltInDoh = {
-                        SteamNetworkResolverSettingsRuntime.setUseBuiltInDoh(
-                            applicationContext,
-                            it
-                        )
-                    },
-                    onPreferIpv6 = {
-                        SteamNetworkResolverSettingsRuntime.setPreferIpv6(
-                            applicationContext,
-                            it
-                        )
-                    }
-                )
-            }
             item(key = "resolver_servers") {
                 SteamResolverServerBenchmarkCard(
                     onRemoveCustomDns = {
@@ -177,7 +149,7 @@ fun SteamNetworkResolverSettingsScreen(
                 )
             }
             item(key = "custom_dns") {
-                ResolverEditorCard(
+                ResolverAddCard(
                     title = stringResource(R.string.steam_network_custom_dns_title),
                     description = stringResource(R.string.steam_network_custom_dns_description),
                     placeholder = stringResource(R.string.steam_network_custom_dns_placeholder),
@@ -194,7 +166,7 @@ fun SteamNetworkResolverSettingsScreen(
                 )
             }
             item(key = "custom_doh") {
-                ResolverEditorCard(
+                ResolverAddCard(
                     title = stringResource(R.string.steam_network_custom_doh_title),
                     description = stringResource(R.string.steam_network_custom_doh_description),
                     placeholder = stringResource(R.string.steam_network_custom_doh_placeholder),
@@ -210,6 +182,17 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
+            item(key = "resolver_strategy") {
+                ResolverStrategyCard(
+                    preferIpv6 = settings.preferIpv6,
+                    onPreferIpv6 = {
+                        SteamNetworkResolverSettingsRuntime.setPreferIpv6(
+                            applicationContext,
+                            it
+                        )
+                    }
+                )
+            }
             item(key = "resolver_privacy") {
                 ResolverPrivacyCard()
             }
@@ -218,45 +201,8 @@ fun SteamNetworkResolverSettingsScreen(
 }
 
 @Composable
-private fun ResolverStatusCard(settings: SteamNetworkResolverSettings) {
-    val activeCount = settings.activeProviders.size
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = if (settings.hasResolver) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.errorContainer
-            }
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = if (settings.hasResolver) {
-                    stringResource(R.string.steam_network_resolver_active_count, activeCount)
-                } else {
-                    stringResource(R.string.steam_network_resolver_none)
-                },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = stringResource(R.string.steam_network_resolver_live_summary),
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-@Composable
-private fun ResolverDefaultsCard(
-    settings: SteamNetworkResolverSettings,
-    onUseSystemDns: (Boolean) -> Unit,
-    onUseBuiltInDoh: (Boolean) -> Unit,
+private fun ResolverStrategyCard(
+    preferIpv6: Boolean,
     onPreferIpv6: (Boolean) -> Unit
 ) {
     Card(
@@ -267,31 +213,9 @@ private fun ResolverDefaultsCard(
         )
     ) {
         ResolverToggleRow(
-            title = stringResource(R.string.steam_network_system_dns),
-            description = stringResource(R.string.steam_network_system_dns_description),
-            checked = settings.useSystemDns,
-            onCheckedChange = onUseSystemDns
-        )
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 18.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-        )
-        ResolverToggleRow(
-            title = stringResource(R.string.steam_network_builtin_doh),
-            description = SteamDnsProvider.DEFAULTS
-                .filterNot(SteamDnsProvider::isSystem)
-                .joinToString(" · ", transform = SteamDnsProvider::displayName),
-            checked = settings.useBuiltInDoh,
-            onCheckedChange = onUseBuiltInDoh
-        )
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 18.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-        )
-        ResolverToggleRow(
             title = stringResource(R.string.steam_network_ipv6_prefer),
             description = stringResource(R.string.steam_network_ipv6_prefer_description),
-            checked = settings.preferIpv6,
+            checked = preferIpv6,
             onCheckedChange = onPreferIpv6
         )
     }
@@ -325,7 +249,7 @@ private fun ResolverToggleRow(
 }
 
 @Composable
-private fun ResolverEditorCard(
+private fun ResolverAddCard(
     title: String,
     description: String,
     placeholder: String,
