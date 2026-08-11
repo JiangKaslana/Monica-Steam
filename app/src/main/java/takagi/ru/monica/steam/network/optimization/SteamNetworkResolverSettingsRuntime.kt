@@ -18,6 +18,7 @@ object SteamNetworkResolverSettingsRuntime {
     private const val KEY_CUSTOM_DNS = "resolver_custom_dns"
     private const val KEY_CUSTOM_DOH = "resolver_custom_doh"
     private const val KEY_PREFERRED_PROVIDER_IDS = "resolver_preferred_provider_ids"
+    private const val KEY_DYNAMIC_DNS_ENABLED = "resolver_dynamic_dns_enabled"
 
     private val mutableSettings = MutableStateFlow(SteamNetworkResolverSettings())
     val settings: StateFlow<SteamNetworkResolverSettings> = mutableSettings.asStateFlow()
@@ -52,9 +53,20 @@ object SteamNetworkResolverSettingsRuntime {
                 .map(String::trim)
                 .filter(String::isNotEmpty)
                 .distinct()
-                .toList()
+                .toList(),
+            dynamicDnsEnabled = preferences.getBoolean(KEY_DYNAMIC_DNS_ENABLED, false)
         )
         initialized = true
+    }
+
+    @Synchronized
+    fun setDynamicDnsEnabled(context: Context, enabled: Boolean) {
+        initialize(context)
+        if (mutableSettings.value.dynamicDnsEnabled == enabled) return
+        preferences.edit().putBoolean(KEY_DYNAMIC_DNS_ENABLED, enabled).apply()
+        mutableSettings.value = mutableSettings.value.copy(dynamicDnsEnabled = enabled)
+        notifyResolverChanged()
+        runCatching { SteamDiagLogger.append("dynamic_dns enabled=$enabled") }
     }
 
     @Synchronized
@@ -162,9 +174,11 @@ object SteamNetworkResolverSettingsRuntime {
         if (preferredProviderIds.isEmpty()) return false
         preferences.edit()
             .putString(KEY_PREFERRED_PROVIDER_IDS, preferredProviderIds.joinToString("\n"))
+            .putBoolean(KEY_DYNAMIC_DNS_ENABLED, true)
             .apply()
         mutableSettings.value = mutableSettings.value.copy(
-            preferredProviderIds = preferredProviderIds
+            preferredProviderIds = preferredProviderIds,
+            dynamicDnsEnabled = true
         )
         notifyResolverChanged()
         runCatching {
