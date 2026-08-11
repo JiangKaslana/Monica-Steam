@@ -28,6 +28,51 @@ enum class MdbxSourceType {
     REMOTE_ONEDRIVE
 }
 
+enum class MdbxEngineType {
+    KOTLIN_MDBX1,
+    RUST_MDBX2;
+
+    companion object {
+        fun fromName(name: String?): MdbxEngineType =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: KOTLIN_MDBX1
+    }
+}
+
+enum class MdbxCapability {
+    LOCAL_CRUD,
+    EMBEDDED_ATTACHMENTS,
+    EXTERNAL_STORAGE,
+    REMOTE_SYNC,
+    NESTED_FOLDERS,
+    PROJECT_TAGS,
+    DELTA_HISTORY,
+    SNAPSHOTS,
+    CONFLICTS,
+    SYNC_BUNDLES,
+    BENCHMARK
+}
+
+val MdbxEngineType.capabilities: Set<MdbxCapability>
+    get() = when (this) {
+        MdbxEngineType.KOTLIN_MDBX1 -> MdbxCapability.entries.toSet()
+        MdbxEngineType.RUST_MDBX2 -> setOf(
+            MdbxCapability.LOCAL_CRUD,
+            MdbxCapability.EMBEDDED_ATTACHMENTS,
+            MdbxCapability.EXTERNAL_STORAGE,
+            MdbxCapability.REMOTE_SYNC,
+            MdbxCapability.NESTED_FOLDERS,
+            MdbxCapability.PROJECT_TAGS,
+            MdbxCapability.DELTA_HISTORY,
+            MdbxCapability.SNAPSHOTS,
+            MdbxCapability.CONFLICTS,
+            MdbxCapability.SYNC_BUNDLES,
+            MdbxCapability.BENCHMARK
+        )
+    }
+
+fun LocalMdbxDatabase.supports(capability: MdbxCapability): Boolean =
+    capability in engineTypeEnum.capabilities
+
 /**
  * Tiga three-mode security model for MDBX vaults.
  *
@@ -104,6 +149,9 @@ data class LocalMdbxDatabase(
     @ColumnInfo(name = "source_id")
     val sourceId: Long? = null,
 
+    @ColumnInfo(name = "engine_type")
+    val engineType: String = MdbxEngineType.KOTLIN_MDBX1.name,
+
     @ColumnInfo(name = "tiga_mode")
     val tigaMode: String = MdbxTigaMode.MULTI.name,
 
@@ -151,6 +199,9 @@ data class LocalMdbxDatabase(
     @ColumnInfo(name = "cache_copy_path")
     val cacheCopyPath: String? = null,
 
+    @ColumnInfo(name = "external_tree_uri")
+    val externalTreeUri: String? = null,
+
     @ColumnInfo(name = "is_offline_available")
     val isOfflineAvailable: Boolean = false,
 
@@ -165,6 +216,7 @@ data class LocalMdbxDatabase(
         runCatching { MdbxStorageLocation.valueOf(storageLocation) }.getOrDefault(MdbxStorageLocation.REMOTE_WEBDAV)
     val sourceTypeEnum: MdbxSourceType get() =
         runCatching { MdbxSourceType.valueOf(sourceType) }.getOrDefault(MdbxSourceType.REMOTE_WEBDAV)
+    val engineTypeEnum: MdbxEngineType get() = MdbxEngineType.fromName(engineType)
     val unlockMethodEnum: MdbxUnlockMethod get() = MdbxUnlockMethod.fromStoredValue(unlockMethod)
 }
 
@@ -231,4 +283,15 @@ interface LocalMdbxDatabaseDao {
 
     @Query("UPDATE local_mdbx_databases SET last_sync_status = :status, last_sync_error = :error WHERE id = :databaseId")
     suspend fun updateSyncStatus(databaseId: Long, status: String, error: String?)
+
+    @Query(
+        """
+        UPDATE local_mdbx_databases
+        SET last_synced_at = :time,
+            last_sync_status = :status,
+            last_sync_error = NULL
+        WHERE id = :databaseId
+        """
+    )
+    suspend fun updateSyncSuccess(databaseId: Long, status: String, time: Long)
 }
