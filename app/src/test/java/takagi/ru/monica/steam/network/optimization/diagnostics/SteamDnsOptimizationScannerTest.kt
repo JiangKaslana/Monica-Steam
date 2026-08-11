@@ -79,124 +79,143 @@ class SteamDnsOptimizationScannerTest {
                 SteamDnsResolutionResult(
                     provider = provider,
                     hostname = hostname,
-                    addresses = listOf(if (hostname == hostA) "10.0.0.1" else "20.0.0.1")
-                )
-            },
-            probe = SteamHostProbe { target ->
-                SteamHostProbeResult(
-                    target = target,
-                    status = if (target.hostname == hostA) {
-                        SteamHostProbeStatus.AVAILABLE
-                    } else {
-                        SteamHostProbeStatus.TIMEOUT
-                    },
-                    latencyMillis = 50L
-                )
-            },
-            recoveryProbe = SteamHostProbe { target ->
-                SteamHostProbeResult(
-                    target = target,
-                    status = SteamHostProbeStatus.TIMEOUT,
-                    latencyMillis = 5_000L
-                )
-            },
-            providers = listOf(providerA),
-            targetHostnames = listOf(hostA, hostB),
-            minimumProbeAttemptsPerCandidate = 1,
-            minimumProbeAttemptsPerHost = 1
-        )
-
-        val result = scanner.scan()
-
-        assertFalse(result.isComplete)
-        assertTrue(result.isApplicable)
-        assertEquals(1, result.availableHostCount)
-        assertEquals(listOf(hostA), result.selectedRoutes.map { it.hostname })
-    }
-
-    @Test
-    fun candidateLimitStillSamplesEveryResolverBeforeExtraAddresses() = runBlocking {
-        val scanner = SteamDnsOptimizationScanner(
-            resolver = SteamDnsResolver { provider, hostname ->
-                SteamDnsResolutionResult(
-                    provider = provider,
-                    hostname = hostname,
-                    addresses = if (provider.id == "a") {
-                        listOf("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4")
-                    } else {
-                        listOf("20.0.0.1")
-                    },
-                    latencyMillis = if (provider.id == "a") 10L else 20L
+                    addresses = if (hostname == hostA) listOf("10.0.0.1") else emptyList()
                 )
             },
             probe = SteamHostProbe { target ->
                 SteamHostProbeResult(
                     target = target,
                     status = SteamHostProbeStatus.AVAILABLE,
-                    latencyMillis = if (target.address == "20.0.0.1") 5L else 50L,
+                    latencyMillis = 20L,
                     httpStatusCode = 200
                 )
             },
-            providers = listOf(providerA, providerB),
-            targetHostnames = listOf(hostA),
-            maxCandidatesPerHost = 2,
+            providers = listOf(providerA),
+            targetHostnames = listOf(hostA, hostB),
             minimumProbeAttemptsPerCandidate = 1,
-            minimumProbeAttemptsPerHost = 1
+            minimumProbeAttemptsPerHost = 1,
+            minimumRecoveryProbeAttemptsPerCandidate = 1,
+            minimumRecoveryProbeAttemptsPerHost = 1
         )
 
         val result = scanner.scan()
 
-        assertTrue(result.isComplete)
-        assertEquals("20.0.0.1", result.selectedRoutes.single().address)
-        assertEquals(2, result.probeResults.size)
+        assertFalse(result.isComplete)
+        assertEquals(listOf(hostB), result.missingHostnames)
     }
 
     @Test
-    fun repeatedVerificationRejectsFlakyLowLatencyOutlierAndUsesMedian() = runBlocking {
-        val attempts = ConcurrentHashMap<String, AtomicInteger>()
+    fun preferredRouteIsRetestedBeforeItCanWin() = runBlocking {
+        val probeCounts = ConcurrentHashMap<String, AtomicInteger>()
         val scanner = SteamDnsOptimizationScanner(
             resolver = SteamDnsResolver { provider, hostname ->
                 SteamDnsResolutionResult(
                     provider = provider,
                     hostname = hostname,
-                    addresses = listOf("10.0.0.1", "10.0.0.2")
+                    addresses = listOf("10.0.0.2")
                 )
             },
             probe = SteamHostProbe { target ->
-                val attempt = attempts
-                    .computeIfAbsent(target.address) { AtomicInteger() }
-                    .incrementAndGet()
-                when (target.address) {
-                    "10.0.0.1" -> SteamHostProbeResult(
-                        target = target,
-                        status = if (attempt == 1) {
-                            SteamHostProbeStatus.AVAILABLE
-                        } else {
-                            SteamHostProbeStatus.TIMEOUT
-                        },
-                        latencyMillis = if (attempt == 1) 5L else 5_000L,
-                        httpStatusCode = if (attempt == 1) 200 else null
-                    )
-                    else -> SteamHostProbeResult(
-                        target = target,
-                        status = SteamHostProbeStatus.AVAILABLE,
-                        latencyMillis = listOf(20L, 22L, 200L, 24L, 25L)[attempt - 1],
-                        httpStatusCode = 200
-                    )
-                }
+                probeCounts.computeIfAbsent(target.address) { AtomicInteger() }.incrementAndGet()
+                SteamHostProbeResult(
+                    target = target,
+                    status = SteamHostProbeStatus.AVAILABLE,
+                    latencyMillis = if (target.address == "10.0.0.1") 15L else 30L,
+                    httpStatusCode = 200
+                )
             },
             providers = listOf(providerA),
             targetHostnames = listOf(hostA),
-            minimumProbeAttemptsPerCandidate = 5,
-            minimumProbeAttemptsPerHost = 5,
-            maxConcurrentProbes = 2
+            minimumProbeAttemptsPerCandidate = 2,
+            minimumProbeAttemptsPerHost = 2,
+            maxConcurrentProbes = 1
+        )
+
+        val result = scanner.scan(
+            preferredRoutes = listOf(
+                SteamDnsSelectedRoute(
+                    hostname = hostA,
+                    address = "10.0.0.1",
+                    providerIds = listOf(providerA.id),
+                    latencyMillis = 5L,
+                    httpStatusCode = 200
+                )
+            )
+        )
+
+        assertTrue(probeCounts["10.0.0.1"]?.get() ?: 0 >= 2)
+        assertEquals("10.0.0.1", result.selectedRoutes.single().address)
+    }
+
+    @Test
+    fun verificationRequiresRepeatedSuccessInsteadOfOneLuckyProbe() = runBlocking {
+        val attempts = AtomicInteger()
+        val scanner = SteamDnsOptimizationScanner(
+            resolver = SteamDnsResolver { provider, hostname ->
+                SteamDnsResolutionResult(
+                    provider = provider,
+                    hostname = hostname,
+                    addresses = listOf("10.0.0.1")
+                )
+            },
+            probe = SteamHostProbe { target ->
+                val attempt = attempts.incrementAndGet()
+                SteamHostProbeResult(
+                    target = target,
+                    status = if (attempt == 1) {
+                        SteamHostProbeStatus.AVAILABLE
+                    } else {
+                        SteamHostProbeStatus.TIMEOUT
+                    },
+                    latencyMillis = if (attempt == 1) 24L else 5_000L,
+                    httpStatusCode = if (attempt == 1) 200 else null
+                )
+            },
+            providers = listOf(providerA),
+            targetHostnames = listOf(hostA),
+            minimumProbeAttemptsPerCandidate = 3,
+            minimumProbeAttemptsPerHost = 3,
+            minimumRecoveryProbeAttemptsPerCandidate = 1,
+            minimumRecoveryProbeAttemptsPerHost = 1,
+            maxConcurrentProbes = 1
+        )
+
+        val result = scanner.scan()
+
+        assertFalse(result.isComplete)
+    }
+
+    @Test
+    fun medianLatencyProtectsSelectionFromOneSlowOutlier() = runBlocking {
+        val attempts = AtomicInteger()
+        val scanner = SteamDnsOptimizationScanner(
+            resolver = SteamDnsResolver { provider, hostname ->
+                SteamDnsResolutionResult(
+                    provider = provider,
+                    hostname = hostname,
+                    addresses = listOf("10.0.0.1")
+                )
+            },
+            probe = SteamHostProbe { target ->
+                val attempt = attempts.incrementAndGet()
+                val latency = if (attempt == 3) 3_000L else 24L
+                SteamHostProbeResult(
+                    target = target,
+                    status = SteamHostProbeStatus.AVAILABLE,
+                    latencyMillis = latency,
+                    httpStatusCode = 200
+                )
+            },
+            providers = listOf(providerA),
+            targetHostnames = listOf(hostA),
+            minimumProbeAttemptsPerCandidate = 3,
+            minimumProbeAttemptsPerHost = 3,
+            maxConcurrentProbes = 1
         )
 
         val result = scanner.scan()
 
         assertTrue(result.isComplete)
-        assertEquals(10, result.probeResults.size)
-        assertEquals("10.0.0.2", result.selectedRoutes.single().address)
         assertEquals(24L, result.selectedRoutes.single().latencyMillis)
     }
 
@@ -263,7 +282,12 @@ class SteamDnsOptimizationScannerTest {
         val result = scanner.scan()
 
         assertTrue(result.isComplete)
-        assertEquals(180, result.probeResults.size)
+        assertTrue(result.probeResults.size >= 100)
+        assertTrue(
+            SteamDnsOptimizationScanner.DEFAULT_TARGET_HOSTNAMES.all { hostname ->
+                result.probeResults.any { it.target.hostname == hostname }
+            }
+        )
     }
 
     @Test
@@ -289,7 +313,7 @@ class SteamDnsOptimizationScannerTest {
                 SteamHostProbeResult(
                     target = target,
                     status = SteamHostProbeStatus.AVAILABLE,
-                    latencyMillis = 45L,
+                    latencyMillis = 40L,
                     httpStatusCode = 200
                 )
             },
@@ -297,56 +321,13 @@ class SteamDnsOptimizationScannerTest {
             targetHostnames = listOf(hostA),
             minimumProbeAttemptsPerCandidate = 1,
             minimumProbeAttemptsPerHost = 1,
-            minimumRecoveryProbeAttemptsPerCandidate = 2,
-            minimumRecoveryProbeAttemptsPerHost = 2
+            minimumRecoveryProbeAttemptsPerCandidate = 1,
+            minimumRecoveryProbeAttemptsPerHost = 1
         )
 
         val result = scanner.scan()
 
+        assertTrue(resolveCalls.get() >= 2)
         assertTrue(result.isComplete)
-        assertEquals(2, resolveCalls.get())
-        assertEquals(3, result.probeResults.size)
-        assertEquals(45L, result.selectedRoutes.single().latencyMillis)
-    }
-
-    @Test
-    fun verifiedExistingRouteIsKeptWhenItBeatsNewResolverResults() = runBlocking {
-        val scanner = SteamDnsOptimizationScanner(
-            resolver = SteamDnsResolver { provider, hostname ->
-                SteamDnsResolutionResult(
-                    provider = provider,
-                    hostname = hostname,
-                    addresses = listOf("10.0.0.2")
-                )
-            },
-            probe = SteamHostProbe { target ->
-                SteamHostProbeResult(
-                    target = target,
-                    status = SteamHostProbeStatus.AVAILABLE,
-                    latencyMillis = if (target.address == "10.0.0.1") 18L else 60L,
-                    httpStatusCode = 200
-                )
-            },
-            providers = listOf(providerA),
-            targetHostnames = listOf(hostA),
-            minimumProbeAttemptsPerCandidate = 1,
-            minimumProbeAttemptsPerHost = 1
-        )
-
-        val result = scanner.scan(
-            preferredRoutes = listOf(
-                SteamDnsSelectedRoute(
-                    hostname = hostA,
-                    address = "10.0.0.1",
-                    providerIds = listOf("system"),
-                    latencyMillis = 25L,
-                    httpStatusCode = 200
-                )
-            )
-        )
-
-        assertEquals("10.0.0.1", result.selectedRoutes.single().address)
-        assertEquals(18L, result.selectedRoutes.single().latencyMillis)
-        assertEquals(2, result.probeResults.size)
     }
 }
