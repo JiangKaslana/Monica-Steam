@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -41,23 +43,26 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 
 @Composable
 internal fun SteamResolverServerBenchmarkCard(
-    providers: List<SteamDnsProvider>,
+    onRemoveCustomDns: (String) -> Unit,
+    onRemoveCustomDoh: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current.applicationContext
     val settings by SteamNetworkResolverSettingsRuntime.settings.collectAsState()
     val scope = rememberCoroutineScope()
     val benchmark = remember { SteamResolverBenchmark() }
-    val publicProviders = remember {
-        SteamDnsProvider.DEFAULTS.filterNot(SteamDnsProvider::isSystem)
+    val visibleProviders = remember(
+        settings.customDnsServers,
+        settings.customDohEndpoints
+    ) {
+        buildList {
+            addAll(SteamDnsProvider.DEFAULTS)
+            addAll(settings.customDnsServers.map(SteamDnsProvider::customDns))
+            addAll(settings.customDohEndpoints.map(SteamDnsProvider::customDoh))
+        }.distinctBy(SteamDnsProvider::id)
     }
     var results by remember { mutableStateOf<Map<String, SteamResolverBenchmarkResult>>(emptyMap()) }
     var runningIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-
-    // Deliberately keep this list public-only. Custom/user DoH endpoints are managed in the
-    // separate custom DoH editor and are never promoted into the built-in server catalogue.
-    @Suppress("UNUSED_VARIABLE")
-    val callerProviders = providers
 
     fun benchmarkOne(provider: SteamDnsProvider) {
         if (provider.id in runningIds) return
@@ -98,14 +103,14 @@ internal fun SteamResolverServerBenchmarkCard(
                     )
                 }
                 FilledTonalButton(
-                    enabled = publicProviders.isNotEmpty() && runningIds.isEmpty(),
+                    enabled = visibleProviders.isNotEmpty() && runningIds.isEmpty(),
                     onClick = {
-                        if (publicProviders.isNotEmpty() && runningIds.isEmpty()) {
-                            val ids = publicProviders.map(SteamDnsProvider::id).toSet()
+                        if (visibleProviders.isNotEmpty() && runningIds.isEmpty()) {
+                            val ids = visibleProviders.map(SteamDnsProvider::id).toSet()
                             runningIds = ids
                             scope.launch {
                                 try {
-                                    val measured = publicProviders.map { provider ->
+                                    val measured = visibleProviders.map { provider ->
                                         async { provider.id to benchmark.benchmark(provider) }
                                     }.awaitAll().toMap()
                                     results = results + measured
@@ -124,7 +129,7 @@ internal fun SteamResolverServerBenchmarkCard(
                 }
             }
 
-            publicProviders.forEachIndexed { index, provider ->
+            visibleProviders.forEachIndexed { index, provider ->
                 if (index > 0) {
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 18.dp),
@@ -135,14 +140,34 @@ internal fun SteamResolverServerBenchmarkCard(
                     provider = provider,
                     result = results[provider.id],
                     running = provider.id in runningIds,
-                    enabled = settings.useBuiltInDoh &&
-                        provider.id !in settings.disabledBuiltInProviderIds,
-                    onEnabledChange = { enabled ->
-                        SteamNetworkResolverSettingsRuntime.setBuiltInProviderEnabled(
-                            context,
-                            provider.id,
-                            enabled
-                        )
+                    enabled = when {
+                        provider.isSystem -> settings.useSystemDns
+                        provider in SteamDnsProvider.DEFAULTS -> settings.useBuiltInDoh &&
+                            provider.id !in settings.disabledBuiltInProviderIds
+                        else -> settings.activeProviders.any { it.id == provider.id }
+                    },
+                    onEnabledChange = when {
+                        provider.isSystem -> { enabled ->
+                            SteamNetworkResolverSettingsRuntime.setUseSystemDns(context, enabled)
+                        }
+                        provider in SteamDnsProvider.DEFAULTS -> { enabled ->
+                            SteamNetworkResolverSettingsRuntime.setBuiltInProviderEnabled(
+                                context,
+                                provider.id,
+                                enabled
+                            )
+                        }
+                        else -> null
+                    },
+                    onRemove = when {
+                        provider.isUdp -> provider.udpServer?.let { server ->
+                            { onRemoveCustomDns(server) }
+                        }
+                        provider.isDoh && provider !in SteamDnsProvider.DEFAULTS ->
+                            provider.dohUrl?.let { endpoint ->
+                                { onRemoveCustomDoh(endpoint) }
+                            }
+                        else -> null
                     },
                     onBenchmark = { benchmarkOne(provider) }
                 )
@@ -157,7 +182,8 @@ private fun ResolverBenchmarkRow(
     result: SteamResolverBenchmarkResult?,
     running: Boolean,
     enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
+    onEnabledChange: ((Boolean) -> Unit)?,
+    onRemove: (() -> Unit)?,
     onBenchmark: () -> Unit
 ) {
     Row(
@@ -179,7 +205,12 @@ private fun ResolverBenchmarkRow(
                 }
             )
             Text(
-                text = provider.dohUrl.orEmpty(),
+                text = when {
+                    provider.isSystem -> stringResource(R.string.steam_network_resolver_system_endpoint)
+                    provider.isDoh -> provider.dohUrl.orEmpty()
+                    provider.isUdp -> provider.udpServer.orEmpty()
+                    else -> ""
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -221,9 +252,18 @@ private fun ResolverBenchmarkRow(
                 Text(stringResource(R.string.steam_network_resolver_benchmark_one))
             }
         }
-        Switch(
-            checked = enabled,
-            onCheckedChange = onEnabledChange
-        )
+        when {
+            onRemove != null -> IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.delete),
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
+            onEnabledChange != null -> Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange
+            )
+        }
     }
 }
