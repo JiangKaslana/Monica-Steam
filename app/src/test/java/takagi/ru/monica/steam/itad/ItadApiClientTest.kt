@@ -95,52 +95,6 @@ class ItadApiClientTest {
     }
 
     @Test
-    fun priceHistoryUsesOfficialHistoryEndpointAndKeepsRemovalEvents() {
-        server.enqueue(
-            MockResponse().setResponseCode(200).setBody(
-                """
-                [
-                  {
-                    "timestamp":"2026-01-01T00:00:00Z",
-                    "shop":{"id":61,"name":"Steam"},
-                    "deal":{
-                      "price":{"amount":9.99,"amountInt":999,"currency":"CNY"},
-                      "regular":{"amount":99.99,"amountInt":9999,"currency":"CNY"},
-                      "cut":90
-                    }
-                  },
-                  {
-                    "timestamp":"2026-02-01T00:00:00Z",
-                    "shop":{"id":61,"name":"Steam"},
-                    "deal":null
-                  }
-                ]
-                """.trimIndent()
-            )
-        )
-
-        val result = client.loadPriceHistory(
-            gameId = "018d937f-012f-73b8-ab2c-898516969e6a",
-            countryCode = "CN",
-            apiKey = "secret-test-key",
-            since = "2010-01-01T00:00:00Z"
-        ) as ItadApiResult.Success
-
-        assertEquals(2, result.value.size)
-        assertEquals(9.99, result.value.first().price?.amount ?: 0.0, 0.0)
-        assertNull(result.value.last().price)
-        val request = server.takeRequest()
-        assertEquals("/games/history/v2", request.requestUrl?.encodedPath)
-        assertEquals("CN", request.requestUrl?.queryParameter("country"))
-        assertEquals(
-            "2010-01-01T00:00:00Z",
-            request.requestUrl?.queryParameter("since")
-        )
-        assertEquals("secret-test-key", request.getHeader("ITAD-API-Key"))
-        assertFalse(request.requestUrl.toString().contains("secret-test-key"))
-    }
-
-    @Test
     fun gameInfoPreservesOfficialItadUrl() {
         val url = "https://isthereanydeal.com/game/portal-2/"
         server.enqueue(

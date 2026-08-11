@@ -11,8 +11,6 @@ import takagi.ru.monica.steam.itad.domain.ItadCountryPolicy
 import takagi.ru.monica.steam.itad.domain.ItadHistoricalLow
 import takagi.ru.monica.steam.itad.domain.ItadHistoryLowFailureKind
 import takagi.ru.monica.steam.itad.domain.ItadHistoryLowLoadResult
-import takagi.ru.monica.steam.itad.domain.ItadPriceHistoryLoadResult
-import takagi.ru.monica.steam.itad.domain.ItadPriceHistoryPoint
 
 class ItadHistoryLowRepository internal constructor(
     private val credentialStore: ItadApiKeyProvider,
@@ -33,14 +31,6 @@ class ItadHistoryLowRepository internal constructor(
         force: Boolean = false
     ): ItadHistoryLowLoadResult = withContext(Dispatchers.IO) {
         loadBlocking(appId, countryCode, force)
-    }
-
-    suspend fun loadPriceHistory(
-        appId: Int,
-        countryCode: String?,
-        force: Boolean = false
-    ): ItadPriceHistoryLoadResult = withContext(Dispatchers.IO) {
-        loadPriceHistoryBlocking(appId, countryCode, force)
     }
 
     private fun loadBlocking(
@@ -131,95 +121,6 @@ class ItadHistoryLowRepository internal constructor(
         return ItadHistoryLowLoadResult.Success(historicalLow, fromCache = false)
     }
 
-    private fun loadPriceHistoryBlocking(
-        appId: Int,
-        countryCode: String?,
-        force: Boolean
-    ): ItadPriceHistoryLoadResult {
-        if (appId <= 0) {
-            return ItadPriceHistoryLoadResult.Failure(
-                ItadHistoryLowFailureKind.GAME_NOT_MAPPED
-            )
-        }
-        val apiKey = runCatching { credentialStore.readApiKey() }
-            .getOrElse {
-                return ItadPriceHistoryLoadResult.Failure(
-                    ItadHistoryLowFailureKind.CREDENTIAL_STORAGE
-                )
-            }
-            ?.let(ItadApiKeyPolicy::validate)
-            ?.normalizedKey
-            ?: return ItadPriceHistoryLoadResult.Failure(
-                ItadHistoryLowFailureKind.API_KEY_MISSING
-            )
-        val normalizedCountry = ItadCountryPolicy.normalize(countryCode, localeCountry())
-        val now = clock()
-        val cachedHistory = cache.readPriceHistory(appId, normalizedCountry)
-        if (!force && cachedHistory?.isFresh(now) == true) {
-            return ItadPriceHistoryLoadResult.Success(
-                points = cachedHistory.value,
-                fromCache = true
-            )
-        }
-
-        val keyFingerprint = apiKeyFingerprint(apiKey)
-        val retryAfter = cache.readRetryAfter(keyFingerprint)
-        if (retryAfter != null && retryAfter > now) {
-            return cachedHistory?.let {
-                ItadPriceHistoryLoadResult.Success(
-                    points = it.value,
-                    fromCache = true,
-                    stale = true
-                )
-            } ?: ItadPriceHistoryLoadResult.Failure(
-                kind = ItadHistoryLowFailureKind.RATE_LIMITED,
-                retryAfterEpochMillis = retryAfter
-            )
-        }
-
-        val gameId = cache.readGameId(appId)
-            ?.takeIf { it.isFresh(now) }
-            ?.value
-            ?: when (val lookup = api.lookupSteamAppId(appId)) {
-                is ItadApiResult.Success -> {
-                    val mapped = lookup.value ?: return cachedPriceHistoryOrFailure(
-                        cachedHistory,
-                        ItadHistoryLowFailureKind.GAME_NOT_MAPPED
-                    )
-                    cache.writeGameId(appId, mapped, now + GAME_ID_CACHE_MILLIS)
-                    mapped
-                }
-                else -> return handlePriceHistoryApiFailure(
-                    lookup,
-                    keyFingerprint,
-                    cachedHistory
-                )
-            }
-
-        val points = when (
-            val history = api.loadPriceHistory(
-                gameId = gameId,
-                countryCode = normalizedCountry,
-                apiKey = apiKey,
-                since = ALL_PRICE_HISTORY_SINCE
-            )
-        ) {
-            is ItadApiResult.Success -> history.value
-            else -> return handlePriceHistoryApiFailure(
-                history,
-                keyFingerprint,
-                cachedHistory
-            )
-        }
-        cache.writePriceHistory(
-            appId = appId,
-            countryCode = normalizedCountry,
-            value = points,
-            expiresAtMillis = now + PRICE_HISTORY_CACHE_MILLIS
-        )
-        return ItadPriceHistoryLoadResult.Success(points = points, fromCache = false)
-    }
-
     private fun handleApiFailure(
         result: ItadApiResult<*>,
         keyFingerprint: String,
@@ -258,58 +159,6 @@ class ItadHistoryLowRepository internal constructor(
         ItadHistoryLowLoadResult.Success(it.value, fromCache = true, stale = true)
     } ?: failure(kind)
 
-    private fun handlePriceHistoryApiFailure(
-        result: ItadApiResult<*>,
-        keyFingerprint: String,
-        cachedHistory: ItadCachedValue<List<ItadPriceHistoryPoint>>?
-    ): ItadPriceHistoryLoadResult {
-        val failure = when (result) {
-            is ItadApiResult.RateLimited -> {
-                cache.writeRetryAfter(keyFingerprint, result.retryAfterEpochMillis)
-                ItadPriceHistoryLoadResult.Failure(
-                    kind = ItadHistoryLowFailureKind.RATE_LIMITED,
-                    retryAfterEpochMillis = result.retryAfterEpochMillis
-                )
-            }
-            is ItadApiResult.HttpFailure -> ItadPriceHistoryLoadResult.Failure(
-                if (result.statusCode == 401 || result.statusCode == 403) {
-                    ItadHistoryLowFailureKind.UNAUTHORIZED
-                } else {
-                    ItadHistoryLowFailureKind.SERVICE
-                }
-            )
-            ItadApiResult.NetworkFailure -> ItadPriceHistoryLoadResult.Failure(
-                ItadHistoryLowFailureKind.NETWORK
-            )
-            ItadApiResult.InvalidResponse -> ItadPriceHistoryLoadResult.Failure(
-                ItadHistoryLowFailureKind.INVALID_RESPONSE
-            )
-            is ItadApiResult.Success<*> -> ItadPriceHistoryLoadResult.Failure(
-                ItadHistoryLowFailureKind.INVALID_RESPONSE
-            )
-        }
-        val mayUseStaleCache = (failure as? ItadPriceHistoryLoadResult.Failure)?.kind !=
-            ItadHistoryLowFailureKind.UNAUTHORIZED
-        return cachedHistory?.takeIf { mayUseStaleCache }?.let {
-            ItadPriceHistoryLoadResult.Success(
-                points = it.value,
-                fromCache = true,
-                stale = true
-            )
-        } ?: failure
-    }
-
-    private fun cachedPriceHistoryOrFailure(
-        cachedHistory: ItadCachedValue<List<ItadPriceHistoryPoint>>?,
-        kind: ItadHistoryLowFailureKind
-    ): ItadPriceHistoryLoadResult = cachedHistory?.let {
-        ItadPriceHistoryLoadResult.Success(
-            points = it.value,
-            fromCache = true,
-            stale = true
-        )
-    } ?: ItadPriceHistoryLoadResult.Failure(kind)
-
     private fun failure(kind: ItadHistoryLowFailureKind) =
         ItadHistoryLowLoadResult.Failure(kind)
 
@@ -324,9 +173,7 @@ class ItadHistoryLowRepository internal constructor(
     private companion object {
         const val ITAD_HOME_URL = "https://isthereanydeal.com/"
         const val HISTORY_LOW_CACHE_MILLIS = 12L * 60L * 60L * 1_000L
-        const val PRICE_HISTORY_CACHE_MILLIS = 12L * 60L * 60L * 1_000L
         const val GAME_ID_CACHE_MILLIS = 180L * 24L * 60L * 60L * 1_000L
         const val GAME_URL_CACHE_MILLIS = 30L * 24L * 60L * 60L * 1_000L
-        const val ALL_PRICE_HISTORY_SINCE = "1970-01-01T00:00:00Z"
     }
 }

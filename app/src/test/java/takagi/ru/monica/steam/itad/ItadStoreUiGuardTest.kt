@@ -11,7 +11,7 @@ import takagi.ru.monica.steam.itad.ui.formatItadMoney
 
 class ItadStoreUiGuardTest {
     @Test
-    fun regionalPriceRowsExpandHistoryLowWithTrendAndOfficialAttribution() {
+    fun regionalPriceCardsExpandValidatedHistoryLowWithOfficialAttribution() {
         val store = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
@@ -22,13 +22,17 @@ class ItadStoreUiGuardTest {
         assertFalse(store.contains("item(key = \"itad_history_low_"))
         assertTrue(store.contains("AnimatedVisibility("))
         assertTrue(store.contains("countryCode = price.countryCode"))
+        assertTrue(store.contains("expectedCurrency = price.currency"))
+        assertTrue(store.contains("currentSteamPriceMinor = price.finalPriceMinor"))
         assertTrue(store.contains("historyCountryCode = detail.accountCountryCode"))
         assertTrue(store.contains("onOpenItadSettings = onOpenSettings"))
         assertTrue(card.contains("R.string.itad_history_low_source"))
         assertTrue(card.contains("current.historicalLow.sourceUrl"))
         assertTrue(card.contains("isthereanydeal.com"))
         assertTrue(card.contains("value = null"))
-        assertTrue(card.contains("ItadPriceTrendSection("))
+        assertTrue(card.contains("resolveItadHistoryLowCompatibility("))
+        assertTrue(card.contains("R.string.itad_history_low_region_mismatch"))
+        assertFalse(card.contains("ItadPriceTrendSection("))
     }
 
     @Test

@@ -1750,7 +1750,7 @@ private fun SteamStoreRegionalPriceSheet(
         LazyColumn(
             modifier = Modifier.fillMaxWidth().heightIn(max = 680.dp),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1819,11 +1819,6 @@ private fun SteamStoreRegionalPriceSheet(
                     )
                 }
             }
-            if (sortedPrices.isNotEmpty()) {
-                item(key = "regional_price_columns") {
-                    SteamStoreRegionalPriceHeader()
-                }
-            }
             itemsIndexed(sortedPrices, key = ::steamStoreRegionalPriceLazyKey) { _, price ->
                 SteamStoreRegionalPriceCard(
                     appId = appId,
@@ -1848,36 +1843,6 @@ private fun SteamStoreRegionalPriceSheet(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun SteamStoreRegionalPriceHeader() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(R.string.steam_library_regional_region),
-            modifier = Modifier.weight(0.9f),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = stringResource(R.string.steam_store_regional_current_discount),
-            modifier = Modifier.weight(1.2f),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = stringResource(R.string.steam_store_regional_original_header),
-            modifier = Modifier.weight(0.82f),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.width(30.dp))
     }
 }
 
@@ -1909,104 +1874,94 @@ private fun SteamStoreRegionalPriceCard(
     } else {
         unavailable
     }
-    val currentDisplay = price.cnyFinalPriceMinor?.let {
+    val cnyFinal = price.cnyFinalPriceMinor?.let {
         formatStoreRegionalPrice("CNY", it)
-    } ?: localFinal
-    val originalDisplay = price.cnyOriginalPriceMinor?.let {
+    } ?: unavailable
+    val cnyOriginal = price.cnyOriginalPriceMinor?.let {
         formatStoreRegionalPrice("CNY", it)
-    } ?: localOriginal
+    } ?: unavailable
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onToggleExpanded)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(modifier = Modifier.weight(0.9f)) {
-                    Text(
-                        text = regionalCountryName(price.countryCode),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = price.currency,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Column(modifier = Modifier.weight(1.2f)) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = currentDisplay,
-                            modifier = Modifier.weight(1f),
+                            text = regionalCountryName(price.countryCode),
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (discount > 0) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.tertiaryContainer,
-                                shape = RoundedCornerShape(7.dp)
-                            ) {
-                                Text(
-                                    text = "-$discount%",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        Text(
+                            text = price.currency,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (discount > 0) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    R.string.steam_library_regional_discount,
+                                    discount
+                                ),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
-                    Text(
-                        text = localFinal,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    Icon(
+                        imageVector = if (expanded) {
+                            Icons.Default.ExpandLess
+                        } else {
+                            Icons.Default.ExpandMore
+                        },
+                        contentDescription = stringResource(
+                            if (expanded) R.string.collapse else R.string.expand
+                        ),
+                        modifier = Modifier.size(30.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Column(modifier = Modifier.weight(0.82f)) {
-                    Text(
-                        text = originalDisplay,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textDecoration = if (discount > 0) TextDecoration.LineThrough else null,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SteamStoreRegionalPriceColumn(
+                        label = stringResource(R.string.steam_library_regional_local_price),
+                        finalPrice = localFinal,
+                        originalPrice = localOriginal,
+                        discounted = discount > 0,
+                        modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        text = localOriginal,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textDecoration = if (discount > 0) TextDecoration.LineThrough else null,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    SteamStoreRegionalPriceColumn(
+                        label = stringResource(R.string.steam_library_regional_cny_price),
+                        finalPrice = cnyFinal,
+                        originalPrice = cnyOriginal,
+                        discounted = discount > 0,
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = stringResource(
-                        if (expanded) R.string.collapse else R.string.expand
-                    ),
-                    modifier = Modifier.size(30.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
             AnimatedVisibility(
                 visible = expanded,
@@ -2026,12 +1981,48 @@ private fun SteamStoreRegionalPriceCard(
                     ItadHistoryLowSection(
                         appId = appId,
                         countryCode = price.countryCode,
+                        expectedCurrency = price.currency,
+                        currentSteamPriceMinor = price.finalPriceMinor.takeIf {
+                            price.isAvailable
+                        },
                         onOpenSettings = onOpenItadSettings,
                         modifier = Modifier.padding(14.dp)
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SteamStoreRegionalPriceColumn(
+    label: String,
+    finalPrice: String,
+    originalPrice: String,
+    discounted: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = finalPrice,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = stringResource(R.string.steam_store_regional_original_price, originalPrice),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textDecoration = if (discounted) TextDecoration.LineThrough else null,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

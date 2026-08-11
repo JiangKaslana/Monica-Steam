@@ -4422,7 +4422,7 @@
     <string name="itad_attribution_notice">史低数据由 IsThereAnyDeal 提供。Monica Steam 与 IsThereAnyDeal 无隶属关系。</string>
     <string name="itad_open_link_failed">没有可打开此链接的应用</string>
     <string name="itad_history_low_title">全平台历史最低价</string>
-    <string name="itad_history_low_description">当前地区在授权商店中记录到的最低价格</string>
+    <string name="itad_history_low_description">所选区服在授权商店中记录到的最低价格</string>
     <string name="itad_history_low_loading">正在加载史低数据…</string>
     <string name="itad_history_low_date">记录日期：%1$s</string>
     <string name="itad_history_low_source">数据由 IsThereAnyDeal 提供</string>
@@ -4438,15 +4438,8 @@
     <string name="itad_history_low_service_error">IsThereAnyDeal 返回了暂不可用或无法识别的数据。</string>
     <string name="itad_history_low_open_settings">配置 API Key</string>
     <string name="itad_history_low_retry">重试</string>
-    <string name="itad_price_trend_title">价格趋势</string>
-    <string name="itad_price_trend_description">根据 IsThereAnyDeal 历史记录重建授权商店中的最低可用价</string>
-    <string name="itad_price_trend_loading">正在加载价格历史…</string>
-    <string name="itad_price_trend_unavailable">价格历史暂时不可用。</string>
-    <string name="itad_price_trend_empty">该时间范围内暂无价格变动记录。</string>
-    <string name="itad_price_trend_six_months">6 个月</string>
-    <string name="itad_price_trend_twelve_months">12 个月</string>
-    <string name="itad_price_trend_all">全部</string>
-    <string name="itad_price_trend_summary">史低 %1$s · %2$d 次变价</string>
+    <string name="itad_history_low_region_mismatch">IsThereAnyDeal 暂无与该 Steam 区服匹配的史低记录。</string>
+    <string name="itad_history_low_current_price_is_lower">当前 Steam 价格低于 IsThereAnyDeal 已记录史低，数据更新前不显示该记录。</string>
     <string name="steam_store_hint_settings_description">控制已拥有、家庭共享、愿望单和游戏标签提示。</string>
     <string name="steam_store_hint_status_section">账号状态提示</string>
     <string name="steam_store_hint_content_section">商店内容</string>
@@ -4532,8 +4525,7 @@
     <string name="steam_store_locked_purchase_disabled">当前账号地区无法购买此游戏，仍可查看多区价格或打开 Steam 官方页面。</string>
     <string name="steam_store_regional_price_action">多区比价</string>
     <string name="steam_store_regional_price_description">查看各区原价、现价与人民币换算</string>
-    <string name="steam_store_regional_current_discount">现价 / 折扣</string>
-    <string name="steam_store_regional_original_header">原价</string>
+    <string name="steam_store_regional_original_price">原价 %1$s</string>
     <string name="steam_store_open_detail">打开游戏详情</string>
     <string name="steam_store_detail_loading">正在加载游戏详情…</string>
     <string name="steam_store_detail_unavailable">暂时无法加载游戏详情</string>

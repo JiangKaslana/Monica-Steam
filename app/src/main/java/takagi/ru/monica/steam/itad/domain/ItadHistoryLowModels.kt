@@ -23,15 +23,32 @@ data class ItadHistoricalLow(
     val fetchedAtMillis: Long
 )
 
-@Serializable
-data class ItadPriceHistoryPoint(
-    val timestamp: String,
-    val shopId: Int,
-    val shopName: String,
-    val price: ItadMoney?,
-    val regular: ItadMoney?,
-    val discountPercent: Int
-)
+enum class ItadHistoryLowCompatibility {
+    COMPATIBLE,
+    CURRENCY_MISMATCH,
+    CURRENT_STEAM_PRICE_IS_LOWER
+}
+
+internal fun resolveItadHistoryLowCompatibility(
+    historicalLow: ItadHistoricalLow,
+    expectedCurrency: String?,
+    currentSteamPriceMinor: Long?
+): ItadHistoryLowCompatibility {
+    val normalizedCurrency = expectedCurrency.orEmpty().trim().uppercase(Locale.ROOT)
+    if (normalizedCurrency.isNotEmpty() &&
+        (historicalLow.price.currency.uppercase(Locale.ROOT) != normalizedCurrency ||
+            historicalLow.regular.currency.uppercase(Locale.ROOT) != normalizedCurrency)
+    ) {
+        return ItadHistoryLowCompatibility.CURRENCY_MISMATCH
+    }
+    if (currentSteamPriceMinor != null &&
+        currentSteamPriceMinor >= 0L &&
+        historicalLow.price.amountInt > currentSteamPriceMinor
+    ) {
+        return ItadHistoryLowCompatibility.CURRENT_STEAM_PRICE_IS_LOWER
+    }
+    return ItadHistoryLowCompatibility.COMPATIBLE
+}
 
 enum class ItadHistoryLowFailureKind {
     API_KEY_MISSING,
@@ -55,19 +72,6 @@ sealed interface ItadHistoryLowLoadResult {
         val kind: ItadHistoryLowFailureKind,
         val retryAfterEpochMillis: Long? = null
     ) : ItadHistoryLowLoadResult
-}
-
-sealed interface ItadPriceHistoryLoadResult {
-    data class Success(
-        val points: List<ItadPriceHistoryPoint>,
-        val fromCache: Boolean,
-        val stale: Boolean = false
-    ) : ItadPriceHistoryLoadResult
-
-    data class Failure(
-        val kind: ItadHistoryLowFailureKind,
-        val retryAfterEpochMillis: Long? = null
-    ) : ItadPriceHistoryLoadResult
 }
 
 object ItadCountryPolicy {

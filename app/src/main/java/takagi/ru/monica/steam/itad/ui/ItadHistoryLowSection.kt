@@ -47,14 +47,18 @@ import java.util.Locale
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.itad.data.ItadHistoryLowRepository
 import takagi.ru.monica.steam.itad.domain.ItadHistoricalLow
+import takagi.ru.monica.steam.itad.domain.ItadHistoryLowCompatibility
 import takagi.ru.monica.steam.itad.domain.ItadHistoryLowFailureKind
 import takagi.ru.monica.steam.itad.domain.ItadHistoryLowLoadResult
 import takagi.ru.monica.steam.itad.domain.ItadMoney
+import takagi.ru.monica.steam.itad.domain.resolveItadHistoryLowCompatibility
 
 @Composable
 fun ItadHistoryLowSection(
     appId: Int,
     countryCode: String?,
+    expectedCurrency: String?,
+    currentSteamPriceMinor: Long?,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -113,21 +117,35 @@ fun ItadHistoryLowSection(
 
         when (val current = result) {
             null -> ItadHistoryLowLoading()
-            is ItadHistoryLowLoadResult.Success -> ItadHistoryLowSuccess(
-                result = current,
-                onOpenSource = { openOfficialItadUrl(context, current.historicalLow.sourceUrl) }
-            )
+            is ItadHistoryLowLoadResult.Success -> when (
+                resolveItadHistoryLowCompatibility(
+                    historicalLow = current.historicalLow,
+                    expectedCurrency = expectedCurrency,
+                    currentSteamPriceMinor = currentSteamPriceMinor
+                )
+            ) {
+                ItadHistoryLowCompatibility.COMPATIBLE -> ItadHistoryLowSuccess(
+                    result = current,
+                    onOpenSource = {
+                        openOfficialItadUrl(context, current.historicalLow.sourceUrl)
+                    }
+                )
+                ItadHistoryLowCompatibility.CURRENCY_MISMATCH -> ItadHistoryLowMismatch(
+                    message = stringResource(R.string.itad_history_low_region_mismatch),
+                    onRetry = { reloadToken++ }
+                )
+                ItadHistoryLowCompatibility.CURRENT_STEAM_PRICE_IS_LOWER ->
+                    ItadHistoryLowMismatch(
+                        message = stringResource(
+                            R.string.itad_history_low_current_price_is_lower
+                        ),
+                        onRetry = { reloadToken++ }
+                    )
+            }
             is ItadHistoryLowLoadResult.Failure -> ItadHistoryLowFailure(
                 failure = current,
                 onOpenSettings = onOpenSettings,
                 onRetry = { reloadToken++ }
-            )
-        }
-        if (result is ItadHistoryLowLoadResult.Success) {
-            ItadPriceTrendSection(
-                repository = repository,
-                appId = appId,
-                countryCode = countryCode
             )
         }
     }
@@ -287,6 +305,33 @@ private fun ItadHistoryLowFailure(
         FilledTonalButton(onClick = onRetry) {
             Text(stringResource(R.string.itad_history_low_retry))
         }
+    }
+}
+
+@Composable
+private fun ItadHistoryLowMismatch(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = Icons.Default.CloudOff,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = message,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    FilledTonalButton(onClick = onRetry) {
+        Text(stringResource(R.string.itad_history_low_retry))
     }
 }
 

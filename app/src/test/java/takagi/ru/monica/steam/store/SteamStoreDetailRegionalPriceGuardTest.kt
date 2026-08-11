@@ -5,6 +5,7 @@ import takagi.ru.monica.steam.store.presentation.*
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,7 +27,9 @@ class SteamStoreDetailRegionalPriceGuardTest {
         assertTrue(detail.contains("appId = detail.appId"))
         assertTrue(detail.contains("historyCountryCode = detail.accountCountryCode"))
         assertTrue(detail.contains("onOpenItadSettings = onOpenItadSettings"))
-        assertTrue(detail.contains("SteamStoreRegionalPriceHeader("))
+        assertFalse(detail.contains("SteamStoreRegionalPriceHeader("))
+        assertTrue(detail.contains("SteamStoreRegionalPriceColumn("))
+        assertTrue(detail.contains("Arrangement.spacedBy(16.dp)"))
         assertTrue(detail.contains("onToggleExpanded"))
     }
 
