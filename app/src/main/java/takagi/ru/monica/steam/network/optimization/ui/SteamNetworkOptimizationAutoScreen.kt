@@ -79,7 +79,7 @@ fun SteamNetworkOptimizationAutoScreen(
         ?.result
         ?.missingHostnames
         ?: summary?.missingHostnames.orEmpty()
-    val dynamicOptimizationEnabled = resolverSettings.hasPreferredProviders
+    val dynamicOptimizationEnabled = resolverSettings.dynamicDnsEnabled
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -135,6 +135,10 @@ fun SteamNetworkOptimizationAutoScreen(
                     },
                     onDisable = {
                         optimizationViewModel.cancelScan()
+                        SteamNetworkResolverSettingsRuntime.setDynamicDnsEnabled(
+                            applicationContext,
+                            false
+                        )
                         SteamNetworkResolverSettingsRuntime.clearScanPreference(applicationContext)
                         SteamNetworkOptimizationRuntime.setEnabled(applicationContext, false)
                     }
