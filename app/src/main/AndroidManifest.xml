@@ -153,14 +153,19 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <activity android:name="com.microsoft.identity.common.internal.providers.oauth2.AuthorizationActivity" tools:node="remove" />
-        <activity android:name="com.microsoft.identity.common.internal.providers.oauth2.CurrentTaskAuthorizationActivity" tools:node="remove" />
-        <activity android:name="com.microsoft.identity.client.helper.BrokerHelperActivity" tools:node="remove" />
-        <activity android:name="com.microsoft.identity.client.BrowserTabActivity" tools:node="remove" />
-        <activity android:name="com.microsoft.identity.client.CurrentTaskBrowserTabActivity" tools:node="remove" />
-        <activity android:name="com.microsoft.identity.common.internal.providers.oauth2.SilentAuthorizationActivity" tools:node="remove" />
-        <activity android:name="com.microsoft.identity.common.internal.broker.BrokerActivity" tools:node="remove" />
-        <activity android:name="com.microsoft.identity.common.internal.broker.InstallCertActivityLauncher" tools:node="remove" />
+        <activity
+            android:name="com.microsoft.identity.client.BrowserTabActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="msauth"
+                    android:host="takagi.ru.monica"
+                    android:path="/FwPDMDAjg96+0gxjMKKmnQS/dQA=" />
+            </intent-filter>
+        </activity>
         <service android:name="androidx.credentials.playservices.CredentialProviderMetadataHolder" tools:node="remove" />
         <activity android:name="androidx.credentials.playservices.HiddenActivity" tools:node="remove" />
         <activity android:name="com.google.android.gms.auth.api.signin.internal.SignInHubActivity" tools:node="remove" />

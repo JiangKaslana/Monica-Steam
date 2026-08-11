@@ -18,9 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import takagi.ru.monica.R
+import takagi.ru.monica.data.MdbxEngineType
 import takagi.ru.monica.data.MdbxUnlockMethod
 import takagi.ru.monica.data.MdbxTigaMode
 import takagi.ru.monica.mdbx.MdbxDiagLogger
@@ -46,8 +46,10 @@ fun MdbxLocalCreateScreen(
     var keyFile by remember { mutableStateOf<MdbxKeyFileSelection?>(null) }
     var keyFileError by remember { mutableStateOf<String?>(null) }
     var selectedTigaMode by remember { mutableStateOf(MdbxTigaMode.MULTI) }
+    var selectedEngine by remember { mutableStateOf(MdbxEngineType.RUST_MDBX2) }
     var useCustomDirectory by remember { mutableStateOf(false) }
     var customDirectoryUri by remember { mutableStateOf<Uri?>(null) }
+    var submitted by remember { mutableStateOf(false) }
 
     val passwordRequired = unlockMethod == MdbxUnlockMethod.MASTER_PASSWORD ||
         unlockMethod == MdbxUnlockMethod.MASTER_PASSWORD_AND_KEY_FILE
@@ -96,9 +98,16 @@ fun MdbxLocalCreateScreen(
     LaunchedEffect(Unit) {
         viewModel.clearOperationState()
     }
-    LaunchedEffect(operationState) {
-        if (operationState is MdbxViewModel.OperationState.Success) {
-            delay(1200)
+    LaunchedEffect(selectedEngine) {
+        if (selectedEngine == MdbxEngineType.RUST_MDBX2) {
+            unlockMethod = MdbxUnlockMethod.MASTER_PASSWORD
+            keyFile = null
+        }
+    }
+    LaunchedEffect(operationState, submitted) {
+        if (submitted && operationState is MdbxViewModel.OperationState.Success) {
+            submitted = false
+            viewModel.clearOperationState()
             onNavigateBack()
         }
     }
@@ -119,69 +128,77 @@ fun MdbxLocalCreateScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            MdbxEngineTypeSection(
+                selectedEngine = selectedEngine,
+                onEngineChange = { selectedEngine = it },
+                remote = false,
+                selectedTigaMode = selectedTigaMode,
+                onTigaModeChange = { selectedTigaMode = it }
+            )
+
             // === Card: Storage Location ===
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
+            AnimatedVisibility(
+                visible = true,
+                enter = expandVertically() + fadeIn()
             ) {
-                Column(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
                 ) {
-                    ListItem(
-                        headlineContent = { Text("存储位置", style = MaterialTheme.typography.titleMedium) },
-                        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
-                    )
-                    ListItem(
-                        headlineContent = { Text("保存到指定本地文件夹") },
-                        supportingContent = {
-                            Text(
-                                customDirectoryUri?.lastPathSegment
-                                    ?: stringResource(R.string.mdbx_local_create_hint)
-                            )
-                        },
-                        leadingContent = {
-                            Icon(
-                                Icons.Default.FolderOpen,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = useCustomDirectory,
-                                onCheckedChange = { useCustomDirectory = it }
-                            )
-                        },
-                        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
-                    )
-                    AnimatedVisibility(
-                        visible = useCustomDirectory,
-                        enter = expandVertically() + fadeIn()
+                    Column(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = { directoryPickerLauncher.launch(null) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ListItem(
+                            headlineContent = { Text("存储位置", style = MaterialTheme.typography.titleMedium) },
+                            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                        )
+                        ListItem(
+                            headlineContent = { Text("保存到指定本地文件夹") },
+                            supportingContent = {
+                                Text(
+                                    customDirectoryUri?.lastPathSegment
+                                        ?: stringResource(R.string.mdbx_local_create_hint)
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    Icons.Default.FolderOpen,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = useCustomDirectory,
+                                    onCheckedChange = { useCustomDirectory = it }
+                                )
+                            },
+                            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                        )
+                        AnimatedVisibility(
+                            visible = useCustomDirectory,
+                            enter = expandVertically() + fadeIn()
                         ) {
-                            Icon(Icons.Default.CreateNewFolder, null, Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.mdbx_select_directory))
+                            OutlinedButton(
+                                onClick = { directoryPickerLauncher.launch(null) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Icon(Icons.Default.CreateNewFolder, null, Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.mdbx_select_directory))
+                            }
                         }
                     }
                 }
             }
-
-            // === Card: Tiga Mode ===
-            MdbxTigaModeSection(
-                selectedTigaMode = selectedTigaMode,
-                onTigaModeChange = { selectedTigaMode = it }
-            )
 
             // === Card: Vault Settings ===
             Card(
@@ -207,21 +224,22 @@ fun MdbxLocalCreateScreen(
                         onConfirmPasswordChange = { confirmPassword = it },
                         passwordRequired = passwordRequired
                     )
+                    MdbxUnlockMethodSection(
+                        unlockMethod = unlockMethod,
+                        onUnlockMethodChange = { unlockMethod = it },
+                        includeDeviceKey = selectedEngine == MdbxEngineType.RUST_MDBX2,
+                        embedded = true
+                    )
+                    MdbxKeyFileSection(
+                        keyFile = keyFile,
+                        keyFileError = keyFileError,
+                        keyFileRequired = keyFileRequired,
+                        onPickKeyFile = { keyFilePickerLauncher.launch(arrayOf("*/*")) },
+                        onGenerateKeyFile = { keyFileCreateLauncher.launch("monica-mdbx.key") },
+                        embedded = true
+                    )
                 }
             }
-
-            MdbxUnlockMethodSection(
-                unlockMethod = unlockMethod,
-                onUnlockMethodChange = { unlockMethod = it }
-            )
-
-            MdbxKeyFileSection(
-                keyFile = keyFile,
-                keyFileError = keyFileError,
-                keyFileRequired = keyFileRequired,
-                onPickKeyFile = { keyFilePickerLauncher.launch(arrayOf("*/*")) },
-                onGenerateKeyFile = { keyFileCreateLauncher.launch("monica-mdbx.key") }
-            )
 
             // === Submit Button ===
             val isFormValid = vaultName.isNotBlank() &&
@@ -235,6 +253,7 @@ fun MdbxLocalCreateScreen(
 
             Button(
                 onClick = {
+                    submitted = true
                     MdbxDiagLogger.append(
                         "[MDBX][MdbxLocalCreateScreen] submitClicked name=${vaultName.trim().ifBlank { "<blank>" }} useCustomDirectory=$useCustomDirectory hasCustomUri=${customDirectoryUri != null} unlock=${unlockMethod.name} passwordRequired=$passwordRequired keyFileRequired=$keyFileRequired hasKeyFile=${keyFile != null} formValid=$isFormValid"
                     )
@@ -245,7 +264,8 @@ fun MdbxLocalCreateScreen(
                         keyFile = keyFile,
                         tigaMode = selectedTigaMode,
                         description = null,
-                        customDirectoryUri = if (useCustomDirectory) customDirectoryUri else null
+                        customDirectoryUri = if (useCustomDirectory) customDirectoryUri else null,
+                        engineType = selectedEngine
                     )
                 },
                 enabled = isFormValid,

@@ -432,11 +432,11 @@ dependencies {
     compileOnly libs.androidx.slice.builders
     
     // Credentials API (for Passkey support, Android 14+)
-    compileOnly "androidx.credentials:credentials:1.3.0"
-    compileOnly "androidx.credentials:credentials-play-services-auth:1.3.0"
+    implementation "androidx.credentials:credentials:1.3.0"
+    implementation "androidx.credentials:credentials-play-services-auth:1.3.0"
     
     // Google Play Services Auth (for SMS Retriever API - OTP auto-read)
-    compileOnly libs.play.services.auth
+    implementation libs.play.services.auth
     
     // DataStore
     implementation libs.androidx.datastore.preferences
@@ -506,8 +506,8 @@ dependencies {
     implementation libs.apng
 
     // Microsoft identity platform / OneDrive auth
-    compileOnly 'com.microsoft.identity.client:msal:8.3.2'
-    compileOnly 'com.squareup.moshi:moshi-adapters:1.15.1'
+    implementation 'com.microsoft.identity.client:msal:8.3.2'
+    implementation 'com.squareup.moshi:moshi-adapters:1.15.1'
     
     // BouncyCastle for Argon2 (Bitwarden KDF support)
     implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'

@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,27 +20,36 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import takagi.ru.monica.R
 import takagi.ru.monica.attachments.data.AttachmentDao
 import takagi.ru.monica.attachments.model.Attachment
 import takagi.ru.monica.attachments.model.AttachmentDownloadState
 import takagi.ru.monica.attachments.model.AttachmentSource
+import takagi.ru.monica.attachments.storage.AttachmentStorage
 import takagi.ru.monica.data.CustomField
 import takagi.ru.monica.data.CustomFieldDao
 import takagi.ru.monica.data.ItemType
 import takagi.ru.monica.data.LocalMdbxDatabase
 import takagi.ru.monica.data.LocalMdbxDatabaseDao
+import takagi.ru.monica.data.MdbxCapability
 import takagi.ru.monica.data.MdbxRemoteSource
 import takagi.ru.monica.data.MdbxRemoteSourceDao
+import takagi.ru.monica.data.MdbxEngineType
 import takagi.ru.monica.data.MdbxSourceType
 import takagi.ru.monica.data.MdbxStorageLocation
 import takagi.ru.monica.data.MdbxSyncStatus
+import takagi.ru.monica.data.MdbxSyncStateStore
 import takagi.ru.monica.data.MdbxTigaMode
 import takagi.ru.monica.data.MdbxUnlockMethod
+import takagi.ru.monica.data.resolvedActiveFilePath
+import takagi.ru.monica.data.supports
+import takagi.ru.monica.data.isRemoteSource
 import takagi.ru.monica.data.PasskeyDao
 import takagi.ru.monica.data.PasskeyEntry
 import takagi.ru.monica.passkey.PasskeyPrivateKeyStore
 import takagi.ru.monica.data.PasswordEntry
 import takagi.ru.monica.data.PasswordEntryDao
+import takagi.ru.monica.data.PasswordDatabase
 import takagi.ru.monica.data.SecureItem
 import takagi.ru.monica.data.SecureItemDao
 import takagi.ru.monica.mdbx.MdbxDiagLogger
@@ -49,6 +59,13 @@ import takagi.ru.monica.repository.MdbxCommitDiff
 import takagi.ru.monica.repository.MdbxDeltaSummary
 import takagi.ru.monica.repository.MdbxApplyResult
 import takagi.ru.monica.repository.MdbxBenchmarkResult
+import takagi.ru.monica.repository.MdbxHealthRepairApplyResult
+import takagi.ru.monica.repository.MdbxHealthRepairBlocker
+import takagi.ru.monica.repository.MdbxHealthRepairChoice
+import takagi.ru.monica.repository.MdbxHealthRepairDecision
+import takagi.ru.monica.repository.MdbxHealthRepairItem
+import takagi.ru.monica.repository.MdbxHealthRepairPlan
+import takagi.ru.monica.repository.MdbxHealthRepairStatus
 import takagi.ru.monica.repository.MdbxSnapshotSummary
 import takagi.ru.monica.repository.MdbxStoredAttachment
 import takagi.ru.monica.repository.MdbxStoredVaultEntry
@@ -59,6 +76,18 @@ import takagi.ru.monica.repository.MdbxVaultCredential
 import takagi.ru.monica.repository.MdbxVaultCrypto
 import takagi.ru.monica.repository.MdbxVaultDiagnostics
 import takagi.ru.monica.repository.MdbxVaultStore
+import takagi.ru.monica.repository.Mdbx2Repository
+import takagi.ru.monica.repository.Mdbx2RemoteSyncCoordinator
+import takagi.ru.monica.repository.Mdbx2RepositorySyncSessionProvider
+import takagi.ru.monica.repository.Mdbx2VaultSessionExecutor
+import takagi.ru.monica.repository.MdbxMigrationLifecycle
+import takagi.ru.monica.repository.MdbxMigrationPlan
+import takagi.ru.monica.repository.MdbxMigrationPlanner
+import takagi.ru.monica.repository.MdbxMigrationPreview
+import takagi.ru.monica.repository.MdbxMigrationVerification
+import takagi.ru.monica.repository.MdbxRepository
+import takagi.ru.monica.repository.MdbxRepositoryRouter
+import takagi.ru.monica.repository.toPreview
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.sync.SyncDiagnostics
 import takagi.ru.monica.sync.SyncMode
@@ -75,16 +104,48 @@ import takagi.ru.monica.utils.OneDriveAuthManager
 import takagi.ru.monica.utils.OneDriveKeePassFileSource
 import takagi.ru.monica.utils.OneDriveMdbxFileSource
 import takagi.ru.monica.utils.WebDavMdbxFileSource
+import takagi.ru.monica.utils.MdbxRemoteTransport
+import takagi.ru.monica.utils.MdbxRemoteSyncPaths
+import takagi.ru.monica.utils.WebDavMdbxRemoteTransport
+import takagi.ru.monica.utils.OneDriveMdbxRemoteTransport
 import takagi.ru.monica.util.TotpDataResolver
 import java.io.File
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
 import java.text.Normalizer
 import java.util.Date
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.measureTimeMillis
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+
+internal sealed interface MdbxSnapshotCreationPlan {
+    data class Create(val fullSnapshot: Boolean) : MdbxSnapshotCreationPlan
+    data object ConfirmFullSnapshot : MdbxSnapshotCreationPlan
+}
+
+internal fun planMdbxSnapshotCreation(
+    requestedFullSnapshot: Boolean,
+    engineRequiresFullSnapshot: Boolean,
+    currentHeadCommitId: String?,
+    latestSnapshotBaseCommitId: String?
+): MdbxSnapshotCreationPlan {
+    if (requestedFullSnapshot) {
+        return MdbxSnapshotCreationPlan.Create(fullSnapshot = true)
+    }
+    val unchangedSinceLatestSnapshot =
+        !currentHeadCommitId.isNullOrBlank() &&
+            currentHeadCommitId == latestSnapshotBaseCommitId
+    if (unchangedSinceLatestSnapshot) {
+        return MdbxSnapshotCreationPlan.ConfirmFullSnapshot
+    }
+    return MdbxSnapshotCreationPlan.Create(
+        fullSnapshot = engineRequiresFullSnapshot
+    )
+}
 
 class MdbxViewModel(
     application: Application,
@@ -99,7 +160,9 @@ class MdbxViewModel(
 ) : AndroidViewModel(application) {
 
     private val context: Context get() = getApplication()
-    private val vaultStore = MdbxVaultStore(
+    private val roomDatabase by lazy { PasswordDatabase.getDatabase(context.applicationContext) }
+    private val attachmentStorage by lazy { AttachmentStorage(context.applicationContext) }
+    private val legacyVaultStore = MdbxVaultStore(
         context.applicationContext,
         databaseDao,
         securityManager,
@@ -108,6 +171,30 @@ class MdbxViewModel(
         secureItemDao,
         customFieldDao
     )
+    private val mdbx2Repository = Mdbx2Repository(
+        context = context.applicationContext,
+        databaseDao = databaseDao,
+        securityManager = securityManager,
+        passwordEntryDao = passwordEntryDao,
+        secureItemDao = secureItemDao,
+        customFieldDao = customFieldDao
+    )
+    private val vaultStore: MdbxRepository = MdbxRepositoryRouter(
+        databaseDao = databaseDao,
+        legacyRepository = legacyVaultStore,
+        rustRepository = mdbx2Repository
+    )
+
+    private val mdbx2SyncStateStore by lazy {
+        MdbxSyncStateStore(roomDatabase.mdbxSyncStateDao())
+    }
+    private val mdbx2RemoteSyncCoordinator by lazy {
+        Mdbx2RemoteSyncCoordinator(
+            rootDirectory = File(context.filesDir, "mdbx2-sync"),
+            sessions = Mdbx2RepositorySyncSessionProvider(mdbx2Repository),
+            stateStore = mdbx2SyncStateStore
+        )
+    }
 
     private val _allDatabasesLoaded = MutableStateFlow(false)
     val allDatabasesLoaded: StateFlow<Boolean> = _allDatabasesLoaded.asStateFlow()
@@ -116,8 +203,17 @@ class MdbxViewModel(
         .onEach { _allDatabasesLoaded.value = true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            normalizeExistingRemoteVaultNames()
+        }
+    }
+
     private val _operationState = MutableStateFlow<OperationState>(OperationState.Idle)
     val operationState: StateFlow<OperationState> = _operationState.asStateFlow()
+
+    private val _migrationState = MutableStateFlow<MdbxMigrationState>(MdbxMigrationState.Hidden)
+    val migrationState: StateFlow<MdbxMigrationState> = _migrationState.asStateFlow()
 
     private val _conflictCounts = MutableStateFlow<Map<Long, Int>>(emptyMap())
     val conflictCounts: StateFlow<Map<Long, Int>> = _conflictCounts.asStateFlow()
@@ -144,6 +240,12 @@ class MdbxViewModel(
     val advancedDialogState: StateFlow<MdbxAdvancedDialogState> =
         _advancedDialogState.asStateFlow()
 
+    private val _healthRepairState =
+        MutableStateFlow<MdbxHealthRepairState>(MdbxHealthRepairState.Hidden)
+    val healthRepairState: StateFlow<MdbxHealthRepairState> =
+        _healthRepairState.asStateFlow()
+    private var healthRepairJob: Job? = null
+
     private val activeVaultPrefs =
         context.applicationContext.getSharedPreferences(ACTIVE_VAULT_PREFS_NAME, Context.MODE_PRIVATE)
     private val _activeMdbxDatabaseId = MutableStateFlow(
@@ -164,6 +266,7 @@ class MdbxViewModel(
         const val NO_ACTIVE_VAULT_ID = -1L
         const val ACTIVE_PRELOAD_MIN_INTERVAL_MS = 2_000L
         const val VISIBLE_MDBX_AUTO_SYNC_THROTTLE_MS = 15_000L
+        const val MDBX2_FORMAT_VERSION = "MDBX-2"
     }
 
     private data class CachedDeltaHistory(
@@ -221,6 +324,9 @@ class MdbxViewModel(
                 val diagnostic = withContext(Dispatchers.IO) {
                     val database = databaseDao.getDatabaseById(databaseId)
                         ?: return@withContext null
+                    if (database.engineTypeEnum == MdbxEngineType.RUST_MDBX2) {
+                        importEntriesFromVault(database.id)
+                    }
                     val diagnostic = vaultStore.getVaultDiagnostics(database.id)
                     deltas = vaultStore.listDeltaHistory(database.id)
                     snapshots = vaultStore.listSnapshots(database.id)
@@ -327,13 +433,14 @@ class MdbxViewModel(
         keyFile: MdbxKeyFileSelection?,
         tigaMode: MdbxTigaMode,
         description: String?,
-        customDirectoryUri: Uri? = null
+        customDirectoryUri: Uri? = null,
+        engineType: MdbxEngineType = MdbxEngineType.RUST_MDBX2
     ) {
         viewModelScope.launch {
             _operationState.value = OperationState.Loading("Creating local MDBX vault...")
             val requestedName = name.trim()
             MdbxDiagLogger.append(
-                "[MDBX][createLocalVault] start name=${requestedName.ifBlank { "<blank>" }} customDir=${customDirectoryUri != null} uri=${customDirectoryUri ?: "-"} unlock=${unlockMethod.name} tiga=${tigaMode.name}"
+                "[MDBX][createLocalVault] start name=${requestedName.ifBlank { "<blank>" }} customDir=${customDirectoryUri != null} uri=${customDirectoryUri ?: "-"} unlock=${unlockMethod.name} tiga=${tigaMode.name} engine=${engineType.name}"
             )
 
             try {
@@ -341,17 +448,55 @@ class MdbxViewModel(
                     val displayName = name.trim().ifBlank {
                         throw IllegalArgumentException("Vault name cannot be empty")
                     }
-                    val credential = buildCredential(unlockMethod, masterPassword, keyFile)
-                    val customDirVault = customDirectoryUri?.let { uri ->
-                        createVaultFileInCustomDir(uri, displayName, tigaMode.name, credential)
+                    val deviceKeyBytes = if (
+                        engineType == MdbxEngineType.RUST_MDBX2 &&
+                        unlockMethod == MdbxUnlockMethod.DEVICE_KEY
+                    ) {
+                        MdbxVaultCrypto.generateDeviceKeyBytes()
+                    } else {
+                        null
                     }
-                    val localVaultFile = customDirVault?.localCopy ?: run {
-                        vaultStore.createInitializedVaultFile(
+                    val credential = buildCredential(
+                        unlockMethod = unlockMethod,
+                        masterPassword = masterPassword,
+                        keyFile = keyFile,
+                        deviceKeyBytes = deviceKeyBytes
+                    )
+                    val encryptedCredential = when {
+                        engineType == MdbxEngineType.RUST_MDBX2 &&
+                            unlockMethod == MdbxUnlockMethod.DEVICE_KEY ->
+                            MdbxVaultCrypto.encodeDeviceKey(
+                                bytes = deviceKeyBytes ?: error("MDBX device key was not generated"),
+                                encrypt = securityManager::encryptData
+                            )
+                        credential.requiresPassword() -> masterPassword
+                            .let(::normalizeMdbxPassword)
+                            .let(securityManager::encryptData)
+                        else -> null
+                    }
+                    val customDirVault = customDirectoryUri
+                        ?.let { uri ->
+                        createVaultFileInCustomDir(
+                            treeUri = uri,
                             displayName = displayName,
                             tigaMode = tigaMode.name,
-                            unlockMethod = unlockMethod,
-                            credential = credential
+                            credential = credential,
+                            engineType = engineType
                         )
+                    }
+                    val localVaultFile = customDirVault?.localCopy ?: run {
+                        when (engineType) {
+                            MdbxEngineType.KOTLIN_MDBX1 -> legacyVaultStore.createInitializedVaultFile(
+                                displayName = displayName,
+                                tigaMode = tigaMode.name,
+                                unlockMethod = unlockMethod,
+                                credential = credential
+                            )
+                            MdbxEngineType.RUST_MDBX2 -> mdbx2Repository.createInitializedVaultFile(
+                                tigaMode = tigaMode,
+                                credential = credential
+                            )
+                        }
                     }
                     val storageLocation = if (customDirVault != null) {
                         MdbxStorageLocation.EXTERNAL
@@ -364,31 +509,53 @@ class MdbxViewModel(
                         MdbxSourceType.LOCAL_INTERNAL
                     }
                     val filePath = customDirVault?.externalUri?.toString() ?: localVaultFile.absolutePath
-                    val encryptedMasterPassword =
-                        masterPassword.takeIf { credential.requiresPassword() }
-                            ?.let { securityManager.encryptData(normalizeMdbxPassword(it)) }
-                    databaseDao.insertDatabase(
-                        LocalMdbxDatabase(
+                    try {
+                        databaseDao.insertDatabase(
+                            LocalMdbxDatabase(
                             name = displayName,
                             filePath = filePath,
                             storageLocation = storageLocation.name,
                             sourceType = sourceType.name,
                             sourceId = null,
+                            engineType = engineType.name,
                             tigaMode = tigaMode.name,
-                            encryptedPassword = encryptedMasterPassword,
+                            encryptedPassword = encryptedCredential,
                             unlockMethod = unlockMethod.storedValue,
-                            kdfProfile = "pbkdf2-sha256",
+                            kdfProfile = if (engineType == MdbxEngineType.RUST_MDBX2) {
+                                "argon2id-mdbx2"
+                            } else {
+                                "pbkdf2-sha256"
+                            },
                             keyFileName = keyFile?.name,
                             keyFileUri = keyFile?.uri,
                             keyFileFingerprint = keyFile?.fingerprint,
                             description = description,
-                            lastSyncedAt = null,
+                            lastSyncedAt = customDirVault?.let { System.currentTimeMillis() },
                             workingCopyPath = localVaultFile.absolutePath,
                             cacheCopyPath = localVaultFile.absolutePath,
+                            externalTreeUri = customDirVault?.externalTreeUri,
                             isOfflineAvailable = true,
-                            lastSyncStatus = MdbxSyncStatus.LOCAL_ONLY.name
+                            lastSyncStatus = if (customDirVault == null) {
+                                MdbxSyncStatus.LOCAL_ONLY.name
+                            } else {
+                                MdbxSyncStatus.IN_SYNC.name
+                            }
+                            )
                         )
-                    )
+                    } catch (error: Throwable) {
+                        if (engineType == MdbxEngineType.RUST_MDBX2) {
+                            val cleaned = mdbx2Repository.deleteOwnedVaultFile(localVaultFile)
+                            customDirVault?.externalDocument?.let { externalDocument ->
+                                runCatching {
+                                    mdbx2Repository.deleteCreatedExternalDocument(externalDocument)
+                                }
+                            }
+                            MdbxDiagLogger.append(
+                                "[MDBX2][create] room_insert_failed cleanup=$cleaned cause=${error::class.java.simpleName}"
+                            )
+                        }
+                        throw error
+                    }
                     MdbxDiagLogger.append(
                         "[MDBX][createLocalVault] inserted sourceType=${sourceType.name} storage=${storageLocation.name}"
                     )
@@ -411,6 +578,242 @@ class MdbxViewModel(
         }
     }
 
+    fun prepareMdbx2Migration(databaseId: Long) {
+        viewModelScope.launch {
+            _migrationState.value = MdbxMigrationState.Preparing(databaseId)
+            var sensitivePlan: MdbxMigrationPlan? = null
+            try {
+                val currentPlan = withContext(Dispatchers.IO) { buildMigrationPlan(databaseId) }
+                sensitivePlan = currentPlan
+                _migrationState.value = MdbxMigrationState.Ready(currentPlan.toPreview())
+            } catch (error: Throwable) {
+                _migrationState.value = MdbxMigrationState.Error(
+                    sourceDatabaseId = databaseId,
+                    message = error.message ?: "Unable to inspect the source vault"
+                )
+            } finally {
+                sensitivePlan?.clearAttachmentBlobs()
+            }
+        }
+    }
+
+    fun startMdbx2Migration(
+        sourceDatabaseId: Long,
+        targetName: String,
+        targetPassword: String
+    ) {
+        if (_migrationState.value is MdbxMigrationState.Running) return
+        viewModelScope.launch {
+            var sensitivePlan: MdbxMigrationPlan? = null
+            var preview: MdbxMigrationPreview? = null
+            try {
+                val source = withContext(Dispatchers.IO) {
+                    databaseDao.getDatabaseById(sourceDatabaseId)
+                        ?: throw IllegalStateException("Source vault not found")
+                }
+                val normalizedTargetName = targetName.trim().ifBlank {
+                    throw IllegalArgumentException("Target vault name cannot be empty")
+                }
+                val sourceFingerprint = withContext(Dispatchers.IO) { fingerprintSourceVault(source) }
+                _migrationState.value = MdbxMigrationState.Running(
+                    sourceDatabaseId,
+                    normalizedTargetName,
+                    MdbxMigrationStage.PREFLIGHT,
+                    0,
+                    1
+                )
+                val currentPlan = withContext(Dispatchers.IO) { buildMigrationPlan(sourceDatabaseId) }
+                sensitivePlan = currentPlan
+                preview = currentPlan.toPreview()
+                check(currentPlan.isEligible) { "Source vault did not pass migration preflight" }
+
+                val result = withContext(Dispatchers.IO) {
+                    MdbxMigrationLifecycle.withIsolatedTarget(
+                        createTarget = {
+                            createMdbx2MigrationTarget(
+                                source = source,
+                                name = normalizedTargetName,
+                                password = targetPassword,
+                                folderCount = currentPlan.folders.size
+                            )
+                        },
+                        cleanupTarget = { target -> deleteVaultPersistence(target) },
+                        migrateAndVerify = { target ->
+                            _migrationState.value = MdbxMigrationState.Running(
+                                sourceDatabaseId,
+                                normalizedTargetName,
+                                MdbxMigrationStage.FOLDERS,
+                                0,
+                                currentPlan.folders.size
+                            )
+                            val targetFolderIds = mdbx2Repository.createMigrationFolders(
+                                target.id,
+                                currentPlan.folders
+                            )
+
+                            _migrationState.value = MdbxMigrationState.Running(
+                                sourceDatabaseId,
+                                normalizedTargetName,
+                                MdbxMigrationStage.ENTRIES,
+                                0,
+                                currentPlan.entries.size
+                            )
+                            mdbx2Repository.importMigrationEntries(
+                                target.id,
+                                currentPlan.entries,
+                                targetFolderIds
+                            )
+
+                            _migrationState.value = MdbxMigrationState.Running(
+                                sourceDatabaseId,
+                                normalizedTargetName,
+                                MdbxMigrationStage.ATTACHMENTS,
+                                0,
+                                currentPlan.attachments.size
+                            )
+                            mdbx2Repository.importMigrationAttachments(
+                                target.id,
+                                currentPlan.attachments
+                            ) { completed, total ->
+                                _migrationState.value = MdbxMigrationState.Running(
+                                    sourceDatabaseId,
+                                    normalizedTargetName,
+                                    MdbxMigrationStage.ATTACHMENTS,
+                                    completed,
+                                    total
+                                )
+                            }
+
+                            _migrationState.value = MdbxMigrationState.Running(
+                                sourceDatabaseId,
+                                normalizedTargetName,
+                                MdbxMigrationStage.VERIFYING,
+                                0,
+                                1
+                            )
+                            val verification = mdbx2Repository.verifyMigration(
+                                target.id,
+                                currentPlan,
+                                targetFolderIds
+                            )
+                            checkSourceVaultUnchanged(source, sourceFingerprint)
+
+                            _migrationState.value = MdbxMigrationState.Running(
+                                sourceDatabaseId,
+                                normalizedTargetName,
+                                MdbxMigrationStage.IMPORTING,
+                                0,
+                                1
+                            )
+                            importEntriesFromVault(target.id)
+                            databaseDao.updateProjectCount(target.id, verification.folderCount)
+                            target to verification
+                        }
+                    )
+                }
+                invalidateMdbxViewCaches(result.first.id)
+                _migrationState.value = MdbxMigrationState.Success(
+                    sourceDatabaseId = sourceDatabaseId,
+                    targetDatabaseId = result.first.id,
+                    targetName = result.first.name,
+                    verification = result.second
+                )
+            } catch (error: Throwable) {
+                _migrationState.value = MdbxMigrationState.Error(
+                    sourceDatabaseId = sourceDatabaseId,
+                    message = error.message ?: "MDBX2 migration failed",
+                    preview = preview
+                )
+            } finally {
+                sensitivePlan?.clearAttachmentBlobs()
+            }
+        }
+    }
+
+    fun dismissMdbxMigration() {
+        if (_migrationState.value !is MdbxMigrationState.Running) {
+            _migrationState.value = MdbxMigrationState.Hidden
+        }
+    }
+
+    private suspend fun buildMigrationPlan(databaseId: Long): MdbxMigrationPlan {
+        val source = databaseDao.getDatabaseById(databaseId)
+            ?: throw IllegalStateException("Source vault not found")
+        return MdbxMigrationPlanner.build(
+            source = source,
+            folders = vaultStore.listFolders(databaseId),
+            entries = vaultStore.readStoredEntries(databaseId),
+            attachments = vaultStore.readStoredAttachments(databaseId)
+        )
+    }
+
+    private suspend fun createMdbx2MigrationTarget(
+        source: LocalMdbxDatabase,
+        name: String,
+        password: String,
+        folderCount: Int
+    ): LocalMdbxDatabase {
+        val vaultFile = mdbx2Repository.createInitializedVaultFile(source.tigaModeEnum, password)
+        val target = LocalMdbxDatabase(
+            name = name,
+            filePath = vaultFile.absolutePath,
+            storageLocation = MdbxStorageLocation.INTERNAL.name,
+            sourceType = MdbxSourceType.LOCAL_INTERNAL.name,
+            engineType = MdbxEngineType.RUST_MDBX2.name,
+            tigaMode = source.tigaModeEnum.name,
+            encryptedPassword = securityManager.encryptData(normalizeMdbxPassword(password)),
+            unlockMethod = MdbxUnlockMethod.MASTER_PASSWORD.storedValue,
+            kdfProfile = "argon2id-mdbx2",
+            description = "Migrated from MDBX1: ${source.name}",
+            projectCount = folderCount,
+            workingCopyPath = vaultFile.absolutePath,
+            cacheCopyPath = vaultFile.absolutePath,
+            isOfflineAvailable = true,
+            lastSyncStatus = MdbxSyncStatus.LOCAL_ONLY.name
+        )
+        return try {
+            val targetId = databaseDao.insertDatabase(target)
+            check(targetId > 0L) { "Unable to register the MDBX2 target vault" }
+            target.copy(id = targetId)
+        } catch (error: Throwable) {
+            val cleaned = mdbx2Repository.deleteOwnedVaultFile(vaultFile)
+            if (!cleaned) {
+                error.addSuppressed(IllegalStateException("Unable to clean the target vault file"))
+            }
+            throw error
+        }
+    }
+
+    private fun fingerprintSourceVault(source: LocalMdbxDatabase): ByteArray? {
+        val file = source.workingCopyPath?.let(::File)
+            ?: source.filePath.takeIf {
+                source.sourceTypeEnum == MdbxSourceType.LOCAL_INTERNAL
+            }?.let(::File)
+        if (file?.isFile != true) return null
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest()
+    }
+
+    private fun checkSourceVaultUnchanged(source: LocalMdbxDatabase, before: ByteArray?) {
+        if (before == null) return
+        val after = fingerprintSourceVault(source)
+        check(after != null && before.contentEquals(after)) {
+            "Source vault changed during migration; the target was discarded"
+        }
+    }
+
+    private fun MdbxMigrationPlan.clearAttachmentBlobs() {
+        attachments.forEach { it.attachment.blob.fill(0) }
+    }
+
     fun importLocalVault(
         sourceUri: Uri,
         name: String?,
@@ -427,17 +830,12 @@ class MdbxViewModel(
                 withContext(Dispatchers.IO) {
                     val sourceName = queryDisplayName(sourceUri) ?: "imported-${UUID.randomUUID()}.mdbx"
                     val displayName = name?.trim()?.takeIf { it.isNotBlank() }
-                        ?: sourceName.removeSuffix(".mdbx")
+                        ?: remoteVaultDisplayName(sourceName)
                     val fileName = if (sourceName.endsWith(".mdbx", ignoreCase = true)) {
                         sourceName
                     } else {
                         "$displayName.mdbx"
                     }
-
-                    // Verify source file is readable
-                    val sourceBytes = context.contentResolver.openInputStream(sourceUri)?.use { input ->
-                        input.readBytes()
-                    } ?: throw IllegalArgumentException("Unable to read selected MDBX file")
 
                     // Take persistent URI permissions (read + write)
                     runCatching {
@@ -448,6 +846,30 @@ class MdbxViewModel(
                     }.onFailure { error ->
                         android.util.Log.w("MdbxViewModel", "Persistable permission not granted", error)
                     }
+
+                    val mdbx2Candidate = mdbx2Repository.copyExternalDocumentToOwnedFile(sourceUri)
+                    val isMdbx2 = runCatching {
+                        mdbx2Repository.inspectVaultFormat(mdbx2Candidate)
+                    }.getOrNull().equals(MDBX2_FORMAT_VERSION, ignoreCase = true)
+                    if (isMdbx2) {
+                        importMdbx2LocalVault(
+                            sourceUri = sourceUri,
+                            displayName = displayName,
+                            workingCopy = mdbx2Candidate,
+                            masterPassword = masterPassword,
+                            unlockMethod = unlockMethod,
+                            keyFile = keyFile,
+                            tigaMode = tigaMode,
+                            description = description
+                        )
+                        return@withContext
+                    }
+                    mdbx2Repository.deleteOwnedVaultFile(mdbx2Candidate)
+
+                    // Verify source file is readable
+                    val sourceBytes = context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                        input.readBytes()
+                    } ?: throw IllegalArgumentException("Unable to read selected MDBX file")
 
                     // Write working copy and verify
                     val vaultDir = File(context.filesDir, "mdbx")
@@ -465,16 +887,16 @@ class MdbxViewModel(
 
                     // Validate and detect actual Tiga mode from existing vault
                     try {
-                        vaultStore.validateExistingVaultFile(workingCopy)
+                        legacyVaultStore.validateExistingVaultFile(workingCopy)
                     } catch (e: Exception) {
                         workingCopy.delete()
                         throw e
                     }
-                    val detectedMode = vaultStore.readTigaModeFromVaultFile(workingCopy)
-                    val detectedUnlockMethod = vaultStore.readUnlockMethodFromVaultFile(workingCopy)
+                    val detectedMode = legacyVaultStore.readTigaModeFromVaultFile(workingCopy)
+                    val detectedUnlockMethod = legacyVaultStore.readUnlockMethodFromVaultFile(workingCopy)
                     val credential = buildCredential(detectedUnlockMethod, masterPassword, keyFile)
-                    vaultStore.validateVaultCredentialFile(workingCopy, credential)
-                    vaultStore.prepareVaultForOfficialMdbx1(workingCopy, credential, detectedMode)
+                    legacyVaultStore.validateVaultCredentialFile(workingCopy, credential)
+                    legacyVaultStore.prepareVaultForOfficialMdbx1(workingCopy, credential, detectedMode)
 
                     val encryptedMasterPassword =
                         masterPassword.takeIf { credential.requiresPassword() }
@@ -525,13 +947,27 @@ class MdbxViewModel(
         username: String,
         webDavPassword: String,
         remoteDirectoryPath: String?,
-        description: String?
+        description: String?,
+        engineType: MdbxEngineType = MdbxEngineType.RUST_MDBX2
     ) {
         viewModelScope.launch {
             _operationState.value = OperationState.Loading("Creating MDBX vault on WebDAV...")
 
             try {
                 withContext(Dispatchers.IO) {
+                    if (engineType == MdbxEngineType.RUST_MDBX2) {
+                        createMdbx2WebDavVault(
+                            name = name,
+                            masterPassword = masterPassword,
+                            tigaMode = tigaMode,
+                            serverUrl = serverUrl,
+                            username = username,
+                            webDavPassword = webDavPassword,
+                            remoteDirectoryPath = remoteDirectoryPath,
+                            description = description
+                        )
+                        return@withContext
+                    }
                     val normalizedDir = WebDavKeePassFileSource.normalizeOptionalRemotePath(
                         remoteDirectoryPath
                     )
@@ -549,7 +985,7 @@ class MdbxViewModel(
                         "$displayName.mdbx"
                     }
 
-                    val localVaultFile = vaultStore.createInitializedVaultFile(
+                    val localVaultFile = legacyVaultStore.createInitializedVaultFile(
                         displayName = displayName,
                         tigaMode = tigaMode.name,
                         unlockMethod = unlockMethod,
@@ -626,7 +1062,6 @@ class MdbxViewModel(
     }
 
     fun connectToExistingWebDavVault(
-        name: String,
         masterPassword: String,
         unlockMethod: MdbxUnlockMethod,
         keyFile: MdbxKeyFileSelection?,
@@ -635,15 +1070,26 @@ class MdbxViewModel(
         username: String,
         webDavPassword: String,
         remoteFilePath: String,
-        description: String?
+        description: String?,
+        engineType: MdbxEngineType = MdbxEngineType.KOTLIN_MDBX1
     ) {
+        val displayName = remoteVaultDisplayName(remoteFilePath)
         viewModelScope.launch {
             _operationState.value = OperationState.Loading("Connecting to remote MDBX vault...")
 
             try {
                 withContext(Dispatchers.IO) {
-                    val displayName = name.trim().ifBlank {
-                        throw IllegalArgumentException("Vault name cannot be empty")
+                    if (engineType == MdbxEngineType.RUST_MDBX2) {
+                        connectToMdbx2WebDavVault(
+                            name = displayName,
+                            masterPassword = masterPassword,
+                            serverUrl = serverUrl,
+                            username = username,
+                            webDavPassword = webDavPassword,
+                            remoteFilePath = remoteFilePath,
+                            description = description
+                        )
+                        return@withContext
                     }
                     val fileSource = WebDavMdbxFileSource(serverUrl, username, webDavPassword)
                     fileSource.testConnection().getOrThrow()
@@ -657,12 +1103,12 @@ class MdbxViewModel(
                     val localFile = File(vaultDir, "remote_${UUID.randomUUID()}.mdbx")
                     localFile.writeBytes(remoteBytes)
 
-                    vaultStore.validateExistingVaultFile(localFile)
-                    val detectedMode = vaultStore.readTigaModeFromVaultFile(localFile)
-                    val detectedUnlockMethod = vaultStore.readUnlockMethodFromVaultFile(localFile)
+                    legacyVaultStore.validateExistingVaultFile(localFile)
+                    val detectedMode = legacyVaultStore.readTigaModeFromVaultFile(localFile)
+                    val detectedUnlockMethod = legacyVaultStore.readUnlockMethodFromVaultFile(localFile)
                     val credential = buildCredential(detectedUnlockMethod, masterPassword, keyFile)
-                    vaultStore.validateVaultCredentialFile(localFile, credential)
-                    vaultStore.prepareVaultForOfficialMdbx1(localFile, credential, detectedMode)
+                    legacyVaultStore.validateVaultCredentialFile(localFile, credential)
+                    legacyVaultStore.prepareVaultForOfficialMdbx1(localFile, credential, detectedMode)
 
                     val remoteParentPath = WebDavKeePassFileSource.parentPathOf(remoteFilePath)
 
@@ -711,7 +1157,7 @@ class MdbxViewModel(
                 }
 
                 _operationState.value = OperationState.Success(
-                    "Connected to remote MDBX vault \"$name\""
+                    "Connected to remote MDBX vault \"$displayName\""
                 )
             } catch (e: Exception) {
                 _operationState.value = OperationState.Error(
@@ -719,6 +1165,44 @@ class MdbxViewModel(
                 )
             }
         }
+    }
+
+    private fun remoteVaultDisplayName(remoteFilePath: String): String {
+        val fileName = remoteFilePath
+            .trim()
+            .trimEnd('/')
+            .substringAfterLast('/')
+        return if (fileName.endsWith(".mdbx", ignoreCase = true)) {
+            fileName.dropLast(5)
+        } else {
+            fileName
+        }.ifBlank { "MDBX Vault" }
+    }
+
+    private suspend fun normalizeExistingRemoteVaultNames() {
+        databaseDao.getAllDatabasesSnapshot()
+            .filter { database ->
+                database.sourceTypeEnum == MdbxSourceType.REMOTE_WEBDAV ||
+                    database.sourceTypeEnum == MdbxSourceType.REMOTE_ONEDRIVE
+            }
+            .forEach { database ->
+                val displayName = remoteVaultDisplayName(database.filePath)
+                if (database.name != displayName) {
+                    databaseDao.updateDatabase(database.copy(name = displayName))
+                }
+                database.sourceId?.let { sourceId ->
+                    remoteSourceDao.getSourceById(sourceId)?.let { source ->
+                        if (source.displayName != displayName) {
+                            remoteSourceDao.updateSource(
+                                source.copy(
+                                    displayName = displayName,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    }
+                }
+            }
     }
 
     data class OneDriveMdbxDirectoryListing(
@@ -749,13 +1233,25 @@ class MdbxViewModel(
         accountId: String,
         accountLabel: String,
         directoryPath: String?,
-        description: String?
+        description: String?,
+        engineType: MdbxEngineType = MdbxEngineType.RUST_MDBX2
     ) {
         viewModelScope.launch {
             _operationState.value = OperationState.Loading("Creating MDBX vault on OneDrive...")
 
             try {
                 withContext(Dispatchers.IO) {
+                    if (engineType == MdbxEngineType.RUST_MDBX2) {
+                        createMdbx2OneDriveVault(
+                            name = name,
+                            masterPassword = masterPassword,
+                            tigaMode = tigaMode,
+                            accountId = accountId,
+                            directoryPath = directoryPath,
+                            description = description
+                        )
+                        return@withContext
+                    }
                     val normalizedDir = OneDriveKeePassFileSource.normalizeOptionalRemotePath(directoryPath)
                     val fileSource = OneDriveMdbxFileSource(context, accountId)
 
@@ -771,7 +1267,7 @@ class MdbxViewModel(
                         "$displayName.mdbx"
                     }
 
-                    val localVaultFile = vaultStore.createInitializedVaultFile(
+                    val localVaultFile = legacyVaultStore.createInitializedVaultFile(
                         displayName = displayName,
                         tigaMode = tigaMode.name,
                         unlockMethod = unlockMethod,
@@ -845,7 +1341,6 @@ class MdbxViewModel(
     }
 
     fun connectToOneDriveVault(
-        name: String,
         masterPassword: String,
         unlockMethod: MdbxUnlockMethod,
         keyFile: MdbxKeyFileSelection?,
@@ -853,15 +1348,24 @@ class MdbxViewModel(
         accountId: String,
         accountLabel: String,
         remoteFilePath: String,
-        description: String?
+        description: String?,
+        engineType: MdbxEngineType = MdbxEngineType.KOTLIN_MDBX1
     ) {
+        val displayName = remoteVaultDisplayName(remoteFilePath)
         viewModelScope.launch {
             _operationState.value = OperationState.Loading("Connecting to OneDrive MDBX vault...")
 
             try {
                 withContext(Dispatchers.IO) {
-                    val displayName = name.trim().ifBlank {
-                        throw IllegalArgumentException("Vault name cannot be empty")
+                    if (engineType == MdbxEngineType.RUST_MDBX2) {
+                        connectToMdbx2OneDriveVault(
+                            name = displayName,
+                            masterPassword = masterPassword,
+                            accountId = accountId,
+                            remoteFilePath = remoteFilePath,
+                            description = description
+                        )
+                        return@withContext
                     }
                     val fileSource = OneDriveMdbxFileSource(context, accountId)
                     fileSource.testConnection().getOrThrow()
@@ -875,12 +1379,12 @@ class MdbxViewModel(
                     val localFile = File(vaultDir, "onedrive_${UUID.randomUUID()}.mdbx")
                     localFile.writeBytes(remoteBytes)
 
-                    vaultStore.validateExistingVaultFile(localFile)
-                    val detectedMode = vaultStore.readTigaModeFromVaultFile(localFile)
-                    val detectedUnlockMethod = vaultStore.readUnlockMethodFromVaultFile(localFile)
+                    legacyVaultStore.validateExistingVaultFile(localFile)
+                    val detectedMode = legacyVaultStore.readTigaModeFromVaultFile(localFile)
+                    val detectedUnlockMethod = legacyVaultStore.readUnlockMethodFromVaultFile(localFile)
                     val credential = buildCredential(detectedUnlockMethod, masterPassword, keyFile)
-                    vaultStore.validateVaultCredentialFile(localFile, credential)
-                    vaultStore.prepareVaultForOfficialMdbx1(localFile, credential, detectedMode)
+                    legacyVaultStore.validateVaultCredentialFile(localFile, credential)
+                    legacyVaultStore.prepareVaultForOfficialMdbx1(localFile, credential, detectedMode)
 
                     val remoteParentPath = OneDriveKeePassFileSource.parentPathOf(remoteFilePath)
 
@@ -932,7 +1436,7 @@ class MdbxViewModel(
                 }
 
                 _operationState.value = OperationState.Success(
-                    "Connected to OneDrive MDBX vault \"$name\""
+                    "Connected to OneDrive MDBX vault \"$displayName\""
                 )
             } catch (e: Exception) {
                 _operationState.value = OperationState.Error(
@@ -942,12 +1446,284 @@ class MdbxViewModel(
         }
     }
 
+    private suspend fun createMdbx2WebDavVault(
+        name: String,
+        masterPassword: String,
+        tigaMode: MdbxTigaMode,
+        serverUrl: String,
+        username: String,
+        webDavPassword: String,
+        remoteDirectoryPath: String?,
+        description: String?
+    ) {
+        require(masterPassword.isNotBlank()) { "MDBX2 requires a master password" }
+        val normalizedDir = WebDavKeePassFileSource.normalizeOptionalRemotePath(remoteDirectoryPath)
+        val displayName = name.trim().ifBlank { throw IllegalArgumentException("Vault name cannot be empty") }
+        val remoteFileName = if (displayName.endsWith(".mdbx", ignoreCase = true)) {
+            displayName
+        } else {
+            "$displayName.mdbx"
+        }
+        val remotePath = MdbxRemoteSyncPaths.normalizePath(
+            WebDavKeePassFileSource.buildChildPath(normalizedDir, remoteFileName)
+        )
+        val transport = WebDavMdbxRemoteTransport(serverUrl, username, webDavPassword)
+        transport.testConnection()
+        val localVaultFile = mdbx2Repository.createInitializedVaultFile(tigaMode, masterPassword)
+        val sourceId = remoteSourceDao.insertSource(
+            MdbxRemoteSource(
+                displayName = displayName,
+                remotePath = remotePath,
+                remoteParentPath = normalizedDir.ifBlank { null },
+                baseUrl = serverUrl.trim().trimEnd('/'),
+                usernameEncrypted = securityManager.encryptData(username),
+                passwordEncrypted = securityManager.encryptData(webDavPassword)
+            )
+        )
+        val encryptedMasterPassword = securityManager.encryptData(
+            Mdbx2VaultSessionExecutor.normalizePassword(masterPassword)
+        )
+        val databaseId = databaseDao.insertDatabase(
+            LocalMdbxDatabase(
+                name = displayName,
+                filePath = remotePath,
+                storageLocation = MdbxStorageLocation.REMOTE_WEBDAV.name,
+                sourceType = MdbxSourceType.REMOTE_WEBDAV.name,
+                sourceId = sourceId,
+                engineType = MdbxEngineType.RUST_MDBX2.name,
+                tigaMode = tigaMode.name,
+                encryptedPassword = encryptedMasterPassword,
+                unlockMethod = MdbxUnlockMethod.MASTER_PASSWORD.storedValue,
+                kdfProfile = "argon2id",
+                description = description,
+                workingCopyPath = localVaultFile.absolutePath,
+                cacheCopyPath = localVaultFile.absolutePath,
+                isOfflineAvailable = true,
+                lastSyncStatus = MdbxSyncStatus.SYNCING.name
+            )
+        )
+        try {
+            mdbx2RemoteSyncCoordinator.publishBootstrap(databaseId, remotePath, transport)
+            importEntriesFromVault(databaseId)
+            databaseDao.updateSyncStatus(databaseId, MdbxSyncStatus.IN_SYNC.name, null)
+        } catch (error: Throwable) {
+            cleanupFailedMdbx2RemoteDatabase(databaseId, sourceId, localVaultFile)
+            throw error
+        }
+    }
+
+    private suspend fun connectToMdbx2WebDavVault(
+        name: String,
+        masterPassword: String,
+        serverUrl: String,
+        username: String,
+        webDavPassword: String,
+        remoteFilePath: String,
+        description: String?
+    ) {
+        require(masterPassword.isNotBlank()) { "MDBX2 requires a master password" }
+        val displayName = name.trim().ifBlank { throw IllegalArgumentException("Vault name cannot be empty") }
+        val normalizedRemotePath = MdbxRemoteSyncPaths.normalizePath(remoteFilePath)
+        val transport = WebDavMdbxRemoteTransport(serverUrl, username, webDavPassword)
+        transport.testConnection()
+        val localVaultFile = File(
+            File(context.filesDir, "mdbx2").also { check(it.exists() || it.mkdirs()) },
+            "remote_${UUID.randomUUID()}.mdbx"
+        )
+        mdbx2RemoteSyncCoordinator.downloadBootstrapTo(normalizedRemotePath, transport, localVaultFile)
+        val sourceId = remoteSourceDao.insertSource(
+            MdbxRemoteSource(
+                displayName = displayName,
+                remotePath = normalizedRemotePath,
+                remoteParentPath = normalizedRemotePath.substringBeforeLast('/', "").ifBlank { null },
+                baseUrl = serverUrl.trim().trimEnd('/'),
+                usernameEncrypted = securityManager.encryptData(username),
+                passwordEncrypted = securityManager.encryptData(webDavPassword)
+            )
+        )
+        val databaseId = databaseDao.insertDatabase(
+            LocalMdbxDatabase(
+                name = displayName,
+                filePath = normalizedRemotePath,
+                storageLocation = MdbxStorageLocation.REMOTE_WEBDAV.name,
+                sourceType = MdbxSourceType.REMOTE_WEBDAV.name,
+                sourceId = sourceId,
+                engineType = MdbxEngineType.RUST_MDBX2.name,
+                encryptedPassword = securityManager.encryptData(
+                    Mdbx2VaultSessionExecutor.normalizePassword(masterPassword)
+                ),
+                unlockMethod = MdbxUnlockMethod.MASTER_PASSWORD.storedValue,
+                kdfProfile = "argon2id",
+                description = description,
+                workingCopyPath = localVaultFile.absolutePath,
+                cacheCopyPath = localVaultFile.absolutePath,
+                isOfflineAvailable = true,
+                lastSyncStatus = MdbxSyncStatus.SYNCING.name
+            )
+        )
+        try {
+            // Opening the file through the Rust session validates both the
+            // password and the authenticated vault identity before we commit
+            // the bootstrap cursor.
+            mdbx2Repository.withVaultForSync(databaseId) { _, vault -> vault.info() }
+            mdbx2RemoteSyncCoordinator.registerDownloadedBootstrap(databaseId, normalizedRemotePath)
+            mdbx2RemoteSyncCoordinator.synchronize(databaseId, normalizedRemotePath, transport)
+            importEntriesFromVault(databaseId)
+            databaseDao.updateSyncStatus(databaseId, MdbxSyncStatus.IN_SYNC.name, null)
+        } catch (error: Throwable) {
+            cleanupFailedMdbx2RemoteDatabase(databaseId, sourceId, localVaultFile)
+            throw error
+        }
+    }
+
+    private suspend fun createMdbx2OneDriveVault(
+        name: String,
+        masterPassword: String,
+        tigaMode: MdbxTigaMode,
+        accountId: String,
+        directoryPath: String?,
+        description: String?
+    ) {
+        require(masterPassword.isNotBlank()) { "MDBX2 requires a master password" }
+        val normalizedDir = OneDriveKeePassFileSource.normalizeOptionalRemotePath(directoryPath)
+        val displayName = name.trim().ifBlank { throw IllegalArgumentException("Vault name cannot be empty") }
+        val remoteFileName = if (displayName.endsWith(".mdbx", ignoreCase = true)) displayName else "$displayName.mdbx"
+        val remotePath = MdbxRemoteSyncPaths.normalizePath(
+            OneDriveKeePassFileSource.buildChildPath(normalizedDir, remoteFileName)
+        )
+        val transport = OneDriveMdbxRemoteTransport(context, accountId)
+        transport.testConnection()
+        val localVaultFile = mdbx2Repository.createInitializedVaultFile(tigaMode, masterPassword)
+        val accessToken = OneDriveAuthManager(context).acquireAccessToken(accountId).accessToken
+            ?: throw IllegalStateException("OneDrive access token unavailable")
+        val sourceId = remoteSourceDao.insertSource(
+            MdbxRemoteSource(
+                displayName = displayName,
+                remotePath = remotePath,
+                remoteParentPath = normalizedDir.ifBlank { null },
+                baseUrl = null,
+                usernameEncrypted = securityManager.encryptData(accountId),
+                passwordEncrypted = securityManager.encryptData(accessToken)
+            )
+        )
+        val databaseId = databaseDao.insertDatabase(
+            LocalMdbxDatabase(
+                name = displayName,
+                filePath = remotePath,
+                storageLocation = MdbxStorageLocation.REMOTE_WEBDAV.name,
+                sourceType = MdbxSourceType.REMOTE_ONEDRIVE.name,
+                sourceId = sourceId,
+                engineType = MdbxEngineType.RUST_MDBX2.name,
+                tigaMode = tigaMode.name,
+                encryptedPassword = securityManager.encryptData(
+                    Mdbx2VaultSessionExecutor.normalizePassword(masterPassword)
+                ),
+                unlockMethod = MdbxUnlockMethod.MASTER_PASSWORD.storedValue,
+                kdfProfile = "argon2id",
+                description = description,
+                workingCopyPath = localVaultFile.absolutePath,
+                cacheCopyPath = localVaultFile.absolutePath,
+                isOfflineAvailable = true,
+                lastSyncStatus = MdbxSyncStatus.SYNCING.name
+            )
+        )
+        try {
+            mdbx2RemoteSyncCoordinator.publishBootstrap(databaseId, remotePath, transport)
+            importEntriesFromVault(databaseId)
+            databaseDao.updateSyncStatus(databaseId, MdbxSyncStatus.IN_SYNC.name, null)
+        } catch (error: Throwable) {
+            cleanupFailedMdbx2RemoteDatabase(databaseId, sourceId, localVaultFile)
+            throw error
+        }
+    }
+
+    private suspend fun connectToMdbx2OneDriveVault(
+        name: String,
+        masterPassword: String,
+        accountId: String,
+        remoteFilePath: String,
+        description: String?
+    ) {
+        require(masterPassword.isNotBlank()) { "MDBX2 requires a master password" }
+        val displayName = name.trim().ifBlank { throw IllegalArgumentException("Vault name cannot be empty") }
+        val normalizedRemotePath = MdbxRemoteSyncPaths.normalizePath(remoteFilePath)
+        val transport = OneDriveMdbxRemoteTransport(context, accountId)
+        transport.testConnection()
+        val localVaultFile = File(
+            File(context.filesDir, "mdbx2").also { check(it.exists() || it.mkdirs()) },
+            "onedrive_${UUID.randomUUID()}.mdbx"
+        )
+        mdbx2RemoteSyncCoordinator.downloadBootstrapTo(normalizedRemotePath, transport, localVaultFile)
+        val accessToken = OneDriveAuthManager(context).acquireAccessToken(accountId).accessToken
+            ?: throw IllegalStateException("OneDrive access token unavailable")
+        val sourceId = remoteSourceDao.insertSource(
+            MdbxRemoteSource(
+                displayName = displayName,
+                remotePath = normalizedRemotePath,
+                remoteParentPath = normalizedRemotePath.substringBeforeLast('/', "").ifBlank { null },
+                baseUrl = null,
+                usernameEncrypted = securityManager.encryptData(accountId),
+                passwordEncrypted = securityManager.encryptData(accessToken)
+            )
+        )
+        val databaseId = databaseDao.insertDatabase(
+            LocalMdbxDatabase(
+                name = displayName,
+                filePath = normalizedRemotePath,
+                storageLocation = MdbxStorageLocation.REMOTE_WEBDAV.name,
+                sourceType = MdbxSourceType.REMOTE_ONEDRIVE.name,
+                sourceId = sourceId,
+                engineType = MdbxEngineType.RUST_MDBX2.name,
+                encryptedPassword = securityManager.encryptData(
+                    Mdbx2VaultSessionExecutor.normalizePassword(masterPassword)
+                ),
+                unlockMethod = MdbxUnlockMethod.MASTER_PASSWORD.storedValue,
+                kdfProfile = "argon2id",
+                description = description,
+                workingCopyPath = localVaultFile.absolutePath,
+                cacheCopyPath = localVaultFile.absolutePath,
+                isOfflineAvailable = true,
+                lastSyncStatus = MdbxSyncStatus.SYNCING.name
+            )
+        )
+        try {
+            mdbx2Repository.withVaultForSync(databaseId) { _, vault -> vault.info() }
+            mdbx2RemoteSyncCoordinator.registerDownloadedBootstrap(databaseId, normalizedRemotePath)
+            mdbx2RemoteSyncCoordinator.synchronize(databaseId, normalizedRemotePath, transport)
+            importEntriesFromVault(databaseId)
+            databaseDao.updateSyncStatus(databaseId, MdbxSyncStatus.IN_SYNC.name, null)
+        } catch (error: Throwable) {
+            cleanupFailedMdbx2RemoteDatabase(databaseId, sourceId, localVaultFile)
+            throw error
+        }
+    }
+
+    private suspend fun cleanupFailedMdbx2RemoteDatabase(
+        databaseId: Long,
+        sourceId: Long,
+        localVaultFile: File
+    ) {
+        runCatching { mdbx2RemoteSyncCoordinator.clearLocalState(databaseId) }
+        runCatching { databaseDao.deleteDatabaseById(databaseId) }
+        runCatching { remoteSourceDao.deleteSourceById(sourceId) }
+        runCatching { mdbx2Repository.deleteOwnedVaultFile(localVaultFile) }
+    }
+
     /**
      * Push the working copy of an EXTERNAL vault back to its source URI,
      * so changes are visible in the user's synced folder.
      */
     fun syncExternalVault(databaseId: Long) {
         viewModelScope.launch {
+            val database = withContext(Dispatchers.IO) { databaseDao.getDatabaseById(databaseId) }
+            val requiredCapability = if (database?.sourceTypeEnum == MdbxSourceType.LOCAL_EXTERNAL) {
+                MdbxCapability.EXTERNAL_STORAGE
+            } else {
+                MdbxCapability.REMOTE_SYNC
+            }
+            if (!requireCapability(databaseId, requiredCapability, "External sync")) {
+                return@launch
+            }
             _operationState.value = OperationState.Loading("Syncing vault to external location...")
             val result = runMdbxSyncThroughCoordinator(
                 databaseId = databaseId,
@@ -966,6 +1742,9 @@ class MdbxViewModel(
 
     fun syncVault(databaseId: Long) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.REMOTE_SYNC, "Sync")) {
+                return@launch
+            }
             _operationState.value = OperationState.Loading("Syncing MDBX vault...")
             val result = runMdbxSyncThroughCoordinator(
                 databaseId = databaseId,
@@ -987,6 +1766,10 @@ class MdbxViewModel(
             if (_operationState.value is OperationState.Loading) return@launch
             val database = withContext(Dispatchers.IO) {
                 databaseDao.getDatabaseById(databaseId)
+            }
+            if (database != null && !database.supports(MdbxCapability.REMOTE_SYNC)) {
+                refreshSingleVaultState(databaseId)
+                return@launch
             }
             val shouldSync = database != null &&
                 database.lastSyncStatus != MdbxSyncStatus.PENDING_UPLOAD.name &&
@@ -1046,7 +1829,11 @@ class MdbxViewModel(
             mode = mode,
             operationName = "pending_upload"
         ) { database ->
-            vaultStore.flushPendingWorkingCopy(database.id)
+            if (database.engineTypeEnum == MdbxEngineType.RUST_MDBX2 && database.isRemoteSource()) {
+                refreshVaultFromSource(database.id)
+            } else {
+                vaultStore.flushPendingWorkingCopy(database.id)
+            }
             refreshSingleVaultState(database.id)
         }
     }
@@ -1171,7 +1958,10 @@ class MdbxViewModel(
             try {
                 val pendingIds = withContext(Dispatchers.IO) {
                     databaseDao.getAllDatabasesSnapshot()
-                        .filter { it.lastSyncStatus == MdbxSyncStatus.PENDING_UPLOAD.name }
+                        .filter {
+                            it.lastSyncStatus == MdbxSyncStatus.PENDING_UPLOAD.name &&
+                                it.supports(MdbxCapability.REMOTE_SYNC)
+                        }
                         .map { database -> database.id }
                 }
                 var uploadedCount = 0
@@ -1241,8 +2031,157 @@ class MdbxViewModel(
         }
     }
 
+    fun requestHealthRepair(database: LocalMdbxDatabase) {
+        if (database.engineTypeEnum != MdbxEngineType.RUST_MDBX2) {
+            _operationState.value = OperationState.Error("一键处理仅适用于 MDBX2 数据库")
+            return
+        }
+        if (_healthRepairState.value is MdbxHealthRepairState.Applying) return
+        healthRepairJob?.cancel()
+        healthRepairJob = viewModelScope.launch {
+            _healthRepairState.value = MdbxHealthRepairState.Planning(
+                databaseId = database.id,
+                databaseName = database.name
+            )
+            try {
+                val plan = withContext(Dispatchers.IO) {
+                    vaultStore.planHealthRepair(database.id)
+                }
+                when {
+                    plan.blockers.isNotEmpty() -> {
+                        _healthRepairState.value = MdbxHealthRepairState.Blocked(
+                            databaseId = database.id,
+                            databaseName = database.name,
+                            blockers = plan.blockers
+                        )
+                    }
+                    plan.repairableItemCount == 0 -> {
+                        _healthRepairState.value = MdbxHealthRepairState.Hidden
+                        _operationState.value = OperationState.Success("当前没有可自动处理的健康异常")
+                        refreshSingleVaultState(database.id)
+                    }
+                    !plan.canApply -> {
+                        _healthRepairState.value = MdbxHealthRepairState.Failed(
+                            databaseId = database.id,
+                            databaseName = database.name,
+                            message = "当前异常无法生成安全处理计划，请重新检查数据库状态"
+                        )
+                    }
+                    plan.conflictItems.isEmpty() -> {
+                        applyHealthRepairPlan(
+                            databaseId = database.id,
+                            databaseName = database.name,
+                            plan = plan,
+                            decisions = emptyMap()
+                        )
+                    }
+                    else -> {
+                        _healthRepairState.value = MdbxHealthRepairState.Reviewing(
+                            databaseId = database.id,
+                            databaseName = database.name,
+                            plan = plan
+                        )
+                    }
+                }
+            } catch (error: Throwable) {
+                _healthRepairState.value = MdbxHealthRepairState.Failed(
+                    databaseId = database.id,
+                    databaseName = database.name,
+                    message = error.toHealthRepairUserMessage()
+                )
+            }
+        }
+    }
+
+    fun chooseHealthRepairConflict(choice: MdbxHealthRepairChoice) {
+        require(choice != MdbxHealthRepairChoice.CANCEL) {
+            "Use dismissHealthRepair() to cancel the whole repair"
+        }
+        val current = _healthRepairState.value as? MdbxHealthRepairState.Reviewing ?: return
+        val item = current.currentItem ?: return
+        val decisions = current.decisions + (item.repairId to choice)
+        val nextIndex = current.currentIndex + 1
+        if (nextIndex < current.plan.conflictItems.size) {
+            _healthRepairState.value = current.copy(
+                decisions = decisions,
+                currentIndex = nextIndex
+            )
+            return
+        }
+        healthRepairJob = viewModelScope.launch {
+            applyHealthRepairPlan(
+                databaseId = current.databaseId,
+                databaseName = current.databaseName,
+                plan = current.plan,
+                decisions = decisions
+            )
+        }
+    }
+
+    fun dismissHealthRepair() {
+        if (_healthRepairState.value is MdbxHealthRepairState.Applying) return
+        healthRepairJob?.cancel()
+        healthRepairJob = null
+        _healthRepairState.value = MdbxHealthRepairState.Hidden
+    }
+
+    fun verifyMasterPassword(password: String): Boolean =
+        securityManager.verifyMasterPassword(password)
+
+    private suspend fun applyHealthRepairPlan(
+        databaseId: Long,
+        databaseName: String,
+        plan: MdbxHealthRepairPlan,
+        decisions: Map<String, MdbxHealthRepairChoice>
+    ) {
+        _healthRepairState.value = MdbxHealthRepairState.Applying(
+            databaseId = databaseId,
+            databaseName = databaseName,
+            itemCount = plan.repairableItemCount
+        )
+        try {
+            val orderedDecisions = plan.conflictItems.map { item ->
+                MdbxHealthRepairDecision(
+                    repairId = item.repairId,
+                    choice = decisions[item.repairId]
+                        ?: error("缺少 ${item.objectType} ${item.objectId} 的处理选择")
+                )
+            }
+            val result = withContext(Dispatchers.IO) {
+                vaultStore.applyHealthRepair(
+                    databaseId = databaseId,
+                    planToken = plan.token,
+                    operationId = UUID.randomUUID().toString(),
+                    decisions = orderedDecisions
+                )
+            }
+            if (result.status == MdbxHealthRepairStatus.APPLIED) {
+                runCatching { importEntriesFromVault(databaseId) }
+                    .onFailure { error ->
+                        MdbxDiagLogger.append(
+                            "[MDBX2][health-repair] repaired database but failed to refresh local entries " +
+                                "databaseId=$databaseId cause=${error::class.java.simpleName}"
+                        )
+                    }
+                invalidateMdbxViewCaches(databaseId)
+            }
+            refreshSingleVaultState(databaseId)
+            _healthRepairState.value = MdbxHealthRepairState.Hidden
+            _operationState.value = OperationState.Success(result.healthRepairResultMessage())
+        } catch (error: Throwable) {
+            _healthRepairState.value = MdbxHealthRepairState.Failed(
+                databaseId = databaseId,
+                databaseName = databaseName,
+                message = error.toHealthRepairUserMessage()
+            )
+        }
+    }
+
     fun exportSyncBundle(databaseId: Long, baseCommitId: String? = null) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.SYNC_BUNDLES, "Sync bundle export")) {
+                return@launch
+            }
             val current = _advancedDialogState.value as? MdbxAdvancedDialogState.Visible
             _advancedDialogState.value = current?.copy(isLoading = true, message = null)
                 ?: MdbxAdvancedDialogState.Hidden
@@ -1277,6 +2216,9 @@ class MdbxViewModel(
 
     fun importSyncBundleFromJson(databaseId: Long, bundleJson: String) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.SYNC_BUNDLES, "Sync bundle import")) {
+                return@launch
+            }
             val current = _advancedDialogState.value as? MdbxAdvancedDialogState.Visible
             _advancedDialogState.value = current?.copy(isLoading = true, message = null)
                 ?: MdbxAdvancedDialogState.Hidden
@@ -1317,6 +2259,9 @@ class MdbxViewModel(
 
     fun flushPendingVaultUpload(databaseId: Long) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.REMOTE_SYNC, "Pending upload")) {
+                return@launch
+            }
             val current = _advancedDialogState.value as? MdbxAdvancedDialogState.Visible
             _advancedDialogState.value = current?.copy(isLoading = true, message = null)
                 ?: MdbxAdvancedDialogState.Hidden
@@ -1398,15 +2343,26 @@ class MdbxViewModel(
 
     fun runBenchmark(databaseId: Long, operationCount: Int = 10) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.BENCHMARK, "Benchmark")) {
+                return@launch
+            }
             val current = _advancedDialogState.value as? MdbxAdvancedDialogState.Visible
             _advancedDialogState.value = current?.copy(isLoading = true, message = null)
                 ?: MdbxAdvancedDialogState.Hidden
             try {
                 val result = withContext(Dispatchers.IO) {
-                    vaultStore.runBenchmark(
-                        databaseId = databaseId,
-                        operationCount = operationCount.coerceIn(1, 500)
-                    )
+                    val database = databaseDao.getDatabaseById(databaseId)
+                        ?: error("MDBX database not found")
+                    when (database.engineTypeEnum) {
+                        MdbxEngineType.KOTLIN_MDBX1 -> legacyVaultStore.runBenchmark(
+                            databaseId = databaseId,
+                            operationCount = operationCount.coerceIn(1, 500)
+                        )
+                        MdbxEngineType.RUST_MDBX2 -> mdbx2Repository.runBenchmark(
+                            databaseId = databaseId,
+                            operationCount = operationCount.coerceIn(1, 500)
+                        )
+                    }
                 }
                 val refreshedDiagnostic = withContext(Dispatchers.IO) {
                     vaultStore.getVaultDiagnostics(databaseId)
@@ -1452,6 +2408,31 @@ class MdbxViewModel(
     private fun normalizeMdbxPassword(password: String): String =
         Normalizer.normalize(password, Normalizer.Form.NFC)
 
+    private suspend fun requireCapability(
+        databaseId: Long,
+        capability: MdbxCapability,
+        action: String
+    ): Boolean {
+        val database = withContext(Dispatchers.IO) { databaseDao.getDatabaseById(databaseId) }
+        if (database == null) {
+            _operationState.value = OperationState.Error("MDBX vault not found")
+            return false
+        }
+        return reportUnsupportedCapability(database, capability, action)
+    }
+
+    private fun reportUnsupportedCapability(
+        database: LocalMdbxDatabase,
+        capability: MdbxCapability,
+        action: String
+    ): Boolean {
+        if (database.supports(capability)) return true
+        _operationState.value = OperationState.Error(
+            "$action is not available for ${database.engineTypeEnum.name} vaults"
+        )
+        return false
+    }
+
     fun deleteVault(databaseId: Long) {
         viewModelScope.launch {
             _operationState.value = OperationState.Loading("Deleting vault...")
@@ -1459,12 +2440,7 @@ class MdbxViewModel(
                 withContext(Dispatchers.IO) {
                     val database = databaseDao.getDatabaseById(databaseId)
                         ?: throw IllegalStateException("Vault not found")
-                    val sourceId = database.sourceId
-                    clearImportedEntries(databaseId)
-                    databaseDao.deleteDatabaseById(databaseId)
-                    if (sourceId != null) {
-                        remoteSourceDao.deleteSourceById(sourceId)
-                    }
+                    deleteVaultPersistence(database)
                 }
                 invalidateMdbxViewCaches(databaseId)
                 forgetActiveMdbxDatabaseIf(databaseId)
@@ -1500,14 +2476,13 @@ class MdbxViewModel(
                                 !database.hasAccessibleLocalSource()
                         if (shouldPrune) {
                             MdbxDiagLogger.append(
-                                "[MDBX][pruneMissingLocalVaults] removing id=${database.id} name=${database.name} sourceType=${database.sourceType} filePath=${database.filePath} workingCopy=${database.workingCopyPath ?: "-"}"
+                                "[MDBX][pruneMissingLocalVaults] removing id=${database.id} sourceType=${database.sourceType} engine=${database.engineType}"
                             )
                         }
                         shouldPrune
                     }
                     .map { database ->
-                        clearImportedEntries(database.id)
-                        databaseDao.deleteDatabaseById(database.id)
+                        deleteVaultPersistence(database)
                         database.id
                     }
             }
@@ -1561,6 +2536,9 @@ class MdbxViewModel(
     }
 
     fun showConflicts(database: LocalMdbxDatabase) {
+        if (!reportUnsupportedCapability(database, MdbxCapability.CONFLICTS, "Conflict management")) {
+            return
+        }
         viewModelScope.launch {
             _conflictDialogState.value = MdbxConflictDialogState.Visible(
                 databaseId = database.id,
@@ -1580,6 +2558,9 @@ class MdbxViewModel(
     }
 
     fun showDeltaHistory(database: LocalMdbxDatabase) {
+        if (!reportUnsupportedCapability(database, MdbxCapability.DELTA_HISTORY, "History")) {
+            return
+        }
         viewModelScope.launch {
             val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
             val sameDatabaseState = current?.takeIf { it.databaseId == database.id }
@@ -1686,22 +2667,42 @@ class MdbxViewModel(
 
     fun showCommitDiff(databaseId: Long, commitId: String) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.DELTA_HISTORY, "Commit history")) {
+                return@launch
+            }
             val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
                 ?: return@launch
             _deltaDialogState.value = current.copy(
                 selectedDiffCommitId = commitId,
                 diffItems = emptyList(),
-                isDiffLoading = true
+                isDiffLoading = true,
+                diffError = null
             )
-            val diffItems = withContext(Dispatchers.IO) {
-                vaultStore.listCommitDiff(databaseId, commitId)
-            }
-            val latest = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
-                ?: return@launch
-            _deltaDialogState.value = latest.copy(
-                selectedDiffCommitId = commitId,
-                diffItems = diffItems,
-                isDiffLoading = false
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    vaultStore.listCommitDiff(databaseId, commitId)
+                }
+            }.fold(
+                onSuccess = { diffItems ->
+                    val latest = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
+                        ?: return@fold
+                    _deltaDialogState.value = latest.copy(
+                        selectedDiffCommitId = commitId,
+                        diffItems = diffItems,
+                        isDiffLoading = false,
+                        diffError = null
+                    )
+                },
+                onFailure = { error ->
+                    val latest = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
+                        ?: return@fold
+                    _deltaDialogState.value = latest.copy(
+                        selectedDiffCommitId = commitId,
+                        diffItems = emptyList(),
+                        isDiffLoading = false,
+                        diffError = error.toCommitDiffUserMessage()
+                    )
+                }
             )
         }
     }
@@ -1711,12 +2712,16 @@ class MdbxViewModel(
         _deltaDialogState.value = current.copy(
             selectedDiffCommitId = null,
             diffItems = emptyList(),
-            isDiffLoading = false
+            isDiffLoading = false,
+            diffError = null
         )
     }
 
     fun showSnapshotStructure(databaseId: Long, snapshotId: String) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.SNAPSHOTS, "Snapshot preview")) {
+                return@launch
+            }
             val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
                 ?: return@launch
             val cachedPreview = cachedStructurePreview(databaseId, snapshotId)
@@ -1775,6 +2780,9 @@ class MdbxViewModel(
 
     fun revertCommit(databaseId: Long, commitId: String) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.DELTA_HISTORY, "Commit revert")) {
+                return@launch
+            }
             val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
             _deltaDialogState.value = current?.copy(isLoading = true)
                 ?: MdbxDeltaDialogState.Hidden
@@ -1782,7 +2790,10 @@ class MdbxViewModel(
                 invalidateMdbxViewCaches(databaseId)
                 val revertedCount = withContext(Dispatchers.IO) {
                     val count = vaultStore.revertCommit(databaseId, commitId)
-                    importEntriesFromVault(databaseId)
+                    importEntriesFromVault(
+                        databaseId,
+                        orphanPolicy = MdbxImportOrphanPolicy.APPLY_REMOTE_STATE
+                    )
                     count
                 }
                 val refreshedDeltas = withContext(Dispatchers.IO) {
@@ -1802,7 +2813,8 @@ class MdbxViewModel(
                     selectedDiffCommitId = null,
                     diffItems = emptyList(),
                     isLoading = false,
-                    isDiffLoading = false
+                    isDiffLoading = false,
+                    diffError = null
                 )?.let { clearSelectedStructureIfInvalid(it, refreshedSnapshots) }
                 _deltaDialogState.value = refreshedState ?: MdbxDeltaDialogState.Hidden
                 _operationState.value = OperationState.Success(
@@ -1818,8 +2830,23 @@ class MdbxViewModel(
         }
     }
 
-    fun createSnapshot(databaseId: Long, name: String, fullSnapshot: Boolean) {
+    fun createSnapshot(
+        databaseId: Long,
+        name: String,
+        fullSnapshot: Boolean,
+        onResult: ((Result<MdbxSnapshotSummary>) -> Unit)? = null
+    ) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.SNAPSHOTS, "Snapshot creation")) {
+                onResult?.invoke(
+                    Result.failure(
+                        IllegalStateException(
+                            getApplication<Application>().getString(R.string.mdbx_snapshot_unavailable)
+                        )
+                    )
+                )
+                return@launch
+            }
             val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
             _deltaDialogState.value = current?.copy(isSnapshotLoading = true)
                 ?: MdbxDeltaDialogState.Hidden
@@ -1837,18 +2864,108 @@ class MdbxViewModel(
                 _operationState.value = OperationState.Success(
                     "Created MDBX snapshot ${snapshot.name}"
                 )
+                onResult?.invoke(Result.success(snapshot))
             } catch (e: Exception) {
                 _deltaDialogState.value = current?.copy(isSnapshotLoading = false)
                     ?: MdbxDeltaDialogState.Hidden
                 _operationState.value = OperationState.Error(
                     "Failed to create MDBX snapshot: ${e.message ?: "unknown error"}"
                 )
+                onResult?.invoke(Result.failure(e))
             }
         }
     }
 
+    fun requestSnapshotCreation(
+        databaseId: Long,
+        name: String,
+        requestedFullSnapshot: Boolean,
+        onOutcome: (MdbxSnapshotCreateOutcome) -> Unit
+    ) {
+        viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.SNAPSHOTS, "Snapshot creation")) {
+                onOutcome(
+                    MdbxSnapshotCreateOutcome.Failed(
+                        IllegalStateException(
+                            getApplication<Application>().getString(R.string.mdbx_snapshot_unavailable)
+                        )
+                    )
+                )
+                return@launch
+            }
+            val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
+            _deltaDialogState.value = current?.copy(isSnapshotLoading = true)
+                ?: MdbxDeltaDialogState.Hidden
+            try {
+                val plan = withContext(Dispatchers.IO) {
+                    val database = databaseDao.getDatabaseById(databaseId)
+                        ?: throw IllegalStateException("MDBX vault not found: $databaseId")
+                    val latestSnapshotBaseCommitId = vaultStore.listSnapshots(databaseId)
+                        .firstOrNull()
+                        ?.baseCommitId
+                    val currentHeadCommitId = vaultStore.getCurrentHeadCommitId(databaseId)
+                    planMdbxSnapshotCreation(
+                        requestedFullSnapshot = requestedFullSnapshot,
+                        engineRequiresFullSnapshot =
+                            database.engineTypeEnum == MdbxEngineType.RUST_MDBX2,
+                        currentHeadCommitId = currentHeadCommitId,
+                        latestSnapshotBaseCommitId = latestSnapshotBaseCommitId
+                    )
+                }
+                if (plan == MdbxSnapshotCreationPlan.ConfirmFullSnapshot) {
+                    _deltaDialogState.value = current?.copy(isSnapshotLoading = false)
+                        ?: MdbxDeltaDialogState.Hidden
+                    onOutcome(MdbxSnapshotCreateOutcome.NoChanges)
+                    return@launch
+                }
+                val fullSnapshot = (plan as MdbxSnapshotCreationPlan.Create).fullSnapshot
+                invalidateMdbxViewCaches(databaseId)
+                val snapshot = withContext(Dispatchers.IO) {
+                    vaultStore.createSnapshot(
+                        databaseId = databaseId,
+                        name = name,
+                        fullSnapshot = fullSnapshot,
+                        autoPrune = false
+                    )
+                }
+                refreshDeltaDialogAfterSnapshotMutation(databaseId, current)
+                _operationState.value = OperationState.Success(
+                    "Created MDBX snapshot ${snapshot.name}"
+                )
+                onOutcome(MdbxSnapshotCreateOutcome.Created(snapshot))
+            } catch (e: Exception) {
+                _deltaDialogState.value = current?.copy(isSnapshotLoading = false)
+                    ?: MdbxDeltaDialogState.Hidden
+                _operationState.value = OperationState.Error(
+                    "Failed to create MDBX snapshot: ${e.message ?: "unknown error"}"
+                )
+                onOutcome(MdbxSnapshotCreateOutcome.Failed(e))
+            }
+        }
+    }
+
+    fun createQuickSnapshot(
+        databaseId: Long,
+        onResult: ((Result<MdbxSnapshotSummary>) -> Unit)? = null
+    ) {
+        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+        val name = getApplication<Application>().getString(
+            R.string.mdbx_quick_snapshot_name,
+            timestamp
+        )
+        createSnapshot(
+            databaseId = databaseId,
+            name = name,
+            fullSnapshot = true,
+            onResult = onResult
+        )
+    }
+
     fun deleteSnapshot(databaseId: Long, snapshotId: String) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.SNAPSHOTS, "Snapshot deletion")) {
+                return@launch
+            }
             val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
             _deltaDialogState.value = current?.copy(isSnapshotLoading = true)
                 ?: MdbxDeltaDialogState.Hidden
@@ -1871,6 +2988,9 @@ class MdbxViewModel(
 
     fun revertToSnapshot(databaseId: Long, snapshotId: String) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.SNAPSHOTS, "Snapshot restore")) {
+                return@launch
+            }
             val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
             _deltaDialogState.value = current?.copy(isSnapshotLoading = true, isLoading = true)
                 ?: MdbxDeltaDialogState.Hidden
@@ -1899,6 +3019,9 @@ class MdbxViewModel(
 
     fun pruneAutomaticSnapshots(databaseId: Long) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.SNAPSHOTS, "Snapshot cleanup")) {
+                return@launch
+            }
             val current = _deltaDialogState.value as? MdbxDeltaDialogState.Visible
             _deltaDialogState.value = current?.copy(isSnapshotLoading = true)
                 ?: MdbxDeltaDialogState.Hidden
@@ -1954,6 +3077,9 @@ class MdbxViewModel(
         resolution: MdbxConflictResolution
     ) {
         viewModelScope.launch {
+            if (!requireCapability(databaseId, MdbxCapability.CONFLICTS, "Conflict resolution")) {
+                return@launch
+            }
             val current = _conflictDialogState.value as? MdbxConflictDialogState.Visible
             _conflictDialogState.value = current?.copy(isLoading = true)
                 ?: MdbxConflictDialogState.Hidden
@@ -2040,14 +3166,72 @@ class MdbxViewModel(
 
     private data class CustomDirectoryVault(
         val localCopy: File,
-        val externalUri: Uri
+        val externalUri: Uri,
+        val externalTreeUri: String? = null,
+        val externalDocument: takagi.ru.monica.repository.Mdbx2ExternalDocument? = null
     )
+
+    private suspend fun importMdbx2LocalVault(
+        sourceUri: Uri,
+        displayName: String,
+        workingCopy: File,
+        masterPassword: String,
+        unlockMethod: MdbxUnlockMethod,
+        keyFile: MdbxKeyFileSelection?,
+        tigaMode: MdbxTigaMode,
+        description: String?
+    ) {
+        require(unlockMethod != MdbxUnlockMethod.DEVICE_KEY) {
+            "A device-key MDBX2 vault must be opened on its original device"
+        }
+        val credential = buildCredential(unlockMethod, masterPassword, keyFile)
+        mdbx2Repository.validateVaultFile(workingCopy, credential)
+        val encryptedPassword = credential.password
+            ?.let(::normalizeMdbxPassword)
+            ?.let(securityManager::encryptData)
+        var databaseId: Long? = null
+        try {
+            databaseId = databaseDao.insertDatabase(
+                LocalMdbxDatabase(
+                    name = displayName,
+                    filePath = sourceUri.toString(),
+                    storageLocation = MdbxStorageLocation.EXTERNAL.name,
+                    sourceType = MdbxSourceType.LOCAL_EXTERNAL.name,
+                    sourceId = null,
+                    engineType = MdbxEngineType.RUST_MDBX2.name,
+                    tigaMode = tigaMode.name,
+                    encryptedPassword = encryptedPassword,
+                    unlockMethod = unlockMethod.storedValue,
+                    kdfProfile = "argon2id-mdbx2",
+                    keyFileName = keyFile?.name,
+                    keyFileUri = keyFile?.uri,
+                    keyFileFingerprint = keyFile?.fingerprint,
+                    description = description,
+                    lastSyncedAt = System.currentTimeMillis(),
+                    workingCopyPath = workingCopy.absolutePath,
+                    cacheCopyPath = workingCopy.absolutePath,
+                    externalTreeUri = null,
+                    isOfflineAvailable = true,
+                    lastSyncStatus = MdbxSyncStatus.IN_SYNC.name
+                )
+            )
+            importEntriesFromVault(databaseId)
+        } catch (error: Throwable) {
+            databaseId?.let { id ->
+                runCatching { clearImportedEntries(id) }
+                runCatching { databaseDao.deleteDatabaseById(id) }
+            }
+            runCatching { mdbx2Repository.deleteOwnedVaultFile(workingCopy) }
+            throw error
+        }
+    }
 
     private suspend fun createVaultFileInCustomDir(
         treeUri: Uri,
         displayName: String,
         tigaMode: String,
-        credential: MdbxVaultCredential
+        credential: MdbxVaultCredential,
+        engineType: MdbxEngineType
     ): CustomDirectoryVault {
         MdbxDiagLogger.append(
             "[MDBX][createVaultFileInCustomDir] start name=$displayName treeUri=$treeUri tiga=$tigaMode unlock=${credential.unlockMethod.name}"
@@ -2061,22 +3245,36 @@ class MdbxViewModel(
             "$displayName.mdbx"
         }
 
-        // Create the vault file locally first
-        val localVaultFile = vaultStore.createInitializedVaultFile(
-            displayName = displayName,
-            tigaMode = tigaMode,
-            unlockMethod = credential.unlockMethod,
-            credential = credential
-        )
+        val localVaultFile = when (engineType) {
+            MdbxEngineType.KOTLIN_MDBX1 -> legacyVaultStore.createInitializedVaultFile(
+                displayName = displayName,
+                tigaMode = tigaMode,
+                unlockMethod = credential.unlockMethod,
+                credential = credential
+            )
+            MdbxEngineType.RUST_MDBX2 -> mdbx2Repository.createInitializedVaultFile(
+                tigaMode = MdbxTigaMode.fromName(tigaMode),
+                credential = credential
+            )
+        }
 
-        // Copy to user-selected directory via SAF
-        val createdFile = documentFile.createFile("application/octet-stream", fileName)
-            ?: throw IllegalArgumentException("Failed to create file in selected directory")
-        context.contentResolver.openOutputStream(createdFile.uri)?.use { output ->
-            localVaultFile.inputStream().use { input ->
-                input.copyTo(output)
+        var legacyExternalUri: Uri? = null
+        val externalDocument = if (engineType == MdbxEngineType.RUST_MDBX2) {
+            runCatching {
+                mdbx2Repository.createExternalDocument(treeUri, fileName, localVaultFile)
+            }.getOrElse { error ->
+                mdbx2Repository.deleteOwnedVaultFile(localVaultFile)
+                throw error
             }
-        } ?: throw IllegalArgumentException("Cannot write to selected directory")
+        } else {
+            val createdFile = documentFile.createFile("application/octet-stream", fileName)
+                ?: throw IllegalArgumentException("Failed to create file in selected directory")
+            legacyExternalUri = createdFile.uri
+            context.contentResolver.openOutputStream(createdFile.uri)?.use { output ->
+                localVaultFile.inputStream().use { input -> input.copyTo(output) }
+            } ?: throw IllegalArgumentException("Cannot write to selected directory")
+            null
+        }
 
         runCatching {
             context.contentResolver.takePersistableUriPermission(
@@ -2091,7 +3289,11 @@ class MdbxViewModel(
 
         return CustomDirectoryVault(
             localCopy = localVaultFile,
-            externalUri = createdFile.uri
+            externalUri = externalDocument?.fileUri
+                ?: legacyExternalUri
+                ?: throw IllegalStateException("External MDBX file was not created"),
+            externalTreeUri = treeUri.toString(),
+            externalDocument = externalDocument
         )
     }
 
@@ -2107,7 +3309,8 @@ class MdbxViewModel(
     private fun buildCredential(
         unlockMethod: MdbxUnlockMethod,
         masterPassword: String,
-        keyFile: MdbxKeyFileSelection?
+        keyFile: MdbxKeyFileSelection?,
+        deviceKeyBytes: ByteArray? = null
     ): MdbxVaultCredential =
         MdbxVaultCredential(
             unlockMethod = unlockMethod,
@@ -2118,6 +3321,9 @@ class MdbxViewModel(
             keyFileBytes = keyFile?.bytes.takeIf {
                 unlockMethod == MdbxUnlockMethod.KEY_FILE ||
                     unlockMethod == MdbxUnlockMethod.MASTER_PASSWORD_AND_KEY_FILE
+            },
+            deviceKeyBytes = deviceKeyBytes.takeIf {
+                unlockMethod == MdbxUnlockMethod.DEVICE_KEY
             },
             keyFileName = keyFile?.name,
             keyFileFingerprint = keyFile?.fingerprint
@@ -2581,6 +3787,40 @@ class MdbxViewModel(
         passwordEntryDao.deleteAllByMdbxDatabaseId(databaseId)
         secureItemDao.deleteAllByMdbxDatabaseId(databaseId)
         passkeyDao.deleteAllByMdbxDatabaseId(databaseId)
+    }
+
+    private suspend fun deleteVaultPersistence(database: LocalMdbxDatabase) {
+        val databaseId = database.id
+        if (database.engineTypeEnum == MdbxEngineType.RUST_MDBX2) {
+            runCatching { mdbx2RemoteSyncCoordinator.clearLocalState(databaseId) }
+        }
+        val attachmentPaths = attachmentDao
+            .selectLocalPathsByMdbxDatabaseId(databaseId)
+            .filter(String::isNotBlank)
+            .distinct()
+        val passkeyKeyReferences = passkeyDao.getByMdbxDatabaseId(databaseId)
+            .map { it.privateKeyAlias }
+            .filter(String::isNotBlank)
+            .distinct()
+        roomDatabase.withTransaction {
+            clearImportedEntries(databaseId)
+            databaseDao.deleteDatabaseById(databaseId)
+            database.sourceId?.let { remoteSourceDao.deleteSourceById(it) }
+        }
+
+        val failedAttachmentDeletes = attachmentPaths.filter { path ->
+            attachmentDao.countByLocalPath(path) == 0 && !attachmentStorage.delete(path)
+        }
+        passkeyKeyReferences.forEach { reference ->
+            if (passkeyDao.countByPrivateKeyAlias(reference) == 0) {
+                PasskeyPrivateKeyStore.removeIfProtectedReference(context, reference)
+            }
+        }
+        val vaultFileDeleted = database.engineTypeEnum != MdbxEngineType.RUST_MDBX2 ||
+            mdbx2Repository.deleteOwnedVaultFile(File(database.resolvedActiveFilePath()))
+        check(failedAttachmentDeletes.isEmpty() && vaultFileDeleted) {
+            "Vault metadata was removed, but some owned local files could not be deleted"
+        }
     }
 
     private suspend fun normalizeLegacyMdbxPasswordRows(
@@ -3131,6 +4371,21 @@ class MdbxViewModel(
     private suspend fun refreshVaultFromSource(databaseId: Long) {
         val database = databaseDao.getDatabaseById(databaseId)
             ?: throw IllegalStateException("Vault not found")
+
+        if (database.engineTypeEnum == MdbxEngineType.RUST_MDBX2) {
+            when {
+                database.sourceTypeEnum == MdbxSourceType.LOCAL_EXTERNAL -> {
+                    mdbx2Repository.refreshExternalWorkingCopy(databaseId)
+                    importEntriesFromVault(databaseId)
+                    return
+                }
+                database.isRemoteSource() -> {
+                    synchronizeMdbx2Remote(database)
+                    return
+                }
+            }
+        }
+
         val workingCopy = database.workingCopyPath?.let { File(it) }
             ?: File(database.filePath).takeIf { database.storageLocationEnum == MdbxStorageLocation.INTERNAL }
             ?: throw IllegalStateException("Working copy not found")
@@ -3148,11 +4403,11 @@ class MdbxViewModel(
                 workingCopy.parentFile?.mkdirs()
                 if (!workingCopy.exists()) {
                     workingCopy.writeBytes(sourceBytes)
-                    vaultStore.validateExistingVaultFile(workingCopy)
+                    legacyVaultStore.validateExistingVaultFile(workingCopy)
                 } else {
                     val incomingCopy = writeIncomingTempCopy(databaseId, sourceBytes)
                     try {
-                        vaultStore.applyIncomingVaultFile(databaseId, incomingCopy)
+                        legacyVaultStore.applyIncomingVaultFile(databaseId, incomingCopy)
                     } finally {
                         incomingCopy.delete()
                     }
@@ -3165,11 +4420,11 @@ class MdbxViewModel(
                 workingCopy.parentFile?.mkdirs()
                 if (!workingCopy.exists()) {
                     workingCopy.writeBytes(sourceBytes)
-                    vaultStore.validateExistingVaultFile(workingCopy)
+                    legacyVaultStore.validateExistingVaultFile(workingCopy)
                 } else {
                     val incomingCopy = writeIncomingTempCopy(databaseId, sourceBytes)
                     try {
-                        vaultStore.applyIncomingVaultFile(databaseId, incomingCopy)
+                        legacyVaultStore.applyIncomingVaultFile(databaseId, incomingCopy)
                     } finally {
                         incomingCopy.delete()
                     }
@@ -3182,11 +4437,11 @@ class MdbxViewModel(
                 workingCopy.parentFile?.mkdirs()
                 if (!workingCopy.exists()) {
                     workingCopy.writeBytes(sourceBytes)
-                    vaultStore.validateExistingVaultFile(workingCopy)
+                    legacyVaultStore.validateExistingVaultFile(workingCopy)
                 } else {
                     val incomingCopy = writeIncomingTempCopy(databaseId, sourceBytes)
                     try {
-                        vaultStore.applyIncomingVaultFile(databaseId, incomingCopy)
+                        legacyVaultStore.applyIncomingVaultFile(databaseId, incomingCopy)
                     } finally {
                         incomingCopy.delete()
                     }
@@ -3205,6 +4460,63 @@ class MdbxViewModel(
                 isOfflineAvailable = true
             )
         )
+    }
+
+    private suspend fun synchronizeMdbx2Remote(database: LocalMdbxDatabase) {
+        val source = database.sourceId?.let { remoteSourceDao.getSourceById(it) }
+            ?: throw IllegalStateException("MDBX2 remote source not found")
+        val remotePath = source.remotePath.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("MDBX2 remote path missing")
+        val transport = createMdbx2Transport(database, source)
+        val state = mdbx2SyncStateStore.read(database.id)
+        require(state.vaultId != null && state.bootstrapCheckpoint != null) {
+            "MDBX2 remote sync is not initialized; reconnect the vault to register its bootstrap"
+        }
+        val report = mdbx2RemoteSyncCoordinator.synchronize(
+            databaseId = database.id,
+            remoteVaultPath = remotePath,
+            transport = transport
+        )
+        importEntriesFromVault(database.id)
+        val latest = databaseDao.getDatabaseById(database.id) ?: database
+        val status = when {
+            report.conflicts > 0 -> MdbxSyncStatus.CONFLICT
+            report.blockedStreams > 0 -> MdbxSyncStatus.REMOTE_CHANGED
+            else -> MdbxSyncStatus.IN_SYNC
+        }
+        databaseDao.updateDatabase(
+            latest.copy(
+                lastSyncedAt = System.currentTimeMillis(),
+                lastSyncStatus = status.name,
+                lastSyncError = null,
+                isOfflineAvailable = true
+            )
+        )
+    }
+
+    private suspend fun createMdbx2Transport(
+        database: LocalMdbxDatabase,
+        source: MdbxRemoteSource
+    ): MdbxRemoteTransport {
+        val remotePath = MdbxRemoteSyncPaths.normalizePath(source.remotePath)
+        require(remotePath.isNotBlank()) { "MDBX2 remote path missing" }
+        return when (database.sourceTypeEnum) {
+            MdbxSourceType.REMOTE_WEBDAV -> {
+                val baseUrl = source.baseUrl?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("MDBX WebDAV base URL missing")
+                val username = source.usernameEncrypted?.let(securityManager::decryptData)
+                    ?: throw IllegalStateException("MDBX WebDAV username missing")
+                val password = source.passwordEncrypted?.let(securityManager::decryptData)
+                    ?: throw IllegalStateException("MDBX WebDAV password missing")
+                WebDavMdbxRemoteTransport(baseUrl, username, password)
+            }
+            MdbxSourceType.REMOTE_ONEDRIVE -> {
+                val accountId = source.usernameEncrypted?.let(securityManager::decryptData)
+                    ?: throw IllegalStateException("MDBX OneDrive account ID missing")
+                OneDriveMdbxRemoteTransport(context, accountId)
+            }
+            else -> throw IllegalArgumentException("MDBX2 remote transport requires a remote source")
+        }
     }
 
     private fun writeIncomingTempCopy(databaseId: Long, bytes: ByteArray): File {
@@ -3245,6 +4557,39 @@ class MdbxViewModel(
         data class Error(val message: String) : OperationState()
     }
 
+    enum class MdbxMigrationStage {
+        PREFLIGHT,
+        FOLDERS,
+        ENTRIES,
+        ATTACHMENTS,
+        VERIFYING,
+        IMPORTING
+    }
+
+    sealed class MdbxMigrationState {
+        data object Hidden : MdbxMigrationState()
+        data class Preparing(val sourceDatabaseId: Long) : MdbxMigrationState()
+        data class Ready(val preview: MdbxMigrationPreview) : MdbxMigrationState()
+        data class Running(
+            val sourceDatabaseId: Long,
+            val targetName: String,
+            val stage: MdbxMigrationStage,
+            val completed: Int,
+            val total: Int
+        ) : MdbxMigrationState()
+        data class Success(
+            val sourceDatabaseId: Long,
+            val targetDatabaseId: Long,
+            val targetName: String,
+            val verification: MdbxMigrationVerification
+        ) : MdbxMigrationState()
+        data class Error(
+            val sourceDatabaseId: Long,
+            val message: String,
+            val preview: MdbxMigrationPreview? = null
+        ) : MdbxMigrationState()
+    }
+
     sealed class MdbxConflictDialogState {
         data object Hidden : MdbxConflictDialogState()
         data class Visible(
@@ -3266,11 +4611,59 @@ class MdbxViewModel(
             val selectedDiffCommitId: String? = null,
             val diffItems: List<MdbxCommitDiff> = emptyList(),
             val isDiffLoading: Boolean = false,
+            val diffError: String? = null,
             val isSnapshotLoading: Boolean = false,
             val selectedStructureSnapshotId: String? = null,
             val structurePreview: MdbxStructurePreview? = null,
             val isStructureLoading: Boolean = false
         ) : MdbxDeltaDialogState()
+    }
+
+    sealed class MdbxHealthRepairState {
+        data object Hidden : MdbxHealthRepairState()
+
+        data class Planning(
+            val databaseId: Long,
+            val databaseName: String
+        ) : MdbxHealthRepairState()
+
+        data class Reviewing(
+            val databaseId: Long,
+            val databaseName: String,
+            val plan: MdbxHealthRepairPlan,
+            val decisions: Map<String, MdbxHealthRepairChoice> = emptyMap(),
+            val currentIndex: Int = 0
+        ) : MdbxHealthRepairState() {
+            val currentItem: MdbxHealthRepairItem?
+                get() = plan.conflictItems.getOrNull(currentIndex)
+
+            val completedConflictCount: Int
+                get() = decisions.size
+        }
+
+        data class Applying(
+            val databaseId: Long,
+            val databaseName: String,
+            val itemCount: Int
+        ) : MdbxHealthRepairState()
+
+        data class Blocked(
+            val databaseId: Long,
+            val databaseName: String,
+            val blockers: List<MdbxHealthRepairBlocker>
+        ) : MdbxHealthRepairState()
+
+        data class Failed(
+            val databaseId: Long,
+            val databaseName: String,
+            val message: String
+        ) : MdbxHealthRepairState()
+    }
+
+    sealed interface MdbxSnapshotCreateOutcome {
+        data class Created(val snapshot: MdbxSnapshotSummary) : MdbxSnapshotCreateOutcome
+        data object NoChanges : MdbxSnapshotCreateOutcome
+        data class Failed(val error: Throwable) : MdbxSnapshotCreateOutcome
     }
 
     sealed class MdbxAdvancedDialogState {
@@ -3287,6 +4680,47 @@ class MdbxViewModel(
             val isLoading: Boolean = false
         ) : MdbxAdvancedDialogState()
     }
+}
+
+private fun Throwable.toCommitDiffUserMessage(): String {
+    val diagnostic = generateSequence(this) { it.cause }
+        .mapNotNull(Throwable::message)
+        .joinToString(" ")
+    return if (
+        diagnostic.contains("commit diff objects", ignoreCase = true) ||
+        diagnostic.contains("resource limit", ignoreCase = true)
+    ) {
+        "这次提交包含的对象过多，当前版本无法一次展开全部详情。提交记录本身仍然有效。"
+    } else {
+        "无法读取提交详情：${message ?: "未知错误"}"
+    }
+}
+
+private fun Throwable.toHealthRepairUserMessage(): String {
+    val diagnostic = generateSequence(this) { it.cause }
+        .mapNotNull(Throwable::message)
+        .joinToString(" ")
+    return when {
+        diagnostic.contains("plan", ignoreCase = true) &&
+            (diagnostic.contains("changed", ignoreCase = true) ||
+                diagnostic.contains("token", ignoreCase = true) ||
+                diagnostic.contains("stale", ignoreCase = true)) ->
+            "数据库状态已经变化，请重新检查后再次处理"
+        diagnostic.contains("block", ignoreCase = true) ->
+            "存在无法安全自动处理的完整性异常，请先按诊断建议处理"
+        else -> "无法完成数据库处理：${message ?: "未知错误"}"
+    }
+}
+
+private fun MdbxHealthRepairApplyResult.healthRepairResultMessage(): String = when (status) {
+    MdbxHealthRepairStatus.APPLIED -> when {
+        healthy -> "已安全处理 $repairedCount 项异常，并创建处理前快照"
+        remainingIssues.isNotEmpty() ->
+            "已处理 $repairedCount 项异常，仍有 ${remainingIssues.size} 项需要继续检查"
+        else -> "已处理 $repairedCount 项异常"
+    }
+    MdbxHealthRepairStatus.CANCELLED -> "已取消数据库处理，未写入任何修改"
+    MdbxHealthRepairStatus.NO_CHANGES -> "数据库状态没有需要写入的变化"
 }
 
 data class MdbxKeyFileSelection(

@@ -5485,4 +5485,18 @@
     <string name="steam_network_optimization_clear_draft_title">Clear the current draft?</string>
     <string name="steam_network_optimization_clear_draft_message">This clears the editor only. Saved rules stay active until you save the empty draft.</string>
     <string name="steam_network_optimization_draft_cleared">Draft cleared. Save to apply the change.</string>
+    <string name="mdbx_create_location">Create in %1$s</string>
+    <string name="mdbx_quick_snapshot_name">Quick snapshot · %1$s</string>
+    <string name="mdbx_snapshot_always_create_full">Always create full snapshot</string>
+    <string name="mdbx_snapshot_always_create_full_description">Save a new full snapshot even when the database state is unchanged</string>
+    <string name="mdbx_snapshot_create_full_anyway">Create full snapshot</string>
+    <string name="mdbx_snapshot_create_when_changed">Create when changed</string>
+    <string name="mdbx_snapshot_create_when_changed_description">Create a full snapshot after new database changes and avoid duplicate copies of the same state</string>
+    <string name="mdbx_snapshot_no_changes_message">The latest snapshot already represents the current database state, so there are no incremental changes to save. Create a full snapshot anyway?</string>
+    <string name="mdbx_snapshot_no_changes_title">No new database changes</string>
+    <string name="mdbx_snapshot_unavailable">Snapshots are unavailable for this MDBX database</string>
+    <string name="mdbx_unlock_existing_vault">Unlock database</string>
+    <string name="onedrive_parent_folder">Parent folder</string>
+    <string name="onedrive_refresh_folder">Refresh folder</string>
+    <string name="onedrive_create_folder">Create folder</string>
 </resources>

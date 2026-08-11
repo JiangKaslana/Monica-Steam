@@ -73,7 +73,7 @@ import takagi.ru.monica.data.PasswordDatabase
 import takagi.ru.monica.data.ThemeMode
 import takagi.ru.monica.repository.PasswordRepository
 import takagi.ru.monica.repository.MdbxRepository
-import takagi.ru.monica.repository.MdbxVaultStore
+import takagi.ru.monica.repository.MdbxRepositoryFactory
 import takagi.ru.monica.repository.SecureItemRepository
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.security.SteamAppLockGate
@@ -99,6 +99,8 @@ import takagi.ru.monica.ui.screens.WebDavBackupScreen
 import takagi.ru.monica.ui.screens.MdbxLocalCreateScreen
 import takagi.ru.monica.ui.screens.MdbxLocalOpenScreen
 import takagi.ru.monica.ui.screens.MdbxManagerScreen
+import takagi.ru.monica.ui.screens.MdbxOneDriveCreateScreen
+import takagi.ru.monica.ui.screens.MdbxOneDriveOpenScreen
 import takagi.ru.monica.ui.screens.MdbxWebDavCreateScreen
 import takagi.ru.monica.ui.screens.MdbxWebDavOpenScreen
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
@@ -125,6 +127,8 @@ private enum class MonicaSteamPage {
     MDBX_OPEN,
     MDBX_WEBDAV_CREATE,
     MDBX_WEBDAV_OPEN,
+    MDBX_ONEDRIVE_CREATE,
+    MDBX_ONEDRIVE_OPEN,
     SETTINGS
 }
 
@@ -219,14 +223,10 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                 val chatNotificationRequest by pendingChatNotificationRequest.collectAsState()
                 val externalSteamLink by pendingExternalSteamLink.collectAsState()
                 val mdbxRepository: MdbxRepository = remember(passwordDatabase, securityManager) {
-                    MdbxVaultStore(
-                        this@MonicaSteamActivity.applicationContext,
-                        passwordDatabase.localMdbxDatabaseDao(),
-                        securityManager,
-                        passwordDatabase.mdbxRemoteSourceDao(),
-                        passwordDatabase.passwordEntryDao(),
-                        passwordDatabase.secureItemDao(),
-                        passwordDatabase.customFieldDao()
+                    MdbxRepositoryFactory.create(
+                        context = this@MonicaSteamActivity.applicationContext,
+                        database = passwordDatabase,
+                        securityManager = securityManager
                     )
                 }
                 val passwordRepository = remember(passwordDatabase, mdbxRepository) {
@@ -650,10 +650,14 @@ class MonicaSteamActivity : BaseMonicaActivity() {
                                 onNavigateToWebDavOpen = {
                                     navigateTo(MonicaSteamPage.MDBX_WEBDAV_OPEN)
                                 },
-                                onNavigateToOneDriveCreate = {},
-                                onNavigateToOneDriveOpen = {},
+                                onNavigateToOneDriveCreate = {
+                                    navigateTo(MonicaSteamPage.MDBX_ONEDRIVE_CREATE)
+                                },
+                                onNavigateToOneDriveOpen = {
+                                    navigateTo(MonicaSteamPage.MDBX_ONEDRIVE_OPEN)
+                                },
                                 localOnly = false,
-                                oneDriveEnabled = false
+                                oneDriveEnabled = true
                             )
                         }
 
@@ -680,6 +684,20 @@ class MonicaSteamActivity : BaseMonicaActivity() {
 
                         MonicaSteamPage.MDBX_WEBDAV_OPEN -> {
                             MdbxWebDavOpenScreen(
+                                viewModel = mdbxViewModel,
+                                onNavigateBack = { navigateBack() }
+                            )
+                        }
+
+                        MonicaSteamPage.MDBX_ONEDRIVE_CREATE -> {
+                            MdbxOneDriveCreateScreen(
+                                viewModel = mdbxViewModel,
+                                onNavigateBack = { navigateBack() }
+                            )
+                        }
+
+                        MonicaSteamPage.MDBX_ONEDRIVE_OPEN -> {
+                            MdbxOneDriveOpenScreen(
                                 viewModel = mdbxViewModel,
                                 onNavigateBack = { navigateBack() }
                             )
@@ -875,7 +893,9 @@ private fun MonicaSteamPage.isDockPage(style: SteamDockStyle): Boolean = when (t
     MonicaSteamPage.MDBX_CREATE,
     MonicaSteamPage.MDBX_OPEN,
     MonicaSteamPage.MDBX_WEBDAV_CREATE,
-    MonicaSteamPage.MDBX_WEBDAV_OPEN -> false
+    MonicaSteamPage.MDBX_WEBDAV_OPEN,
+    MonicaSteamPage.MDBX_ONEDRIVE_CREATE,
+    MonicaSteamPage.MDBX_ONEDRIVE_OPEN -> false
 }
 
 private fun MonicaSteamPage.transitionContentKey(style: SteamDockStyle): Any =

@@ -5312,4 +5312,18 @@
     <string name="steam_network_optimization_clear_draft_title">清空当前草稿？</string>
     <string name="steam_network_optimization_clear_draft_message">只会清空编辑器；已保存规则会继续生效，直到你保存空草稿。</string>
     <string name="steam_network_optimization_draft_cleared">草稿已清空，保存后才会应用。</string>
+    <string name="mdbx_create_location">将创建到 %1$s</string>
+    <string name="mdbx_quick_snapshot_name">快速快照 · %1$s</string>
+    <string name="mdbx_snapshot_always_create_full">始终创建完整快照</string>
+    <string name="mdbx_snapshot_always_create_full_description">即使数据库状态相同，也保存一个新的完整快照</string>
+    <string name="mdbx_snapshot_create_full_anyway">创建完整快照</string>
+    <string name="mdbx_snapshot_create_when_changed">有变更时创建</string>
+    <string name="mdbx_snapshot_create_when_changed_description">检测到新的数据库变更后创建完整快照，避免重复保存相同状态</string>
+    <string name="mdbx_snapshot_no_changes_message">最新快照已经对应当前数据库状态，增量创建没有可保存的内容。是否仍创建一个完整快照？</string>
+    <string name="mdbx_snapshot_no_changes_title">没有新的数据库变更</string>
+    <string name="mdbx_snapshot_unavailable">当前 MDBX 数据库不支持快照</string>
+    <string name="mdbx_unlock_existing_vault">解锁数据库</string>
+    <string name="onedrive_parent_folder">上级目录</string>
+    <string name="onedrive_refresh_folder">刷新目录</string>
+    <string name="onedrive_create_folder">新建文件夹</string>
 </resources>
