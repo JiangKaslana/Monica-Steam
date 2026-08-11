@@ -34,7 +34,11 @@ object SteamNetworkTargetCatalog {
         it.hostname to it.minimumProbeAttempts
     }
 
-    /** Steam-owned/service suffixes used by the Android/mobile surfaces. */
+    /**
+     * Steam/Valve service suffixes that can appear in the mobile client, embedded
+     * Steam pages, chat, authentication, store/community APIs and media payloads.
+     * Matching a suffix instead of a frozen host list also covers new API subdomains.
+     */
     private val STEAM_SERVICE_SUFFIXES: Set<String> = setOf(
         "steampowered.com",
         "steamcommunity.com",
@@ -42,14 +46,21 @@ object SteamNetworkTargetCatalog {
         "steamusercontent.com",
         "steamcontent.com",
         "steam-chat.com",
+        "steamchat.com",
         "steamgames.com",
+        "steamgames.net",
         "steamserver.net",
         "steam-api.com",
+        "steamcdn.com",
+        "steamcdn.net",
+        "steamconnecttest.com",
         "s.team",
         "steam.tv",
         "steamdeck.com",
         "steambroadcast.com",
         "steamchina.com",
+        "playartifact.com",
+        "underlords.com",
         "valvesoftware.com",
         "valvesoftware.net",
         "valve.net",
@@ -65,7 +76,8 @@ object SteamNetworkTargetCatalog {
         "steamusercontent-a.akamaihd.net",
         "steamuserimages-a.akamaihd.net",
         "steamvideo-a.akamaihd.net",
-        "steambroadcast.akamaized.net"
+        "steambroadcast.akamaized.net",
+        "steam.cdn.on.net"
     )
 
     private val STEAM_CDN_SUFFIXES: Set<String> = setOf(
