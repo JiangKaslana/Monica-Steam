@@ -3,12 +3,12 @@ package takagi.ru.monica.steam.network.optimization
 import java.net.InetAddress
 import java.net.UnknownHostException
 import java.util.concurrent.Callable
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorCompletionService
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.runBlocking
 import okhttp3.Dns
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
@@ -124,21 +124,23 @@ internal class SteamDynamicDns(
         }
 
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RACE_TIMEOUT_MILLIS)
-        return try {
-            repeat(futures.size) {
+        var answer: List<InetAddress> = emptyList()
+        var completed = 0
+        try {
+            while (completed < futures.size && answer.isEmpty()) {
                 val remaining = deadline - System.nanoTime()
-                if (remaining <= 0L) return@try emptyList()
-                val future = completion.poll(remaining, TimeUnit.NANOSECONDS)
-                    ?: return@try emptyList()
+                if (remaining <= 0L) break
+                val future = completion.poll(remaining, TimeUnit.NANOSECONDS) ?: break
+                completed += 1
                 val addresses = runCatching { future.get() }.getOrDefault(emptyList())
-                if (addresses.isNotEmpty()) return@try addresses
+                if (addresses.isNotEmpty()) answer = addresses
             }
-            emptyList()
         } finally {
             futures.forEach { future ->
                 if (!future.isDone) future.cancel(true)
             }
         }
+        return answer
     }
 
     private fun buildCacheKey(hostname: String, providers: List<SteamDnsProvider>): String {
