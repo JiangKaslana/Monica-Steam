@@ -21,6 +21,7 @@ object SteamNetworkResolverSettingsRuntime {
     private const val KEY_PREFERRED_PROVIDER_IDS = "resolver_preferred_provider_ids"
     private const val KEY_DYNAMIC_DNS_ENABLED = "resolver_dynamic_dns_enabled"
     private const val KEY_DISABLED_BUILT_IN_PROVIDER_IDS = "resolver_disabled_builtin_provider_ids"
+    private const val KEY_DISABLED_CUSTOM_PROVIDER_IDS = "resolver_disabled_custom_provider_ids"
     private const val KEY_PREFER_IPV6 = "resolver_prefer_ipv6"
 
     private val mutableSettings = MutableStateFlow(SteamNetworkResolverSettings())
@@ -41,19 +42,25 @@ object SteamNetworkResolverSettingsRuntime {
             .filterNot { it.isSystem }
             .map(SteamDnsProvider::id)
             .toSet()
+        val customDnsServers = preferences.getStringSet(KEY_CUSTOM_DNS, emptySet())
+            .orEmpty()
+            .mapNotNull(SteamResolverInputValidator::normalizeDnsServer)
+            .distinct()
+            .sorted()
+        val customDohEndpoints = preferences.getStringSet(KEY_CUSTOM_DOH, emptySet())
+            .orEmpty()
+            .mapNotNull(SteamResolverInputValidator::normalizeDohEndpoint)
+            .distinct()
+            .sorted()
+        val validCustomIds = buildSet {
+            customDnsServers.mapTo(this) { SteamDnsProvider.customDns(it).id }
+            customDohEndpoints.mapTo(this) { SteamDnsProvider.customDoh(it).id }
+        }
         mutableSettings.value = SteamNetworkResolverSettings(
             useSystemDns = preferences.getBoolean(KEY_USE_SYSTEM_DNS, true),
             useBuiltInDoh = preferences.getBoolean(KEY_USE_BUILT_IN_DOH, true),
-            customDnsServers = preferences.getStringSet(KEY_CUSTOM_DNS, emptySet())
-                .orEmpty()
-                .mapNotNull(SteamResolverInputValidator::normalizeDnsServer)
-                .distinct()
-                .sorted(),
-            customDohEndpoints = preferences.getStringSet(KEY_CUSTOM_DOH, emptySet())
-                .orEmpty()
-                .mapNotNull(SteamResolverInputValidator::normalizeDohEndpoint)
-                .distinct()
-                .sorted(),
+            customDnsServers = customDnsServers,
+            customDohEndpoints = customDohEndpoints,
             preferredProviderIds = preferences.getString(KEY_PREFERRED_PROVIDER_IDS, "")
                 .orEmpty()
                 .lineSequence()
@@ -66,6 +73,10 @@ object SteamNetworkResolverSettingsRuntime {
                 .getStringSet(KEY_DISABLED_BUILT_IN_PROVIDER_IDS, emptySet())
                 .orEmpty()
                 .filterTo(linkedSetOf()) { it in validBuiltInIds },
+            disabledCustomProviderIds = preferences
+                .getStringSet(KEY_DISABLED_CUSTOM_PROVIDER_IDS, emptySet())
+                .orEmpty()
+                .filterTo(linkedSetOf()) { it in validCustomIds },
             preferIpv6 = preferences.getBoolean(KEY_PREFER_IPV6, false)
         )
         initialized = true
@@ -121,9 +132,7 @@ object SteamNetworkResolverSettingsRuntime {
         }
         val editor = preferences.edit()
             .putStringSet(KEY_DISABLED_BUILT_IN_PROVIDER_IDS, disabled)
-        if (enabled) {
-            editor.putBoolean(KEY_USE_BUILT_IN_DOH, true)
-        }
+        if (enabled) editor.putBoolean(KEY_USE_BUILT_IN_DOH, true)
         editor.apply()
         mutableSettings.value = mutableSettings.value.copy(
             useBuiltInDoh = if (enabled) true else mutableSettings.value.useBuiltInDoh,
@@ -133,6 +142,28 @@ object SteamNetworkResolverSettingsRuntime {
         runCatching {
             SteamDiagLogger.append(
                 "dynamic_dns builtin_provider id=${provider.id} enabled=$enabled"
+            )
+        }
+    }
+
+    @Synchronized
+    fun setCustomProviderEnabled(context: Context, providerId: String, enabled: Boolean) {
+        initialize(context)
+        val customProviders = buildList {
+            addAll(mutableSettings.value.customDnsServers.map(SteamDnsProvider::customDns))
+            addAll(mutableSettings.value.customDohEndpoints.map(SteamDnsProvider::customDoh))
+        }
+        val provider = customProviders.firstOrNull { it.id == providerId } ?: return
+        val disabled = mutableSettings.value.disabledCustomProviderIds.toMutableSet()
+        if (enabled) disabled.remove(provider.id) else disabled.add(provider.id)
+        preferences.edit().putStringSet(KEY_DISABLED_CUSTOM_PROVIDER_IDS, disabled).apply()
+        mutableSettings.value = mutableSettings.value.copy(
+            disabledCustomProviderIds = disabled.toSet()
+        )
+        notifyResolverChanged()
+        runCatching {
+            SteamDiagLogger.append(
+                "dynamic_dns custom_provider id=${provider.id} enabled=$enabled"
             )
         }
     }
@@ -155,9 +186,20 @@ object SteamNetworkResolverSettingsRuntime {
     @Synchronized
     fun removeCustomDns(context: Context, value: String) {
         initialize(context)
+        val providerId = SteamDnsProvider.customDns(value).id
         val updated = mutableSettings.value.customDnsServers - value
-        saveStringSet(KEY_CUSTOM_DNS, updated)
-        mutableSettings.value = mutableSettings.value.copy(customDnsServers = updated)
+        val disabled = mutableSettings.value.disabledCustomProviderIds - providerId
+        val preferred = mutableSettings.value.preferredProviderIds - providerId
+        preferences.edit()
+            .putStringSet(KEY_CUSTOM_DNS, updated.toSet())
+            .putStringSet(KEY_DISABLED_CUSTOM_PROVIDER_IDS, disabled)
+            .putString(KEY_PREFERRED_PROVIDER_IDS, preferred.joinToString("\n"))
+            .apply()
+        mutableSettings.value = mutableSettings.value.copy(
+            customDnsServers = updated,
+            disabledCustomProviderIds = disabled,
+            preferredProviderIds = preferred
+        )
         notifyResolverChanged()
     }
 
@@ -179,9 +221,20 @@ object SteamNetworkResolverSettingsRuntime {
     @Synchronized
     fun removeCustomDoh(context: Context, value: String) {
         initialize(context)
+        val providerId = SteamDnsProvider.customDoh(value).id
         val updated = mutableSettings.value.customDohEndpoints - value
-        saveStringSet(KEY_CUSTOM_DOH, updated)
-        mutableSettings.value = mutableSettings.value.copy(customDohEndpoints = updated)
+        val disabled = mutableSettings.value.disabledCustomProviderIds - providerId
+        val preferred = mutableSettings.value.preferredProviderIds - providerId
+        preferences.edit()
+            .putStringSet(KEY_CUSTOM_DOH, updated.toSet())
+            .putStringSet(KEY_DISABLED_CUSTOM_PROVIDER_IDS, disabled)
+            .putString(KEY_PREFERRED_PROVIDER_IDS, preferred.joinToString("\n"))
+            .apply()
+        mutableSettings.value = mutableSettings.value.copy(
+            customDohEndpoints = updated,
+            disabledCustomProviderIds = disabled,
+            preferredProviderIds = preferred
+        )
         notifyResolverChanged()
     }
 
