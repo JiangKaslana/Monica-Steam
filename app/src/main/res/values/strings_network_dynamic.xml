@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="steam_network_dynamic_dns_title">Dynamic DNS acceleration</string>
+    <string name="steam_network_dynamic_dns_description">Steam APIs, Store, Community, chat, media and CDN hosts are resolved dynamically instead of pinning a permanent IP.</string>
+    <string name="steam_network_dynamic_dns_active">%1$d live resolver sources</string>
+    <string name="steam_network_dynamic_dns_system_only">System DNS fallback only</string>
+    <string name="steam_network_dynamic_dns_cache_title">Local DNS cache</string>
+    <string name="steam_network_dynamic_dns_cache_count">%1$d cached Steam host entries</string>
+    <string name="steam_network_dynamic_dns_cache_empty">No Steam DNS entries cached yet</string>
+    <string name="steam_network_dynamic_dns_cache_hint">Entries expire automatically. Clearing the cache makes the next Steam request resolve again.</string>
+    <string name="steam_network_dynamic_dns_cache_clear">Clear cache</string>
+    <string name="steam_network_dynamic_dns_scope">Coverage includes Steam mobile APIs and service subdomains under steampowered.com, steamcommunity.com, steamstatic.com, steamusercontent.com, steam-chat.com and known Steam CDN host families.</string>
+</resources>
