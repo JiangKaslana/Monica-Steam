@@ -10,6 +10,7 @@
     <string name="steam_network_dynamic_dns_cache_empty">暂未缓存 Steam DNS 记录</string>
     <string name="steam_network_dynamic_dns_cache_hint">缓存会自动过期；清空后，下次 Steam 请求会重新动态解析。</string>
     <string name="steam_network_dynamic_dns_cache_clear">清空缓存</string>
+    <string name="steam_network_dynamic_dns_cache_refresh">强制刷新</string>
     <string name="steam_network_dynamic_dns_scope">覆盖 Steam 手机版常用 API 与服务子域，包括 steampowered.com、steamcommunity.com、steamstatic.com、steamusercontent.com、steam-chat.com 及已知 Steam CDN 域名族。</string>
     <string name="steam_network_resolver_live_summary">开启动态 DNS 后，这些解析来源会直接参与 Monica Steam 应用内的实时 Steam 域名解析，同时也用于网络质量扫描。</string>
     <string name="steam_network_dynamic_dns_privacy">DNS / DoH 服务可以看到 Monica Steam 查询的公开 Steam 域名；账号凭据、Steam Guard 密钥、Cookie、令牌和聊天正文不会发送给 DNS 服务。</string>
@@ -21,5 +22,7 @@
     <string name="steam_network_resolver_benchmark_partial">%1$d/%2$d 域名 · %3$d 毫秒</string>
     <string name="steam_network_resolver_benchmark_unavailable">不可用</string>
     <string name="steam_network_resolver_system_endpoint">Android 当前网络 DNS</string>
-    <string name="steam_network_resolver_benchmark_hint">这里只展示内置公共 DoH，不会把私人或自定义 DoH 写进内置列表。快速测速会解析一组 Steam 手机版代表域名；完整自动优选仍会执行 HTTPS、SNI 与证书验证。</string>
+    <string name="steam_network_resolver_benchmark_hint">快速测速会解析一组 Steam 手机版代表域名；完整自动优选仍会继续执行 HTTPS、SNI 与证书验证。</string>
+    <string name="steam_network_ipv6_prefer">IPv6 优先</string>
+    <string name="steam_network_ipv6_prefer_description">DoH / 系统解析同时获得 IPv4 与 IPv6 时优先尝试 IPv6；不可用时仍可回落 IPv4。自定义 UDP DNS 当前仍查询 A 记录。</string>
 </resources>
