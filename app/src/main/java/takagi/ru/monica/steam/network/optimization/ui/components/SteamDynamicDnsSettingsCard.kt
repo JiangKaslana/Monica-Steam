@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -28,8 +29,10 @@ internal fun SteamDynamicDnsSettingsCard(
     enabled: Boolean,
     activeProviderCount: Int,
     cacheCount: Int,
+    refreshing: Boolean,
     onEnabledChange: (Boolean) -> Unit,
-    onClearCache: () -> Unit
+    onClearCache: () -> Unit,
+    onForceRefresh: () -> Unit
 ) {
     val containerColor = if (enabled) {
         MaterialTheme.colorScheme.primaryContainer
@@ -120,16 +123,32 @@ internal fun SteamDynamicDnsSettingsCard(
                 )
             }
 
-            FilledTonalButton(
-                onClick = onClearCache,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = cacheCount > 0
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Default.Delete, contentDescription = null)
-                Text(
-                    text = stringResource(R.string.steam_network_dynamic_dns_cache_clear),
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+                FilledTonalButton(
+                    onClick = onClearCache,
+                    modifier = Modifier.weight(1f),
+                    enabled = cacheCount > 0 && !refreshing
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Text(
+                        text = stringResource(R.string.steam_network_dynamic_dns_cache_clear),
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+                FilledTonalButton(
+                    onClick = onForceRefresh,
+                    modifier = Modifier.weight(1f),
+                    enabled = enabled && activeProviderCount > 0 && !refreshing
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Text(
+                        text = stringResource(R.string.steam_network_dynamic_dns_cache_refresh),
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
             }
         }
     }
