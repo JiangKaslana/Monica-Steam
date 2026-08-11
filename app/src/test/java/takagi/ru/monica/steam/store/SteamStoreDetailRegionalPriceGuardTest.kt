@@ -23,6 +23,11 @@ class SteamStoreDetailRegionalPriceGuardTest {
         assertTrue(detail.contains("heightIn(min = 48.dp)"))
         assertTrue(detail.contains("SteamStoreRegionalPriceSheet("))
         assertTrue(detail.contains("sortedRegionalPricesForDisplay("))
+        assertTrue(detail.contains("appId = detail.appId"))
+        assertTrue(detail.contains("historyCountryCode = detail.accountCountryCode"))
+        assertTrue(detail.contains("onOpenItadSettings = onOpenItadSettings"))
+        assertTrue(detail.contains("SteamStoreRegionalPriceHeader("))
+        assertTrue(detail.contains("onToggleExpanded"))
     }
 
     @Test

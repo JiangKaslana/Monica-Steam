@@ -19,8 +19,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PriceCheck
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -79,58 +77,58 @@ fun ItadHistoryLowSection(
         )
     }
 
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.History,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(10.dp)
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.itad_history_low_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = stringResource(R.string.itad_history_low_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.History,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(8.dp)
+                )
             }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.itad_history_low_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.itad_history_low_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
-            when (val current = result) {
-                null -> ItadHistoryLowLoading()
-                is ItadHistoryLowLoadResult.Success -> ItadHistoryLowSuccess(
-                    result = current,
-                    onOpenSource = { openOfficialItadUrl(context, current.historicalLow.sourceUrl) }
-                )
-                is ItadHistoryLowLoadResult.Failure -> ItadHistoryLowFailure(
-                    failure = current,
-                    onOpenSettings = onOpenSettings,
-                    onRetry = { reloadToken++ }
-                )
-            }
+        when (val current = result) {
+            null -> ItadHistoryLowLoading()
+            is ItadHistoryLowLoadResult.Success -> ItadHistoryLowSuccess(
+                result = current,
+                onOpenSource = { openOfficialItadUrl(context, current.historicalLow.sourceUrl) }
+            )
+            is ItadHistoryLowLoadResult.Failure -> ItadHistoryLowFailure(
+                failure = current,
+                onOpenSettings = onOpenSettings,
+                onRetry = { reloadToken++ }
+            )
+        }
+        if (result is ItadHistoryLowLoadResult.Success) {
+            ItadPriceTrendSection(
+                repository = repository,
+                appId = appId,
+                countryCode = countryCode
+            )
         }
     }
 }
@@ -165,7 +163,7 @@ private fun ItadHistoryLowSuccess(
     ) {
         Text(
             text = formatItadMoney(low.price),
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )

@@ -4608,6 +4608,15 @@
     <string name="itad_history_low_service_error">IsThereAnyDeal returned an unavailable or unsupported response.</string>
     <string name="itad_history_low_open_settings">Configure API key</string>
     <string name="itad_history_low_retry">Retry</string>
+    <string name="itad_price_trend_title">Price trend</string>
+    <string name="itad_price_trend_description">Lowest available authorized-store price reconstructed from IsThereAnyDeal history</string>
+    <string name="itad_price_trend_loading">Loading price history…</string>
+    <string name="itad_price_trend_unavailable">Price history is temporarily unavailable.</string>
+    <string name="itad_price_trend_empty">No price changes were recorded for this period.</string>
+    <string name="itad_price_trend_six_months">6 months</string>
+    <string name="itad_price_trend_twelve_months">12 months</string>
+    <string name="itad_price_trend_all">All</string>
+    <string name="itad_price_trend_summary">Historical low %1$s · %2$d price changes</string>
     <string name="steam_store_hint_settings_description">Control ownership, Family Sharing, wishlist, and tag hints.</string>
     <string name="steam_store_hint_status_section">Account status hints</string>
     <string name="steam_store_hint_content_section">Store content</string>
@@ -4693,7 +4702,8 @@
     <string name="steam_store_locked_purchase_disabled">This game cannot be purchased in the current account region. Regional prices and the official Steam page remain available.</string>
     <string name="steam_store_regional_price_action">Compare</string>
     <string name="steam_store_regional_price_description">View regional original prices and CNY conversions</string>
-    <string name="steam_store_regional_original_price">Original %1$s</string>
+    <string name="steam_store_regional_current_discount">Current / discount</string>
+    <string name="steam_store_regional_original_header">Original</string>
     <string name="steam_store_open_detail">Open game details</string>
     <string name="steam_store_detail_loading">Loading game details…</string>
     <string name="steam_store_detail_unavailable">Game details are temporarily unavailable</string>

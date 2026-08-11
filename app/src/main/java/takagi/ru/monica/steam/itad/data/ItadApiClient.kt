@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import takagi.ru.monica.steam.itad.domain.ItadMoney
+import takagi.ru.monica.steam.itad.domain.ItadPriceHistoryPoint
 import takagi.ru.monica.steam.network.SteamHttpClientProvider
 
 internal sealed interface ItadApiResult<out T> {
@@ -44,6 +45,12 @@ internal interface ItadApiGateway {
         apiKey: String
     ): ItadApiResult<ItadHistoryLowRecord>
     fun loadGameUrl(gameId: String, apiKey: String): ItadApiResult<String>
+    fun loadPriceHistory(
+        gameId: String,
+        countryCode: String,
+        apiKey: String,
+        since: String
+    ): ItadApiResult<List<ItadPriceHistoryPoint>> = ItadApiResult.InvalidResponse
 }
 
 internal class ItadApiClient(
@@ -132,6 +139,47 @@ internal class ItadApiClient(
         }
     }
 
+    override fun loadPriceHistory(
+        gameId: String,
+        countryCode: String,
+        apiKey: String,
+        since: String
+    ): ItadApiResult<List<ItadPriceHistoryPoint>> {
+        val requestUrl = endpoint("games/history/v2").newBuilder()
+            .addQueryParameter("id", gameId)
+            .addQueryParameter("country", countryCode)
+            .addQueryParameter("since", since)
+            .build()
+        val request = Request.Builder()
+            .url(requestUrl)
+            .get()
+            .commonHeaders()
+            .header(API_KEY_HEADER, apiKey)
+            .build()
+        return when (val response = execute<List<PriceHistoryResponse>>(request) { payload ->
+            json.decodeFromString(payload)
+        }) {
+            is ItadApiResult.Success -> ItadApiResult.Success(
+                response.value.map { record ->
+                    ItadPriceHistoryPoint(
+                        timestamp = record.timestamp,
+                        shopId = record.shop.id,
+                        shopName = record.shop.name,
+                        price = record.deal?.price?.toDomain(),
+                        regular = record.deal?.regular?.toDomain(),
+                        discountPercent = record.deal?.cut?.toInt()?.coerceIn(0, 100) ?: 0
+                    )
+                }
+            )
+            is ItadApiResult.RateLimited ->
+                ItadApiResult.RateLimited(response.retryAfterEpochMillis)
+            is ItadApiResult.HttpFailure ->
+                ItadApiResult.HttpFailure(response.statusCode)
+            ItadApiResult.NetworkFailure -> ItadApiResult.NetworkFailure
+            ItadApiResult.InvalidResponse -> ItadApiResult.InvalidResponse
+        }
+    }
+
     private inline fun <T> execute(
         request: Request,
         parse: (String) -> T
@@ -195,6 +243,20 @@ internal class ItadApiClient(
         val regular: Price,
         val cut: Int,
         val timestamp: String
+    )
+
+    @Serializable
+    private data class PriceHistoryResponse(
+        val timestamp: String,
+        val shop: Shop,
+        val deal: PriceHistoryDeal? = null
+    )
+
+    @Serializable
+    private data class PriceHistoryDeal(
+        val price: Price,
+        val regular: Price,
+        val cut: Double
     )
 
     @Serializable

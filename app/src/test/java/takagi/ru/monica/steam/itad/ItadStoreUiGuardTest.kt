@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.itad
 import java.io.File
 import java.util.Locale
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.itad.domain.ItadMoney
@@ -10,7 +11,7 @@ import takagi.ru.monica.steam.itad.ui.formatItadMoney
 
 class ItadStoreUiGuardTest {
     @Test
-    fun storeDetailRendersHistoryLowWithSettingsAndOfficialAttribution() {
+    fun regionalPriceRowsExpandHistoryLowWithTrendAndOfficialAttribution() {
         val store = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).readText()
@@ -18,13 +19,16 @@ class ItadStoreUiGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/itad/ui/ItadHistoryLowSection.kt"
         ).readText()
 
-        assertTrue(store.contains("ItadHistoryLowSection("))
-        assertTrue(store.contains("detail.accountCountryCode ?: detail.priceCountryCode"))
+        assertFalse(store.contains("item(key = \"itad_history_low_"))
+        assertTrue(store.contains("AnimatedVisibility("))
+        assertTrue(store.contains("countryCode = price.countryCode"))
+        assertTrue(store.contains("historyCountryCode = detail.accountCountryCode"))
         assertTrue(store.contains("onOpenItadSettings = onOpenSettings"))
         assertTrue(card.contains("R.string.itad_history_low_source"))
         assertTrue(card.contains("current.historicalLow.sourceUrl"))
         assertTrue(card.contains("isthereanydeal.com"))
         assertTrue(card.contains("value = null"))
+        assertTrue(card.contains("ItadPriceTrendSection("))
     }
 
     @Test

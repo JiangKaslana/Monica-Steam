@@ -7,6 +7,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import takagi.ru.monica.steam.itad.domain.ItadHistoricalLow
+import takagi.ru.monica.steam.itad.domain.ItadPriceHistoryPoint
 
 internal data class ItadCachedValue<T>(
     val value: T,
@@ -27,6 +28,16 @@ internal interface ItadCacheGateway {
         value: ItadHistoricalLow,
         expiresAtMillis: Long
     )
+    fun readPriceHistory(
+        appId: Int,
+        countryCode: String
+    ): ItadCachedValue<List<ItadPriceHistoryPoint>>? = null
+    fun writePriceHistory(
+        appId: Int,
+        countryCode: String,
+        value: List<ItadPriceHistoryPoint>,
+        expiresAtMillis: Long
+    ) = Unit
     fun readRetryAfter(keyFingerprint: String): Long?
     fun writeRetryAfter(keyFingerprint: String, retryAfterEpochMillis: Long)
 }
@@ -78,6 +89,26 @@ internal class ItadHistoryLowCache(
         )
     }
 
+    override fun readPriceHistory(
+        appId: Int,
+        countryCode: String
+    ): ItadCachedValue<List<ItadPriceHistoryPoint>>? =
+        readEntry<PriceHistoryCacheEntry>(priceHistoryKey(appId, countryCode))?.let {
+            ItadCachedValue(it.value, it.expiresAtMillis)
+        }
+
+    override fun writePriceHistory(
+        appId: Int,
+        countryCode: String,
+        value: List<ItadPriceHistoryPoint>,
+        expiresAtMillis: Long
+    ) {
+        writeEntry(
+            priceHistoryKey(appId, countryCode),
+            PriceHistoryCacheEntry(value, expiresAtMillis)
+        )
+    }
+
     override fun readRetryAfter(keyFingerprint: String): Long? =
         preferences.getLong(retryKey(keyFingerprint), 0L).takeIf { it > 0L }
 
@@ -102,6 +133,8 @@ internal class ItadHistoryLowCache(
     private fun gameUrlKey(gameId: String): String = "game_url_$gameId"
     private fun historyKey(appId: Int, countryCode: String): String =
         "history_${countryCode.uppercase()}_$appId"
+    private fun priceHistoryKey(appId: Int, countryCode: String): String =
+        "price_history_${countryCode.uppercase()}_$appId"
     private fun retryKey(keyFingerprint: String): String = "retry_$keyFingerprint"
 
     @Serializable
@@ -113,6 +146,12 @@ internal class ItadHistoryLowCache(
     @Serializable
     private data class HistoryLowCacheEntry(
         val value: ItadHistoricalLow,
+        val expiresAtMillis: Long
+    )
+
+    @Serializable
+    private data class PriceHistoryCacheEntry(
+        val value: List<ItadPriceHistoryPoint>,
         val expiresAtMillis: Long
     )
 

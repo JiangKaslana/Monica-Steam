@@ -23,6 +23,16 @@ data class ItadHistoricalLow(
     val fetchedAtMillis: Long
 )
 
+@Serializable
+data class ItadPriceHistoryPoint(
+    val timestamp: String,
+    val shopId: Int,
+    val shopName: String,
+    val price: ItadMoney?,
+    val regular: ItadMoney?,
+    val discountPercent: Int
+)
+
 enum class ItadHistoryLowFailureKind {
     API_KEY_MISSING,
     CREDENTIAL_STORAGE,
@@ -45,6 +55,19 @@ sealed interface ItadHistoryLowLoadResult {
         val kind: ItadHistoryLowFailureKind,
         val retryAfterEpochMillis: Long? = null
     ) : ItadHistoryLowLoadResult
+}
+
+sealed interface ItadPriceHistoryLoadResult {
+    data class Success(
+        val points: List<ItadPriceHistoryPoint>,
+        val fromCache: Boolean,
+        val stale: Boolean = false
+    ) : ItadPriceHistoryLoadResult
+
+    data class Failure(
+        val kind: ItadHistoryLowFailureKind,
+        val retryAfterEpochMillis: Long? = null
+    ) : ItadPriceHistoryLoadResult
 }
 
 object ItadCountryPolicy {
