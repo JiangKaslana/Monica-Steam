@@ -4,6 +4,7 @@
     <string name="steam_network_dynamic_dns_description">After selecting resolver sources, Steam APIs, Store, Community, chat, media and CDN hosts are resolved dynamically on demand without scanning and pinning an IP first.</string>
     <string name="steam_network_dynamic_dns_active">%1$d resolver sources enabled</string>
     <string name="steam_network_dynamic_dns_system_only">System DNS only</string>
+    <string name="steam_network_dynamic_dns_no_sources">No resolver sources are currently enabled</string>
     <string name="steam_network_dynamic_dns_disabled">Dynamic DNS / DoH is off</string>
     <string name="steam_network_dynamic_dns_cache_title">Local DNS cache</string>
     <string name="steam_network_dynamic_dns_cache_count">%1$d cached Steam host entries</string>
