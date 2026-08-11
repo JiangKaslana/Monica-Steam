@@ -10,6 +10,7 @@
     <string name="steam_network_dynamic_dns_cache_empty">No Steam DNS entries cached yet</string>
     <string name="steam_network_dynamic_dns_cache_hint">Entries expire automatically. Clearing the cache makes the next Steam request resolve again.</string>
     <string name="steam_network_dynamic_dns_cache_clear">Clear cache</string>
+    <string name="steam_network_dynamic_dns_cache_refresh">Force refresh</string>
     <string name="steam_network_dynamic_dns_scope">Coverage includes Steam mobile APIs and service subdomains under steampowered.com, steamcommunity.com, steamstatic.com, steamusercontent.com, steam-chat.com and known Steam CDN host families.</string>
     <string name="steam_network_resolver_live_summary">When Dynamic DNS is enabled, these sources resolve live app-scoped Steam requests and also participate in network-quality scans.</string>
     <string name="steam_network_dynamic_dns_privacy">DNS and DoH providers can see the public Steam hostnames queried by Monica Steam. Account credentials, Steam Guard secrets, cookies, tokens and chat message contents are never sent to DNS providers.</string>
@@ -21,5 +22,7 @@
     <string name="steam_network_resolver_benchmark_partial">%1$d/%2$d hosts · %3$d ms</string>
     <string name="steam_network_resolver_benchmark_unavailable">Unavailable</string>
     <string name="steam_network_resolver_system_endpoint">Android network DNS</string>
-    <string name="steam_network_resolver_benchmark_hint">Only built-in public DoH services are shown here; private or custom DoH endpoints are never promoted into this built-in list. The quick test resolves representative Steam mobile hosts, while the full optimizer still performs HTTPS, SNI and certificate verification.</string>
+    <string name="steam_network_resolver_benchmark_hint">This quick test measures DNS resolution for representative Steam mobile endpoints. The full optimizer still performs HTTPS and certificate verification.</string>
+    <string name="steam_network_ipv6_prefer">Prefer IPv6</string>
+    <string name="steam_network_ipv6_prefer_description">Prefer IPv6 when DoH/system resolution returns both families, while keeping IPv4 fallback. Custom UDP DNS currently still queries A records.</string>
 </resources>
