@@ -131,6 +131,40 @@ class SteamProfileViewerServiceTest {
     }
 
     @Test
+    fun selfProfileKeepsKnownLibraryPerfectGameProgress() {
+        val remote = FakeProfileViewerRemote().apply {
+            summaries[VIEWER_STEAM_ID] = summary(VIEWER_STEAM_ID, visibility = 3)
+            levels[VIEWER_STEAM_ID] = levelResponse(12)
+            games[VIEWER_STEAM_ID] = ownedGamesResponse(game(10, "Perfect", 300))
+            communityProfileHtml = """
+                <div class="profile_friend_links">
+                  <span class="profile_count_link_total">32</span>
+                </div>
+            """.trimIndent()
+        }
+        val knownGame = takagi.ru.monica.steam.library.SteamGame(
+            appId = 10,
+            name = "Perfect",
+            playtimeForeverMinutes = 300,
+            playtimeRecentMinutes = 0,
+            achievementUnlockedCount = 10,
+            achievementTotalCount = 10,
+            allAchievementsUnlocked = true
+        )
+
+        val result = SteamProfileViewerService(remote).fetchProfile(
+            viewer = account(),
+            target = SteamProfileViewerTarget(VIEWER_STEAM_ID),
+            language = "schinese",
+            knownSelfGames = listOf(knownGame)
+        ) as SteamProfileViewerResult.Success
+
+        assertEquals(1, result.value.perfectGameCount)
+        assertEquals(0, result.value.groupCount)
+        assertTrue(result.value.targetGames.single().isPerfectAchievementGame)
+    }
+
+    @Test
     fun missingAccessTokenReturnsSessionRequired() {
         val result = SteamProfileViewerService(FakeProfileViewerRemote()).fetchProfile(
             viewer = account().copy(accessToken = null),
@@ -261,6 +295,8 @@ private class FakeProfileViewerRemote : SteamProfileViewerRemote {
     val progress = mutableMapOf<String, ByteArray>()
     val gameFailures = mutableMapOf<String, Throwable>()
     var communityProfileHtml: String = ""
+    var communityFriendsHtml: String = ""
+    var communityGroupsHtml: String = ""
     var badgePayload: JsonObject = buildJsonObject { put("response", buildJsonObject {}) }
     val badgePages = mutableMapOf<Int, String>()
     var optionalCommunityFailure: Throwable? = null
@@ -313,6 +349,24 @@ private class FakeProfileViewerRemote : SteamProfileViewerRemote {
     ): String {
         optionalCommunityFailure?.let { throw it }
         return communityProfileHtml
+    }
+
+    override fun fetchCommunityFriends(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String {
+        optionalCommunityFailure?.let { throw it }
+        return communityFriendsHtml
+    }
+
+    override fun fetchCommunityGroups(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String {
+        optionalCommunityFailure?.let { throw it }
+        return communityGroupsHtml
     }
 
     override fun fetchBadges(accessToken: String, targetSteamId: String): JsonObject {

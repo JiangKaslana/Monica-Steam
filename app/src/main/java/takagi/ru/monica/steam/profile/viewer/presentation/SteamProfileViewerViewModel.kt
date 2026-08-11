@@ -14,15 +14,18 @@ import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
+import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.profile.viewer.data.SteamProfileViewerCache
 import takagi.ru.monica.steam.profile.viewer.data.SteamProfileViewerPreferencesCache
 import takagi.ru.monica.steam.profile.viewer.data.SteamProfileViewerService
 import takagi.ru.monica.steam.profile.viewer.domain.SteamAchievementComparison
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerFailureReason
+import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileGroup
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerResult
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerSnapshot
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerTarget
+import takagi.ru.monica.steam.profile.viewer.domain.withKnownSelfGames
 import takagi.ru.monica.steam.session.domain.SteamAccountSessionResolver
 import takagi.ru.monica.steam.session.domain.resolveOrKeep
 
@@ -36,7 +39,15 @@ internal data class SteamProfileViewerUiState(
     val achievementComparison: SteamAchievementComparison? = null,
     val achievementComparisonFromCache: Boolean = false,
     val loadingAchievementComparison: Boolean = false,
-    val achievementFailure: SteamProfileViewerFailureReason? = null
+    val achievementFailure: SteamProfileViewerFailureReason? = null,
+    val friends: List<SteamFriend> = emptyList(),
+    val friendsLoaded: Boolean = false,
+    val loadingFriends: Boolean = false,
+    val friendsFailure: SteamProfileViewerFailureReason? = null,
+    val groups: List<SteamProfileGroup> = emptyList(),
+    val groupsLoaded: Boolean = false,
+    val loadingGroups: Boolean = false,
+    val groupsFailure: SteamProfileViewerFailureReason? = null
 )
 
 internal class SteamProfileViewerViewModel(
@@ -50,23 +61,31 @@ internal class SteamProfileViewerViewModel(
     private var viewerAccount: SteamAccount? = null
     private var profileGeneration = 0L
     private var achievementGeneration = 0L
+    private var friendsGeneration = 0L
+    private var groupsGeneration = 0L
+    private var knownSelfGames: List<SteamGame> = emptyList()
 
     fun load(
         viewer: SteamAccount,
         target: SteamProfileViewerTarget,
+        knownSelfGames: List<SteamGame> = emptyList(),
         force: Boolean = false
     ) {
         val targetChanged = _uiState.value.target?.steamId != target.steamId ||
             viewerAccount?.steamId != viewer.steamId
         viewerAccount = viewer
+        this.knownSelfGames = knownSelfGames.takeIf { viewer.steamId == target.steamId }.orEmpty()
         if (targetChanged) {
             profileGeneration++
             achievementGeneration++
+            friendsGeneration++
+            groupsGeneration++
             _uiState.value = SteamProfileViewerUiState(target = target)
         } else {
             _uiState.value = _uiState.value.copy(target = target)
         }
         val cached = cache.loadProfile(viewer.steamId, target.steamId)
+            ?.withKnownSelfGames(this.knownSelfGames)
         if (cached != null) {
             _uiState.value = _uiState.value.copy(
                 snapshot = cached,
@@ -112,7 +131,81 @@ internal class SteamProfileViewerViewModel(
     fun refresh() {
         val viewer = viewerAccount ?: return
         val target = _uiState.value.target ?: return
-        load(viewer, target, force = true)
+        load(viewer, target, knownSelfGames = knownSelfGames, force = true)
+    }
+
+    fun loadFriends(force: Boolean = false) {
+        val viewer = viewerAccount ?: return
+        val target = _uiState.value.target ?: return
+        if (_uiState.value.loadingFriends || (!force && _uiState.value.friendsLoaded)) return
+        val generation = ++friendsGeneration
+        _uiState.value = _uiState.value.copy(loadingFriends = true, friendsFailure = null)
+        viewModelScope.launch {
+            val result = runProfileViewerCatching {
+                withContext(Dispatchers.IO) {
+                    fetchFriendsWithSessionRetry(viewer, target)
+                }
+            }.getOrElse {
+                SteamProfileViewerResult.Failure(SteamProfileViewerFailureReason.NETWORK)
+            }
+            if (generation != friendsGeneration || _uiState.value.target?.steamId != target.steamId) {
+                return@launch
+            }
+            when (result) {
+                is SteamProfileViewerResult.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        friends = result.value,
+                        friendsLoaded = true,
+                        loadingFriends = false,
+                        friendsFailure = null,
+                        snapshot = _uiState.value.snapshot?.copy(friendCount = result.value.size)
+                    )
+                }
+                is SteamProfileViewerResult.Failure -> {
+                    _uiState.value = _uiState.value.copy(
+                        loadingFriends = false,
+                        friendsFailure = result.reason
+                    )
+                }
+            }
+        }
+    }
+
+    fun loadGroups(force: Boolean = false) {
+        val viewer = viewerAccount ?: return
+        val target = _uiState.value.target ?: return
+        if (_uiState.value.loadingGroups || (!force && _uiState.value.groupsLoaded)) return
+        val generation = ++groupsGeneration
+        _uiState.value = _uiState.value.copy(loadingGroups = true, groupsFailure = null)
+        viewModelScope.launch {
+            val result = runProfileViewerCatching {
+                withContext(Dispatchers.IO) {
+                    fetchGroupsWithSessionRetry(viewer, target)
+                }
+            }.getOrElse {
+                SteamProfileViewerResult.Failure(SteamProfileViewerFailureReason.NETWORK)
+            }
+            if (generation != groupsGeneration || _uiState.value.target?.steamId != target.steamId) {
+                return@launch
+            }
+            when (result) {
+                is SteamProfileViewerResult.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        groups = result.value,
+                        groupsLoaded = true,
+                        loadingGroups = false,
+                        groupsFailure = null,
+                        snapshot = _uiState.value.snapshot?.copy(groupCount = result.value.size)
+                    )
+                }
+                is SteamProfileViewerResult.Failure -> {
+                    _uiState.value = _uiState.value.copy(
+                        loadingGroups = false,
+                        groupsFailure = result.reason
+                    )
+                }
+            }
+        }
     }
 
     fun openGame(game: SteamGame) {
@@ -177,7 +270,12 @@ internal class SteamProfileViewerViewModel(
         target: SteamProfileViewerTarget
     ): SteamProfileViewerResult<SteamProfileViewerSnapshot> {
         val prepared = sessionResolver.resolveOrKeep(viewer, forceRefresh = false)
-        val first = service.fetchProfile(prepared, target, PROFILE_LANGUAGE)
+        val first = service.fetchProfile(
+            prepared,
+            target,
+            PROFILE_LANGUAGE,
+            knownSelfGames = knownSelfGames
+        )
         if (
             first !is SteamProfileViewerResult.Failure ||
             first.reason != SteamProfileViewerFailureReason.SESSION_REQUIRED
@@ -186,7 +284,12 @@ internal class SteamProfileViewerViewModel(
         }
         val refreshed = sessionResolver.resolveOrKeep(prepared, forceRefresh = true)
         return if (refreshed.accessToken != prepared.accessToken) {
-            service.fetchProfile(refreshed, target, PROFILE_LANGUAGE)
+            service.fetchProfile(
+                refreshed,
+                target,
+                PROFILE_LANGUAGE,
+                knownSelfGames = knownSelfGames
+            )
         } else {
             first
         }
@@ -218,6 +321,46 @@ internal class SteamProfileViewerViewModel(
                 game,
                 PROFILE_LANGUAGE
             )
+        } else {
+            first
+        }
+    }
+
+    private suspend fun fetchFriendsWithSessionRetry(
+        viewer: SteamAccount,
+        target: SteamProfileViewerTarget
+    ): SteamProfileViewerResult<List<SteamFriend>> {
+        val prepared = sessionResolver.resolveOrKeep(viewer, forceRefresh = false)
+        val first = service.fetchCommunityFriends(prepared, target, PROFILE_LANGUAGE)
+        if (
+            first !is SteamProfileViewerResult.Failure ||
+            first.reason != SteamProfileViewerFailureReason.SESSION_REQUIRED
+        ) {
+            return first
+        }
+        val refreshed = sessionResolver.resolveOrKeep(prepared, forceRefresh = true)
+        return if (refreshed.accessToken != prepared.accessToken) {
+            service.fetchCommunityFriends(refreshed, target, PROFILE_LANGUAGE)
+        } else {
+            first
+        }
+    }
+
+    private suspend fun fetchGroupsWithSessionRetry(
+        viewer: SteamAccount,
+        target: SteamProfileViewerTarget
+    ): SteamProfileViewerResult<List<SteamProfileGroup>> {
+        val prepared = sessionResolver.resolveOrKeep(viewer, forceRefresh = false)
+        val first = service.fetchCommunityGroups(prepared, target, PROFILE_LANGUAGE)
+        if (
+            first !is SteamProfileViewerResult.Failure ||
+            first.reason != SteamProfileViewerFailureReason.SESSION_REQUIRED
+        ) {
+            return first
+        }
+        val refreshed = sessionResolver.resolveOrKeep(prepared, forceRefresh = true)
+        return if (refreshed.accessToken != prepared.accessToken) {
+            service.fetchCommunityGroups(refreshed, target, PROFILE_LANGUAGE)
         } else {
             first
         }

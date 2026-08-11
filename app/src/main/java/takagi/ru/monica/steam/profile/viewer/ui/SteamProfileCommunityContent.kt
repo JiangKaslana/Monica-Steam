@@ -28,11 +28,15 @@ import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.community.ui.CommunityBadges
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerSnapshot
+import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileGameDataVisibility
 
 @Composable
 internal fun SteamProfileCommunityMetrics(
     snapshot: SteamProfileViewerSnapshot,
     onOpenBadges: () -> Unit,
+    onOpenFriends: () -> Unit,
+    onOpenGroups: () -> Unit,
+    onOpenPerfectGames: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -52,7 +56,7 @@ internal fun SteamProfileCommunityMetrics(
             SteamProfileMetricCard(
                 icon = Icons.Default.EmojiEvents,
                 value = if (snapshot.isSelf) {
-                    snapshot.targetGames.count { it.isPerfectAchievementGame }.toString()
+                    snapshot.perfectGameCount.toString()
                 } else {
                     snapshot.commonGameCount.toString()
                 },
@@ -60,6 +64,10 @@ internal fun SteamProfileCommunityMetrics(
                     if (snapshot.isSelf) R.string.steam_profile_perfect_games
                     else R.string.steam_profile_common_games
                 ),
+                onClick = onOpenPerfectGames.takeIf {
+                    snapshot.isSelf &&
+                        snapshot.gameDataVisibility == SteamProfileGameDataVisibility.AVAILABLE
+                },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -79,12 +87,14 @@ internal fun SteamProfileCommunityMetrics(
                 icon = Icons.Default.People,
                 value = snapshot.friendCount.profileCountValue(),
                 label = stringResource(R.string.steam_friends_title),
+                onClick = onOpenFriends,
                 modifier = Modifier.weight(1f)
             )
             SteamProfileMetricCard(
                 icon = Icons.Default.Groups,
                 value = snapshot.groupCount.profileCountValue(),
                 label = stringResource(R.string.steam_community_groups),
+                onClick = onOpenGroups,
                 modifier = Modifier.weight(1f)
             )
         }

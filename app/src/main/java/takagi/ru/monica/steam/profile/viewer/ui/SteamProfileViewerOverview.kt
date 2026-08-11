@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -66,6 +67,7 @@ import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerSnapshot
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerTarget
 import takagi.ru.monica.steam.profile.viewer.domain.gamesForScope
 import takagi.ru.monica.steam.profile.viewer.presentation.SteamProfileViewerUiState
+import takagi.ru.monica.steam.profile.ui.SteamMiniProfileBackgroundLayer
 import takagi.ru.monica.steam.token.identity.ui.SteamIdentityInfoCard
 import takagi.ru.monica.ui.theme.GoogleSansFlexFontFamily
 
@@ -73,9 +75,14 @@ import takagi.ru.monica.ui.theme.GoogleSansFlexFontFamily
 internal fun SteamProfileViewerOverview(
     state: SteamProfileViewerUiState,
     target: SteamProfileViewerTarget,
+    animatedBackgroundEnabled: Boolean,
+    allowBackgroundMotion: Boolean,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
     onOpenBadges: () -> Unit,
+    onOpenFriends: () -> Unit,
+    onOpenGroups: () -> Unit,
+    onOpenPerfectGames: () -> Unit,
     onOpenGame: (SteamGame) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -102,6 +109,8 @@ internal fun SteamProfileViewerOverview(
                 snapshot = snapshot,
                 target = target,
                 loading = state.loading,
+                animatedBackgroundEnabled = animatedBackgroundEnabled,
+                allowBackgroundMotion = allowBackgroundMotion,
                 onNavigateBack = onNavigateBack
             )
         }
@@ -138,6 +147,9 @@ internal fun SteamProfileViewerOverview(
             SteamProfileCommunityMetrics(
                 snapshot = snapshot,
                 onOpenBadges = onOpenBadges,
+                onOpenFriends = onOpenFriends,
+                onOpenGroups = onOpenGroups,
+                onOpenPerfectGames = onOpenPerfectGames,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -233,6 +245,8 @@ private fun SteamProfileViewerHero(
     snapshot: SteamProfileViewerSnapshot?,
     target: SteamProfileViewerTarget,
     loading: Boolean,
+    animatedBackgroundEnabled: Boolean,
+    allowBackgroundMotion: Boolean,
     onNavigateBack: () -> Unit
 ) {
     val summary = snapshot?.target
@@ -240,19 +254,32 @@ private fun SteamProfileViewerHero(
     val avatarUrl = summary?.avatarUrl?.ifBlank { target.fallbackAvatarUrl }
         ?: target.fallbackAvatarUrl
     val avatar = rememberSteamProfileViewerImage(avatarUrl)
+    val pageBackground = MaterialTheme.colorScheme.background
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(244.dp)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.surface
+            .clipToBounds()
+            .background(MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        SteamMiniProfileBackgroundLayer(
+            steamId = summary?.steamId ?: target.steamId,
+            enabled = animatedBackgroundEnabled,
+            allowMotion = allowBackgroundMotion,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f),
+                        0.52f to pageBackground.copy(alpha = 0.34f),
+                        0.82f to pageBackground.copy(alpha = 0.9f),
+                        1f to pageBackground
                     )
                 )
-            )
-    ) {
+        )
         Surface(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -373,7 +400,7 @@ private fun SteamProfileInformationCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            SteamIdentityInfoCard(steamId64 = summary.steamId)
+            SteamIdentityInfoCard(steamId64 = summary.steamId, embedded = true)
             if (summary.countryCode.isNotBlank()) {
                 SteamProfileInformationRow(
                     icon = Icons.Default.Public,
@@ -441,7 +468,7 @@ private fun SteamProfileGameScopeSelector(
 }
 
 @Composable
-private fun SteamProfileGameRow(
+internal fun SteamProfileGameRow(
     game: SteamGame,
     onClick: () -> Unit,
     modifier: Modifier = Modifier

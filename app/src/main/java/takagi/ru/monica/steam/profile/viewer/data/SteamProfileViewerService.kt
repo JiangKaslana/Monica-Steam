@@ -3,17 +3,20 @@ package takagi.ru.monica.steam.profile.viewer.data
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.community.data.SteamCommunityBadgeCatalogLoader
 import takagi.ru.monica.steam.community.data.SteamCommunityParser
+import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamGameAchievementProgress
 import takagi.ru.monica.steam.library.SteamGameLibraryService
 import takagi.ru.monica.steam.network.SteamApiException
 import takagi.ru.monica.steam.profile.viewer.domain.SteamAchievementComparison
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileGameDataVisibility
+import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileGroup
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerFailureReason
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerResult
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerSnapshot
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerTarget
 import takagi.ru.monica.steam.profile.viewer.domain.buildSteamAchievementComparison
+import takagi.ru.monica.steam.profile.viewer.domain.withKnownSelfGames
 
 internal class SteamProfileViewerService(
     private val remote: SteamProfileViewerRemote = SteamProfileViewerSteamRemote()
@@ -21,7 +24,8 @@ internal class SteamProfileViewerService(
     fun fetchProfile(
         viewer: SteamAccount,
         target: SteamProfileViewerTarget,
-        language: String
+        language: String,
+        knownSelfGames: List<SteamGame> = emptyList()
     ): SteamProfileViewerResult<SteamProfileViewerSnapshot> {
         if (!viewer.hasRealSteamId) {
             return SteamProfileViewerResult.Failure(
@@ -88,8 +92,7 @@ internal class SteamProfileViewerService(
                     remote.fetchOwnedGames(accessToken, viewer.steamId.toLong(), language)
                 )
             }
-            SteamProfileViewerResult.Success(
-                SteamProfileViewerSnapshot(
+            val snapshot = SteamProfileViewerSnapshot(
                     viewerAccountId = viewer.id,
                     viewerSteamId = viewer.steamId,
                     target = resolvedSummary,
@@ -97,15 +100,37 @@ internal class SteamProfileViewerService(
                     viewerGames = viewerGames,
                     gameDataVisibility = targetGameResult.visibility,
                     fetchedAt = System.currentTimeMillis(),
-                    friendCount = communityCounts?.friendCount,
-                    groupCount = communityCounts?.groupCount,
+                    friendCount = communityCounts?.friendCount
+                        ?: 0.takeIf { resolvedSummary.isPublic && communityCounts != null },
+                    groupCount = communityCounts?.groupCount
+                        ?: 0.takeIf { resolvedSummary.isPublic && communityCounts != null },
                     badgeCount = communityCounts?.badgeCount
                         ?: profileBadges.takeIf { it.isNotEmpty() }
                             ?.count { it.isUnlocked },
                     badges = profileBadges
-                )
-            )
+                ).withKnownSelfGames(knownSelfGames)
+            SteamProfileViewerResult.Success(snapshot)
         }.getOrElse { error -> failure(error, targetIsOtherUser = false) }
+    }
+
+    fun fetchCommunityFriends(
+        viewer: SteamAccount,
+        target: SteamProfileViewerTarget,
+        language: String
+    ): SteamProfileViewerResult<List<SteamFriend>> = fetchCommunityList(viewer, target) {
+        SteamProfileViewerParser.parseCommunityFriends(
+            remote.fetchCommunityFriends(viewer, target.steamId, language)
+        )
+    }
+
+    fun fetchCommunityGroups(
+        viewer: SteamAccount,
+        target: SteamProfileViewerTarget,
+        language: String
+    ): SteamProfileViewerResult<List<SteamProfileGroup>> = fetchCommunityList(viewer, target) {
+        SteamProfileViewerParser.parseCommunityGroups(
+            remote.fetchCommunityGroups(viewer, target.steamId, language)
+        )
     }
 
     fun fetchAchievementComparison(
@@ -253,6 +278,25 @@ internal class SteamProfileViewerService(
     ): SteamProfileViewerResult.Failure = SteamProfileViewerResult.Failure(
         failureReason(error, targetIsOtherUser)
     )
+
+    private fun <T> fetchCommunityList(
+        viewer: SteamAccount,
+        target: SteamProfileViewerTarget,
+        block: () -> List<T>
+    ): SteamProfileViewerResult<List<T>> {
+        if (!viewer.hasRealSteamId) {
+            return SteamProfileViewerResult.Failure(
+                SteamProfileViewerFailureReason.ACCOUNT_REQUIRED
+            )
+        }
+        if (viewer.accessToken.isNullOrBlank()) {
+            return SteamProfileViewerResult.Failure(
+                SteamProfileViewerFailureReason.SESSION_REQUIRED
+            )
+        }
+        return runCatching { SteamProfileViewerResult.Success(block()) }
+            .getOrElse { error -> failure(error, target.steamId != viewer.steamId) }
+    }
 
     private fun failureReason(
         error: Throwable,

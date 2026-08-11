@@ -371,7 +371,8 @@ fun SteamLibraryScreen(
                                 fallbackName = account.displayName.ifBlank { account.accountName }
                             ),
                             onNavigateBack = { showSteamProfile = false },
-                            modifier = Modifier.fillMaxSize().padding(padding)
+                            modifier = Modifier.fillMaxSize().padding(padding),
+                            knownSelfGames = state.snapshot?.games.orEmpty()
                         )
                     }
                 }

@@ -74,6 +74,59 @@ data class SteamProfileViewerSnapshot(
                 .filterTo(linkedSetOf()) { it in viewerIds }
         }
     val commonGameCount: Int get() = commonAppIds.size
+    val perfectGames: List<SteamGame>
+        get() = targetGames.filter(SteamGame::isPerfectAchievementGame)
+    val perfectGameCount: Int get() = perfectGames.size
+}
+
+@Serializable
+data class SteamProfileGroup(
+    val groupId: String,
+    val name: String,
+    val avatarUrl: String = "",
+    val profileUrl: String = "",
+    val memberCount: Int? = null,
+    val onlineCount: Int? = null,
+    val inGameCount: Int? = null,
+    val groupChatCount: Int? = null
+)
+
+internal fun SteamProfileViewerSnapshot.withKnownSelfGames(
+    knownGames: List<SteamGame>
+): SteamProfileViewerSnapshot {
+    if (!isSelf || knownGames.isEmpty()) return this
+    val knownByAppId = knownGames.associateBy(SteamGame::appId)
+    val merged = targetGames.map { remoteGame ->
+        val knownGame = knownByAppId[remoteGame.appId] ?: return@map remoteGame
+        mergeSteamProfileGameProgress(remoteGame, knownGame)
+    }.toMutableList()
+    val presentAppIds = merged.mapTo(hashSetOf(), SteamGame::appId)
+    merged += knownGames.filterNot { it.appId in presentAppIds }
+    return copy(targetGames = merged.distinctBy(SteamGame::appId))
+}
+
+private fun mergeSteamProfileGameProgress(
+    remoteGame: SteamGame,
+    knownGame: SteamGame
+): SteamGame {
+    val remoteTotal = remoteGame.achievementTotalCount
+    val knownTotal = knownGame.achievementTotalCount
+    if (remoteTotal == null && knownTotal == null) return remoteGame
+    val total = maxOf(remoteTotal ?: 0, knownTotal ?: 0).takeIf { it > 0 }
+    val unlocked = maxOf(
+        remoteGame.achievementUnlockedCount ?: 0,
+        knownGame.achievementUnlockedCount ?: 0
+    ).takeIf { total != null }
+    val allUnlocked = total != null && (
+        (remoteGame.allAchievementsUnlocked && remoteTotal == total) ||
+            (knownGame.allAchievementsUnlocked && knownTotal == total) ||
+            (unlocked ?: 0) >= total
+        )
+    return remoteGame.copy(
+        achievementUnlockedCount = unlocked,
+        achievementTotalCount = total,
+        allAchievementsUnlocked = allUnlocked
+    )
 }
 
 enum class SteamProfileGameScope {

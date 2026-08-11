@@ -35,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -49,7 +50,8 @@ import takagi.ru.monica.utils.ClipboardUtils
 @Composable
 internal fun SteamIdentityInfoCard(
     steamId64: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    embedded: Boolean = false
 ) {
     val identity = remember(steamId64) {
         SteamIdentityConverter.fromSteamId64(steamId64)
@@ -59,23 +61,21 @@ internal fun SteamIdentityInfoCard(
     val uriHandler = LocalUriHandler.current
     val openFailedMessage = stringResource(R.string.steam_identity_open_failed)
 
-    Card(
-        onClick = { detailsVisible = true },
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
+    val rowContent: @Composable () -> Unit = {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = if (embedded) 0.dp else 16.dp,
+                    vertical = if (embedded) 4.dp else 16.dp
+                ),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.Fingerprint,
                 contentDescription = null,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(if (embedded) 24.dp else 28.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Column(modifier = Modifier.weight(1f)) {
@@ -86,15 +86,21 @@ internal fun SteamIdentityInfoCard(
                 )
                 Text(
                     text = identity.accountId,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = if (embedded) {
+                        MaterialTheme.typography.bodyLarge
+                    } else {
+                        MaterialTheme.typography.titleLarge
+                    },
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    text = stringResource(R.string.steam_identity_tap_for_details),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (!embedded) {
+                    Text(
+                        text = stringResource(R.string.steam_identity_tap_for_details),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             Icon(
                 imageVector = Icons.Default.ChevronRight,
@@ -102,6 +108,23 @@ internal fun SteamIdentityInfoCard(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+    if (embedded) {
+        androidx.compose.material3.Surface(
+            onClick = { detailsVisible = true },
+            modifier = modifier.fillMaxWidth().heightIn(min = 56.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = Color.Transparent
+        ) { rowContent() }
+    } else {
+        Card(
+            onClick = { detailsVisible = true },
+            modifier = modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            )
+        ) { rowContent() }
     }
 
     if (detailsVisible) {

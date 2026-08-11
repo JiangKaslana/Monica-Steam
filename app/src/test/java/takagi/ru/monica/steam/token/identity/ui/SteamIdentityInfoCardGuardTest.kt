@@ -53,7 +53,7 @@ class SteamIdentityInfoCardGuardTest {
         ).readText()
 
         assertTrue(friendDetail.contains("SteamIdentityInfoCard(steamId64 = friend.steamId)"))
-        assertTrue(profileOverview.contains("SteamIdentityInfoCard(steamId64 = summary.steamId)"))
+        assertTrue(profileOverview.contains("SteamIdentityInfoCard(steamId64 = summary.steamId, embedded = true)"))
         assertFalse(friendDetail.contains("value = friend.steamId"))
         assertFalse(profileOverview.contains("value = summary.steamId"))
     }

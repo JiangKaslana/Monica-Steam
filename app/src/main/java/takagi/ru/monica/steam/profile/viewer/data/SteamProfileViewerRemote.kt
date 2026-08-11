@@ -23,6 +23,16 @@ internal interface SteamProfileViewerRemote {
         targetSteamId: String,
         language: String
     ): String
+    fun fetchCommunityFriends(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String
+    fun fetchCommunityGroups(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String
     fun fetchBadges(accessToken: String, targetSteamId: String): JsonObject
     fun fetchBadgePage(
         viewer: SteamAccount,
@@ -124,6 +134,28 @@ internal class SteamProfileViewerSteamRemote(
         language: String
     ): String = api.communityGetText(
         path = "/profiles/$targetSteamId/",
+        query = mapOf("l" to language),
+        cookies = communityCookies(viewer),
+        referer = "https://steamcommunity.com/profiles/$targetSteamId/"
+    )
+
+    override fun fetchCommunityFriends(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String = api.communityGetText(
+        path = "/profiles/$targetSteamId/friends/",
+        query = mapOf("l" to language),
+        cookies = communityCookies(viewer),
+        referer = "https://steamcommunity.com/profiles/$targetSteamId/"
+    )
+
+    override fun fetchCommunityGroups(
+        viewer: SteamAccount,
+        targetSteamId: String,
+        language: String
+    ): String = api.communityGetText(
+        path = "/profiles/$targetSteamId/groups/",
         query = mapOf("l" to language),
         cookies = communityCookies(viewer),
         referer = "https://steamcommunity.com/profiles/$targetSteamId/"

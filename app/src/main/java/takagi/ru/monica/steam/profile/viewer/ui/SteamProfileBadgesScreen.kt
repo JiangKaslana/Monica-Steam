@@ -18,8 +18,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -38,6 +40,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -138,7 +142,7 @@ internal fun SteamProfileBadgesScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(150.dp),
+                columns = GridCells.Adaptive(142.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = 16.dp,
@@ -183,13 +187,13 @@ private fun SteamProfileBadgeCard(
     }
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 184.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 168.dp),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (badge.isUnlocked) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
+                Color.Transparent
             }
         )
     ) {
@@ -198,11 +202,31 @@ private fun SteamProfileBadgeCard(
             verticalArrangement = Arrangement.spacedBy(7.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            CommunityBadgeIcon(
-                imageUrl = badge.iconUrl,
-                contentDescription = title,
-                modifier = Modifier.size(72.dp)
-            )
+            Box(modifier = Modifier.size(88.dp)) {
+                CommunityBadgeIcon(
+                    imageUrl = badge.iconUrl,
+                    contentDescription = title,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(if (badge.isUnlocked) 1f else 0.46f)
+                )
+                if (!badge.isUnlocked) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomEnd).size(30.dp),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
+                }
+            }
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
@@ -219,19 +243,18 @@ private fun SteamProfileBadgeCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
-            ) {
-                Text(
-                    text = stringResource(
-                        if (badge.isUnlocked) R.string.steam_profile_badge_unlocked
-                        else R.string.steam_profile_badge_locked
-                    ),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
+            Text(
+                text = stringResource(
+                    if (badge.isUnlocked) R.string.steam_profile_badge_unlocked
+                    else R.string.steam_profile_badge_locked
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (badge.isUnlocked) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
         }
     }
 }

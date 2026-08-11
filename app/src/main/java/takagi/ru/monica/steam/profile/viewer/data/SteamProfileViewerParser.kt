@@ -7,12 +7,15 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import org.jsoup.Jsoup
+import takagi.ru.monica.steam.friends.domain.SteamFriend
+import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
 import takagi.ru.monica.steam.friends.domain.SteamPersonaState
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamGameAchievementProgress
 import takagi.ru.monica.steam.library.SteamGameLibraryService
 import takagi.ru.monica.steam.network.SteamProtoReader
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileSummary
+import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileGroup
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerTarget
 
 internal object SteamProfileViewerParser {
@@ -99,6 +102,66 @@ internal object SteamProfileViewerParser {
         }
     }
 
+    fun parseCommunityFriends(html: String): List<SteamFriend> {
+        if (html.isBlank()) return emptyList()
+        val document = Jsoup.parse(html, "https://steamcommunity.com/")
+        return document.select(".friend_block_v2[data-steamid]").mapNotNull { row ->
+            val steamId = row.attr("data-steamid").takeIf {
+                it.matches(Regex("7656119\\d{10}"))
+            } ?: return@mapNotNull null
+            val profileUrl = row.selectFirst("a.selectable_overlay[href]")
+                ?.absUrl("href").orEmpty()
+            val personaName = row.attr("data-search")
+                .substringBefore(';')
+                .trim()
+                .ifBlank {
+                    row.selectFirst(".friend_block_content")?.ownText().orEmpty().trim()
+                }
+            val statusText = row.selectFirst(".friend_small_text")?.text().orEmpty().trim()
+            val isOnline = row.hasClass("online") || row.hasClass("in-game") ||
+                row.hasClass("in_game")
+            SteamFriend(
+                steamId = steamId,
+                relationship = SteamFriendRelationship.FRIEND,
+                personaName = personaName,
+                avatarUrl = row.selectFirst(".player_avatar img[src]")?.absUrl("src").orEmpty(),
+                profileUrl = profileUrl.ifBlank {
+                    "https://steamcommunity.com/profiles/$steamId/"
+                },
+                personaState = if (isOnline) SteamPersonaState.ONLINE else SteamPersonaState.OFFLINE,
+                gameName = statusText.takeIf { row.hasClass("in-game") || row.hasClass("in_game") }
+                    .orEmpty()
+            )
+        }.distinctBy(SteamFriend::steamId)
+    }
+
+    fun parseCommunityGroups(html: String): List<SteamProfileGroup> {
+        if (html.isBlank()) return emptyList()
+        val document = Jsoup.parse(html, "https://steamcommunity.com/")
+        return document.select(".group_block.invite_row").mapNotNull { row ->
+            val titleLink = row.selectFirst(".groupTitle a.linkTitle[href]")
+                ?: return@mapNotNull null
+            val profileUrl = titleLink.absUrl("href")
+            val name = titleLink.text().trim().takeIf(String::isNotBlank)
+                ?: return@mapNotNull null
+            val chatHref = row.selectFirst("a[href*=OpenGroupChat]")?.attr("href").orEmpty()
+            val groupId = GROUP_CHAT_ID.find(chatHref)?.groupValues?.getOrNull(1)
+                ?.takeIf(String::isNotBlank)
+                ?: profileUrl.substringAfterLast('/').takeIf(String::isNotBlank)
+                ?: name
+            SteamProfileGroup(
+                groupId = groupId,
+                name = name,
+                avatarUrl = row.selectFirst(".group_block_medium img[src]")?.absUrl("src").orEmpty(),
+                profileUrl = profileUrl,
+                memberCount = row.selectFirst("a[href$=\"/members\"]")?.text().toProfileCount(),
+                onlineCount = row.selectFirst(".membersOnline")?.text().toProfileCount(),
+                inGameCount = row.selectFirst(".membersInGame")?.text().toProfileCount(),
+                groupChatCount = row.selectFirst("a[href*=OpenGroupChat]")?.text().toProfileCount()
+            )
+        }.distinctBy(SteamProfileGroup::groupId)
+    }
+
     private fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject
     private fun JsonObject.array(key: String): JsonArray =
         this[key] as? JsonArray ?: JsonArray(emptyList())
@@ -117,10 +180,11 @@ internal object SteamProfileViewerParser {
     }
 
     private fun String?.toProfileCount(): Int? = this
-        ?.replace(",", "")
-        ?.replace(" ", "")
-        ?.trim()
+        ?.let { value -> value.filter { character -> character.isDigit() } }
+        ?.takeIf(String::isNotBlank)
         ?.toIntOrNull()
+
+    private val GROUP_CHAT_ID = Regex("OpenGroupChat\\(\\s*['\"](\\d+)['\"]")
 }
 
 internal data class SteamProfileCommunityCounts(
