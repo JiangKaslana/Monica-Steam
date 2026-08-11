@@ -101,6 +101,14 @@ internal fun SteamCommunityBadgeDetailSheet(
                         value = "#${badge.badgeId}"
                     )
                     HorizontalDivider()
+                    BadgeDetailRow(
+                        label = stringResource(R.string.steam_profile_badge_status),
+                        value = stringResource(
+                            if (badge.isUnlocked) R.string.steam_profile_badge_unlocked
+                            else R.string.steam_profile_badge_locked
+                        )
+                    )
+                    HorizontalDivider()
                     if (badge.level > 0) {
                         BadgeDetailRow(
                             label = stringResource(R.string.steam_community_level),

@@ -22,8 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
@@ -77,6 +75,7 @@ internal fun SteamProfileViewerOverview(
     target: SteamProfileViewerTarget,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
+    onOpenBadges: () -> Unit,
     onOpenGame: (SteamGame) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -136,8 +135,9 @@ internal fun SteamProfileViewerOverview(
             }
         }
         item(key = "profile_metrics") {
-            SteamProfileMetrics(
+            SteamProfileCommunityMetrics(
                 snapshot = snapshot,
+                onOpenBadges = onOpenBadges,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -146,6 +146,15 @@ internal fun SteamProfileViewerOverview(
                 snapshot = snapshot,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
+        }
+        if (snapshot.badges.isNotEmpty()) {
+            item(key = "profile_badges") {
+                SteamProfileBadgePreview(
+                    snapshot = snapshot,
+                    onOpenBadges = onOpenBadges,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
         }
         if (!snapshot.isSelf && snapshot.gameDataVisibility == SteamProfileGameDataVisibility.AVAILABLE) {
             item(key = "profile_scope") {
@@ -340,74 +349,6 @@ private fun SteamProfileViewerHero(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SteamProfileMetrics(
-    snapshot: SteamProfileViewerSnapshot,
-    modifier: Modifier = Modifier
-) {
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SteamProfileMetricCard(
-            icon = Icons.Default.SportsEsports,
-            value = snapshot.targetGameCount.toString(),
-            label = stringResource(R.string.steam_profile_game_count),
-            modifier = Modifier.weight(1f)
-        )
-        SteamProfileMetricCard(
-            icon = Icons.Default.Schedule,
-            value = formatSteamProfilePlaytime(snapshot.targetPlaytimeMinutes),
-            label = stringResource(R.string.steam_profile_total_playtime),
-            modifier = Modifier.weight(1f)
-        )
-        SteamProfileMetricCard(
-            icon = Icons.Default.Groups,
-            value = snapshot.commonGameCount.toString(),
-            label = stringResource(
-                if (snapshot.isSelf) R.string.steam_profile_perfect_games
-                else R.string.steam_profile_common_games
-            ),
-            modifier = Modifier.weight(1f),
-            valueOverride = if (snapshot.isSelf) {
-                snapshot.targetGames.count(SteamGame::isPerfectAchievementGame).toString()
-            } else null
-        )
-    }
-}
-
-@Composable
-private fun SteamProfileMetricCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier,
-    valueOverride: String? = null
-) {
-    Surface(
-        modifier = modifier.heightIn(min = 104.dp),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(
-                text = valueOverride ?: value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2
-            )
         }
     }
 }
@@ -691,7 +632,7 @@ internal fun steamProfileFailureMessage(reason: SteamProfileViewerFailureReason?
         }
     )
 
-private fun formatSteamProfilePlaytime(minutes: Long): String {
+internal fun formatSteamProfilePlaytime(minutes: Long): String {
     if (minutes < 60L) return "${minutes.coerceAtLeast(0L)}m"
     val hours = minutes.coerceAtLeast(0L) / 60.0
     return if (hours >= 100.0) {

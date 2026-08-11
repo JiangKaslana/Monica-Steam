@@ -4966,7 +4966,7 @@
     <string name="steam_friend_add_success">Friend request sent.</string>
     <string name="steam_friend_current_game">Current game</string>
     <string name="steam_friend_profile_information">Profile information</string>
-    <string name="steam_profile_open_game_profile">View games and achievements</string>
+    <string name="steam_profile_open_game_profile">View account profile</string>
     <string name="steam_profile_cached_data">Showing cached profile data while Steam is refreshed.</string>
     <string name="steam_profile_cached_achievements">Showing the last cached achievement data.</string>
     <string name="steam_profile_level">Level %1$d</string>
@@ -5010,6 +5010,15 @@
     <string name="steam_profile_achievement_completed">Completed</string>
     <string name="steam_profile_achievement_incomplete">Incomplete</string>
     <string name="steam_profile_loading_achievements">Loading achievements…</string>
+    <string name="steam_profile_badges_title_count">%1$d badges</string>
+    <string name="steam_profile_view_all_badges">View all</string>
+    <string name="steam_profile_badge_filter_all">All</string>
+    <string name="steam_profile_badge_filter_unlocked">Unlocked</string>
+    <string name="steam_profile_badge_filter_locked">Locked</string>
+    <string name="steam_profile_badge_status">Status</string>
+    <string name="steam_profile_badge_unlocked">Unlocked</string>
+    <string name="steam_profile_badge_locked">Locked</string>
+    <string name="steam_profile_no_filtered_badges">No badges match this filter.</string>
     <string name="steam_friend_real_name">Real name</string>
     <string name="steam_friend_steam_id">Steam ID</string>
     <string name="steam_friend_friends_since">Friends since</string>

@@ -8,7 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -35,6 +38,7 @@ fun SteamProfileViewerScreen(
     )
     val state by profileViewModel.uiState.collectAsState()
     val selectedGame = state.selectedGame
+    var showBadges by rememberSaveable(target.steamId) { mutableStateOf(false) }
 
     LaunchedEffect(
         viewerAccount.id,
@@ -48,43 +52,69 @@ fun SteamProfileViewerScreen(
     }
 
     BackHandler(enabled = true) {
-        if (selectedGame != null) profileViewModel.closeGame() else onNavigateBack()
+        when {
+            selectedGame != null -> profileViewModel.closeGame()
+            showBadges -> showBadges = false
+            else -> onNavigateBack()
+        }
     }
 
     AnimatedContent(
-        targetState = selectedGame,
+        targetState = showBadges && state.snapshot != null,
         modifier = modifier.fillMaxSize(),
         transitionSpec = {
             easyNotesScreenEnter(reduceAnimations)
                 .togetherWith(easyNotesScreenExit(reduceAnimations))
         },
-        contentKey = { game -> game?.appId ?: 0 },
-        label = "SteamProfileViewerNavigation"
-    ) { game ->
-        if (game == null) {
-            SteamExpressivePullToRefresh(
-                refreshing = state.loading,
-                onRefresh = profileViewModel::refresh,
-                enabled = !state.loading,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                SteamProfileViewerOverview(
-                    state = state,
-                    target = target,
-                    onNavigateBack = onNavigateBack,
-                    onRefresh = profileViewModel::refresh,
-                    onOpenGame = profileViewModel::openGame,
+        contentKey = { badges -> if (badges) "badges" else "profile" },
+        label = "SteamProfileBadgeNavigation"
+    ) { badgesVisible ->
+        if (badgesVisible) {
+            state.snapshot?.let { snapshot ->
+                SteamProfileBadgesScreen(
+                    snapshot = snapshot,
+                    onNavigateBack = { showBadges = false },
                     modifier = Modifier.fillMaxSize()
                 )
             }
         } else {
-            SteamProfileAchievementComparisonScreen(
-                state = state,
-                game = game,
-                onNavigateBack = profileViewModel::closeGame,
-                onRetry = { profileViewModel.openGame(game) },
-                modifier = Modifier.fillMaxSize()
-            )
+            AnimatedContent(
+                targetState = selectedGame,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    easyNotesScreenEnter(reduceAnimations)
+                        .togetherWith(easyNotesScreenExit(reduceAnimations))
+                },
+                contentKey = { game -> game?.appId ?: 0 },
+                label = "SteamProfileViewerNavigation"
+            ) { game ->
+                if (game == null) {
+                    SteamExpressivePullToRefresh(
+                        refreshing = state.loading,
+                        onRefresh = profileViewModel::refresh,
+                        enabled = !state.loading,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        SteamProfileViewerOverview(
+                            state = state,
+                            target = target,
+                            onNavigateBack = onNavigateBack,
+                            onRefresh = profileViewModel::refresh,
+                            onOpenBadges = { showBadges = true },
+                            onOpenGame = profileViewModel::openGame,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                } else {
+                    SteamProfileAchievementComparisonScreen(
+                        state = state,
+                        game = game,
+                        onNavigateBack = profileViewModel::closeGame,
+                        onRetry = { profileViewModel.openGame(game) },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
         }
     }
 }

@@ -161,7 +161,7 @@ internal fun SteamFriendDetailScreen(
                     onClick = onOpenProfile,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
                 ) {
-                    Icon(Icons.Default.SportsEsports, contentDescription = null)
+                    Icon(Icons.Default.Person, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.steam_profile_open_game_profile))
                 }

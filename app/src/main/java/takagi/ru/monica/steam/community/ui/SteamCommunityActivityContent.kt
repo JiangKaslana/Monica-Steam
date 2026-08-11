@@ -65,7 +65,11 @@ internal fun CommunityBadges(
                     modifier = Modifier.width(badgeWidth),
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        containerColor = if (badge.isUnlocked) {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerHigh
+                        }
                     )
                 ) {
                     Column(
@@ -96,7 +100,11 @@ internal fun CommunityBadges(
                             )
                         }
                         Text(
-                            stringResource(R.string.steam_community_badge_level, badge.level),
+                            text = if (badge.isUnlocked) {
+                                stringResource(R.string.steam_community_badge_level, badge.level)
+                            } else {
+                                stringResource(R.string.steam_profile_badge_locked)
+                            },
                             style = MaterialTheme.typography.bodySmall
                         )
                         Text(

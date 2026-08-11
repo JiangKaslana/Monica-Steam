@@ -4796,7 +4796,7 @@
     <string name="steam_friend_add_success">好友申请已发送。</string>
     <string name="steam_friend_current_game">当前游戏</string>
     <string name="steam_friend_profile_information">资料信息</string>
-    <string name="steam_profile_open_game_profile">查看游戏与成就</string>
+    <string name="steam_profile_open_game_profile">查看账号资料</string>
     <string name="steam_profile_cached_data">正在显示缓存的个人资料，同时尝试从 Steam 更新。</string>
     <string name="steam_profile_cached_achievements">正在显示上一次缓存的成就数据。</string>
     <string name="steam_profile_level">等级 %1$d</string>
@@ -4840,6 +4840,15 @@
     <string name="steam_profile_achievement_completed">已完成</string>
     <string name="steam_profile_achievement_incomplete">未完成</string>
     <string name="steam_profile_loading_achievements">正在加载游戏成就…</string>
+    <string name="steam_profile_badges_title_count">共 %1$d 枚徽章</string>
+    <string name="steam_profile_view_all_badges">查看全部</string>
+    <string name="steam_profile_badge_filter_all">全部</string>
+    <string name="steam_profile_badge_filter_unlocked">已解锁</string>
+    <string name="steam_profile_badge_filter_locked">未解锁</string>
+    <string name="steam_profile_badge_status">状态</string>
+    <string name="steam_profile_badge_unlocked">已解锁</string>
+    <string name="steam_profile_badge_locked">未解锁</string>
+    <string name="steam_profile_no_filtered_badges">当前筛选下没有徽章。</string>
     <string name="steam_friend_real_name">真实姓名</string>
     <string name="steam_friend_steam_id">Steam ID</string>
     <string name="steam_friend_friends_since">成为好友</string>

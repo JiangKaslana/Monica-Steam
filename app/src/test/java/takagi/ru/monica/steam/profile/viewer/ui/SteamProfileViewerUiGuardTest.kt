@@ -51,6 +51,37 @@ class SteamProfileViewerUiGuardTest {
     }
 
     @Test
+    fun profileViewerExposesCommunityMetricsAndAllBadgeFilters() {
+        val screen = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/profile/viewer/ui/SteamProfileViewerScreen.kt"
+        ).readText()
+        val overview = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/profile/viewer/ui/SteamProfileViewerOverview.kt"
+        ).readText()
+        val community = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/profile/viewer/ui/SteamProfileCommunityContent.kt"
+        ).readText()
+        val badges = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/profile/viewer/ui/SteamProfileBadgesScreen.kt"
+        ).readText()
+
+        assertTrue(screen.contains("showBadges"))
+        assertTrue(screen.contains("SteamProfileBadgesScreen("))
+        assertTrue(overview.contains("onOpenBadges"))
+        assertTrue(community.contains("snapshot.friendCount"))
+        assertTrue(community.contains("snapshot.groupCount"))
+        assertTrue(community.contains("snapshot.badgeCount"))
+        assertTrue(community.contains("CommunityBadges("))
+        assertTrue(badges.contains("enum class SteamProfileBadgeFilter"))
+        assertTrue(badges.contains("SteamProfileBadgeFilter.entries"))
+        assertTrue(badges.contains("LazyVerticalGrid"))
+        assertTrue(badges.contains("badge.isUnlocked"))
+        assertTrue(badges.contains("SteamCommunityBadgeDetailSheet("))
+        assertTrue(badges.contains("LocalSteamDockContentClearance"))
+        assertTrue(badges.contains("statusBarsPadding()"))
+    }
+
+    @Test
     fun serviceLoadsGamesLazilyAndCacheKeysContainBothAccounts() {
         val service = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/profile/viewer/data/SteamProfileViewerService.kt"
