@@ -118,6 +118,9 @@ internal class SteamDynamicDns(
     ): List<InetAddress> {
         if (providers.isEmpty()) return emptyList()
 
+        // The settings UI supports up to 22 simultaneous sources (system + public DoH + custom
+        // DNS/DoH). Keep concurrency bounded, but enqueue every enabled source so a user-selected
+        // resolver is never silently ignored merely because it appears later in the list.
         val candidates = providers.take(MAX_RACE_PROVIDERS)
         val completion = ExecutorCompletionService<List<InetAddress>>(executor)
         val futures = mutableListOf<Future<List<InetAddress>>>()
@@ -198,8 +201,8 @@ internal class SteamDynamicDns(
     }
 
     private companion object {
-        const val MAX_PARALLEL_RESOLVERS = 6
-        const val MAX_RACE_PROVIDERS = 8
+        const val MAX_PARALLEL_RESOLVERS = 8
+        const val MAX_RACE_PROVIDERS = 24
         const val MAX_CACHE_ENTRIES = 256
         const val RESOLVER_TIMEOUT_MILLIS = 2_500L
         const val RACE_TIMEOUT_MILLIS = 3_000L
