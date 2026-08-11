@@ -10,16 +10,23 @@ data class SteamNetworkResolverSettings(
     val customDnsServers: List<String> = emptyList(),
     val customDohEndpoints: List<String> = emptyList(),
     val preferredProviderIds: List<String> = emptyList(),
-    val dynamicDnsEnabled: Boolean = false
+    val dynamicDnsEnabled: Boolean = false,
+    val disabledBuiltInProviderIds: Set<String> = emptySet()
 ) {
+    val configuredProviders: List<SteamDnsProvider>
+        get() = buildList {
+            if (useSystemDns) add(SteamDnsProvider.SYSTEM)
+            if (useBuiltInDoh) addAll(SteamDnsProvider.DEFAULTS.filterNot { it.isSystem })
+            addAll(customDnsServers.map(SteamDnsProvider::customDns))
+            addAll(customDohEndpoints.map(SteamDnsProvider::customDoh))
+        }.distinctBy(SteamDnsProvider::id)
+
     val activeProviders: List<SteamDnsProvider>
         get() {
-            val available = buildList {
-                if (useSystemDns) add(SteamDnsProvider.SYSTEM)
-                if (useBuiltInDoh) addAll(SteamDnsProvider.DEFAULTS.filterNot { it.isSystem })
-                addAll(customDnsServers.map(SteamDnsProvider::customDns))
-                addAll(customDohEndpoints.map(SteamDnsProvider::customDoh))
-            }.distinctBy(SteamDnsProvider::id)
+            val available = configuredProviders.filterNot { provider ->
+                provider.isDoh && provider.id in disabledBuiltInProviderIds &&
+                    SteamDnsProvider.DEFAULTS.any { it.id == provider.id }
+            }
             if (preferredProviderIds.isEmpty()) return available
 
             val byId = available.associateBy(SteamDnsProvider::id)
@@ -37,6 +44,9 @@ data class SteamNetworkResolverSettings(
 
     val hasResolver: Boolean get() = activeProviders.isNotEmpty()
     val hasPreferredProviders: Boolean get() = preferredProviderIds.isNotEmpty()
+
+    fun isProviderEnabled(provider: SteamDnsProvider): Boolean =
+        activeProviders.any { it.id == provider.id }
 
     companion object {
         const val MAX_CUSTOM_DNS = 8
