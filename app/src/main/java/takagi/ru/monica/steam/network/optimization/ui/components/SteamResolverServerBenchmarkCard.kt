@@ -136,37 +136,38 @@ internal fun SteamResolverServerBenchmarkCard(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
                     )
                 }
+                val isBuiltIn = provider in SteamDnsProvider.DEFAULTS
                 ResolverBenchmarkRow(
                     provider = provider,
                     result = results[provider.id],
                     running = provider.id in runningIds,
-                    enabled = when {
-                        provider.isSystem -> settings.useSystemDns
-                        provider in SteamDnsProvider.DEFAULTS -> settings.useBuiltInDoh &&
-                            provider.id !in settings.disabledBuiltInProviderIds
-                        else -> settings.activeProviders.any { it.id == provider.id }
-                    },
+                    enabled = settings.isProviderEnabled(provider),
                     onEnabledChange = when {
                         provider.isSystem -> { enabled ->
                             SteamNetworkResolverSettingsRuntime.setUseSystemDns(context, enabled)
                         }
-                        provider in SteamDnsProvider.DEFAULTS -> { enabled ->
+                        isBuiltIn -> { enabled ->
                             SteamNetworkResolverSettingsRuntime.setBuiltInProviderEnabled(
                                 context,
                                 provider.id,
                                 enabled
                             )
                         }
-                        else -> null
+                        else -> { enabled ->
+                            SteamNetworkResolverSettingsRuntime.setCustomProviderEnabled(
+                                context,
+                                provider.id,
+                                enabled
+                            )
+                        }
                     },
                     onRemove = when {
-                        provider.isUdp -> provider.udpServer?.let { server ->
+                        !isBuiltIn && provider.isUdp -> provider.udpServer?.let { server ->
                             { onRemoveCustomDns(server) }
                         }
-                        provider.isDoh && provider !in SteamDnsProvider.DEFAULTS ->
-                            provider.dohUrl?.let { endpoint ->
-                                { onRemoveCustomDoh(endpoint) }
-                            }
+                        !isBuiltIn && provider.isDoh -> provider.dohUrl?.let { endpoint ->
+                            { onRemoveCustomDoh(endpoint) }
+                        }
                         else -> null
                     },
                     onBenchmark = { benchmarkOne(provider) }
@@ -182,7 +183,7 @@ private fun ResolverBenchmarkRow(
     result: SteamResolverBenchmarkResult?,
     running: Boolean,
     enabled: Boolean,
-    onEnabledChange: ((Boolean) -> Unit)?,
+    onEnabledChange: (Boolean) -> Unit,
     onRemove: (() -> Unit)?,
     onBenchmark: () -> Unit
 ) {
@@ -191,7 +192,7 @@ private fun ResolverBenchmarkRow(
             .fillMaxWidth()
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -252,18 +253,18 @@ private fun ResolverBenchmarkRow(
                 Text(stringResource(R.string.steam_network_resolver_benchmark_one))
             }
         }
-        when {
-            onRemove != null -> IconButton(onClick = onRemove) {
+        Switch(
+            checked = enabled,
+            onCheckedChange = onEnabledChange
+        )
+        if (onRemove != null) {
+            IconButton(onClick = onRemove) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = stringResource(R.string.delete),
                     tint = MaterialTheme.colorScheme.error
                 )
             }
-            onEnabledChange != null -> Switch(
-                checked = enabled,
-                onCheckedChange = onEnabledChange
-            )
         }
     }
 }
