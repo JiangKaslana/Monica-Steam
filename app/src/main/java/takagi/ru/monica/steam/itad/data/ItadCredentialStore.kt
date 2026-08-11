@@ -12,7 +12,11 @@ sealed interface ItadCredentialSaveResult {
     data class Invalid(val error: ItadApiKeyValidationError) : ItadCredentialSaveResult
 }
 
-class ItadCredentialStore(context: Context) {
+fun interface ItadApiKeyProvider {
+    fun readApiKey(): String?
+}
+
+class ItadCredentialStore(context: Context) : ItadApiKeyProvider {
     private val applicationContext = context.applicationContext
 
     private val preferences by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -28,7 +32,7 @@ class ItadCredentialStore(context: Context) {
         )
     }
 
-    fun readApiKey(): String? {
+    override fun readApiKey(): String? {
         val stored = preferences.getString(API_KEY, null) ?: return null
         return ItadApiKeyPolicy.validate(stored).normalizedKey
     }
