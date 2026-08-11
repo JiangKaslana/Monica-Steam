@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import takagi.ru.monica.data.LocalMdbxDatabase
 import takagi.ru.monica.data.MdbxSourceType
 import takagi.ru.monica.data.PasswordDatabase
-import takagi.ru.monica.repository.MdbxVaultStore
+import takagi.ru.monica.repository.MdbxRepositoryFactory
 import takagi.ru.monica.security.SecurityManager
 import takagi.ru.monica.steam.scanner.data.readSteamStorageSource
 import takagi.ru.monica.steam.scanner.data.saveSteamStorageSource
@@ -386,14 +386,10 @@ class SteamAccountSourceRepository private constructor(
             val steamDatabase = SteamDatabase.getDatabase(appContext)
             val passwordDatabase = PasswordDatabase.getDatabase(appContext)
             val securityManager = SecurityManager(appContext)
-            val mdbxRepository = MdbxVaultStore(
+            val mdbxRepository = MdbxRepositoryFactory.create(
                 context = appContext,
-                databaseDao = passwordDatabase.localMdbxDatabaseDao(),
-                securityManager = securityManager,
-                remoteSourceDao = passwordDatabase.mdbxRemoteSourceDao(),
-                passwordEntryDao = passwordDatabase.passwordEntryDao(),
-                secureItemDao = passwordDatabase.secureItemDao(),
-                customFieldDao = passwordDatabase.customFieldDao()
+                database = passwordDatabase,
+                securityManager = securityManager
             )
             return SteamAccountSourceRepository(
                 appContext = appContext,
@@ -411,4 +407,5 @@ class SteamAccountSourceRepository private constructor(
 private fun LocalMdbxDatabase.supportsSteamAccounts(): Boolean =
     sourceTypeEnum == MdbxSourceType.LOCAL_INTERNAL ||
         sourceTypeEnum == MdbxSourceType.LOCAL_EXTERNAL ||
-        sourceTypeEnum == MdbxSourceType.REMOTE_WEBDAV
+        sourceTypeEnum == MdbxSourceType.REMOTE_WEBDAV ||
+        sourceTypeEnum == MdbxSourceType.REMOTE_ONEDRIVE

@@ -409,7 +409,8 @@ fun SteamScreen(
     val mdbxDatabases = mdbxDatabasesState.orEmpty().filter { database ->
         database.sourceTypeEnum == MdbxSourceType.LOCAL_INTERNAL ||
             database.sourceTypeEnum == MdbxSourceType.LOCAL_EXTERNAL ||
-            database.sourceTypeEnum == MdbxSourceType.REMOTE_WEBDAV
+            database.sourceTypeEnum == MdbxSourceType.REMOTE_WEBDAV ||
+            database.sourceTypeEnum == MdbxSourceType.REMOTE_ONEDRIVE
     }
     val mdbxDatabasesLoaded = mdbxDatabasesState != null
     val settingsManager = remember { SettingsManager(context.applicationContext) }
