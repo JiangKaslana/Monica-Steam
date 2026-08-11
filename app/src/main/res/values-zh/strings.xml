@@ -898,6 +898,7 @@
     <string name="steam_remove_authenticator_missing_access_token">这个 Steam 账号没有可用登录会话，请重新登录后再移除验证器。</string>
     <string name="steam_remove_authenticator_missing_revocation_code">这个 Steam 账号没有撤销码，无法自动移除验证器。</string>
     <string name="steam_add_account_title">添加 Steam 账号</string>
+    <string name="steam_add_account_switcher_summary">登录或导入另一个 Steam 账号</string>
     <string name="steam_add_account_button">添加账号</string>
     <string name="steam_switch_account">切换 Steam 账号</string>
     <string name="steam_selected_account_marker">已选</string>

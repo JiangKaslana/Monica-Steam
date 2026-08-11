@@ -2,6 +2,7 @@ package takagi.ru.monica.steam
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,13 +25,19 @@ class SteamAccountSwitcherIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/store/freebie/ui/SteamFreebieScreen.kt",
             "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
         ).map { projectFile(it).readText() }
-        val addAccountRow = switcher.substringAfterLast("HorizontalDivider()")
+        val addAccountCard = switcher.substringAfter("private fun SteamSwitcherAddAccountCard(")
 
         assertTrue(switcher.contains("onAddAccount: () -> Unit"))
-        assertTrue(addAccountRow.contains("Icons.Default.PersonAdd"))
-        assertTrue(addAccountRow.contains("R.string.steam_add_account_title"))
-        assertTrue(addAccountRow.contains("heightIn(min = 64.dp)"))
-        assertTrue(addAccountRow.indexOf("onDismiss()") < addAccountRow.indexOf("onAddAccount()"))
+        assertTrue(switcher.contains("SteamSwitcherAccountCard("))
+        assertTrue(switcher.contains("SteamSwitcherAddAccountCard("))
+        assertTrue(switcher.contains("private fun SteamSwitcherCard("))
+        assertTrue(addAccountCard.contains("Icons.Default.PersonAdd"))
+        assertTrue(addAccountCard.contains("R.string.steam_add_account_title"))
+        assertTrue(addAccountCard.contains("R.string.steam_add_account_switcher_summary"))
+        assertTrue(switcher.contains("heightIn(min = 72.dp)"))
+        assertTrue(switcher.contains("RoundedCornerShape(18.dp)"))
+        assertFalse(addAccountCard.contains("ListItem("))
+        assertTrue(switcher.indexOf("onDismiss()") < switcher.lastIndexOf("onAddAccount()"))
         switcherHosts.forEach { source ->
             assertTrue(source.contains("onAddSteamAccount"))
             assertTrue(source.contains("onAddAccount = onAddSteamAccount"))

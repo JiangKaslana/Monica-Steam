@@ -1,17 +1,18 @@
 package takagi.ru.monica.steam.foundation.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PersonAdd
@@ -20,15 +21,16 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -152,83 +154,130 @@ internal fun SteamAccountSwitcherSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 520.dp),
-                    contentPadding = PaddingValues(bottom = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(
+                    items(
                         items = accounts,
-                        key = { _, account -> account.id }
-                    ) { index, account ->
-                        ListItem(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 64.dp)
-                                .clickable { onSelectAccount(account.id) },
-                            headlineContent = {
-                                Text(
-                                    text = account.displayName.ifBlank {
-                                        account.accountName.ifBlank { account.visibleSteamId }
-                                    },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            supportingContent = {
-                                Text(
-                                    text = listOf(account.accountName, account.visibleSteamId)
-                                        .filter(String::isNotBlank)
-                                        .distinct()
-                                        .joinToString(" · "),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            leadingContent = {
-                                SteamAvatarImage(account = account, size = 48.dp)
-                            },
-                            trailingContent = {
-                                if (account.id == selectedAccountId) {
-                                    Icon(
-                                        Icons.Default.CheckCircle,
-                                        contentDescription = stringResource(
-                                            R.string.steam_selected_account_marker
-                                        ),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        key = SteamAccount::id
+                    ) { account ->
+                        SteamSwitcherAccountCard(
+                            account = account,
+                            selected = account.id == selectedAccountId,
+                            onClick = { onSelectAccount(account.id) }
                         )
-                        if (index < accounts.lastIndex) {
-                            HorizontalDivider(modifier = Modifier.padding(start = 80.dp))
-                        }
                     }
                 }
             }
         }
 
-        HorizontalDivider()
-        ListItem(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 64.dp)
-                .clickable {
-                    onDismiss()
-                    onAddAccount()
-                },
-            headlineContent = {
-                Text(
-                    text = stringResource(R.string.steam_add_account_title),
-                    fontWeight = FontWeight.Medium
-                )
+        SteamSwitcherAddAccountCard(
+            onClick = {
+                onDismiss()
+                onAddAccount()
             },
-            leadingContent = {
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+    }
+}
+
+@Composable
+private fun SteamSwitcherAccountCard(
+    account: SteamAccount,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    SteamSwitcherCard(
+        headline = account.displayName.ifBlank {
+            account.accountName.ifBlank { account.visibleSteamId }
+        },
+        supporting = listOf(account.accountName, account.visibleSteamId)
+            .filter(String::isNotBlank)
+            .distinct()
+            .joinToString(" · "),
+        leadingContent = { SteamAvatarImage(account = account, size = 48.dp) },
+        trailingContent = {
+            if (selected) {
                 Icon(
-                    imageVector = Icons.Default.PersonAdd,
-                    contentDescription = null,
+                    Icons.Default.CheckCircle,
+                    contentDescription = stringResource(R.string.steam_selected_account_marker),
                     tint = MaterialTheme.colorScheme.primary
                 )
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-        )
+            }
+        },
+        onClick = onClick
+    )
+}
+
+@Composable
+private fun SteamSwitcherAddAccountCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SteamSwitcherCard(
+        headline = stringResource(R.string.steam_add_account_title),
+        supporting = stringResource(R.string.steam_add_account_switcher_summary),
+        leadingContent = {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(imageVector = Icons.Default.PersonAdd, contentDescription = null)
+                }
+            }
+        },
+        trailingContent = {},
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun SteamSwitcherCard(
+    headline: String,
+    supporting: String,
+    leadingContent: @Composable () -> Unit,
+    trailingContent: @Composable () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().heightIn(min = 72.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            leadingContent()
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = headline,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (supporting.isNotBlank()) {
+                    Text(
+                        text = supporting,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            trailingContent()
+        }
     }
 }

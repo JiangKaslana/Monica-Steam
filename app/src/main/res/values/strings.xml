@@ -905,6 +905,7 @@
     <string name="steam_remove_authenticator_missing_access_token">This Steam account has no login session. Sign in again before removing the authenticator.</string>
     <string name="steam_remove_authenticator_missing_revocation_code">This Steam account has no revocation code and cannot remove the authenticator automatically.</string>
     <string name="steam_add_account_title">Add Steam account</string>
+    <string name="steam_add_account_switcher_summary">Sign in or import another Steam account</string>
     <string name="steam_add_account_button">Add account</string>
     <string name="steam_switch_account">Switch Steam account</string>
     <string name="steam_selected_account_marker">Selected</string>
