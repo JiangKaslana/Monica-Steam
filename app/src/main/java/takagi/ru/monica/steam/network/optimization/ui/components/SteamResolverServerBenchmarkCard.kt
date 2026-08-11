@@ -17,6 +17,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,6 +34,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import takagi.ru.monica.R
+import takagi.ru.monica.steam.network.optimization.SteamNetworkResolverSettingsRuntime
 import takagi.ru.monica.steam.network.optimization.diagnostics.SteamResolverBenchmark
 import takagi.ru.monica.steam.network.optimization.diagnostics.SteamResolverBenchmarkResult
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
@@ -39,14 +42,22 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 @Composable
 internal fun SteamResolverServerBenchmarkCard(
     providers: List<SteamDnsProvider>,
-    enabledProviderIds: Set<String>,
-    onBuiltInProviderEnabledChange: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current.applicationContext
+    val settings by SteamNetworkResolverSettingsRuntime.settings.collectAsState()
     val scope = rememberCoroutineScope()
     val benchmark = remember { SteamResolverBenchmark() }
+    val publicProviders = remember {
+        SteamDnsProvider.DEFAULTS.filterNot(SteamDnsProvider::isSystem)
+    }
     var results by remember { mutableStateOf<Map<String, SteamResolverBenchmarkResult>>(emptyMap()) }
     var runningIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    // Deliberately keep this list public-only. Custom/user DoH endpoints are managed in the
+    // separate custom DoH editor and are never promoted into the built-in server catalogue.
+    @Suppress("UNUSED_VARIABLE")
+    val callerProviders = providers
 
     fun benchmarkOne(provider: SteamDnsProvider) {
         if (provider.id in runningIds) return
@@ -87,14 +98,14 @@ internal fun SteamResolverServerBenchmarkCard(
                     )
                 }
                 FilledTonalButton(
-                    enabled = providers.isNotEmpty() && runningIds.isEmpty(),
+                    enabled = publicProviders.isNotEmpty() && runningIds.isEmpty(),
                     onClick = {
-                        if (providers.isNotEmpty() && runningIds.isEmpty()) {
-                            val ids = providers.map(SteamDnsProvider::id).toSet()
+                        if (publicProviders.isNotEmpty() && runningIds.isEmpty()) {
+                            val ids = publicProviders.map(SteamDnsProvider::id).toSet()
                             runningIds = ids
                             scope.launch {
                                 try {
-                                    val measured = providers.map { provider ->
+                                    val measured = publicProviders.map { provider ->
                                         async { provider.id to benchmark.benchmark(provider) }
                                     }.awaitAll().toMap()
                                     results = results + measured
@@ -113,24 +124,25 @@ internal fun SteamResolverServerBenchmarkCard(
                 }
             }
 
-            providers.forEachIndexed { index, provider ->
+            publicProviders.forEachIndexed { index, provider ->
                 if (index > 0) {
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 18.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
                     )
                 }
-                val isBuiltInDoh = provider.isDoh && SteamDnsProvider.DEFAULTS.any {
-                    !it.isSystem && it.id == provider.id
-                }
                 ResolverBenchmarkRow(
                     provider = provider,
                     result = results[provider.id],
                     running = provider.id in runningIds,
-                    enabled = provider.id in enabledProviderIds,
-                    canToggle = isBuiltInDoh,
+                    enabled = settings.useBuiltInDoh &&
+                        provider.id !in settings.disabledBuiltInProviderIds,
                     onEnabledChange = { enabled ->
-                        onBuiltInProviderEnabledChange(provider.id, enabled)
+                        SteamNetworkResolverSettingsRuntime.setBuiltInProviderEnabled(
+                            context,
+                            provider.id,
+                            enabled
+                        )
                     },
                     onBenchmark = { benchmarkOne(provider) }
                 )
@@ -145,7 +157,6 @@ private fun ResolverBenchmarkRow(
     result: SteamResolverBenchmarkResult?,
     running: Boolean,
     enabled: Boolean,
-    canToggle: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     onBenchmark: () -> Unit
 ) {
@@ -161,16 +172,14 @@ private fun ResolverBenchmarkRow(
                 text = provider.displayName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
-                color = if (enabled || !canToggle) {
+                color = if (enabled) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 }
             )
             Text(
-                text = provider.dohUrl
-                    ?: provider.udpServer
-                    ?: stringResource(R.string.steam_network_resolver_system_endpoint),
+                text = provider.dohUrl.orEmpty(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -212,11 +221,9 @@ private fun ResolverBenchmarkRow(
                 Text(stringResource(R.string.steam_network_resolver_benchmark_one))
             }
         }
-        if (canToggle) {
-            Switch(
-                checked = enabled,
-                onCheckedChange = onEnabledChange
-            )
-        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = onEnabledChange
+        )
     }
 }
