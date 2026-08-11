@@ -22,8 +22,8 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCata
  * App-scoped dynamic DNS for Steam traffic.
  *
  * Unlike the optional Hosts override, this resolver never persists an address for a Steam
- * hostname. It races the enabled secure/custom resolvers, keeps a short in-memory cache, and
- * re-resolves after the cache expires. Non-Steam traffic is always delegated to Android's
+ * hostname. Every cache miss races the resolver sources the user has enabled, keeps a short
+ * in-memory cache, and resolves again after expiry. Non-Steam traffic is delegated to Android's
  * system resolver.
  */
 internal class SteamDynamicDns(
@@ -67,14 +67,9 @@ internal class SteamDynamicDns(
             return cached.addresses
         }
 
-        val secureProviders = providers.filterNot(SteamDnsProvider::isSystem)
-        val firstProviderId = secureProviders.firstOrNull()?.id
-        val preferFirst = firstProviderId != null &&
-            firstProviderId in settings.preferredProviderIds
         val resolved = raceResolvers(
-            providers = secureProviders,
-            hostname = normalized,
-            preferFirst = preferFirst
+            providers = providers,
+            hostname = normalized
         )
         if (resolved.isNotEmpty()) {
             cache[cacheKey] = CacheEntry(
@@ -85,7 +80,7 @@ internal class SteamDynamicDns(
             pruneExpired(now)
             logSafely(
                 "dynamic_dns resolved host=$normalized addresses=${resolved.size} " +
-                    "preferred_head_start=$preferFirst"
+                    "sources=${providers.size}"
             )
             return resolved
         }
@@ -106,7 +101,7 @@ internal class SteamDynamicDns(
             }
         }
 
-        logSafely("dynamic_dns failure host=$normalized providers=${secureProviders.size}")
+        logSafely("dynamic_dns failure host=$normalized providers=${providers.size}")
         throw UnknownHostException("Unable to resolve Steam host dynamically: $normalized")
     }
 
@@ -119,8 +114,7 @@ internal class SteamDynamicDns(
 
     private fun raceResolvers(
         providers: List<SteamDnsProvider>,
-        hostname: String,
-        preferFirst: Boolean
+        hostname: String
     ): List<InetAddress> {
         if (providers.isEmpty()) return emptyList()
 
@@ -131,28 +125,11 @@ internal class SteamDynamicDns(
         var completed = 0
         var answer: List<InetAddress> = emptyList()
 
-        fun submit(provider: SteamDnsProvider) {
+        candidates.forEach { provider ->
             futures += completion.submit(Callable { resolveProvider(provider, hostname) })
         }
 
         try {
-            if (preferFirst && candidates.size > 1) {
-                submit(candidates.first())
-                val early = completion.poll(
-                    PREFERRED_HEAD_START_MILLIS,
-                    TimeUnit.MILLISECONDS
-                )
-                if (early != null) {
-                    completed += 1
-                    answer = runCatching { early.get() }.getOrDefault(emptyList())
-                }
-                if (answer.isEmpty()) {
-                    candidates.drop(1).forEach(::submit)
-                }
-            } else {
-                candidates.forEach(::submit)
-            }
-
             while (completed < futures.size && answer.isEmpty()) {
                 val remaining = deadline - System.nanoTime()
                 if (remaining <= 0L) break
@@ -226,7 +203,6 @@ internal class SteamDynamicDns(
         const val MAX_CACHE_ENTRIES = 256
         const val RESOLVER_TIMEOUT_MILLIS = 2_500L
         const val RACE_TIMEOUT_MILLIS = 3_000L
-        const val PREFERRED_HEAD_START_MILLIS = 150L
         const val CACHE_TTL_MILLIS = 5 * 60 * 1_000L
         const val STALE_TTL_MILLIS = 30 * 60 * 1_000L
         val threadIds = AtomicInteger(0)
