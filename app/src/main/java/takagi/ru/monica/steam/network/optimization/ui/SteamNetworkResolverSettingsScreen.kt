@@ -36,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
 import takagi.ru.monica.steam.network.SteamHttpClientProvider
@@ -66,7 +68,9 @@ fun SteamNetworkResolverSettingsScreen(
     val applicationContext = context.applicationContext
     val settings by SteamNetworkResolverSettingsRuntime.settings.collectAsState()
     val dockClearance = LocalSteamDockContentClearance.current
+    val scope = rememberCoroutineScope()
     var cacheCount by rememberSaveable { mutableStateOf(SteamHttpClientProvider.dynamicDnsCacheSize()) }
+    var refreshing by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(context) {
         SteamNetworkResolverSettingsRuntime.initialize(context)
@@ -110,6 +114,7 @@ fun SteamNetworkResolverSettingsScreen(
                     enabled = settings.dynamicDnsEnabled,
                     activeProviderCount = settings.activeProviders.count { !it.isSystem },
                     cacheCount = cacheCount,
+                    refreshing = refreshing,
                     onEnabledChange = {
                         SteamNetworkResolverSettingsRuntime.setDynamicDnsEnabled(
                             applicationContext,
@@ -119,6 +124,18 @@ fun SteamNetworkResolverSettingsScreen(
                     onClearCache = {
                         SteamHttpClientProvider.clearDynamicDnsCache()
                         cacheCount = SteamHttpClientProvider.dynamicDnsCacheSize()
+                    },
+                    onForceRefresh = {
+                        if (!refreshing) {
+                            refreshing = true
+                            scope.launch {
+                                try {
+                                    cacheCount = SteamHttpClientProvider.refreshDynamicDnsCache()
+                                } finally {
+                                    refreshing = false
+                                }
+                            }
+                        }
                     }
                 )
             }
@@ -133,6 +150,12 @@ fun SteamNetworkResolverSettingsScreen(
                     },
                     onUseBuiltInDoh = {
                         SteamNetworkResolverSettingsRuntime.setUseBuiltInDoh(
+                            applicationContext,
+                            it
+                        )
+                    },
+                    onPreferIpv6 = {
+                        SteamNetworkResolverSettingsRuntime.setPreferIpv6(
                             applicationContext,
                             it
                         )
@@ -236,7 +259,8 @@ private fun ResolverStatusCard(settings: SteamNetworkResolverSettings) {
 private fun ResolverDefaultsCard(
     settings: SteamNetworkResolverSettings,
     onUseSystemDns: (Boolean) -> Unit,
-    onUseBuiltInDoh: (Boolean) -> Unit
+    onUseBuiltInDoh: (Boolean) -> Unit,
+    onPreferIpv6: (Boolean) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -262,6 +286,16 @@ private fun ResolverDefaultsCard(
                 .joinToString(" · ", transform = SteamDnsProvider::displayName),
             checked = settings.useBuiltInDoh,
             onCheckedChange = onUseBuiltInDoh
+        )
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 18.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+        )
+        ResolverToggleRow(
+            title = stringResource(R.string.steam_network_ipv6_prefer),
+            description = stringResource(R.string.steam_network_ipv6_prefer_description),
+            checked = settings.preferIpv6,
+            onCheckedChange = onPreferIpv6
         )
     }
 }
