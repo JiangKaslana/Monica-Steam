@@ -124,12 +124,15 @@ object SteamNetworkResolverSettingsRuntime {
         val provider = SteamDnsProvider.DEFAULTS.firstOrNull {
             it.id == providerId && !it.isSystem
         } ?: return
-        val disabled = mutableSettings.value.disabledBuiltInProviderIds.toMutableSet()
-        if (enabled) {
-            disabled.remove(provider.id)
+        val allBuiltInIds = SteamDnsProvider.DEFAULTS
+            .filterNot { it.isSystem }
+            .map(SteamDnsProvider::id)
+        val disabled = if (enabled && !mutableSettings.value.useBuiltInDoh) {
+            allBuiltInIds.toMutableSet()
         } else {
-            disabled.add(provider.id)
+            mutableSettings.value.disabledBuiltInProviderIds.toMutableSet()
         }
+        if (enabled) disabled.remove(provider.id) else disabled.add(provider.id)
         val editor = preferences.edit()
             .putStringSet(KEY_DISABLED_BUILT_IN_PROVIDER_IDS, disabled)
         if (enabled) editor.putBoolean(KEY_USE_BUILT_IN_DOH, true)
