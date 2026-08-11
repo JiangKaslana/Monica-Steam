@@ -7,7 +7,7 @@ import org.junit.Test
 
 class SteamIdentityInfoCardGuardTest {
     @Test
-    fun identityCardKeepsCopyProfileAndM3eBehaviorInItsOwnModule() {
+    fun identityCardPrioritizesFriendCodeAndRevealsFullIdsOnDemand() {
         val cardFile = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/token/identity/ui/SteamIdentityInfoCard.kt"
         )
@@ -17,6 +17,12 @@ class SteamIdentityInfoCardGuardTest {
         assertTrue(card.contains("Card("))
         assertTrue(card.contains("MaterialTheme.colorScheme.surfaceContainerLow"))
         assertTrue(card.contains("SteamIdentityConverter.fromSteamId64"))
+        assertTrue(card.contains("R.string.steam_identity_friend_code"))
+        assertTrue(card.contains("onClick = { detailsVisible = true }"))
+        assertTrue(card.contains("AlertDialog("))
+        assertTrue(card.contains("identity.steamId3"))
+        assertTrue(card.contains("identity.steamId2"))
+        assertTrue(card.contains("identity.steamId64"))
         assertTrue(card.contains("ClipboardUtils.copyToClipboard("))
         assertTrue(card.contains("sensitive = false"))
         assertTrue(card.contains("LocalUriHandler.current"))
@@ -34,6 +40,22 @@ class SteamIdentityInfoCardGuardTest {
         assertTrue(screen.contains("SteamIdentityInfoCard(steamId64 = account.steamId)"))
         assertFalse(screen.contains("STEAM_0:"))
         assertFalse(screen.contains("[U:1:"))
+    }
+
+    @Test
+    fun friendAndProfileDetailsReuseTheSameIdentityDisclosure() {
+        val friendDetail = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/ui/SteamFriendDetailScreen.kt"
+        ).readText()
+        val profileOverview = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/profile/viewer/ui/" +
+                "SteamProfileViewerOverview.kt"
+        ).readText()
+
+        assertTrue(friendDetail.contains("SteamIdentityInfoCard(steamId64 = friend.steamId)"))
+        assertTrue(profileOverview.contains("SteamIdentityInfoCard(steamId64 = summary.steamId)"))
+        assertFalse(friendDetail.contains("value = friend.steamId"))
+        assertFalse(profileOverview.contains("value = summary.steamId"))
     }
 
     private fun projectFile(path: String): File {

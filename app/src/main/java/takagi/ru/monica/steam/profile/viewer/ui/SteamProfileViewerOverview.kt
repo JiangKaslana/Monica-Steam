@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
@@ -69,6 +68,7 @@ import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerSnapshot
 import takagi.ru.monica.steam.profile.viewer.domain.SteamProfileViewerTarget
 import takagi.ru.monica.steam.profile.viewer.domain.gamesForScope
 import takagi.ru.monica.steam.profile.viewer.presentation.SteamProfileViewerUiState
+import takagi.ru.monica.steam.token.identity.ui.SteamIdentityInfoCard
 import takagi.ru.monica.ui.theme.GoogleSansFlexFontFamily
 
 @Composable
@@ -432,11 +432,7 @@ private fun SteamProfileInformationCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            SteamProfileInformationRow(
-                icon = Icons.Default.AccountCircle,
-                label = stringResource(R.string.steam_friend_steam_id),
-                value = summary.steamId
-            )
+            SteamIdentityInfoCard(steamId64 = summary.steamId)
             if (summary.countryCode.isNotBlank()) {
                 SteamProfileInformationRow(
                     icon = Icons.Default.Public,

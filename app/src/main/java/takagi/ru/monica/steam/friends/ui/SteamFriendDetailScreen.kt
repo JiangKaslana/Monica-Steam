@@ -48,6 +48,7 @@ import takagi.ru.monica.steam.friends.domain.SteamFriend
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationship
 import takagi.ru.monica.steam.friends.domain.SteamFriendRelationshipAction
 import takagi.ru.monica.steam.navigation.ui.LocalSteamDockContentClearance
+import takagi.ru.monica.steam.token.identity.ui.SteamIdentityInfoCard
 import takagi.ru.monica.ui.theme.GoogleSansFlexFontFamily
 
 @Composable
@@ -113,11 +114,7 @@ internal fun SteamFriendDetailScreen(
             )
         }
         item(key = "friend-detail-steamid") {
-            DetailSectionCard(
-                icon = { Icon(Icons.Default.Person, contentDescription = null) },
-                title = stringResource(R.string.steam_friend_steam_id),
-                value = friend.steamId
-            )
+            SteamIdentityInfoCard(steamId64 = friend.steamId)
         }
         if (friend.friendSince > 0L) {
             item(key = "friend-detail-friends-since") {

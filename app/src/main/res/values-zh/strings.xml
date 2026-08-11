@@ -914,6 +914,8 @@
     <string name="steam_id_label">Steam ID</string>
     <string name="steam_identity_title">Steam 身份标识</string>
     <string name="steam_identity_subtitle">根据 SteamID64 在本地换算，不使用第三方服务。</string>
+    <string name="steam_identity_friend_code">好友码</string>
+    <string name="steam_identity_tap_for_details">点击查看并复制全部 Steam ID</string>
     <string name="steam_identity_steamid64">SteamID64</string>
     <string name="steam_identity_steamid3">SteamID3</string>
     <string name="steam_identity_steamid2">SteamID2</string>

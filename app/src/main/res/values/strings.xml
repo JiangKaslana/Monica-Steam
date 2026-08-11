@@ -921,6 +921,8 @@
     <string name="steam_id_label">Steam ID</string>
     <string name="steam_identity_title">Steam identity</string>
     <string name="steam_identity_subtitle">Converted locally from SteamID64 without a third-party service.</string>
+    <string name="steam_identity_friend_code">Friend code</string>
+    <string name="steam_identity_tap_for_details">Tap to view and copy all Steam IDs</string>
     <string name="steam_identity_steamid64">SteamID64</string>
     <string name="steam_identity_steamid3">SteamID3</string>
     <string name="steam_identity_steamid2">SteamID2</string>
