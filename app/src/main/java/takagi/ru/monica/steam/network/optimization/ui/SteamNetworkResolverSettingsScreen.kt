@@ -106,8 +106,15 @@ fun SteamNetworkResolverSettingsScreen(
             }
             item(key = "dynamic_dns") {
                 SteamDynamicDnsSettingsCard(
+                    enabled = settings.dynamicDnsEnabled,
                     activeProviderCount = settings.activeProviders.count { !it.isSystem },
                     cacheCount = cacheCount,
+                    onEnabledChange = {
+                        SteamNetworkResolverSettingsRuntime.setDynamicDnsEnabled(
+                            applicationContext,
+                            it
+                        )
+                    },
                     onClearCache = {
                         SteamHttpClientProvider.clearDynamicDnsCache()
                         cacheCount = SteamHttpClientProvider.dynamicDnsCacheSize()
