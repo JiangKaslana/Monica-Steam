@@ -77,7 +77,7 @@ internal fun SteamDynamicDnsSettingsCard(
                                 R.string.steam_network_dynamic_dns_active,
                                 activeProviderCount
                             )
-                            else -> stringResource(R.string.steam_network_dynamic_dns_system_only)
+                            else -> stringResource(R.string.steam_network_dynamic_dns_no_sources)
                         },
                         style = MaterialTheme.typography.labelLarge,
                         color = contentColor.copy(alpha = 0.84f)
