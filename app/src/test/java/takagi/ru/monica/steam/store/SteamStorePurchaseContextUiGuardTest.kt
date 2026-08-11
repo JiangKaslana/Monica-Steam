@@ -44,6 +44,7 @@ class SteamStorePurchaseContextUiGuardTest {
         assertFalse(componentSource.contains("RelatedAppsCard("))
         assertTrue(componentSource.contains("SteamStoreOwnershipStatus.FAMILY_SHARED"))
         assertTrue(componentSource.contains("detail.isDlc"))
+        assertFalse(componentSource.contains("R.string.steam_store_purchase_context_summary"))
         assertTrue(packageOptionsSource.contains("verticalAlignment = Alignment.CenterVertically"))
         assertTrue(packageOptionsSource.contains("formatSteamPrice(option.priceCents, currency)"))
         assertTrue(packageOptionsSource.contains("option.imageUrl.isNotBlank()"))

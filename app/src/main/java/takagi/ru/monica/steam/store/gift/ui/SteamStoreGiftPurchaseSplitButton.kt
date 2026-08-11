@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -79,7 +80,7 @@ internal fun SteamStoreGiftPurchaseSplitButton(
                     enabled = interactive,
                     modifier = Modifier
                         .widthIn(min = 220.dp, max = 320.dp)
-                        .heightIn(min = PurchaseActionHeight)
+                        .height(PurchaseActionHeight)
                 ) {
                     Icon(
                         imageVector = when {
@@ -111,7 +112,7 @@ internal fun SteamStoreGiftPurchaseSplitButton(
                     checked = expanded,
                     onCheckedChange = { expanded = it },
                     enabled = interactive,
-                    modifier = Modifier.heightIn(min = PurchaseActionHeight)
+                    modifier = Modifier.size(PurchaseActionHeight)
                 ) {
                     Icon(
                         imageVector = Icons.Default.ExpandMore,

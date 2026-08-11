@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AssistChip
@@ -67,6 +68,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -1450,9 +1452,7 @@ private fun SteamStoreDetailContent(
                         DetailLine(stringResource(R.string.steam_store_achievements), it.toString())
                     }
                     if (detail.website.isNotBlank()) {
-                        DetailLine(
-                            label = stringResource(R.string.steam_store_website),
-                            value = detail.website,
+                        SteamStoreWebsiteButton(
                             onClick = { onOpenWebsite(detail.website) }
                         )
                     }
@@ -1470,6 +1470,9 @@ private fun SteamStoreDetailContent(
                         loadError = reviewLoadError,
                         onFiltersChanged = onReviewFiltersChanged,
                         onLoadMore = onLoadMoreReviews,
+                        onOpenAuthor = { steamId ->
+                            onOpenWebsite("https://steamcommunity.com/profiles/$steamId/")
+                        },
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
@@ -1948,6 +1951,10 @@ private fun formatStoreRegionalPrice(currency: String, minor: Long): String {
 
 @Composable
 private fun DetailTextSection(title: String, text: String) {
+    var expanded by rememberSaveable(text) { mutableStateOf(false) }
+    val collapsible = remember(text) {
+        text.length > 280 || text.lineSequence().count() > 6
+    }
     Column(
         modifier = Modifier.padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1957,8 +1964,23 @@ private fun DetailTextSection(title: String, text: String) {
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = if (expanded) Int.MAX_VALUE else 6,
+                overflow = TextOverflow.Ellipsis
             )
+        }
+        if (collapsible) {
+            TextButton(onClick = { expanded = !expanded }) {
+                Text(
+                    stringResource(
+                        if (expanded) {
+                            R.string.steam_store_about_collapse
+                        } else {
+                            R.string.steam_store_about_expand
+                        }
+                    )
+                )
+            }
         }
     }
 }
@@ -1966,51 +1988,36 @@ private fun DetailTextSection(title: String, text: String) {
 @Composable
 private fun DetailLine(
     label: String,
-    value: String,
-    onClick: (() -> Unit)? = null
+    value: String
 ) {
     if (value.isNotBlank()) {
-        if (onClick == null) {
-            Row(Modifier.fillMaxWidth()) {
-                Text(
-                    text = label,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(92.dp)
-                )
-                SelectionContainer(modifier = Modifier.weight(1f)) {
-                    Text(value)
-                }
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = onClick)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = label,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(84.dp)
-                )
-                Text(
-                    text = value,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                    contentDescription = null,
-                    modifier = Modifier.padding(start = 8.dp).size(20.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                text = label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(92.dp)
+            )
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+                Text(value)
             }
         }
+    }
+}
+
+@Composable
+private fun SteamStoreWebsiteButton(onClick: () -> Unit) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Icon(Icons.Default.Language, contentDescription = null)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = stringResource(R.string.steam_store_website),
+            modifier = Modifier.weight(1f)
+        )
+        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
     }
 }
 

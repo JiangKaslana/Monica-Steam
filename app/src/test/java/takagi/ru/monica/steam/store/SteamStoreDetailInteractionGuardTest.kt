@@ -45,6 +45,8 @@ class SteamStoreDetailInteractionGuardTest {
         assertTrue(sharedViewerSource.contains("SteamImageDownloader("))
         assertTrue(sharedPageSource.contains("ContentScale.Fit"))
         assertTrue(sharedPageSource.contains("canPan = { scale > 1f }"))
+        assertTrue(sharedPageSource.contains("detectTapGestures("))
+        assertTrue(sharedPageSource.contains("onDoubleTap ="))
         assertTrue(viewerSource.contains("R.string.steam_store_screenshot_previous"))
         assertTrue(viewerSource.contains("R.string.steam_store_screenshot_next"))
         assertTrue(viewerSource.contains("R.string.steam_store_screenshot_download"))
@@ -104,6 +106,33 @@ class SteamStoreDetailInteractionGuardTest {
         assertTrue(reviewCardsIndex >= 0)
         assertTrue(moreButtonIndex > reviewCardsIndex)
         assertTrue(reviewList.contains("Modifier.fillMaxWidth().heightIn(min = 48.dp)"))
+        assertTrue(reviewList.contains("onOpenAuthor"))
+        assertTrue(reviewList.contains("review.authorSteamId"))
+        assertTrue(reviewList.contains("R.string.steam_store_review_view_author"))
+    }
+
+    @Test
+    fun websiteAndAboutSectionsUseFocusedActionsInsteadOfRawLinkRows() {
+        val detailUi = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/ui/SteamStoreScreen.kt"
+        ).readText()
+        val websiteButton = detailUi.substring(
+            detailUi.indexOf("fun SteamStoreWebsiteButton"),
+            detailUi.indexOf("fun PriceRow")
+        )
+        val aboutSection = detailUi.substring(
+            detailUi.indexOf("fun DetailTextSection"),
+            detailUi.indexOf("fun DetailLine")
+        )
+
+        assertTrue(detailUi.contains("SteamStoreWebsiteButton("))
+        assertTrue(websiteButton.contains("FilledTonalButton("))
+        assertTrue(websiteButton.contains("R.string.steam_store_website"))
+        assertFalse(websiteButton.contains("Text(url"))
+        assertTrue(aboutSection.contains("rememberSaveable(text)"))
+        assertTrue(aboutSection.contains("maxLines = if (expanded) Int.MAX_VALUE else 6"))
+        assertTrue(aboutSection.contains("R.string.steam_store_about_expand"))
+        assertTrue(aboutSection.contains("R.string.steam_store_about_collapse"))
     }
 
     private fun projectFile(path: String): File {

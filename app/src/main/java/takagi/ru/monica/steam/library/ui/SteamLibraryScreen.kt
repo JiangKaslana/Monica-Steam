@@ -269,6 +269,7 @@ fun SteamLibraryScreen(
                         )
                         SteamGameDetail(
                             game = game,
+                            priceRegion = state.snapshot?.region.orEmpty(),
                             gameDataPage = gameDataPage,
                             screenshotsPage = screenshotsPage,
                             achievements = state.achievements,
@@ -1431,6 +1432,7 @@ private fun SummaryCell(label: String, value: String, modifier: Modifier = Modif
 @Composable
 private fun SteamGameDetail(
     game: SteamGame,
+    priceRegion: String,
     gameDataPage: SteamGameDataPage?,
     screenshotsPage: SteamGameScreenshotsPage?,
     achievements: SteamGameAchievements?,
@@ -1467,6 +1469,7 @@ private fun SteamGameDetail(
         item {
             SteamGameDetailHero(
                 game = game,
+                priceRegion = priceRegion,
                 achievements = achievements,
                 onNavigateBack = onNavigateBack,
                 onOpenRegionalPrices = onOpenRegionalPrices
@@ -1592,6 +1595,7 @@ private fun SteamGameDetail(
 @Composable
 private fun SteamGameDetailHero(
     game: SteamGame,
+    priceRegion: String,
     achievements: SteamGameAchievements?,
     onNavigateBack: () -> Unit,
     onOpenRegionalPrices: () -> Unit
@@ -1677,7 +1681,14 @@ private fun SteamGameDetailHero(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SteamGameDetailMetric(
-                    label = stringResource(R.string.steam_library_cn_price),
+                    label = if (priceRegion.isNotBlank()) {
+                        stringResource(
+                            R.string.steam_library_region_price,
+                            regionalCountryName(priceRegion)
+                        )
+                    } else {
+                        stringResource(R.string.steam_library_store_price)
+                    },
                     value = game.price?.takeIf(SteamGamePrice::isAvailable)?.let {
                         if (it.finalPriceMinor == 0L) stringResource(R.string.steam_library_free)
                         else formatPrice(it.currency, it.finalPriceMinor)

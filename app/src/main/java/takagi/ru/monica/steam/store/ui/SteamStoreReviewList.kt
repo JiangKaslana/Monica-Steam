@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,6 +28,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +59,7 @@ internal fun SteamStoreReviewsSection(
     loadError: String?,
     onFiltersChanged: (SteamReviewFilterSelection) -> Unit,
     onLoadMore: () -> Unit,
+    onOpenAuthor: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by rememberSaveable(appId) { mutableStateOf(false) }
@@ -76,7 +79,11 @@ internal fun SteamStoreReviewsSection(
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
         visibleReviews.forEach { review ->
-            SteamStoreReviewCard(review = review, showFullBody = expanded)
+            SteamStoreReviewCard(
+                review = review,
+                showFullBody = expanded,
+                onOpenAuthor = onOpenAuthor
+            )
         }
         loadError?.takeIf(String::isNotBlank)?.let { error ->
             Surface(
@@ -208,7 +215,8 @@ private fun SteamStoreReviewFilters(
 @OptIn(ExperimentalLayoutApi::class)
 private fun SteamStoreReviewCard(
     review: SteamUserReview,
-    showFullBody: Boolean
+    showFullBody: Boolean,
+    onOpenAuthor: (String) -> Unit
 ) {
     val accent = if (review.votedUp) {
         MaterialTheme.colorScheme.primary
@@ -303,6 +311,16 @@ private fun SteamStoreReviewCard(
                 }
                 if (review.writtenDuringEarlyAccess) {
                     ReviewLabel(stringResource(R.string.steam_store_review_early_access))
+                }
+            }
+            if (review.authorSteamId.isNotBlank()) {
+                TextButton(
+                    onClick = { onOpenAuthor(review.authorSteamId) },
+                    modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Default.AccountCircle, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.steam_store_review_view_author))
                 }
             }
         }

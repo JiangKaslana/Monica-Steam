@@ -53,26 +53,28 @@ fun SteamStoreRelatedContentSection(
             modifier = Modifier.padding(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = stringResource(R.string.steam_store_related_content),
-                modifier = Modifier.padding(horizontal = 16.dp),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            if (fullGame != null || demos.isNotEmpty()) {
+            if (fullGame != null) {
+                RelatedSectionTitle(R.string.steam_store_related_game)
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    fullGame?.let { game ->
-                        RelatedAppButton(
-                            label = game.name.ifBlank {
-                                stringResource(R.string.steam_store_base_game)
-                            },
-                            onClick = { onOpenApp(game.appId) }
-                        )
-                    }
-                    demos.firstOrNull()?.let { demo ->
+                    RelatedAppButton(
+                        label = fullGame.name.ifBlank {
+                            stringResource(R.string.steam_store_base_game)
+                        },
+                        onClick = { onOpenApp(fullGame.appId) }
+                    )
+                }
+            }
+            if (demos.isNotEmpty()) {
+                RelatedSectionTitle(R.string.steam_store_related_demo)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(demos.size, key = { demos[it].appId }) { index ->
+                        val demo = demos[index]
                         RelatedAppButton(
                             label = demo.description.ifBlank {
                                 stringResource(R.string.steam_store_demo_number, demo.appId)
@@ -84,6 +86,7 @@ fun SteamStoreRelatedContentSection(
                 }
             }
             if (relatedDlc.isNotEmpty()) {
+                RelatedSectionTitle(R.string.steam_store_related_dlc)
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -98,6 +101,16 @@ fun SteamStoreRelatedContentSection(
             }
         }
     }
+}
+
+@Composable
+private fun RelatedSectionTitle(titleRes: Int) {
+    Text(
+        text = stringResource(titleRes),
+        modifier = Modifier.padding(horizontal = 16.dp),
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.SemiBold
+    )
 }
 
 @Composable

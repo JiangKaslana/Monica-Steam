@@ -4197,7 +4197,8 @@
     <string name="steam_library_played_badge">已游玩</string>
     <string name="steam_library_open_achievements">查看游戏成就</string>
     <string name="steam_library_no_matching_games">没有符合搜索或筛选条件的游戏。</string>
-    <string name="steam_library_cn_price">国区价格</string>
+    <string name="steam_library_region_price">%1$s区价格</string>
+    <string name="steam_library_store_price">商店价格</string>
     <string name="steam_library_free">免费</string>
     <string name="steam_library_achievement_all">全部</string>
     <string name="steam_library_no_completed_achievements">暂未完成任何成就。</string>
@@ -4572,6 +4573,8 @@
     <string name="steam_store_open_official">打开官方商店</string>
     <string name="steam_store_buy">查看购买选项</string>
     <string name="steam_store_about">关于此游戏</string>
+    <string name="steam_store_about_expand">展开</string>
+    <string name="steam_store_about_collapse">收起</string>
     <string name="steam_store_system_requirements">系统需求</string>
     <string name="steam_store_minimum_requirements">最低配置</string>
     <string name="steam_store_recommended_requirements">推荐配置</string>
@@ -4858,6 +4861,7 @@
     <string name="steam_store_reviews_loading_more">正在加载评价</string>
     <string name="steam_store_review_recommended">推荐</string>
     <string name="steam_store_review_not_recommended">不推荐</string>
+    <string name="steam_store_review_view_author">查看玩家</string>
     <string name="steam_store_review_steam_player">Steam 玩家</string>
     <string name="steam_store_review_playtime_total">总时长 %1$s 小时</string>
     <string name="steam_store_review_playtime_both">总时长 %1$s 小时 · 评测时 %2$s 小时</string>
@@ -5041,7 +5045,6 @@
     <string name="steam_community_unlock_overage">高出 %1$s · %2$s</string>
     <string name="steam_community_last_updated">更新于 %1$s</string>
     <string name="steam_store_purchase_context_title">购买信息</string>
-    <string name="steam_store_purchase_context_summary">已按照当前选择的 Steam 账号核对</string>
     <string name="steam_store_purchase_context_cached">正在显示上次缓存的拥有状态</string>
     <string name="steam_store_purchase_context_session">请重新登录 Steam 后刷新拥有状态</string>
     <string name="steam_store_purchase_context_rate_limited">Steam 暂时限制了拥有状态查询</string>
@@ -5061,7 +5064,9 @@
     <string name="steam_store_bundle_discount">-%1$d%%</string>
     <string name="steam_store_bundle_open_item">打开商店详情</string>
     <string name="steam_store_bundle_buy">前往 Steam 购买</string>
-    <string name="steam_store_related_content">相关内容</string>
+    <string name="steam_store_related_game">相关游戏</string>
+    <string name="steam_store_related_demo">试玩版</string>
+    <string name="steam_store_related_dlc">相关 DLC</string>
     <string name="steam_store_base_game">本体游戏</string>
     <string name="steam_store_demo_number">试玩版 #%1$d</string>
     <string name="steam_store_dlc_number">DLC #%1$d</string>

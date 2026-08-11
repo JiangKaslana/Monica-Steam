@@ -159,6 +159,10 @@ class SteamLibraryIntegrationGuardTest {
         assertTrue(detailHero.contains("steam_library_achievement_progress"))
         assertTrue(detailHero.contains("contentScale = ContentScale.Fit"))
         assertFalse(detailHero.contains("contentScale = ContentScale.Crop"))
+        assertTrue(screen.contains("priceRegion = state.snapshot?.region.orEmpty()"))
+        assertTrue(detail.contains("priceRegion: String"))
+        assertTrue(detailHero.contains("R.string.steam_library_region_price"))
+        assertFalse(detailHero.contains("R.string.steam_library_cn_price"))
         val accountDetail = screen
             .substringAfter("private fun SteamAccountDetail(")
             .substringBefore("private fun SteamAccountDetailHero(")

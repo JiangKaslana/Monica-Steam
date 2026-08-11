@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.foundation.media
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.steam.profile.SteamRemoteImageCache
 
@@ -118,6 +120,19 @@ private fun ZoomableSteamImage(
                 translationX = offset.x,
                 translationY = offset.y
             )
+            .pointerInput(image) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        if (scale > 1f) {
+                            scale = 1f
+                            offset = Offset.Zero
+                        } else {
+                            scale = 2.5f
+                            offset = Offset.Zero
+                        }
+                    }
+                )
+            }
             .transformable(
                 state = transformableState,
                 canPan = { scale > 1f },

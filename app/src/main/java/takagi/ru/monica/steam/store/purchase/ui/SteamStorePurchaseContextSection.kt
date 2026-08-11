@@ -112,13 +112,15 @@ private fun OwnershipStatusCard(
                         )
                     failure != null -> purchaseFailureLabel(failure)
                     fromCache -> stringResource(R.string.steam_store_purchase_context_cached)
-                    else -> stringResource(R.string.steam_store_purchase_context_summary)
+                    else -> null
                 }
-                Text(
-                    supporting,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = visuals.content.copy(alpha = 0.76f)
-                )
+                supporting?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = visuals.content.copy(alpha = 0.76f)
+                    )
+                }
             }
             if (loading) {
                 CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)

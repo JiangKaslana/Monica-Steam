@@ -23,7 +23,8 @@ class SteamStoreGiftUiGuardTest {
         assertTrue(splitButton.contains("SplitButtonLayout("))
         assertTrue(splitButton.contains("SplitButtonDefaults.TonalLeadingButton("))
         assertTrue(splitButton.contains("SplitButtonDefaults.TonalTrailingButton("))
-        assertTrue(splitButton.contains("heightIn(min = 52.dp)"))
+        assertTrue(splitButton.contains("height(PurchaseActionHeight)"))
+        assertTrue(splitButton.contains("size(PurchaseActionHeight)"))
         assertTrue(splitButton.contains("onAddAsGift()"))
         assertTrue(picker.contains("MonicaModalBottomSheet("))
         assertTrue(picker.contains("OutlinedTextField("))
@@ -41,12 +42,8 @@ class SteamStoreGiftUiGuardTest {
         ).readText()
 
         assertTrue(splitButton.contains("private val PurchaseActionHeight = 52.dp"))
-        assertEquals(
-            2,
-            Regex("heightIn\\(min = PurchaseActionHeight\\)")
-                .findAll(splitButton)
-                .count()
-        )
+        assertEquals(1, Regex("height\\(PurchaseActionHeight\\)").findAll(splitButton).count())
+        assertEquals(1, Regex("size\\(PurchaseActionHeight\\)").findAll(splitButton).count())
     }
 
     @Test
