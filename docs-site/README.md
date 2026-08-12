@@ -58,47 +58,96 @@ New-Item -ItemType Directory -Force public
 Copy-Item ..\image\monica_launcher.webp public\monica-steam.webp
 ```
 
-## GitHub Pages
+## Cloudflare Pages 部署
 
-仓库根目录的 `.github/workflows/deploy-docs.yml` 会构建并部署本站。
+仓库根目录的 `.github/workflows/deploy-docs.yml` 使用 GitHub Actions 构建并部署文档站到 Cloudflare Pages。
 
-默认 VitePress `base`：
-
-```text
-/Monica-Steam/
-```
-
-因此适配项目 Pages：
+Cloudflare Pages 项目名固定为：
 
 ```text
-https://<username>.github.io/Monica-Steam/
+monica-steam
 ```
 
-首次使用时，需要在 GitHub 仓库：
+因此 Cloudflare 分配的默认站点地址通常为：
 
 ```text
-Settings → Pages → Build and deployment → Source
+https://monica-steam.pages.dev/
 ```
 
-选择：
+> 如果 `monica-steam` 这个 Pages 项目名在对应 Cloudflare 账号中已经被占用，需要在 Cloudflare 后台选择另一个可用项目名，并同步修改工作流中的 `CLOUDFLARE_PAGES_PROJECT`。
+
+### 首次配置
+
+先在 Cloudflare Dashboard 的 **Workers & Pages** 中创建一个 Pages 项目，项目名填写：
 
 ```text
-GitHub Actions
+monica-steam
 ```
 
-## Cloudflare Pages
-
-项目也可以直接导入 Cloudflare Pages。
-
-建议：
+生产分支使用：
 
 ```text
-Root directory: docs-site
-Build command: npm run docs:build
-Build output directory: .vitepress/dist
+main
 ```
 
-Cloudflare Pages 构建环境存在 `CF_PAGES` / `CF_PAGES_URL` 时，VitePress 会自动使用 `/` 作为 base，不需要修改源码。
+然后在 GitHub 仓库：
+
+```text
+Settings → Secrets and variables → Actions
+```
+
+添加两个 Repository secrets：
+
+```text
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+```
+
+其中 API Token 需要具有向目标 Cloudflare Pages 项目部署所需的权限。
+
+完成后，每次 `main` 分支中以下内容发生变化，GitHub Actions 会自动重新构建并部署：
+
+```text
+docs-site/**
+image/monica_launcher.webp
+.github/workflows/deploy-docs.yml
+```
+
+Pull Request 不会真正部署，只会执行完整的 VitePress 构建检查。
+
+### 构建参数
+
+Cloudflare Pages 部署时工作流会设置：
+
+```text
+CF_PAGES=1
+```
+
+因此 VitePress 会自动使用：
+
+```text
+base: /
+```
+
+不再使用 GitHub Project Pages 的 `/Monica-Steam/` 子路径。
+
+部署命令等价于：
+
+```bash
+npx wrangler pages deploy docs-site/.vitepress/dist --project-name=monica-steam --branch=main
+```
+
+## 自定义域名
+
+`monica-steam` 是 Cloudflare Pages **项目名**，对应默认的 `monica-steam.pages.dev`。
+
+如果以后有自己的域名，可以在 Cloudflare Pages 项目中的 **Custom domains** 继续绑定例如：
+
+```text
+docs.example.com
+```
+
+无需修改文档内容。
 
 ## 文档结构
 
