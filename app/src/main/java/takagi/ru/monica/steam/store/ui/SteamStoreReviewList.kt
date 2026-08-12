@@ -16,22 +16,27 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,6 +54,7 @@ import takagi.ru.monica.steam.store.domain.SteamReviewSentimentFilter
 import takagi.ru.monica.steam.store.domain.SteamReviewTimeFilter
 import takagi.ru.monica.steam.store.domain.SteamStoreReviews
 import takagi.ru.monica.steam.store.domain.SteamUserReview
+import takagi.ru.monica.ui.components.MonicaModalBottomSheet
 
 @Composable
 internal fun SteamStoreReviewsSection(
@@ -63,6 +69,7 @@ internal fun SteamStoreReviewsSection(
     modifier: Modifier = Modifier
 ) {
     var expanded by rememberSaveable(appId) { mutableStateOf(false) }
+    var showFilterSheet by rememberSaveable(appId) { mutableStateOf(false) }
     val visibleReviews = if (expanded) reviews.items else reviews.items.take(REVIEW_PREVIEW_COUNT)
     val canExpand = !expanded && (
         reviews.items.size > REVIEW_PREVIEW_COUNT || reviews.nextCursor != null
@@ -73,7 +80,7 @@ internal fun SteamStoreReviewsSection(
         SteamStoreReviewFilters(
             filters = filters,
             enabled = !loadingMore,
-            onFiltersChanged = onFiltersChanged
+            onClick = { showFilterSheet = true }
         )
         if (loadingMore && reviews.items.isEmpty()) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -135,81 +142,215 @@ internal fun SteamStoreReviewsSection(
             }
         }
     }
+    if (showFilterSheet) {
+        SteamStoreReviewFilterSheet(
+            filters = filters,
+            enabled = !loadingMore,
+            onApply = {
+                showFilterSheet = false
+                if (it != filters) onFiltersChanged(it)
+            },
+            onDismiss = { showFilterSheet = false }
+        )
+    }
 }
 
 @Composable
 private fun SteamStoreReviewFilters(
     filters: SteamReviewFilterSelection,
     enabled: Boolean,
-    onFiltersChanged: (SteamReviewFilterSelection) -> Unit
+    onClick: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(R.string.steam_store_reviews_filter_sentiment),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SteamReviewSentimentFilter.entries.forEachIndexed { index, filter ->
-                SegmentedButton(
-                    selected = filters.sentiment == filter,
-                    onClick = { onFiltersChanged(filters.copy(sentiment = filter)) },
-                    enabled = enabled,
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index,
-                        SteamReviewSentimentFilter.entries.size
-                    ),
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                ) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = if (filters.isDefault) {
+            MaterialTheme.colorScheme.surfaceContainer
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        },
+        contentColor = if (filters.isDefault) {
+            MaterialTheme.colorScheme.onSurface
+        } else {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(
+                text = stringResource(R.string.steam_store_reviews_filter_title),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = steamReviewFilterSummary(filters),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SteamStoreReviewFilterSheet(
+    filters: SteamReviewFilterSelection,
+    enabled: Boolean,
+    onApply: (SteamReviewFilterSelection) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var pending by remember(filters) { mutableStateOf(filters) }
+    MonicaModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = stringResource(
-                            when (filter) {
-                                SteamReviewSentimentFilter.ALL ->
-                                    R.string.steam_store_reviews_filter_all
-                                SteamReviewSentimentFilter.POSITIVE ->
-                                    R.string.steam_store_reviews_filter_positive
-                                SteamReviewSentimentFilter.NEGATIVE ->
-                                    R.string.steam_store_reviews_filter_negative
-                            }
-                        ),
-                        maxLines = 1
+                        text = stringResource(R.string.steam_store_reviews_filter_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = steamReviewFilterSummary(pending),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-        }
-        Text(
-            text = stringResource(R.string.steam_store_reviews_filter_time),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SteamReviewTimeFilter.entries.forEachIndexed { index, filter ->
-                SegmentedButton(
-                    selected = filters.time == filter,
-                    onClick = { onFiltersChanged(filters.copy(time = filter)) },
-                    enabled = enabled,
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index,
-                        SteamReviewTimeFilter.entries.size
-                    ),
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                TextButton(
+                    onClick = { pending = SteamReviewFilterSelection() },
+                    enabled = enabled && !pending.isDefault,
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Text(
-                        text = stringResource(
-                            when (filter) {
-                                SteamReviewTimeFilter.ALL_TIME ->
-                                    R.string.steam_store_reviews_filter_all_time
-                                SteamReviewTimeFilter.RECENT_30_DAYS ->
-                                    R.string.steam_store_reviews_filter_recent
-                            }
-                        ),
-                        maxLines = 1
-                    )
+                    Text(stringResource(R.string.steam_store_reviews_filter_reset))
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SteamReviewChoiceGroup(
+                    title = stringResource(R.string.steam_store_reviews_filter_sentiment)
+                ) {
+                    SteamReviewSentimentFilter.entries.forEach { option ->
+                        SteamReviewChoiceChip(
+                            selected = pending.sentiment == option,
+                            enabled = enabled,
+                            label = steamReviewSentimentLabel(option),
+                            onClick = { pending = pending.copy(sentiment = option) }
+                        )
+                    }
+                }
+                SteamReviewChoiceGroup(
+                    title = stringResource(R.string.steam_store_reviews_filter_time)
+                ) {
+                    SteamReviewTimeFilter.entries.forEach { option ->
+                        SteamReviewChoiceChip(
+                            selected = pending.time == option,
+                            enabled = enabled,
+                            label = steamReviewTimeLabel(option),
+                            onClick = { pending = pending.copy(time = option) }
+                        )
+                    }
+                }
+            }
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 2.dp
+            ) {
+                Button(
+                    onClick = { onApply(pending) },
+                    enabled = enabled,
+                    modifier = Modifier.fillMaxWidth().padding(20.dp, 10.dp).heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(stringResource(R.string.steam_store_reviews_filter_apply))
                 }
             }
         }
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SteamReviewChoiceGroup(
+    title: String,
+    content: @Composable androidx.compose.foundation.layout.FlowRowScope.() -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun SteamReviewChoiceChip(
+    selected: Boolean,
+    enabled: Boolean,
+    label: String,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        enabled = enabled,
+        onClick = onClick,
+        label = { Text(label, maxLines = 1) },
+        leadingIcon = if (selected) {
+            {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize)
+                )
+            }
+        } else null
+    )
+}
+
+@Composable
+private fun steamReviewFilterSummary(filters: SteamReviewFilterSelection): String =
+    "${steamReviewSentimentLabel(filters.sentiment)} · ${steamReviewTimeLabel(filters.time)}"
+
+@Composable
+private fun steamReviewSentimentLabel(filter: SteamReviewSentimentFilter): String = stringResource(
+    when (filter) {
+        SteamReviewSentimentFilter.ALL -> R.string.steam_store_reviews_filter_all
+        SteamReviewSentimentFilter.POSITIVE -> R.string.steam_store_reviews_filter_positive
+        SteamReviewSentimentFilter.NEGATIVE -> R.string.steam_store_reviews_filter_negative
+    }
+)
+
+@Composable
+private fun steamReviewTimeLabel(filter: SteamReviewTimeFilter): String = stringResource(
+    when (filter) {
+        SteamReviewTimeFilter.ALL_TIME -> R.string.steam_store_reviews_filter_all_time
+        SteamReviewTimeFilter.RECENT_30_DAYS -> R.string.steam_store_reviews_filter_recent
+    }
+)
 
 @Composable
 @OptIn(ExperimentalLayoutApi::class)

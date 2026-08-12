@@ -1159,6 +1159,35 @@ private fun SteamStoreDetailContent(
                         )
                     }
                 }
+                Surface(
+                    onClick = onOpenOfficial,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(end = 12.dp, top = 8.dp)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = 3.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Storefront,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.steam_store_buy),
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1
+                        )
+                    }
+                }
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -1310,7 +1339,6 @@ private fun SteamStoreDetailContent(
                     onOpenCart = onOpenCart,
                     onToggleWishlist = onToggleWishlist,
                     onToggleIgnored = onToggleIgnored,
-                    onOpenOfficial = onOpenOfficial,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Surface(
@@ -1555,7 +1583,6 @@ private fun SteamStorePurchaseActions(
     onOpenCart: () -> Unit,
     onToggleWishlist: () -> Unit,
     onToggleIgnored: () -> Unit,
-    onOpenOfficial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1668,19 +1695,6 @@ private fun SteamStorePurchaseActions(
                     )
                 }
             }
-        }
-        OutlinedButton(
-            onClick = onOpenOfficial,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Icon(Icons.Default.Storefront, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.steam_store_buy)
-            )
         }
         val actionError = ignoredError ?: wishlistError
         if (actionError != null) {

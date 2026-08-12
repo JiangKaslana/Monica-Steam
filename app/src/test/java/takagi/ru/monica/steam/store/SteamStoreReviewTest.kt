@@ -178,8 +178,10 @@ class SteamStoreReviewTest {
         assertTrue(detailUi.contains("openExternalStoreWebsite(context, normalizedUrl)"))
         assertTrue(detailUi.contains("onClick = { onOpenWebsite(detail.website) }"))
         assertTrue(detailUi.contains("heightIn(min = 48.dp)"))
-        assertTrue(reviewUi.contains("SingleChoiceSegmentedButtonRow"))
-        assertTrue(reviewUi.contains("onFiltersChanged"))
+        assertTrue(reviewUi.contains("SteamStoreReviewFilterSheet("))
+        assertTrue(reviewUi.contains("SteamReviewChoiceChip("))
+        assertTrue(reviewUi.contains("onApply ="))
+        assertFalse(reviewUi.contains("SingleChoiceSegmentedButtonRow"))
         assertTrue(viewModel.contains("fun updateReviewFilters("))
     }
 
