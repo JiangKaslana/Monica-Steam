@@ -179,6 +179,7 @@ import takagi.ru.monica.steam.alerts.data.SteamLoginNotificationHelper
 import takagi.ru.monica.steam.gifts.domain.steamGiftInboxUrl
 import takagi.ru.monica.steam.foundation.ui.SteamConfirmationAccountCard
 import takagi.ru.monica.steam.foundation.ui.SteamConfirmationAccountPickerSheet
+import takagi.ru.monica.steam.foundation.ui.SteamExpressivePullToRefresh
 import takagi.ru.monica.steam.foundation.ui.SteamEmptyState as EmptyState
 import takagi.ru.monica.steam.foundation.ui.loadSteamRemoteImage as loadSteamConfirmationImage
 import takagi.ru.monica.steam.inventory.ui.SteamInventoryContent
@@ -510,8 +511,11 @@ fun SteamScreen(
     var requestedChatPartnerSteamId by rememberSaveable { mutableStateOf<String?>(null) }
     var autoPromptedLoginClientIds by remember(selectedAccount?.id) { mutableStateOf<Set<Long>>(emptySet()) }
     val notificationSnapshot = uiState.notifications.snapshot
-    val pendingConfirmationCount = if (selectedAccount?.canUseConfirmations == true) {
-        maxOf(uiState.confirmations.size, notificationSnapshot?.confirmationCount ?: 0)
+    val pendingConfirmationCount = if (
+        selectedAccount?.canUseConfirmations == true &&
+        uiState.confirmationsAccountId == selectedAccount.id
+    ) {
+        uiState.confirmations.size
     } else {
         0
     }
@@ -2051,6 +2055,8 @@ fun SteamScreen(
                                 account = selectedAccount,
                                 accounts = confirmationAccounts,
                                 confirmations = filteredSteamConfirmations,
+                                confirmationsRefreshing = uiState.confirmationsRefreshing,
+                                confirmationRefreshError = uiState.confirmationRefreshError,
                                 history = uiState.confirmationHistory,
                                 hasSearchQuery = steamSearchQuery.isNotBlank(),
                                 pullToSearch = pullToSearch,
@@ -2065,6 +2071,7 @@ fun SteamScreen(
                                     )
                                 },
                                 onClearSelection = viewModel::clearSelectedConfirmations,
+                                onRefresh = viewModel::refreshConfirmations,
                                 onRequestResponse = ::requestProtectedConfirmationAction
                             )
                             SteamSection.FRIENDS -> SteamFriendsScreen(
@@ -3492,6 +3499,8 @@ private fun SteamConfirmationsContent(
     account: SteamAccount?,
     accounts: List<SteamAccount>,
     confirmations: List<SteamConfirmation>,
+    confirmationsRefreshing: Boolean,
+    confirmationRefreshError: String?,
     history: List<SteamSecurityEvent>,
     hasSearchQuery: Boolean,
     pullToSearch: PullToSearchStateHandle,
@@ -3500,6 +3509,7 @@ private fun SteamConfirmationsContent(
     onToggle: (String) -> Unit,
     onSelectVisible: (Set<String>) -> Unit,
     onClearSelection: () -> Unit,
+    onRefresh: () -> Unit,
     onRequestResponse: (List<SteamConfirmation>, Boolean) -> Unit
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
@@ -3664,112 +3674,149 @@ private fun SteamConfirmationsContent(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset { IntOffset(0, pullToSearch.currentOffset.toInt()) }
-                .nestedScroll(pullToSearch.nestedScrollConnection),
-            contentPadding = PaddingValues(
-                bottom = dockContentClearance + if (selectionMode) 80.dp else 16.dp
-            )
+        SteamExpressivePullToRefresh(
+            refreshing = confirmationsRefreshing,
+            onRefresh = onRefresh,
+            enabled = account?.canUseConfirmations == true,
+            modifier = Modifier.fillMaxSize()
         ) {
-            item(key = "confirmation_account") {
-                SteamConfirmationAccountCard(
-                    account = account,
-                    onClick = { showAccountPicker = true },
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp)
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset { IntOffset(0, pullToSearch.currentOffset.toInt()) }
+                    .nestedScroll(pullToSearch.nestedScrollConnection),
+                contentPadding = PaddingValues(
+                    bottom = dockContentClearance + if (selectionMode) 80.dp else 16.dp
                 )
-            }
-            if (history.isNotEmpty()) {
-                item(key = "confirmation_history") {
-                    SteamConfirmationHistoryCard(
-                        events = history.take(3),
-                        modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp)
+            ) {
+                item(key = "confirmation_account") {
+                    SteamConfirmationAccountCard(
+                        account = account,
+                        onClick = { showAccountPicker = true },
+                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp)
                     )
                 }
-            }
-            if (confirmations.isNotEmpty()) {
-                item(key = "confirmation_filters") {
-                    FlowRow(
-                        modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        MonicaExpressiveFilterChip(
-                            selected = selectedKind == null,
-                            onClick = {
-                                selectedKindName = "ALL"
-                                onClearSelection()
-                            },
-                            label = stringResource(R.string.steam_confirmation_filter_all)
+                if (history.isNotEmpty()) {
+                    item(key = "confirmation_history") {
+                        SteamConfirmationHistoryCard(
+                            events = history.take(3),
+                            modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp)
                         )
-                        SteamConfirmationKind.entries.forEach { kind ->
-                            MonicaExpressiveFilterChip(
-                                selected = selectedKind == kind,
-                                onClick = {
-                                    selectedKindName = kind.name
-                                    onClearSelection()
-                                },
-                                label = steamConfirmationKindLabel(kind)
-                            )
+                    }
+                }
+                confirmationRefreshError?.takeIf(String::isNotBlank)?.let { message ->
+                    item(key = "confirmation_error") {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, top = 10.dp, end = 16.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = message,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                TextButton(
+                                    onClick = onRefresh,
+                                    enabled = !confirmationsRefreshing
+                                ) {
+                                    Text(stringResource(R.string.refresh))
+                                }
+                            }
                         }
                     }
                 }
-            }
-            if (account == null || !account.canUseConfirmations || visibleConfirmations.isEmpty()) {
-                item(key = "confirmation_empty") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 240.dp)
-                            .padding(horizontal = 16.dp)
-                            .pointerInput(account?.id, hasSearchQuery) {
-                                detectVerticalDragGestures(
-                                    onVerticalDrag = { _, dragAmount ->
-                                        pullToSearch.onVerticalDrag(dragAmount)
+                if (confirmations.isNotEmpty()) {
+                    item(key = "confirmation_filters") {
+                        FlowRow(
+                            modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MonicaExpressiveFilterChip(
+                                selected = selectedKind == null,
+                                onClick = {
+                                    selectedKindName = "ALL"
+                                    onClearSelection()
+                                },
+                                label = stringResource(R.string.steam_confirmation_filter_all)
+                            )
+                            SteamConfirmationKind.entries.forEach { kind ->
+                                MonicaExpressiveFilterChip(
+                                    selected = selectedKind == kind,
+                                    onClick = {
+                                        selectedKindName = kind.name
+                                        onClearSelection()
                                     },
-                                    onDragEnd = pullToSearch.onDragEnd,
-                                    onDragCancel = pullToSearch.onDragCancel
+                                    label = steamConfirmationKindLabel(kind)
                                 )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        EmptyState(
-                            when {
-                                account == null || !account.canUseConfirmations -> {
-                                    steamConfirmationUnavailableText(account)
-                                }
-                                hasSearchQuery || confirmations.isNotEmpty() -> stringResource(R.string.no_results)
-                                else -> stringResource(R.string.steam_no_confirmations)
                             }
-                        )
+                        }
                     }
                 }
-            } else {
-                items(visibleConfirmations, key = { "confirmation_${it.id}" }) { confirmation ->
-                    Box(
-                        modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp)
-                    ) {
-                        SwipeActions(
-                            onSwipeLeft = {},
-                            onSwipeRight = { onToggle(confirmation.id) },
-                            isSwiped = confirmation.id in selectedIds,
-                            allowSwipeLeft = false,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            ConfirmationRow(
-                                confirmation = confirmation,
-                                selected = confirmation.id in selectedIds,
-                                selectionMode = selectionMode,
-                                onClick = {
-                                    if (selectionMode) {
-                                        onToggle(confirmation.id)
-                                    } else {
-                                        detailConfirmation = confirmation
-                                    }
+                if (account == null || !account.canUseConfirmations || visibleConfirmations.isEmpty()) {
+                    item(key = "confirmation_empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 240.dp)
+                                .padding(horizontal = 16.dp)
+                                .pointerInput(account?.id, hasSearchQuery) {
+                                    detectVerticalDragGestures(
+                                        onVerticalDrag = { _, dragAmount ->
+                                            pullToSearch.onVerticalDrag(dragAmount)
+                                        },
+                                        onDragEnd = pullToSearch.onDragEnd,
+                                        onDragCancel = pullToSearch.onDragCancel
+                                    )
                                 },
-                                onLongClick = { onToggle(confirmation.id) }
+                            contentAlignment = Alignment.Center
+                        ) {
+                            EmptyState(
+                                when {
+                                    account == null || !account.canUseConfirmations -> {
+                                        steamConfirmationUnavailableText(account)
+                                    }
+                                    hasSearchQuery || confirmations.isNotEmpty() -> stringResource(R.string.no_results)
+                                    else -> stringResource(R.string.steam_no_confirmations)
+                                }
                             )
+                        }
+                    }
+                } else {
+                    items(visibleConfirmations, key = { "confirmation_${it.id}" }) { confirmation ->
+                        Box(
+                            modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp)
+                        ) {
+                            SwipeActions(
+                                onSwipeLeft = {},
+                                onSwipeRight = { onToggle(confirmation.id) },
+                                isSwiped = confirmation.id in selectedIds,
+                                allowSwipeLeft = false,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                ConfirmationRow(
+                                    confirmation = confirmation,
+                                    selected = confirmation.id in selectedIds,
+                                    selectionMode = selectionMode,
+                                    onClick = {
+                                        if (selectionMode) {
+                                            onToggle(confirmation.id)
+                                        } else {
+                                            detailConfirmation = confirmation
+                                        }
+                                    },
+                                    onLongClick = { onToggle(confirmation.id) }
+                                )
+                            }
                         }
                     }
                 }

@@ -38,7 +38,9 @@ class SteamConfirmationService(
             cookies = cookies(account)
         )
         if (payload.bool("success") != true) {
-            return emptyList()
+            val message = payload.stringAny("message", "error", "detail")
+                ?: "Steam confirmation request failed"
+            throw SteamApiException(message)
         }
         val confs = payload["conf"] as? JsonArray ?: return emptyList()
         return confs.mapNotNull { (it as? JsonObject)?.toConfirmation() }

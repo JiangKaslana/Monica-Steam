@@ -182,6 +182,9 @@ data class SteamUiState(
     val secondsRemaining: Int = 30,
     val periodProgress: Float = 1f,
     val confirmations: List<SteamConfirmation> = emptyList(),
+    val confirmationsRefreshing: Boolean = false,
+    val confirmationRefreshError: String? = null,
+    val confirmationsAccountId: Long? = null,
     val confirmationHistory: List<SteamSecurityEvent> = emptyList(),
     val pendingLogins: List<SteamPendingLogin> = emptyList(),
     val authorizedDevices: List<SteamAuthorizedDevice> = emptyList(),
@@ -256,6 +259,7 @@ class SteamViewModel(
     private var batchQuoteGeneration: Long = 0L
     private var listingsLoadGeneration: Long = 0L
     private var accountRequestGeneration: Long = 0L
+    private var confirmationLoadGeneration: Long = 0L
     private var authorizedDevicesLoadGeneration: Long = 0L
     private var storageSourceLoadGeneration: Long = 0L
     private val locallyReadNotificationIds = linkedSetOf<String>()
@@ -829,16 +833,27 @@ class SteamViewModel(
         }
     }
 
-    fun refreshConfirmations(silent: Boolean = false) {
+    fun refreshConfirmations(
+        silent: Boolean = false,
+        clearExistingOnFailure: Boolean = false
+    ) {
         val account = selectedAccount() ?: return
         if (!account.canUseConfirmations) {
             _uiState.value = _uiState.value.copy(
                 confirmations = emptyList(),
+                confirmationsRefreshing = false,
+                confirmationRefreshError = null,
+                confirmationsAccountId = account.id,
                 selectedConfirmationIds = emptySet()
             )
             return
         }
-        val generation = accountRequestGeneration
+        val accountGeneration = accountRequestGeneration
+        val loadGeneration = ++confirmationLoadGeneration
+        _uiState.value = _uiState.value.copy(
+            confirmationsRefreshing = true,
+            confirmationRefreshError = null
+        )
         viewModelScope.launch {
             if (!silent) setLoading(true)
             runCatching {
@@ -849,9 +864,14 @@ class SteamViewModel(
                     ?: throw IllegalStateException(account.confirmationUnavailableMessage())
                 withContext(Dispatchers.IO) { confirmationService.fetch(freshAccount) }
             }.onSuccess { confirmations ->
-                if (!accountRequestIsCurrent(account.id, generation)) return@onSuccess
+                if (!confirmationRequestIsCurrent(account.id, accountGeneration, loadGeneration)) {
+                    return@onSuccess
+                }
                 _uiState.value = _uiState.value.copy(
                     confirmations = confirmations,
+                    confirmationsRefreshing = false,
+                    confirmationRefreshError = null,
+                    confirmationsAccountId = account.id,
                     selectedConfirmationIds = _uiState.value.selectedConfirmationIds.intersect(confirmations.map { it.id }.toSet())
                 )
                 if (!silent) {
@@ -865,9 +885,23 @@ class SteamViewModel(
                     )
                 }
             }.onFailure { error ->
-                if (!accountRequestIsCurrent(account.id, generation)) return@onFailure
+                if (!confirmationRequestIsCurrent(account.id, accountGeneration, loadGeneration)) {
+                    return@onFailure
+                }
+                val message = error.message
+                    ?: appContext.getString(R.string.steam_cannot_refresh_confirmations)
+                _uiState.value = _uiState.value.copy(
+                    confirmations = if (clearExistingOnFailure) {
+                        emptyList()
+                    } else {
+                        _uiState.value.confirmations
+                    },
+                    confirmationsRefreshing = false,
+                    confirmationRefreshError = message,
+                    confirmationsAccountId = account.id
+                )
                 if (!silent) setMessage(
-                    error.message ?: appContext.getString(R.string.steam_cannot_refresh_confirmations)
+                    message
                 )
                 if (!silent) {
                     recordConfirmationEvent(
@@ -877,7 +911,12 @@ class SteamViewModel(
                     )
                 }
             }
-            if (!silent && accountRequestIsCurrent(account.id, generation)) setLoading(false)
+            if (
+                !silent &&
+                confirmationRequestIsCurrent(account.id, accountGeneration, loadGeneration)
+            ) {
+                setLoading(false)
+            }
         }
     }
 
@@ -937,6 +976,15 @@ class SteamViewModel(
                 }
                 viewModelScope.launch(Dispatchers.IO) {
                     notificationCache.save(account.steamId, visibleSnapshot)
+                }
+                if (
+                    snapshot.confirmationCount > 0 &&
+                    !_uiState.value.confirmationsRefreshing
+                ) {
+                    refreshConfirmations(
+                        silent = true,
+                        clearExistingOnFailure = true
+                    )
                 }
             }.onFailure { error ->
                 if (!accountRequestIsCurrent(account.id, generation)) return@onFailure
@@ -2710,6 +2758,7 @@ class SteamViewModel(
 
     private fun invalidateAccountScopedRequests() {
         accountRequestGeneration++
+        confirmationLoadGeneration++
         inventoryLoadGeneration++
         marketQuoteGeneration++
         batchQuoteGeneration++
@@ -2731,6 +2780,15 @@ class SteamViewModel(
             generation = generation,
             currentGeneration = accountRequestGeneration
         )
+    }
+
+    private fun confirmationRequestIsCurrent(
+        accountId: Long,
+        accountGeneration: Long,
+        loadGeneration: Long
+    ): Boolean {
+        return accountRequestIsCurrent(accountId, accountGeneration) &&
+            loadGeneration == confirmationLoadGeneration
     }
 
     private fun storageSourceRequestIsCurrent(
@@ -2813,6 +2871,9 @@ class SteamViewModel(
             secondsRemaining = secondsRemaining(nowMillis),
             periodProgress = periodProgress(nowMillis),
             confirmations = if (selectedChanged || clearAccountScopedState) emptyList() else previous.confirmations,
+            confirmationsRefreshing = if (selectedChanged || clearAccountScopedState) false else previous.confirmationsRefreshing,
+            confirmationRefreshError = if (selectedChanged || clearAccountScopedState) null else previous.confirmationRefreshError,
+            confirmationsAccountId = if (selectedChanged || clearAccountScopedState) null else previous.confirmationsAccountId,
             pendingLogins = if (selectedChanged || clearAccountScopedState) emptyList() else previous.pendingLogins,
             authorizedDevices = if (selectedChanged || clearAccountScopedState) emptyList() else previous.authorizedDevices,
             selectedConfirmationIds = if (selectedChanged || clearAccountScopedState) emptySet() else previous.selectedConfirmationIds,
