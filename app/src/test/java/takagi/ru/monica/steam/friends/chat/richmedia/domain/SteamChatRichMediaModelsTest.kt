@@ -108,6 +108,61 @@ class SteamChatRichMediaModelsTest {
     }
 
     @Test
+    fun convertsSteamBbcodeLinksIntoInlineTextLinks() {
+        val content = SteamChatRichContentParser.parse(
+            "See [url=https://store.steampowered.com/app/730/?a=1&amp;b=2]Counter-Strike 2[/url] now"
+        ) as SteamChatRichContent.Text
+
+        assertEquals("See Counter-Strike 2 now", content.body)
+        assertEquals(
+            listOf(
+                SteamChatTextLink(
+                    start = 4,
+                    endExclusive = 20,
+                    url = "https://store.steampowered.com/app/730/?a=1&b=2"
+                )
+            ),
+            content.links
+        )
+    }
+
+    @Test
+    fun keepsMultipleBbcodeLinksAndPlainUrlsInOneMessage() {
+        val content = SteamChatRichContentParser.parse(
+            "[url=https://steamcommunity.com/id/monica]Profile[/url] " +
+                "and https://store.steampowered.com/app/570/"
+        ) as SteamChatRichContent.Text
+
+        assertEquals(
+            "Profile and https://store.steampowered.com/app/570/",
+            content.body
+        )
+        assertEquals(2, content.links.size)
+        assertEquals("https://steamcommunity.com/id/monica", content.links[0].url)
+        assertEquals("https://store.steampowered.com/app/570/", content.links[1].url)
+    }
+
+    @Test
+    fun parsesSteamSelfLabeledUrlTag() {
+        val content = SteamChatRichContentParser.parse(
+            "[url]https://steamcommunity.com/groups/monica[/url]"
+        ) as SteamChatRichContent.Text
+
+        assertEquals("https://steamcommunity.com/groups/monica", content.body)
+        assertEquals(content.body, content.links.single().url)
+    }
+
+    @Test
+    fun keepsUnknownBbcodeSchemesReadableWithoutMakingThemClickable() {
+        val content = SteamChatRichContentParser.parse(
+            "[url=javascript:alert(1)]unsafe link[/url]"
+        ) as SteamChatRichContent.Text
+
+        assertEquals("unsafe link", content.body)
+        assertTrue(content.links.isEmpty())
+    }
+
+    @Test
     fun preservesSteamSpoilerImagesAndDecodesEscapedQueryParameters() {
         val image = SteamChatRichContentParser.parse(
             "[spoiler][img]https://steamusercontent.com/chat/photo.png?x=1&amp;y=2[/img][/spoiler]"
@@ -125,13 +180,14 @@ class SteamChatRichMediaModelsTest {
             "[url=$url]$url[/url]"
         ) as SteamChatRichContent.Attachment
         val plainImage = SteamChatRichContentParser.parse(url) as SteamChatRichContent.Attachment
-        val genericAttachment = SteamChatRichContentParser.parse(
+        val genericLink = SteamChatRichContentParser.parse(
             "[url=https://steamusercontent.com/ugc/archive]archive[/url]"
-        ) as SteamChatRichContent.Attachment
+        ) as SteamChatRichContent.Text
 
         assertEquals(SteamChatAttachmentKind.IMAGE, image.kind)
         assertEquals(SteamChatAttachmentKind.IMAGE, plainImage.kind)
-        assertEquals(SteamChatAttachmentKind.LINK, genericAttachment.kind)
+        assertEquals("archive", genericLink.body)
+        assertEquals("https://steamusercontent.com/ugc/archive", genericLink.links.single().url)
     }
 
     @Test

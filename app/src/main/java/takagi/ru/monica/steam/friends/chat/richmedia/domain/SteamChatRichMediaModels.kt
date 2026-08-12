@@ -71,7 +71,10 @@ data class SteamChatUploadedAttachment(
 )
 
 sealed interface SteamChatRichContent {
-    data class Text(val body: String) : SteamChatRichContent
+    data class Text(
+        val body: String,
+        val links: List<SteamChatTextLink> = emptyList()
+    ) : SteamChatRichContent
 
     data class Action(val body: String) : SteamChatRichContent
 
@@ -100,6 +103,12 @@ sealed interface SteamChatRichContent {
         val spoiler: Boolean = false
     ) : SteamChatRichContent
 }
+
+data class SteamChatTextLink(
+    val start: Int,
+    val endExclusive: Int,
+    val url: String
+)
 
 object SteamChatRichContentParser {
     private val actionPattern = Regex(
@@ -165,6 +174,10 @@ object SteamChatRichContentParser {
         RegexOption.IGNORE_CASE
     )
     private val httpUrlPattern = Regex("https?://[^\\s\\]]+", RegexOption.IGNORE_CASE)
+    private val plainLinkPattern = Regex(
+        "(?:https?://|steam://)[^\\s\\]]+",
+        RegexOption.IGNORE_CASE
+    )
     private val steamTradeOfferUrlPattern = Regex(
         "https://steamcommunity\\.com/tradeoffer/(?:new/\\?[^\\s\\[\\]]+|\\d+/?[^\\s\\[\\]]*)",
         RegexOption.IGNORE_CASE
@@ -173,6 +186,10 @@ object SteamChatRichContentParser {
     private val videoPattern = Regex("\\[video(?:=[^]]+)?](https?://[^\\[]+)\\[/video]", RegexOption.IGNORE_CASE)
     private val urlPattern = Regex(
         "\\[url=(https?://[^]]+)]([^\\[]+)\\[/url]",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+    private val anyBbcodeUrlPattern = Regex(
+        "\\[url=([^]]+)](.*?)\\[/url]|\\[url](.*?)\\[/url]",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
 
@@ -325,8 +342,44 @@ object SteamChatRichContentParser {
         parseAttachment(spoiler?.groupValues?.getOrNull(1) ?: body, spoiler != null)?.let {
             return it
         }
-        return SteamChatRichContent.Text(body)
+        return parseText(body)
     }
+
+    private fun parseText(body: String): SteamChatRichContent.Text {
+        val output = StringBuilder(body.length)
+        val links = mutableListOf<SteamChatTextLink>()
+        var cursor = 0
+        anyBbcodeUrlPattern.findAll(body).forEach { match ->
+            output.append(body, cursor, match.range.first)
+            val explicitUrl = match.groupValues[1]
+            val innerText = match.groupValues[2].ifBlank { match.groupValues[3] }
+            val url = normalizeAttachmentUrl(explicitUrl.ifBlank { innerText })
+            val label = decodeBbcodeText(innerText).ifBlank { url }
+            val start = output.length
+            output.append(label)
+            if (isAllowedTextLink(url)) {
+                links += SteamChatTextLink(start, output.length, url)
+            }
+            cursor = match.range.last + 1
+        }
+        output.append(body, cursor, body.length)
+        val normalizedBody = output.toString()
+        val occupied = links.map { it.start until it.endExclusive }
+        plainLinkPattern.findAll(normalizedBody).forEach { match ->
+            if (occupied.none { range -> match.range.first in range }) {
+                links += SteamChatTextLink(
+                    start = match.range.first,
+                    endExclusive = match.range.last + 1,
+                    url = normalizeAttachmentUrl(match.value)
+                )
+            }
+        }
+        return SteamChatRichContent.Text(normalizedBody, links.sortedBy(SteamChatTextLink::start))
+    }
+
+    private fun isAllowedTextLink(url: String): Boolean = runCatching {
+        URI(url).scheme?.lowercase() in setOf("http", "https", "steam")
+    }.getOrDefault(false)
 
     private fun parseOfficialEmoticonSequence(body: String): SteamChatRichContent.Text? {
         val trimmed = body.trim()
@@ -368,13 +421,15 @@ object SteamChatRichContentParser {
                 spoiler = spoiler
             )
         }
-        urlPattern.find(body)?.let { match ->
+        urlPattern.matchEntire(body.trim())?.let { match ->
             val url = normalizeAttachmentUrl(match.groupValues[1])
             val label = match.groupValues[2].trim().ifBlank { fileLabel(url) }
+            val kind = attachmentKind(url)
+            if (kind == SteamChatAttachmentKind.LINK) return null
             return SteamChatRichContent.Attachment(
                 url = url,
                 label = label,
-                kind = attachmentKind(url),
+                kind = kind,
                 spoiler = spoiler
             )
         }
@@ -394,6 +449,12 @@ object SteamChatRichContentParser {
     private fun normalizeAttachmentUrl(value: String): String = value
         .trim()
         .replace("&amp;", "&", ignoreCase = true)
+
+    private fun decodeBbcodeText(value: String): String = value
+        .replace("&amp;", "&", ignoreCase = true)
+        .replace("&lt;", "<", ignoreCase = true)
+        .replace("&gt;", ">", ignoreCase = true)
+        .replace("&quot;", "\"", ignoreCase = true)
 
     private fun parseAttributes(raw: String): Map<String, String> =
         Regex("""([A-Za-z0-9_]+)=(?:"([^"]*)"|'([^']*)'|([^\s]+))""")
