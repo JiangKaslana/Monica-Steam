@@ -58,54 +58,43 @@ New-Item -ItemType Directory -Force public
 Copy-Item ..\image\monica_launcher.webp public\monica-steam.webp
 ```
 
-## Cloudflare Pages 部署
+## GitHub Pages 部署
 
-仓库根目录的 `.github/workflows/deploy-docs.yml` 使用 GitHub Actions 构建并部署文档站到 Cloudflare Pages。
+仓库根目录的 `.github/workflows/deploy-docs.yml` 使用 GitHub Actions 构建并部署文档站到 GitHub Pages。
 
-Cloudflare Pages 项目名固定为：
-
-```text
-monica-steam
-```
-
-因此 Cloudflare 分配的默认站点地址通常为：
+VitePress 使用项目 Pages 的固定 base：
 
 ```text
-https://monica-steam.pages.dev/
+/Monica-Steam/
 ```
 
-> 如果 `monica-steam` 这个 Pages 项目名在对应 Cloudflare 账号中已经被占用，需要在 Cloudflare 后台选择另一个可用项目名，并同步修改工作流中的 `CLOUDFLARE_PAGES_PROJECT`。
+因此默认站点地址为：
+
+```text
+https://<GitHub 用户名>.github.io/Monica-Steam/
+```
+
+对于当前仓库 `JiangKaslana/Monica-Steam`，对应地址为：
+
+```text
+https://JiangKaslana.github.io/Monica-Steam/
+```
 
 ### 首次配置
 
-先在 Cloudflare Dashboard 的 **Workers & Pages** 中创建一个 Pages 项目，项目名填写：
+在 GitHub 仓库进入：
 
 ```text
-monica-steam
+Settings → Pages → Build and deployment → Source
 ```
 
-生产分支使用：
+选择：
 
 ```text
-main
+GitHub Actions
 ```
 
-然后在 GitHub 仓库：
-
-```text
-Settings → Secrets and variables → Actions
-```
-
-添加两个 Repository secrets：
-
-```text
-CLOUDFLARE_API_TOKEN
-CLOUDFLARE_ACCOUNT_ID
-```
-
-其中 API Token 需要具有向目标 Cloudflare Pages 项目部署所需的权限。
-
-完成后，每次 `main` 分支中以下内容发生变化，GitHub Actions 会自动重新构建并部署：
+之后每次 `main` 分支中以下内容发生变化，Actions 会自动重新构建并部署：
 
 ```text
 docs-site/**
@@ -113,41 +102,41 @@ image/monica_launcher.webp
 .github/workflows/deploy-docs.yml
 ```
 
-Pull Request 不会真正部署，只会执行完整的 VitePress 构建检查。
+Pull Request 只执行 VitePress 构建检查，不会发布生产站点。
 
-### 构建参数
-
-Cloudflare Pages 部署时工作流会设置：
+工作流使用 GitHub 官方 Pages Actions：
 
 ```text
-CF_PAGES=1
+actions/configure-pages@v5
+actions/upload-pages-artifact@v3
+actions/deploy-pages@v4
 ```
 
-因此 VitePress 会自动使用：
+无需 Cloudflare Token，也无需额外服务器。
+
+## 关于 `monica-steam` 名称
+
+GitHub Project Pages 的访问路径由仓库名决定。
+
+当前仓库名为：
 
 ```text
-base: /
+Monica-Steam
 ```
 
-不再使用 GitHub Project Pages 的 `/Monica-Steam/` 子路径。
+所以默认路径就是：
 
-部署命令等价于：
-
-```bash
-npx wrangler pages deploy docs-site/.vitepress/dist --project-name=monica-steam --branch=main
+```text
+/Monica-Steam/
 ```
 
-## 自定义域名
-
-`monica-steam` 是 Cloudflare Pages **项目名**，对应默认的 `monica-steam.pages.dev`。
-
-如果以后有自己的域名，可以在 Cloudflare Pages 项目中的 **Custom domains** 继续绑定例如：
+如果以后需要使用真正的自定义域名，需要提供一个完整域名，例如：
 
 ```text
 docs.example.com
 ```
 
-无需修改文档内容。
+单独的 `monica-steam` 不是可直接绑定的公网域名。
 
 ## 文档结构
 
