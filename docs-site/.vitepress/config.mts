@@ -12,7 +12,7 @@ export default defineConfig({
   head: [
     ["meta", { name: "theme-color", content: "#1a9fff" }],
     ["meta", { name: "color-scheme", content: "light dark" }],
-    ["link", { rel: "icon", href: "./monica-steam.webp" }],
+    ["link", { rel: "icon", href: "/Monica-Steam/monica-steam.webp" }],
   ],
   themeConfig: {
     logo: "/monica-steam.webp",
