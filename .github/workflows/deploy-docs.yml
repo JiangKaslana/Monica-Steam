@@ -17,14 +17,12 @@ on:
 
 permissions:
   contents: read
-  deployments: write
+  pages: write
+  id-token: write
 
 concurrency:
-  group: "monica-steam-docs"
+  group: "pages"
   cancel-in-progress: true
-
-env:
-  CLOUDFLARE_PAGES_PROJECT: monica-steam
 
 jobs:
   build:
@@ -47,21 +45,28 @@ jobs:
         working-directory: docs-site
         run: npm install
 
-      - name: Build docs for Cloudflare Pages
+      - name: Build docs
         working-directory: docs-site
-        env:
-          CF_PAGES: "1"
         run: npm run docs:build
 
-      - name: Deploy to Cloudflare Pages
+      - name: Configure GitHub Pages
         if: github.event_name != 'pull_request'
-        uses: cloudflare/wrangler-action@v3
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: >-
-            pages deploy docs-site/.vitepress/dist
-            --project-name=${{ env.CLOUDFLARE_PAGES_PROJECT }}
-            --branch=main
-            --commit-hash=${{ github.sha }}
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          path: docs-site/.vitepress/dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
