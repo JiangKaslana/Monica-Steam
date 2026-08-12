@@ -354,6 +354,7 @@ class SteamStoreService(
                 language = language,
                 accessToken = effectiveAccessToken
             ),
+            tags = purchasePage.tags,
             bundles = purchasePage.bundles,
             ignored = ignored
         )

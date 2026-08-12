@@ -134,6 +134,7 @@ data class SteamStoreDetail(
     val developers: List<String> = emptyList(),
     val publishers: List<String> = emptyList(),
     val genres: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
     val releaseDate: String = "",
     val currency: String = "CNY",
     val initialPriceCents: Int? = null,

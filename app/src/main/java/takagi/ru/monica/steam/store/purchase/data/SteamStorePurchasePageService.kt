@@ -10,12 +10,14 @@ import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentService
 
 internal data class SteamStorePurchasePage(
     val visiblePackageIds: Set<Int> = emptySet(),
+    val tags: List<String> = emptyList(),
     val bundles: List<SteamStoreBundle> = emptyList()
 )
 
 internal object SteamStorePurchasePageParser {
     fun parse(html: String): SteamStorePurchasePage {
-        val visiblePackageIds = Jsoup.parse(html)
+        val document = Jsoup.parse(html)
+        val visiblePackageIds = document
             .select(
                 ".game_area_purchase_game_wrapper:not([data-ds-bundleid]) " +
                     "input[name=subid]"
@@ -24,6 +26,11 @@ internal object SteamStorePurchasePageParser {
             .toSet()
         return SteamStorePurchasePage(
             visiblePackageIds = visiblePackageIds,
+            tags = document
+                .select(".glance_tags.popular_tags a.app_tag, .popular_tags a.app_tag")
+                .map { it.text().trim() }
+                .filter(String::isNotBlank)
+                .distinct(),
             bundles = SteamStoreBundleParser.parse(html)
         )
     }

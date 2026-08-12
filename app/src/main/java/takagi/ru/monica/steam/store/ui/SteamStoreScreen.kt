@@ -371,6 +371,7 @@ fun SteamStoreScreen(
                     SteamStoreDetailContent(
                         detail = detail,
                         hints = detailHints,
+                        showTags = hintSettings.storeTagsEnabled,
                         loading = state.loadingDetail,
                         cached = state.detailFromCache,
                         purchaseContext = state.purchaseContext,
@@ -1034,6 +1035,7 @@ private fun SearchResultCard(
 private fun SteamStoreDetailContent(
     detail: SteamStoreDetail,
     hints: List<SteamStoreHintKind>,
+    showTags: Boolean,
     loading: Boolean,
     cached: Boolean,
     purchaseContext: SteamStorePurchaseContext?,
@@ -1276,6 +1278,15 @@ private fun SteamStoreDetailContent(
                         if (detail.linux) AssistChip(onClick = {}, label = { Text("Linux") })
                     }
                 }
+            }
+        }
+        if (showTags && detail.tags.isNotEmpty()) {
+            item(key = "store_tags_${detail.appId}") {
+                SteamStoreTagBadges(
+                    labels = detail.tags,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    maxVisible = 8
+                )
             }
         }
         if (hints.isNotEmpty()) {

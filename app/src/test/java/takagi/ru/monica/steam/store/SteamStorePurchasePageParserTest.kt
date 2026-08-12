@@ -8,6 +8,11 @@ class SteamStorePurchasePageParserTest {
     @Test
     fun officialPagePackageIdsExcludeHiddenCommercialLicense() {
         val html = """
+            <div class="glance_tags popular_tags">
+              <a class="app_tag">动作</a>
+              <a class="app_tag">角色扮演</a>
+              <a class="app_tag">动作</a>
+            </div>
             <div class="game_area_purchase_game_wrapper">
               <form><input name="subid" value="1053"></form>
             </div>
@@ -20,6 +25,7 @@ class SteamStorePurchasePageParserTest {
         val page = SteamStorePurchasePageParser.parse(html)
 
         assertEquals(setOf(1053), page.visiblePackageIds)
+        assertEquals(listOf("动作", "角色扮演"), page.tags)
         assertEquals(listOf(233), page.bundles.map { it.bundleId })
     }
 }

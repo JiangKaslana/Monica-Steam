@@ -63,6 +63,7 @@ class SteamStoreParserTest {
             """{"appId":620,"name":"Portal 2"}"""
         )
         assertTrue(!legacy.systemRequirements.hasContent)
+        assertTrue(legacy.tags.isEmpty())
     }
 
     @Test
