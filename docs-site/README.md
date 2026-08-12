@@ -68,21 +68,15 @@ VitePress 使用项目 Pages 的固定 base：
 /Monica-Steam/
 ```
 
-因此默认站点地址为：
+合并到上游仓库 `JoyinJoester/Monica-Steam` 后，默认站点地址为：
 
 ```text
-https://<GitHub 用户名>.github.io/Monica-Steam/
-```
-
-对于当前仓库 `JiangKaslana/Monica-Steam`，对应地址为：
-
-```text
-https://JiangKaslana.github.io/Monica-Steam/
+https://joyinjoester.github.io/Monica-Steam/
 ```
 
 ### 首次配置
 
-在 GitHub 仓库进入：
+仓库维护者需要在 GitHub 仓库进入：
 
 ```text
 Settings → Pages → Build and deployment → Source
@@ -113,30 +107,6 @@ actions/deploy-pages@v4
 ```
 
 无需 Cloudflare Token，也无需额外服务器。
-
-## 关于 `monica-steam` 名称
-
-GitHub Project Pages 的访问路径由仓库名决定。
-
-当前仓库名为：
-
-```text
-Monica-Steam
-```
-
-所以默认路径就是：
-
-```text
-/Monica-Steam/
-```
-
-如果以后需要使用真正的自定义域名，需要提供一个完整域名，例如：
-
-```text
-docs.example.com
-```
-
-单独的 `monica-steam` 不是可直接绑定的公网域名。
 
 ## 文档结构
 
