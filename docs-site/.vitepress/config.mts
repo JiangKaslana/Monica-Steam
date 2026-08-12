@@ -101,7 +101,7 @@ export default defineConfig({
     docFooter: { prev: "上一篇", next: "下一篇" },
     lastUpdated: { text: "最后更新于" },
     editLink: {
-      pattern: "https://github.com/JiangKaslana/Monica-Steam/edit/main/docs-site/:path",
+      pattern: "https://github.com/JoyinJoester/Monica-Steam/edit/main/docs-site/:path",
       text: "在 GitHub 上编辑此页",
     },
     socialLinks: [
