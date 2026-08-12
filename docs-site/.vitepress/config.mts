@@ -1,14 +1,12 @@
 import { defineConfig } from "vitepress";
 import { teekConfig } from "./teekConfig";
 
-const isCloudflarePages = process.env.CF_PAGES === "1" || Boolean(process.env.CF_PAGES_URL);
-
 export default defineConfig({
   extends: teekConfig,
   lang: "zh-CN",
   title: "Monica Steam 文档",
   description: "Monica Steam 安装、Steam Guard、游戏库、商店、聊天、备份、安全与网络优化文档。",
-  base: isCloudflarePages ? "/" : "/Monica-Steam/",
+  base: "/Monica-Steam/",
   cleanUrls: true,
   lastUpdated: true,
   head: [
