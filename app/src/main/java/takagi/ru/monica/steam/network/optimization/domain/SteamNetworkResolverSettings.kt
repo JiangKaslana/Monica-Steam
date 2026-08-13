@@ -10,6 +10,7 @@ data class SteamNetworkResolverSettings(
     val customDnsServers: List<String> = emptyList(),
     val customDohEndpoints: List<String> = emptyList(),
     val customDohBootstrapAddresses: Map<String, List<String>> = emptyMap(),
+    val echDohProviderId: String? = null,
     val preferredProviderIds: List<String> = emptyList(),
     val dynamicDnsEnabled: Boolean = false,
     val disabledBuiltInProviderIds: Set<String> = emptySet(),
@@ -21,15 +22,26 @@ data class SteamNetworkResolverSettings(
             if (useSystemDns) add(SteamDnsProvider.SYSTEM)
             if (useBuiltInDoh) addAll(SteamDnsProvider.DEFAULTS.filterNot { it.isSystem })
             addAll(customDnsServers.map(SteamDnsProvider::customDns))
-            addAll(
-                customDohEndpoints.map { endpoint ->
-                    SteamDnsProvider.customDoh(
-                        endpoint = endpoint,
-                        bootstrapAddresses = customDohBootstrapAddresses[endpoint].orEmpty()
-                    )
-                }
-            )
+            addAll(customDohProviders)
         }.distinctBy(SteamDnsProvider::id)
+
+    /**
+     * DoH choices exposed by the ECH selector.
+     *
+     * This deliberately stays independent from the main resolver enable/disable switches: the UI
+     * may choose a built-in or saved custom DoH profile for ECH-style HTTPS record lookups while
+     * the normal DNS resolver configuration remains unchanged.
+     */
+    val selectableDohProviders: List<SteamDnsProvider>
+        get() = buildList {
+            addAll(SteamDnsProvider.DEFAULTS.filter(SteamDnsProvider::isDoh))
+            addAll(customDohProviders)
+        }.distinctBy(SteamDnsProvider::id)
+
+    val selectedEchDohProvider: SteamDnsProvider?
+        get() = echDohProviderId?.let { providerId ->
+            selectableDohProviders.firstOrNull { it.id == providerId }
+        }
 
     val activeProviders: List<SteamDnsProvider>
         get() {
@@ -61,6 +73,14 @@ data class SteamNetworkResolverSettings(
 
     fun isProviderEnabled(provider: SteamDnsProvider): Boolean =
         activeProviders.any { it.id == provider.id }
+
+    private val customDohProviders: List<SteamDnsProvider>
+        get() = customDohEndpoints.map { endpoint ->
+            SteamDnsProvider.customDoh(
+                endpoint = endpoint,
+                bootstrapAddresses = customDohBootstrapAddresses[endpoint].orEmpty()
+            )
+        }
 
     companion object {
         const val MAX_CUSTOM_DNS = 8
