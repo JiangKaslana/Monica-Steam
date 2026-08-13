@@ -39,3 +39,13 @@ jobs:
           --tests 'takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCatalogTest'
           --tests 'takagi.ru.monica.steam.network.optimization.diagnostics.SteamDnsOptimizationScannerTest'
           --tests 'takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationIntegrationGuardTest'
+
+      - name: Build upstream baseline APKs
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload upstream baseline APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Monica-Steam-upstream-main-baseline-apk
+          path: app/build/outputs/apk/debug/*.APK
+          if-no-files-found: error
