@@ -167,18 +167,14 @@ fun SteamNetworkResolverSettingsScreen(
                 )
             }
             item(key = "custom_doh") {
-                ResolverAddCard(
-                    title = stringResource(R.string.steam_network_custom_doh_title),
-                    description = stringResource(R.string.steam_network_custom_doh_description),
-                    placeholder = stringResource(R.string.steam_network_custom_doh_placeholder),
-                    icon = Icons.Default.Public,
+                DohResolverAddCard(
                     values = settings.customDohEndpoints,
                     limit = SteamNetworkResolverSettings.MAX_CUSTOM_DOH,
-                    normalize = SteamResolverInputValidator::normalizeDohEndpoint,
-                    onAdd = {
+                    onAdd = { endpoint, bootstrapAddresses ->
                         SteamNetworkResolverSettingsRuntime.addCustomDoh(
                             applicationContext,
-                            it
+                            endpoint,
+                            bootstrapAddresses
                         )
                     }
                 )
@@ -276,39 +272,13 @@ private fun ResolverAddCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.padding(10.dp).size(22.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Text(
-                    text = "${values.size}/$limit",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            ResolverAddCardHeader(
+                title = title,
+                description = description,
+                icon = icon,
+                count = values.size,
+                limit = limit
+            )
 
             OutlinedTextField(
                 value = input,
@@ -337,6 +307,141 @@ private fun ResolverAddCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DohResolverAddCard(
+    values: List<String>,
+    limit: Int,
+    onAdd: (String, String) -> Boolean
+) {
+    var endpointInput by rememberSaveable { mutableStateOf("") }
+    var bootstrapInput by rememberSaveable { mutableStateOf("") }
+    val normalizedEndpoint = SteamResolverInputValidator.normalizeDohEndpoint(endpointInput)
+    val normalizedBootstrap = SteamResolverInputValidator.normalizeBootstrapAddresses(bootstrapInput)
+    val endpointInvalid = endpointInput.isNotBlank() && normalizedEndpoint == null
+    val bootstrapInvalid = bootstrapInput.isNotBlank() && normalizedBootstrap == null
+    val canAdd = normalizedEndpoint != null &&
+        normalizedEndpoint !in values &&
+        normalizedBootstrap != null &&
+        values.size < limit
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ResolverAddCardHeader(
+                title = stringResource(R.string.steam_network_custom_doh_title),
+                description = stringResource(R.string.steam_network_custom_doh_bootstrap_description),
+                icon = Icons.Default.Public,
+                count = values.size,
+                limit = limit
+            )
+
+            OutlinedTextField(
+                value = endpointInput,
+                onValueChange = { endpointInput = it.take(512) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = endpointInvalid,
+                label = { Text(stringResource(R.string.steam_network_custom_doh_url_label)) },
+                placeholder = { Text(stringResource(R.string.steam_network_custom_doh_placeholder)) },
+                supportingText = if (endpointInvalid) {
+                    { Text(stringResource(R.string.steam_network_resolver_invalid)) }
+                } else {
+                    null
+                }
+            )
+
+            OutlinedTextField(
+                value = bootstrapInput,
+                onValueChange = { bootstrapInput = it.take(512) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = bootstrapInvalid,
+                label = { Text(stringResource(R.string.steam_network_custom_doh_bootstrap_label)) },
+                placeholder = {
+                    Text(stringResource(R.string.steam_network_custom_doh_bootstrap_placeholder))
+                },
+                supportingText = {
+                    Text(
+                        if (bootstrapInvalid) {
+                            stringResource(R.string.steam_network_custom_doh_bootstrap_invalid)
+                        } else {
+                            stringResource(R.string.steam_network_custom_doh_bootstrap_hint)
+                        }
+                    )
+                }
+            )
+
+            FilledTonalButton(
+                onClick = {
+                    if (onAdd(endpointInput, bootstrapInput)) {
+                        endpointInput = ""
+                        bootstrapInput = ""
+                    }
+                },
+                enabled = canAdd,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Text(
+                    text = stringResource(R.string.steam_network_resolver_add),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResolverAddCardHeader(
+    title: String,
+    description: String,
+    icon: ImageVector,
+    count: Int,
+    limit: Int
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.secondaryContainer
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.padding(10.dp).size(22.dp),
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = "$count/$limit",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
