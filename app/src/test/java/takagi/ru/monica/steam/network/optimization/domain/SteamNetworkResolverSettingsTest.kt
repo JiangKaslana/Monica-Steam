@@ -98,6 +98,28 @@ class SteamNetworkResolverSettingsTest {
     }
 
     @Test
+    fun customDohBootstrapAddressesAreAttachedWithoutChangingProviderIdentity() {
+        val endpoint = "https://gateway.example/dns-query"
+        val withoutBootstrap = SteamDnsProvider.customDoh(endpoint)
+        val settings = SteamNetworkResolverSettings(
+            useSystemDns = false,
+            useBuiltInDoh = false,
+            customDohEndpoints = listOf(endpoint),
+            customDohBootstrapAddresses = mapOf(
+                endpoint to listOf("1.1.1.1", "2606:4700:4700::1111")
+            )
+        )
+
+        val provider = settings.configuredProviders.single()
+        assertEquals(withoutBootstrap.id, provider.id)
+        assertEquals(endpoint, provider.dohUrl)
+        assertEquals(
+            listOf("1.1.1.1", "2606:4700:4700::1111"),
+            provider.bootstrapAddresses
+        )
+    }
+
+    @Test
     fun validatesDnsAndDohWithoutAcceptingPortsOrUnsafeSchemes() {
         assertEquals("1.1.1.1", SteamResolverInputValidator.normalizeDnsServer(" 1.1.1.1 "))
         assertEquals(
@@ -131,6 +153,26 @@ class SteamNetworkResolverSettingsTest {
             SteamResolverInputValidator.normalizeDohEndpoint(
                 "https://resolver.example:8443/dns-query"
             )
+        )
+    }
+
+    @Test
+    fun validatesOptionalDohBootstrapIpList() {
+        assertEquals(
+            listOf("1.1.1.1", "2606:4700:4700::1111"),
+            SteamResolverInputValidator.normalizeBootstrapAddresses(
+                "1.1.1.1, [2606:4700:4700::1111]"
+            )
+        )
+        assertEquals(
+            emptyList<String>(),
+            SteamResolverInputValidator.normalizeBootstrapAddresses("   ")
+        )
+        assertNull(
+            SteamResolverInputValidator.normalizeBootstrapAddresses("resolver.example")
+        )
+        assertNull(
+            SteamResolverInputValidator.normalizeBootstrapAddresses("1.1.1.1:53")
         )
     }
 }
