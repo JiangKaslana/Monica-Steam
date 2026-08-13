@@ -45,6 +45,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Refresh
@@ -69,6 +70,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -121,6 +123,7 @@ import takagi.ru.monica.steam.store.interest.domain.SteamStoreIgnoreSyncState
 import takagi.ru.monica.steam.store.freebie.ui.SteamFreebieScreen
 import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieClaimResult
 import takagi.ru.monica.steam.store.filters.domain.resolveSteamStoreTagLabels
+import takagi.ru.monica.steam.store.filters.domain.findTagId
 import takagi.ru.monica.steam.store.filters.ui.SteamStoreActiveFilterSummary
 import takagi.ru.monica.steam.store.filters.ui.SteamStoreAdvancedFilterSheet
 import takagi.ru.monica.steam.store.filters.ui.SteamStoreTagBadges
@@ -368,10 +371,16 @@ fun SteamStoreScreen(
                         familyShared = detail.appId in state.familySharedAppIds,
                         inWishlist = detail.appId in wishlistAppIds
                     )
+                    val filterableDetailTags = remember(detail.tags, state.filterMetadata) {
+                        detail.tags.filterTo(linkedSetOf()) { label ->
+                            state.filterMetadata?.findTagId(label) != null
+                        }
+                    }
                     SteamStoreDetailContent(
                         detail = detail,
                         hints = detailHints,
                         showTags = hintSettings.storeTagsEnabled,
+                        filterableTags = filterableDetailTags,
                         loading = state.loadingDetail,
                         cached = state.detailFromCache,
                         purchaseContext = state.purchaseContext,
@@ -440,6 +449,7 @@ fun SteamStoreScreen(
                         },
                         onOpenRelatedApp = viewModel::openRelatedDetail,
                         onOpenBundle = viewModel::openStoreWeb,
+                        onFilterByTag = viewModel::filterByDetailTag,
                         onOpenItadSettings = onOpenSettings,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -1036,6 +1046,7 @@ private fun SteamStoreDetailContent(
     detail: SteamStoreDetail,
     hints: List<SteamStoreHintKind>,
     showTags: Boolean,
+    filterableTags: Set<String>,
     loading: Boolean,
     cached: Boolean,
     purchaseContext: SteamStorePurchaseContext?,
@@ -1081,6 +1092,7 @@ private fun SteamStoreDetailContent(
     onRetryRegionalPrices: () -> Unit,
     onOpenRelatedApp: (Int) -> Unit,
     onOpenBundle: (String) -> Unit,
+    onFilterByTag: (String) -> Boolean,
     onOpenItadSettings: () -> Unit,
     modifier: Modifier
 ) {
@@ -1282,10 +1294,11 @@ private fun SteamStoreDetailContent(
         }
         if (showTags && detail.tags.isNotEmpty()) {
             item(key = "store_tags_${detail.appId}") {
-                SteamStoreTagBadges(
+                SteamStoreDetailTags(
                     labels = detail.tags,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    maxVisible = 8
+                    filterableLabels = filterableTags,
+                    onTagClick = onFilterByTag,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
         }
@@ -1737,6 +1750,100 @@ private fun SteamStorePurchaseActions(
         }
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SteamStoreDetailTags(
+    labels: List<String>,
+    filterableLabels: Set<String>,
+    onTagClick: (String) -> Boolean,
+    modifier: Modifier = Modifier
+) {
+    val distinctLabels = remember(labels) {
+        labels.map(String::trim).filter(String::isNotBlank).distinct()
+    }
+    if (distinctLabels.isEmpty()) return
+    var tagsExpanded by rememberSaveable(distinctLabels.joinToString("\u0000")) {
+        mutableStateOf(false)
+    }
+    val canExpand = distinctLabels.size > DETAIL_TAGS_COLLAPSED_COUNT
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Label,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = stringResource(R.string.steam_store_filter_tags),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (canExpand) {
+                TextButton(onClick = { tagsExpanded = !tagsExpanded }) {
+                    Text(
+                        stringResource(
+                            if (tagsExpanded) {
+                                R.string.steam_store_filter_collapse_tags
+                            } else {
+                                R.string.steam_store_filter_expand_tags
+                            }
+                        )
+                    )
+                    Icon(
+                        imageVector = if (tagsExpanded) {
+                            Icons.Default.ExpandLess
+                        } else {
+                            Icons.Default.ExpandMore
+                        },
+                        contentDescription = null
+                    )
+                }
+            }
+        }
+        AnimatedContent(
+            targetState = tagsExpanded,
+            label = "steam_store_detail_tags_expansion"
+        ) { expanded ->
+            val visibleLabels = if (expanded || !canExpand) {
+                distinctLabels
+            } else {
+                distinctLabels.take(DETAIL_TAGS_COLLAPSED_COUNT)
+            }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                visibleLabels.forEach { label ->
+                    FilterChip(
+                        selected = false,
+                        onClick = { onTagClick(label) },
+                        enabled = label in filterableLabels,
+                        label = {
+                            Text(
+                                text = label,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private const val DETAIL_TAGS_COLLAPSED_COUNT = 5
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

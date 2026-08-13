@@ -31,6 +31,23 @@ class SteamStoreFilterUiGuardTest {
         assertTrue(screen.contains("state.storeFilters.isActive"))
         assertTrue(screen.contains("hintSettings.storeTagsEnabled"))
         assertTrue(screen.contains("viewModel.applyStoreFilters(selection)"))
+        assertTrue(screen.contains("private fun SteamStoreDetailTags("))
+        assertTrue(screen.contains("tagsExpanded"))
+        assertTrue(screen.contains("DETAIL_TAGS_COLLAPSED_COUNT"))
+        assertTrue(screen.contains("onFilterByTag = viewModel::filterByDetailTag"))
+        assertTrue(screen.contains("FilterChip("))
+
+        val viewModel = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/store/presentation/SteamStoreViewModel.kt"
+        ).readText()
+        val detailTagFilter = viewModel
+            .substringAfter("fun filterByDetailTag(")
+            .substringBefore("fun selectBrowseFilter(")
+        assertTrue(detailTagFilter.contains("state.filterMetadata?.findTagId(label)"))
+        assertTrue(detailTagFilter.contains("tagIds = state.storeFilters.tagIds + tagId"))
+        assertTrue(detailTagFilter.contains("detailHistory.clear()"))
+        assertTrue(detailTagFilter.contains("closeDetail()"))
+        assertTrue(detailTagFilter.contains("applyStoreFilters(updatedFilters)"))
     }
 
     private fun projectFile(path: String): File {

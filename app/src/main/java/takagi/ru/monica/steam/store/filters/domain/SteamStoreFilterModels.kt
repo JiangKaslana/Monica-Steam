@@ -89,3 +89,9 @@ internal fun resolveSteamStoreTagLabels(
     val labels = metadata.tags.associate { tag -> tag.id to tag.label }
     return tagIds.mapNotNull(labels::get).distinct()
 }
+
+internal fun SteamStoreFilterMetadata.findTagId(label: String): Int? {
+    val normalized = label.trim()
+    if (normalized.isBlank()) return null
+    return tags.firstOrNull { tag -> tag.label.equals(normalized, ignoreCase = true) }?.id
+}

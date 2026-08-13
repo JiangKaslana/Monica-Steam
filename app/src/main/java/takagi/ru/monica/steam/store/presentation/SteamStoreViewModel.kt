@@ -54,6 +54,7 @@ import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailHistory
 import takagi.ru.monica.steam.store.navigation.domain.SteamStoreDetailRoute
 import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterMetadata
 import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterSelection
+import takagi.ru.monica.steam.store.filters.domain.findTagId
 import takagi.ru.monica.steam.friends.data.SteamFriendsPreferencesCache
 import takagi.ru.monica.steam.friends.data.SteamFriendsService
 import takagi.ru.monica.steam.friends.domain.SteamFriend
@@ -1314,6 +1315,19 @@ class SteamStoreViewModel internal constructor(
     }
 
     fun clearStoreFilters() = applyStoreFilters(SteamStoreFilterSelection())
+
+    fun filterByDetailTag(label: String): Boolean {
+        val state = _uiState.value
+        val tagId = state.filterMetadata?.findTagId(label) ?: return false
+        val updatedFilters = state.storeFilters.copy(
+            tagIds = state.storeFilters.tagIds + tagId
+        )
+        detailHistory.clear()
+        closeDetail()
+        updateQuery("")
+        applyStoreFilters(updatedFilters)
+        return true
+    }
 
     fun selectBrowseFilter(filter: SteamStoreBrowseFilter) {
         if (_uiState.value.browseFilter == filter) return
