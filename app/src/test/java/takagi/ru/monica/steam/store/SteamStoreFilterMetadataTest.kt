@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import takagi.ru.monica.steam.store.filters.data.SteamStoreFilterMetadataParser
+import takagi.ru.monica.steam.store.filters.domain.findTagId
 
 class SteamStoreFilterMetadataTest {
     @Test
@@ -34,5 +35,7 @@ class SteamStoreFilterMetadataTest {
         assertEquals(listOf("schinese", "english"), metadata.languages.map { it.value })
         assertEquals(listOf(19, 492), metadata.tags.map { it.id })
         assertTrue(metadata.tags.any { it.label == "动作" })
+        assertEquals(19, metadata.findTagId(" 动作 "))
+        assertEquals(null, metadata.findTagId("不存在的标签"))
     }
 }

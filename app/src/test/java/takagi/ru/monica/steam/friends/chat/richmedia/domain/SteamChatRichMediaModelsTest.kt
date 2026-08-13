@@ -197,6 +197,31 @@ class SteamChatRichMediaModelsTest {
     }
 
     @Test
+    fun parsesSteamStoreLinksAsNativeGameShares() {
+        val plain = SteamChatRichContentParser.parse(
+            "Cyberpunk 2077\nhttps://store.steampowered.com/app/1091500/"
+        ) as SteamChatRichContent.StoreGameShare
+        val bbcode = SteamChatRichContentParser.parse(
+            "[url=https://store.steampowered.com/app/730/]Counter-Strike 2[/url]"
+        ) as SteamChatRichContent.StoreGameShare
+
+        assertEquals(1091500, plain.appId)
+        assertEquals("Cyberpunk 2077", plain.label)
+        assertEquals("https://store.steampowered.com/app/1091500/", plain.url)
+        assertEquals(730, bbcode.appId)
+        assertEquals("Counter-Strike 2", bbcode.label)
+    }
+
+    @Test
+    fun keepsNonStoreLinksAsOrdinaryTextLinks() {
+        val content = SteamChatRichContentParser.parse(
+            "https://steamcommunity.com/profiles/76561198000000000/"
+        ) as SteamChatRichContent.Text
+
+        assertEquals(1, content.links.size)
+    }
+
+    @Test
     fun parsesSteamMeActionsAsAFirstClassMessage() {
         assertEquals(
             SteamChatRichContent.Action("waves hello"),

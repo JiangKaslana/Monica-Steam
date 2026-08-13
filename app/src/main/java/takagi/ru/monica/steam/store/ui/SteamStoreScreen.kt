@@ -39,12 +39,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Refresh
@@ -69,6 +71,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,6 +91,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -121,6 +125,7 @@ import takagi.ru.monica.steam.store.interest.domain.SteamStoreIgnoreSyncState
 import takagi.ru.monica.steam.store.freebie.ui.SteamFreebieScreen
 import takagi.ru.monica.steam.store.freebie.domain.SteamFreebieClaimResult
 import takagi.ru.monica.steam.store.filters.domain.resolveSteamStoreTagLabels
+import takagi.ru.monica.steam.store.filters.domain.findTagId
 import takagi.ru.monica.steam.store.filters.ui.SteamStoreActiveFilterSummary
 import takagi.ru.monica.steam.store.filters.ui.SteamStoreAdvancedFilterSheet
 import takagi.ru.monica.steam.store.filters.ui.SteamStoreTagBadges
@@ -143,6 +148,10 @@ import takagi.ru.monica.steam.store.purchase.ui.SteamStorePurchaseContextSection
 import takagi.ru.monica.steam.store.purchase.ui.SteamStoreFreeLicenseButton
 import takagi.ru.monica.steam.store.requirements.ui.SteamStoreSystemRequirementsSection
 import takagi.ru.monica.steam.store.related.ui.SteamStoreRelatedContentSection
+import takagi.ru.monica.steam.store.share.domain.SteamStoreGameShare
+import takagi.ru.monica.steam.store.share.domain.toGameShare
+import takagi.ru.monica.steam.store.share.presentation.SteamStoreGameShareViewModel
+import takagi.ru.monica.steam.store.share.ui.SteamStoreGameShareSheet
 import takagi.ru.monica.steam.store.bundle.ui.SteamStoreBundleSection
 import takagi.ru.monica.steam.store.ui.gallery.SteamStoreScreenshotViewer
 import takagi.ru.monica.steam.store.activation.domain.SteamStoreProductActivation
@@ -157,6 +166,7 @@ import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private sealed interface SteamStoreDestination {
     data object Home : SteamStoreDestination
@@ -181,10 +191,14 @@ fun SteamStoreScreen(
     onInitialWebUrlConsumed: () -> Unit = {},
     onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
-    viewModel: SteamStoreViewModel = viewModel(factory = SteamStoreViewModel.factory(LocalContext.current))
+    viewModel: SteamStoreViewModel = viewModel(factory = SteamStoreViewModel.factory(LocalContext.current)),
+    shareViewModel: SteamStoreGameShareViewModel = viewModel(
+        factory = SteamStoreGameShareViewModel.factory(LocalContext.current)
+    )
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val shareState by shareViewModel.uiState.collectAsStateWithLifecycle()
     val hintPreferences = remember(context) { SteamStoreHintPreferences(context) }
     val hintSettings by hintPreferences.settings.collectAsState(
         initial = SteamStoreHintSettings()
@@ -228,9 +242,21 @@ fun SteamStoreScreen(
     var searchExpanded by remember { mutableStateOf(false) }
     var showAdvancedFilters by rememberSaveable { mutableStateOf(false) }
     var freebiesOpen by rememberSaveable { mutableStateOf(false) }
+    var pendingGameShare by remember { mutableStateOf<SteamStoreGameShare?>(null) }
     var lastDetail by remember { mutableStateOf<SteamStoreDetail?>(null) }
     LaunchedEffect(state.detail) {
         state.detail?.let { lastDetail = it }
+    }
+    LaunchedEffect(shareState.sentToSteamId) {
+        if (shareState.sentToSteamId != null) {
+            android.widget.Toast.makeText(
+                context,
+                R.string.steam_store_share_success,
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            pendingGameShare = null
+            shareViewModel.consumeResult()
+        }
     }
     LaunchedEffect(initialAppId) {
         initialAppId?.let { appId ->
@@ -368,10 +394,16 @@ fun SteamStoreScreen(
                         familyShared = detail.appId in state.familySharedAppIds,
                         inWishlist = detail.appId in wishlistAppIds
                     )
+                    val filterableDetailTags = remember(detail.tags, state.filterMetadata) {
+                        detail.tags.filterTo(linkedSetOf()) { label ->
+                            state.filterMetadata?.findTagId(label) != null
+                        }
+                    }
                     SteamStoreDetailContent(
                         detail = detail,
                         hints = detailHints,
                         showTags = hintSettings.storeTagsEnabled,
+                        filterableTags = filterableDetailTags,
                         loading = state.loadingDetail,
                         cached = state.detailFromCache,
                         purchaseContext = state.purchaseContext,
@@ -387,6 +419,13 @@ fun SteamStoreScreen(
                         freeLicenseClaimResult = state.freeLicenseClaimResults[detail.appId],
                         onBack = viewModel::closeDetail,
                         onOpenOfficial = { viewModel.openStoreWeb(detail.storeUrl) },
+                        onOpenOfficialReviews = {
+                            viewModel.openStoreWeb(detail.reviewsUrl)
+                        },
+                        onShare = {
+                            pendingGameShare = detail.toGameShare()
+                            viewModel.prepareShareFriends()
+                        },
                         onOpenWebsite = { rawUrl ->
                             val normalizedUrl = normalizeSteamStoreWebsiteUrl(rawUrl)
                             when {
@@ -440,6 +479,7 @@ fun SteamStoreScreen(
                         },
                         onOpenRelatedApp = viewModel::openRelatedDetail,
                         onOpenBundle = viewModel::openStoreWeb,
+                        onFilterByTag = viewModel::filterByDetailTag,
                         onOpenItadSettings = onOpenSettings,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -700,6 +740,24 @@ fun SteamStoreScreen(
             onSelect = viewModel::selectGiftRecipient,
             onRefresh = viewModel::refreshGiftFriends,
             onDismiss = viewModel::dismissGiftRecipientPicker
+        )
+    }
+    pendingGameShare?.let { share ->
+        SteamStoreGameShareSheet(
+            share = share,
+            friendsState = state.gift,
+            sendState = shareState,
+            onSendToFriend = { friend ->
+                shareViewModel.sendToFriend(friend.steamId, share)
+            },
+            onShareExternal = {
+                shareSteamStoreGame(context, share)
+            },
+            onRefresh = viewModel::refreshGiftFriends,
+            onDismiss = {
+                pendingGameShare = null
+                shareViewModel.consumeResult()
+            }
         )
     }
 }
@@ -1036,6 +1094,7 @@ private fun SteamStoreDetailContent(
     detail: SteamStoreDetail,
     hints: List<SteamStoreHintKind>,
     showTags: Boolean,
+    filterableTags: Set<String>,
     loading: Boolean,
     cached: Boolean,
     purchaseContext: SteamStorePurchaseContext?,
@@ -1048,6 +1107,8 @@ private fun SteamStoreDetailContent(
     freeLicenseClaimResult: SteamFreebieClaimResult?,
     onBack: () -> Unit,
     onOpenOfficial: () -> Unit,
+    onOpenOfficialReviews: () -> Unit,
+    onShare: () -> Unit,
     onOpenWebsite: (String) -> Unit,
     reviewFilters: SteamReviewFilterSelection,
     loadingMoreReviews: Boolean,
@@ -1081,10 +1142,14 @@ private fun SteamStoreDetailContent(
     onRetryRegionalPrices: () -> Unit,
     onOpenRelatedApp: (Int) -> Unit,
     onOpenBundle: (String) -> Unit,
+    onFilterByTag: (String) -> Boolean,
     onOpenItadSettings: () -> Unit,
     modifier: Modifier
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
+    val reduceAnimations = LocalReduceAnimations.current
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val heroBackgroundUrl = detail.backgroundImageUrl.ifBlank { detail.headerImageUrl }
     val heroViewerUrl = detail.headerImageUrl.ifBlank { heroBackgroundUrl }
     val aboutText = detail.about.ifBlank { detail.shortDescription }
@@ -1106,8 +1171,34 @@ private fun SteamStoreDetailContent(
     val selectedPackage = detail.packageOptions.firstOrNull {
         it.packageId == selectedPackageId
     }
+    val hasReviews = detail.reviews?.let { reviews ->
+        reviews.overall != null || reviews.recent != null || reviews.items.isNotEmpty()
+    } == true
+    val purchaseSectionIndex = 1 + listOf(
+        showTags && detail.tags.isNotEmpty(),
+        hints.isNotEmpty(),
+        cached,
+        freeLicenseOption != null
+    ).count { it }
+    val reviewSectionIndex = purchaseSectionIndex + 3 + listOf(
+        detail.fullGame != null || detail.demos.isNotEmpty() || detail.relatedDlc.isNotEmpty(),
+        detail.bundles.isNotEmpty(),
+        aboutText.isNotBlank(),
+        detail.systemRequirements.hasContent,
+        detail.screenshots.isNotEmpty()
+    ).count { it }
+    val scrollToSection: (Int) -> Unit = { index ->
+        scope.launch {
+            if (reduceAnimations) {
+                listState.scrollToItem(index)
+            } else {
+                listState.animateScrollToItem(index)
+            }
+        }
+    }
     LazyColumn(
-        modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
+        state = listState,
         contentPadding = PaddingValues(bottom = dockContentClearance + 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
@@ -1161,35 +1252,18 @@ private fun SteamStoreDetailContent(
                         )
                     }
                 }
-                Surface(
-                    onClick = onOpenOfficial,
+                SteamStoreDetailActionToolbar(
+                    onOpenPurchaseOptions = { scrollToSection(purchaseSectionIndex) },
+                    onOpenOfficialStore = onOpenOfficial,
+                    onOpenReviews = {
+                        if (hasReviews) scrollToSection(reviewSectionIndex)
+                        else onOpenOfficialReviews()
+                    },
+                    onShare = onShare,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .statusBarsPadding()
-                        .padding(end = 12.dp, top = 8.dp)
-                        .heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    tonalElevation = 3.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Storefront,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = stringResource(R.string.steam_store_buy),
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1
-                        )
-                    }
-                }
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 12.dp)
+                )
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -1282,10 +1356,11 @@ private fun SteamStoreDetailContent(
         }
         if (showTags && detail.tags.isNotEmpty()) {
             item(key = "store_tags_${detail.appId}") {
-                SteamStoreTagBadges(
+                SteamStoreDetailTags(
                     labels = detail.tags,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    maxVisible = 8
+                    filterableLabels = filterableTags,
+                    onTagClick = onFilterByTag,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
         }
@@ -1738,6 +1813,100 @@ private fun SteamStorePurchaseActions(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SteamStoreDetailTags(
+    labels: List<String>,
+    filterableLabels: Set<String>,
+    onTagClick: (String) -> Boolean,
+    modifier: Modifier = Modifier
+) {
+    val distinctLabels = remember(labels) {
+        labels.map(String::trim).filter(String::isNotBlank).distinct()
+    }
+    if (distinctLabels.isEmpty()) return
+    var tagsExpanded by rememberSaveable(distinctLabels.joinToString("\u0000")) {
+        mutableStateOf(false)
+    }
+    val canExpand = distinctLabels.size > DETAIL_TAGS_COLLAPSED_COUNT
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Label,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = stringResource(R.string.steam_store_filter_tags),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (canExpand) {
+                TextButton(onClick = { tagsExpanded = !tagsExpanded }) {
+                    Text(
+                        stringResource(
+                            if (tagsExpanded) {
+                                R.string.steam_store_filter_collapse_tags
+                            } else {
+                                R.string.steam_store_filter_expand_tags
+                            }
+                        )
+                    )
+                    Icon(
+                        imageVector = if (tagsExpanded) {
+                            Icons.Default.ExpandLess
+                        } else {
+                            Icons.Default.ExpandMore
+                        },
+                        contentDescription = null
+                    )
+                }
+            }
+        }
+        AnimatedContent(
+            targetState = tagsExpanded,
+            label = "steam_store_detail_tags_expansion"
+        ) { expanded ->
+            val visibleLabels = if (expanded || !canExpand) {
+                distinctLabels
+            } else {
+                distinctLabels.take(DETAIL_TAGS_COLLAPSED_COUNT)
+            }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                visibleLabels.forEach { label ->
+                    FilterChip(
+                        selected = false,
+                        onClick = { onTagClick(label) },
+                        enabled = label in filterableLabels,
+                        label = {
+                            Text(
+                                text = label,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private const val DETAIL_TAGS_COLLAPSED_COUNT = 5
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SteamStoreRegionalPriceSheet(
@@ -2167,6 +2336,24 @@ private fun showStoreWebsiteOpenFailure(context: Context) {
         R.string.steam_store_website_open_failed,
         android.widget.Toast.LENGTH_LONG
     ).show()
+}
+
+private fun shareSteamStoreGame(context: Context, share: SteamStoreGameShare) {
+    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, share.name)
+        putExtra(Intent.EXTRA_TEXT, share.messageBody)
+    }
+    runCatching {
+        context.startActivity(
+            Intent.createChooser(
+                sendIntent,
+                context.getString(R.string.steam_store_share_chooser)
+            ).apply {
+                if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

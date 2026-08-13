@@ -134,6 +134,10 @@ object SteamChatNotificationPolicy {
                 kind = SteamChatNotificationPreviewKind.GAME_INVITE,
                 text = compactText(content.label)
             )
+            is SteamChatRichContent.StoreGameShare -> SteamChatNotificationPreview(
+                kind = SteamChatNotificationPreviewKind.GAME_INVITE,
+                text = compactText(content.label ?: content.url)
+            )
             is SteamChatRichContent.OfficialMessage -> SteamChatNotificationPreview(
                 kind = SteamChatNotificationPreviewKind.STEAM_EVENT,
                 text = compactText(

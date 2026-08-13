@@ -88,6 +88,11 @@ internal fun SteamChatRichMessageContent(
             onOpenStoreApp = onOpenStoreApp,
             modifier = modifier
         )
+        is SteamChatRichContent.StoreGameShare -> SteamChatStoreGameCard(
+            content = content,
+            onOpenStoreApp = onOpenStoreApp,
+            modifier = modifier
+        )
         is SteamChatRichContent.OfficialMessage -> SteamOfficialMessageContent(content.message, modifier)
         is SteamChatRichContent.Sticker -> SteamChatRemoteImage(
             url = content.imageUrl,

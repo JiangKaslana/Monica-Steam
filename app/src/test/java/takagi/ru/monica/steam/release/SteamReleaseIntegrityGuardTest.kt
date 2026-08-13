@@ -16,18 +16,37 @@ class SteamReleaseIntegrityGuardTest {
         val settings = projectFile(
             "app/src/main/java/takagi/ru/monica/ui/screens/SettingsScreen.kt"
         ).readText()
+        val settingsHost = projectFile(
+            "app/src/main/java/takagi/ru/monica/ui/screens/MonicaSteamSharedSettingsHost.kt"
+        ).readText()
+        val manifest = projectFile("app/src/main/AndroidManifest.xml").readText()
+        val filePaths = projectFile("app/src/main/res/xml/file_paths.xml").readText()
+        val englishStrings = projectFile("app/src/main/res/values/strings.xml").readText()
+        val chineseStrings = projectFile("app/src/main/res/values-zh/strings.xml").readText()
+        val buildScript = projectFile("app/build.gradle").readText()
         val appSelector = projectFile(
             "app/src/main/java/takagi/ru/monica/ui/components/AppSelector.kt"
         ).readText()
 
         assertTrue(updateChecker.contains("SteamReleaseConfig.latestReleaseApiUrl"))
         assertTrue(updateChecker.contains("SteamReleaseConfig.updateUserAgent"))
+        assertTrue(settings.contains("UpdateChecker.checkLatestRelease(currentVersion)"))
+        assertTrue(settings.contains("UpdateChecker.validateDownloadedApk(context, apkFile)"))
+        assertTrue(settings.contains("Monica-Steam-\${result.latestVersion}.apk"))
+        assertTrue(settingsHost.contains("showUpdateCheck = screenMode == SettingsScreenMode.APP_SUPPORT"))
+        assertTrue(manifest.contains("android.permission.REQUEST_INSTALL_PACKAGES"))
+        assertTrue(filePaths.contains("<cache-path name=\"update_apk\" path=\"update_apk/\" />"))
+        assertTrue(englishStrings.contains("A newer Monica Steam release is available."))
+        assertTrue(chineseStrings.contains("Monica Steam 有新版本可用。"))
+        assertTrue(buildScript.contains("def appVersionCode = 18"))
         assertFalse(updateChecker.contains("Monica-Android"))
         assertTrue(settings.contains("SteamReleaseConfig.repositoryUrl"))
         assertTrue(appSelector.contains("SteamReleaseConfig.issuesUrl"))
         assertFalse(updateChecker.contains("Monica-Pass/Monica"))
         assertFalse(settings.contains("Monica-Pass/Monica"))
         assertFalse(appSelector.contains("Monica-Pass/Monica-for-Android"))
+        assertFalse(englishStrings.contains("Monica for Android"))
+        assertFalse(chineseStrings.contains("Monica for Android"))
         assertEquals(
             "https://api.github.com/repos/JoyinJoester/Monica-Steam/releases/latest",
             SteamReleaseConfig.latestReleaseApiUrl

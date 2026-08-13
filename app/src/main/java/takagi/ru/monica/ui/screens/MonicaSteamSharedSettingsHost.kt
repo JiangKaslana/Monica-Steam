@@ -132,7 +132,7 @@ internal fun MonicaSteamSharedSettingsHost(
             showExtensions = settings.isPlusActivated &&
                 screenMode == SettingsScreenMode.APP_SUPPORT,
             showPageCustomization = false,
-            showUpdateCheck = false,
+            showUpdateCheck = screenMode == SettingsScreenMode.APP_SUPPORT,
             showPreviewFeatures = false,
             showDeveloperSettings = screenMode == SettingsScreenMode.APP_SUPPORT,
             showLanguage = screenMode == SettingsScreenMode.APP_SUPPORT,
