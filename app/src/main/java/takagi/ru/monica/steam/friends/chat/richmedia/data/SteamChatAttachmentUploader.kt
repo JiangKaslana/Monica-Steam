@@ -7,6 +7,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import java.io.IOException
 import java.net.InetAddress
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -83,13 +85,15 @@ class SteamChatAttachmentUploader internal constructor(
             ?: throw SteamChatUploadException("Steam community session required for attachments")
         val targetFields = target.commitFields(spoiler)
         val uri = Uri.parse(attachment.uri)
-        val sessionId = UUID.randomUUID().toString().replace("-", "")
+        val session = SteamChatUploadSession(
+            sessionId = randomSteamWebSessionId(),
+            encodedSteamLoginSecure = encodeSteamChatCookieValue(secure)
+        )
         val uploadName = "${System.nanoTime()}_${sanitizeFilename(attachment.displayName)}"
         val sha = UUID.randomUUID().toString().replace("-", "") +
             UUID.randomUUID().toString().replace("-", "").take(8)
         val begin = beginUpload(
-            secure = secure,
-            sessionId = sessionId,
+            session = session,
             attachment = attachment,
             uploadName = uploadName,
             sha = sha
@@ -101,8 +105,7 @@ class SteamChatAttachmentUploader internal constructor(
         } catch (error: Throwable) {
             try {
                 commitUpload(
-                    secure = secure,
-                    sessionId = sessionId,
+                    session = session,
                     attachment = attachment,
                     uploadName = uploadName,
                     sha = sha,
@@ -118,8 +121,7 @@ class SteamChatAttachmentUploader internal constructor(
             throw error
         }
         val committed = commitUpload(
-            secure = secure,
-            sessionId = sessionId,
+            session = session,
             attachment = attachment,
             uploadName = uploadName,
             sha = sha,
@@ -137,14 +139,13 @@ class SteamChatAttachmentUploader internal constructor(
     }
 
     private suspend fun beginUpload(
-        secure: String,
-        sessionId: String,
+        session: SteamChatUploadSession,
         attachment: SteamChatPendingAttachment,
         uploadName: String,
         sha: String
     ): SteamChatBeginUploadResponse {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("sessionid", sessionId)
+            .addFormDataPart("sessionid", session.sessionId)
             .addFormDataPart("l", "schinese")
             .addFormDataPart("file_size", attachment.sizeBytes.toString())
             .addFormDataPart("file_name", uploadName)
@@ -155,7 +156,7 @@ class SteamChatAttachmentUploader internal constructor(
             .build()
         val request = Request.Builder()
             .url("$BEGIN_URL?l=schinese")
-            .headers(communityHeaders(secure, sessionId))
+            .headers(buildSteamChatCommunityHeaders(session))
             .post(body)
             .build()
         return client.newCall(request).awaitSteamChatResponse().use { response ->
@@ -177,19 +178,20 @@ class SteamChatAttachmentUploader internal constructor(
         onProgress: (Float) -> Unit
     ) {
         val body = ContentUriRequestBody(resolver, uri, attachment, onProgress)
-        val request = Request.Builder().url(begin.cloudUrl).apply {
-            begin.requestHeaders.forEach { (name, value) -> header(name, value) }
-        }.put(body).build()
+        val request = Request.Builder()
+            .url(begin.cloudUrl)
+            .headers(buildSteamChatCloudHeaders(begin.requestHeaders))
+            .put(body)
+            .build()
         client.newCall(request).awaitSteamChatResponse().use { response ->
             if (!response.isSuccessful) {
-                throw SteamChatUploadException("Steam cloud upload failed (${response.code})")
+                throw SteamChatUploadException.cloudFailure(response.code)
             }
         }
     }
 
     private suspend fun commitUpload(
-        secure: String,
-        sessionId: String,
+        session: SteamChatUploadSession,
         attachment: SteamChatPendingAttachment,
         uploadName: String,
         sha: String,
@@ -198,7 +200,7 @@ class SteamChatAttachmentUploader internal constructor(
         success: Boolean
     ): SteamChatCommitUploadResponse? {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("sessionid", sessionId)
+            .addFormDataPart("sessionid", session.sessionId)
             .addFormDataPart("l", "schinese")
             .addFormDataPart("file_name", uploadName)
             .addFormDataPart("file_sha", sha)
@@ -213,7 +215,7 @@ class SteamChatAttachmentUploader internal constructor(
         val requestBody = body.build()
         val request = Request.Builder()
             .url(COMMIT_URL)
-            .headers(communityHeaders(secure, sessionId))
+            .headers(buildSteamChatCommunityHeaders(session))
             .post(requestBody)
             .build()
         return client.newCall(request).awaitSteamChatResponse().use { response ->
@@ -306,18 +308,12 @@ class SteamChatAttachmentUploader internal constructor(
         }
     }
 
-    private fun communityHeaders(secure: String, sessionId: String) = okhttp3.Headers.Builder()
-        .add("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Steam Chat")
-        .add("Accept", "application/json, text/plain, */*")
-        .add("Origin", "https://steamcommunity.com")
-        .add("Referer", "https://steamcommunity.com/chat/")
-        .add("X-Requested-With", "com.valvesoftware.android.steam.community")
-        .add("Cookie", "steamLoginSecure=$secure; sessionid=$sessionId")
-        .build()
-
     private fun Response.requireBody(operation: String): String {
         val raw = body?.string().orEmpty()
-        if (!isSuccessful) throw SteamChatUploadException("Unable to $operation (${code})")
+        if (!isSuccessful) {
+            responseParser.parseFailure(raw)?.let { throw it }
+            throw SteamChatUploadException.httpFailure(operation, code)
+        }
         return raw
     }
 
@@ -329,8 +325,8 @@ class SteamChatAttachmentUploader internal constructor(
         private val VIDEO_EXTENSIONS = setOf("webm", "mpg", "mp4", "mpeg", "ogv")
 
         private fun defaultClient(): OkHttpClient = SteamHttpClientProvider.newBuilder()
-            .followRedirects(false)
-            .followSslRedirects(false)
+            .followRedirects(true)
+            .followSslRedirects(true)
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
@@ -354,7 +350,101 @@ internal suspend fun Call.awaitSteamChatResponse(): Response =
         })
     }
 
-class SteamChatUploadException(message: String, cause: Throwable? = null) : IOException(message, cause)
+internal data class SteamChatUploadSession(
+    val sessionId: String,
+    val encodedSteamLoginSecure: String
+)
+
+internal enum class SteamChatUploadFailure {
+    AUTHENTICATION,
+    LIMITED_ACCOUNT,
+    FILE_REJECTED,
+    SERVICE,
+    UNKNOWN
+}
+
+internal class SteamChatUploadException(
+    message: String,
+    cause: Throwable? = null,
+    val failure: SteamChatUploadFailure = SteamChatUploadFailure.UNKNOWN
+) : IOException(message, cause) {
+    val isAuthenticationFailure: Boolean
+        get() = failure == SteamChatUploadFailure.AUTHENTICATION
+
+    companion object {
+        internal fun authentication(message: String): SteamChatUploadException =
+            SteamChatUploadException(message, failure = SteamChatUploadFailure.AUTHENTICATION)
+
+        internal fun httpFailure(operation: String, code: Int): SteamChatUploadException =
+            SteamChatUploadException(
+                message = "Unable to $operation ($code)",
+                failure = if (code in setOf(400, 401, 403)) {
+                    SteamChatUploadFailure.AUTHENTICATION
+                } else {
+                    SteamChatUploadFailure.SERVICE
+                }
+            )
+
+        internal fun cloudFailure(code: Int): SteamChatUploadException =
+            SteamChatUploadException(
+                message = "Steam cloud upload failed ($code)",
+                failure = SteamChatUploadFailure.SERVICE
+            )
+
+        internal fun steamRejected(code: Int, message: String?): SteamChatUploadException {
+            val failure = when (code) {
+                5, 15, 21, 65 -> SteamChatUploadFailure.AUTHENTICATION
+                112 -> SteamChatUploadFailure.LIMITED_ACCOUNT
+                8, 9, 11, 13, 20, 25, 50 -> SteamChatUploadFailure.FILE_REJECTED
+                else -> SteamChatUploadFailure.UNKNOWN
+            }
+            return SteamChatUploadException(
+                message = message?.takeIf(String::isNotBlank)
+                    ?: "Steam rejected the attachment upload (result $code)",
+                failure = failure
+            )
+        }
+    }
+}
+
+internal fun randomSteamWebSessionId(): String = UUID.randomUUID()
+    .toString()
+    .replace("-", "")
+    .take(STEAM_WEB_SESSION_ID_LENGTH)
+
+internal fun encodeSteamChatCookieValue(value: String): String = URLEncoder.encode(
+    runCatching { java.net.URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }
+        .getOrDefault(value),
+    StandardCharsets.UTF_8.name()
+).replace("+", "%20")
+
+internal fun buildSteamChatCommunityHeaders(session: SteamChatUploadSession) =
+    okhttp3.Headers.Builder()
+        .add("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Steam Chat")
+        .add("Accept", "application/json, text/plain, */*")
+        .add("Origin", "https://steamcommunity.com")
+        .add("Referer", "https://steamcommunity.com/chat/")
+        .add(
+            "Cookie",
+            "steamLoginSecure=${session.encodedSteamLoginSecure}; sessionid=${session.sessionId}"
+        )
+        .build()
+
+internal fun buildSteamChatCloudHeaders(
+    headers: List<Pair<String, String>>
+): okhttp3.Headers = okhttp3.Headers.Builder().apply {
+    headers.forEach { (name, value) ->
+        if (!name.equals("Host", true) &&
+            !name.equals("Content-Length", true)
+        ) {
+            // These values are issued by Steam for this one cloud reservation.
+            // No community cookies or account credentials are added here.
+            add(name, value)
+        }
+    }
+}.build()
+
+private const val STEAM_WEB_SESSION_ID_LENGTH = 24
 
 private class ContentUriRequestBody(
     private val resolver: ContentResolver,

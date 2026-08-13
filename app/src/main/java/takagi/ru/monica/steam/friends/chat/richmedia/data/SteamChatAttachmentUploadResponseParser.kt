@@ -62,6 +62,17 @@ internal class SteamChatAttachmentUploadResponseParser(
         }
     }
 
+    fun parseFailure(raw: String): SteamChatUploadException? {
+        if (raw.isBlank()) return null
+        val payload = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull()
+            ?: return null
+        val code = payload["success"].successCode() ?: return null
+        if (code == 1) return null
+        val detail = payload.string("message")
+            .ifBlank { (payload["result"] as? JsonObject)?.string("message").orEmpty() }
+        return SteamChatUploadException.steamRejected(code, detail)
+    }
+
     fun parseCommit(raw: String): SteamChatCommitUploadResponse {
         val payload = parseObject(raw, "commit Steam chat attachment")
         payload.requireSuccess("commit Steam chat attachment")
@@ -91,8 +102,9 @@ internal class SteamChatAttachmentUploadResponseParser(
             val detail = string("message")
                 .ifBlank { (this["result"] as? JsonObject)?.string("message").orEmpty() }
                 .takeIf(String::isNotBlank)
-            throw SteamChatUploadException(
-                detail ?: "Steam rejected $operation (result $code)"
+            throw SteamChatUploadException.steamRejected(
+                code = code,
+                message = detail ?: "Steam rejected $operation (result $code)"
             )
         }
     }
@@ -122,7 +134,5 @@ internal class SteamChatAttachmentUploadResponseParser(
 
     private fun String.isBlockedUploadHeader(): Boolean =
         equals("Host", true) ||
-            equals("Content-Length", true) ||
-            equals("Cookie", true) ||
-            equals("Authorization", true)
+            equals("Content-Length", true)
 }

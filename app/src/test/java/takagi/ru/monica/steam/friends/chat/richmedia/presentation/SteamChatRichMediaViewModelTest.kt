@@ -26,6 +26,7 @@ import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatCatalogGate
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatPendingAttachment
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichMediaCatalog
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatUploadedAttachment
+import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatUploadException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SteamChatRichMediaViewModelTest {
@@ -184,6 +185,95 @@ class SteamChatRichMediaViewModelTest {
         assertEquals(0L, viewModel.uiState.value.uploadCompletedAt)
         assertNull(viewModel.uiState.value.pendingAttachment)
         assertNull(viewModel.uiState.value.attachmentFailure)
+    }
+
+    @Test
+    fun expiredAttachmentSessionRefreshesAndRetriesExactlyOnce() = runTest(scheduler) {
+        val uploadedAccounts = mutableListOf<SteamAccount>()
+        val gateway = FakeAttachmentGateway().apply {
+            uploadBlock = { account, _, attachment, spoiler, _ ->
+                uploadedAccounts += account
+                if (uploadedAccounts.size == 1) {
+                    throw SteamChatUploadException.authentication("Steam community session expired")
+                }
+                SteamChatUploadedAttachment(
+                    url = "https://steamusercontent.com/ugc/refreshed.png",
+                    label = attachment.displayName,
+                    kind = attachment.kind,
+                    spoiler = spoiler
+                )
+            }
+        }
+        val original = account(1L, "76561198000000001")
+        val refreshed = original.copy(
+            accessToken = "refreshed-token",
+            steamLoginSecure = "${original.steamId}||refreshed-token"
+        )
+        val forceRefreshFlags = mutableListOf<Boolean>()
+        val viewModel = SteamChatRichMediaViewModel(
+            catalogGateway = SteamChatCatalogGateway { SteamChatRichMediaCatalog() },
+            attachmentGateway = gateway,
+            sessionResolver = { _, forceRefresh ->
+                forceRefreshFlags += forceRefresh
+                if (forceRefresh) refreshed else original
+            },
+            ioDispatcher = dispatcher,
+            nowMillis = { 123_456L }
+        )
+        viewModel.selectAccount(original)
+        viewModel.selectPartner(PARTNER_A)
+        runCurrent()
+        viewModel.selectAttachment("content://images/1")
+        runCurrent()
+
+        viewModel.uploadAttachment()
+        runCurrent()
+
+        assertEquals(listOf(false, false, true), forceRefreshFlags)
+        assertEquals(listOf(original, refreshed), uploadedAccounts)
+        assertEquals(123_456L, viewModel.uiState.value.uploadCompletedAt)
+        assertNull(viewModel.uiState.value.attachmentFailure)
+    }
+
+    @Test
+    fun limitedAccountUploadIsNotRetriedAndShowsUsefulChineseMessage() = runTest(scheduler) {
+        var uploadCount = 0
+        val gateway = FakeAttachmentGateway().apply {
+            uploadBlock = { _, _, _, _, _ ->
+                uploadCount++
+                throw SteamChatUploadException.steamRejected(
+                    code = 112,
+                    message = "Limited users cannot upload images."
+                )
+            }
+        }
+        val forceRefreshFlags = mutableListOf<Boolean>()
+        val viewModel = SteamChatRichMediaViewModel(
+            catalogGateway = SteamChatCatalogGateway { SteamChatRichMediaCatalog() },
+            attachmentGateway = gateway,
+            sessionResolver = { account, forceRefresh ->
+                forceRefreshFlags += forceRefresh
+                account
+            },
+            ioDispatcher = dispatcher,
+            nowMillis = { 123_456L }
+        )
+        viewModel.selectAccount(account(1L, "76561198000000001"))
+        viewModel.selectPartner(PARTNER_A)
+        runCurrent()
+        viewModel.selectAttachment("content://images/1")
+        runCurrent()
+
+        viewModel.uploadAttachment()
+        runCurrent()
+
+        assertEquals(1, uploadCount)
+        assertEquals(listOf(false, false), forceRefreshFlags)
+        assertEquals(
+            "Steam 受限账户无法上传图片，请先解除社区受限状态。",
+            viewModel.uiState.value.attachmentFailure
+        )
+        assertEquals(0L, viewModel.uiState.value.uploadCompletedAt)
     }
 
     private fun viewModel(gateway: SteamChatAttachmentGateway) = SteamChatRichMediaViewModel(

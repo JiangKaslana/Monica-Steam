@@ -9,7 +9,7 @@ class SteamChatAttachmentUploadResponseParserTest {
     private val parser = SteamChatAttachmentUploadResponseParser()
 
     @Test
-    fun parsesOfficialBeginResponseAndDropsSensitiveForwardedHeaders() {
+    fun parsesOfficialBeginResponseAndKeepsSteamIssuedCloudAuthorization() {
         val response = parser.parseBegin(
             """
             {
@@ -23,7 +23,8 @@ class SteamChatAttachmentUploadResponseParserTest {
                 "ugcid": "123456789",
                 "request_headers": [
                   {"name": "x-amz-acl", "value": "private"},
-                  {"name": "Cookie", "value": "must-not-leak"},
+                  {"name": "Cookie", "value": "steam-issued-cloud-cookie"},
+                  {"name": "Authorization", "value": "signed-cloud-request"},
                   {"name": "Content-Length", "value": "100"}
                 ]
               }
@@ -35,7 +36,14 @@ class SteamChatAttachmentUploadResponseParserTest {
             "https://steamusercontent.com/ugc/chat-image.png?token=1",
             response.cloudUrl
         )
-        assertEquals(listOf("x-amz-acl" to "private"), response.requestHeaders)
+        assertEquals(
+            listOf(
+                "x-amz-acl" to "private",
+                "Cookie" to "steam-issued-cloud-cookie",
+                "Authorization" to "signed-cloud-request"
+            ),
+            response.requestHeaders
+        )
         assertEquals("123456789", response.ugcId)
         assertEquals(1720000000L, response.timestamp)
         assertEquals("signed-hmac", response.hmac)
@@ -47,6 +55,14 @@ class SteamChatAttachmentUploadResponseParserTest {
             parser.parseBegin("""{"success":15,"message":"Session expired"}""")
         }
         assertEquals("Session expired", rejected.message)
+        assertTrue(rejected.isAuthenticationFailure)
+
+        val limited = assertThrows(SteamChatUploadException::class.java) {
+            parser.parseBegin(
+                """{"success":112,"message":"Limited users cannot upload images."}"""
+            )
+        }
+        assertEquals(SteamChatUploadFailure.LIMITED_ACCOUNT, limited.failure)
 
         val insecure = assertThrows(SteamChatUploadException::class.java) {
             parser.parseBegin(

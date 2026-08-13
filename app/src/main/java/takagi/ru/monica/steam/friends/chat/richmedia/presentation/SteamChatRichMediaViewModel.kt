@@ -18,6 +18,8 @@ import kotlinx.coroutines.withContext
 import takagi.ru.monica.steam.data.SteamAccount
 import takagi.ru.monica.steam.data.SteamAccountSourceRepository
 import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatAttachmentUploader
+import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatUploadException
+import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatUploadFailure
 import takagi.ru.monica.steam.friends.chat.richmedia.data.SteamChatCatalogService
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentGateway
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatAttachmentTarget
@@ -167,18 +169,12 @@ class SteamChatRichMediaViewModel(
         attachmentUploadJob = viewModelScope.launch {
             val result = suspendResult {
                 withContext(ioDispatcher) {
-                    attachmentGateway.upload(
-                        account = sessionResolver.resolveOrKeep(currentAccount),
-                        target = currentTarget,
+                    uploadAttachmentWithSessionRetry(
+                        currentAccount = currentAccount,
+                        currentTarget = currentTarget,
                         attachment = attachment,
                         spoiler = spoiler,
-                        onProgress = { progress ->
-                            if (isCurrentAttachmentRequest(generation, currentAccount, currentTarget)) {
-                                _uiState.update {
-                                    it.copy(attachmentProgress = progress.coerceIn(0f, 1f))
-                                }
-                            }
-                        }
+                        generation = generation
                     )
                 }
             }
@@ -268,6 +264,47 @@ class SteamChatRichMediaViewModel(
         sameRichMediaAccount(account, expectedAccount) &&
         attachmentTarget == expectedTarget
 
+    private suspend fun uploadAttachmentWithSessionRetry(
+        currentAccount: SteamAccount,
+        currentTarget: SteamChatAttachmentTarget,
+        attachment: SteamChatPendingAttachment,
+        spoiler: Boolean,
+        generation: Long
+    ) = try {
+        attachmentGateway.upload(
+            account = sessionResolver.resolveOrKeep(currentAccount),
+            target = currentTarget,
+            attachment = attachment,
+            spoiler = spoiler,
+            onProgress = attachmentProgressCallback(generation, currentAccount, currentTarget)
+        )
+    } catch (error: SteamChatUploadException) {
+        if (!error.isAuthenticationFailure || sessionResolver == null) throw error
+        val refreshed = sessionResolver.resolveOrKeep(currentAccount, forceRefresh = true)
+        if (refreshed.steamLoginSecure.isNullOrBlank()) {
+            throw SteamChatUploadException.authentication("Steam community session expired")
+        }
+        attachmentGateway.upload(
+            account = refreshed,
+            target = currentTarget,
+            attachment = attachment,
+            spoiler = spoiler,
+            onProgress = attachmentProgressCallback(generation, currentAccount, currentTarget)
+        )
+    }
+
+    private fun attachmentProgressCallback(
+        generation: Long,
+        currentAccount: SteamAccount,
+        currentTarget: SteamChatAttachmentTarget
+    ): (Float) -> Unit = { progress ->
+        if (isCurrentAttachmentRequest(generation, currentAccount, currentTarget)) {
+            _uiState.update {
+                it.copy(attachmentProgress = progress.coerceIn(0f, 1f))
+            }
+        }
+    }
+
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
@@ -301,6 +338,19 @@ private fun sameRichMediaAccount(left: SteamAccount?, right: SteamAccount?): Boo
         left?.steamLoginSecure == right?.steamLoginSecure
 
 private fun Throwable.userFacingMessage(): String = message
+    .let { raw ->
+        when ((this as? SteamChatUploadException)?.failure) {
+            SteamChatUploadFailure.LIMITED_ACCOUNT ->
+                "Steam 受限账户无法上传图片，请先解除社区受限状态。"
+            SteamChatUploadFailure.AUTHENTICATION ->
+                "Steam 登录会话已过期，请刷新账号会话后重试。"
+            SteamChatUploadFailure.FILE_REJECTED ->
+                raw?.takeIf(String::isNotBlank) ?: "Steam 拒绝了这个附件。"
+            SteamChatUploadFailure.SERVICE ->
+                raw?.takeIf(String::isNotBlank) ?: "Steam 附件服务暂时不可用。"
+            SteamChatUploadFailure.UNKNOWN, null -> raw
+        }
+    }
     ?.takeIf(String::isNotBlank)
     ?.take(240)
     ?: "Steam attachment operation failed"
