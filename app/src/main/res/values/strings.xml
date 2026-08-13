@@ -1344,7 +1344,7 @@
     <string name="update_check_update_available_title">Update available</string>
     <string name="update_check_no_update_title">You are up to date</string>
     <string name="update_check_failed_title">Update check failed</string>
-    <string name="update_check_update_available_message">A newer Monica for Android release is available.</string>
+    <string name="update_check_update_available_message">A newer Monica Steam release is available.</string>
     <string name="update_check_no_update_message">The installed version is already the latest release.</string>
     <string name="update_check_failed_message">Could not check GitHub Releases: %1$s</string>
     <string name="update_check_failed_unknown">Unknown error</string>

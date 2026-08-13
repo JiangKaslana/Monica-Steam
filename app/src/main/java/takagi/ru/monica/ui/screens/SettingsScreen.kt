@@ -269,7 +269,7 @@ fun SettingsScreen(
             isDownloadingUpdate = true
             updateDownloadProgress = null
             coroutineScope.launch {
-                val apkName = result.apkAssetName ?: "Monica-${result.latestVersion}.apk"
+                val apkName = result.apkAssetName ?: "Monica-Steam-${result.latestVersion}.apk"
                 val outputDir = File(context.cacheDir, "update_apk")
                 UpdateChecker.downloadApk(downloadUrl, outputDir, apkName) { progress ->
                     withContext(Dispatchers.Main.immediate) {
