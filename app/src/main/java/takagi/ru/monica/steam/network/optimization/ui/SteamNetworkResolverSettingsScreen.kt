@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -44,7 +43,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -140,6 +138,7 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
+
             item(key = "resolver_servers") {
                 SteamResolverServerBenchmarkCard(
                     onRemoveCustomDns = {
@@ -156,28 +155,20 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
+
             item(key = "custom_dns") {
-                ResolverAddCard(
-                    title = stringResource(R.string.steam_network_custom_dns_title),
-                    description = stringResource(R.string.steam_network_custom_dns_description),
-                    placeholder = stringResource(R.string.steam_network_custom_dns_placeholder),
-                    icon = Icons.Default.Dns,
-                    values = settings.customDnsServers,
-                    limit = SteamNetworkResolverSettings.MAX_CUSTOM_DNS,
-                    normalize = SteamResolverInputValidator::normalizeDnsServer,
-                    onAdd = {
+                CustomDnsResolverAddCard(
+                    dnsValues = settings.customDnsServers,
+                    httpsDnsValues = settings.customDohEndpoints,
+                    dnsLimit = SteamNetworkResolverSettings.MAX_CUSTOM_DNS,
+                    httpsDnsLimit = SteamNetworkResolverSettings.MAX_CUSTOM_DOH,
+                    onAddDns = {
                         SteamNetworkResolverSettingsRuntime.addCustomDns(
                             applicationContext,
                             it
                         )
-                    }
-                )
-            }
-            item(key = "custom_doh") {
-                DohResolverAddCard(
-                    values = settings.customDohEndpoints,
-                    limit = SteamNetworkResolverSettings.MAX_CUSTOM_DOH,
-                    onAdd = { endpoint, bootstrapAddresses ->
+                    },
+                    onAddHttpsDns = { endpoint, bootstrapAddresses ->
                         SteamNetworkResolverSettingsRuntime.addCustomDoh(
                             applicationContext,
                             endpoint,
@@ -186,6 +177,7 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
+
             item(key = "ech_doh") {
                 EchResolverSelectionCard(
                     providers = settings.selectableDohProviders,
@@ -198,6 +190,7 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
+
             item(key = "resolver_strategy") {
                 ResolverStrategyCard(
                     preferIpv6 = settings.preferIpv6,
@@ -209,8 +202,135 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
+
             item(key = "resolver_privacy") {
                 ResolverPrivacyCard()
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomDnsResolverAddCard(
+    dnsValues: List<String>,
+    httpsDnsValues: List<String>,
+    dnsLimit: Int,
+    httpsDnsLimit: Int,
+    onAddDns: (String) -> Boolean,
+    onAddHttpsDns: (String, String) -> Boolean
+) {
+    var resolverInput by rememberSaveable { mutableStateOf("") }
+    var bootstrapInput by rememberSaveable { mutableStateOf("") }
+
+    val normalizedHttpsDns = SteamResolverInputValidator.normalizeDohEndpoint(resolverInput)
+    val normalizedDns = if (normalizedHttpsDns == null) {
+        SteamResolverInputValidator.normalizeDnsServer(resolverInput)
+    } else {
+        null
+    }
+    val normalizedBootstrap = SteamResolverInputValidator.normalizeBootstrapAddresses(bootstrapInput)
+    val resolverInvalid = resolverInput.isNotBlank() &&
+        normalizedHttpsDns == null && normalizedDns == null
+    val bootstrapInvalid = bootstrapInput.isNotBlank() && normalizedBootstrap == null
+    val bootstrapNotApplicable = bootstrapInput.isNotBlank() && normalizedHttpsDns == null
+    val duplicate = when {
+        normalizedHttpsDns != null -> normalizedHttpsDns in httpsDnsValues
+        normalizedDns != null -> normalizedDns in dnsValues
+        else -> false
+    }
+    val limitReached = when {
+        normalizedHttpsDns != null -> httpsDnsValues.size >= httpsDnsLimit
+        normalizedDns != null -> dnsValues.size >= dnsLimit
+        else -> false
+    }
+    val canAdd = !resolverInvalid &&
+        !bootstrapInvalid &&
+        !bootstrapNotApplicable &&
+        !duplicate &&
+        !limitReached &&
+        (normalizedHttpsDns != null || normalizedDns != null)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ResolverAddCardHeader(
+                count = dnsValues.size + httpsDnsValues.size,
+                limit = dnsLimit + httpsDnsLimit
+            )
+
+            OutlinedTextField(
+                value = resolverInput,
+                onValueChange = { resolverInput = it.take(512) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = resolverInvalid,
+                label = { Text(stringResource(R.string.steam_network_custom_dns_address_label)) },
+                placeholder = {
+                    Text(stringResource(R.string.steam_network_custom_dns_unified_placeholder))
+                },
+                supportingText = if (resolverInvalid) {
+                    { Text(stringResource(R.string.steam_network_resolver_invalid)) }
+                } else {
+                    { Text(stringResource(R.string.steam_network_custom_dns_address_hint)) }
+                }
+            )
+
+            OutlinedTextField(
+                value = bootstrapInput,
+                onValueChange = { bootstrapInput = it.take(512) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = bootstrapInvalid || bootstrapNotApplicable,
+                label = { Text(stringResource(R.string.steam_network_custom_dns_bootstrap_label)) },
+                placeholder = {
+                    Text(stringResource(R.string.steam_network_custom_doh_bootstrap_placeholder))
+                },
+                supportingText = {
+                    Text(
+                        when {
+                            bootstrapInvalid -> stringResource(
+                                R.string.steam_network_custom_doh_bootstrap_invalid
+                            )
+                            bootstrapNotApplicable -> stringResource(
+                                R.string.steam_network_custom_dns_bootstrap_https_only
+                            )
+                            else -> stringResource(R.string.steam_network_custom_dns_bootstrap_hint)
+                        }
+                    )
+                }
+            )
+
+            FilledTonalButton(
+                onClick = {
+                    val added = when {
+                        normalizedHttpsDns != null -> onAddHttpsDns(
+                            resolverInput,
+                            bootstrapInput
+                        )
+                        normalizedDns != null -> onAddDns(resolverInput)
+                        else -> false
+                    }
+                    if (added) {
+                        resolverInput = ""
+                        bootstrapInput = ""
+                    }
+                },
+                enabled = canAdd,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Text(
+                    text = stringResource(R.string.steam_network_resolver_add),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
             }
         }
     }
@@ -418,167 +538,7 @@ private fun ResolverToggleRow(
 }
 
 @Composable
-private fun ResolverAddCard(
-    title: String,
-    description: String,
-    placeholder: String,
-    icon: ImageVector,
-    values: List<String>,
-    limit: Int,
-    normalize: (String) -> String?,
-    onAdd: (String) -> Boolean
-) {
-    var input by rememberSaveable(title) { mutableStateOf("") }
-    val normalized = normalize(input)
-    val inputInvalid = input.isNotBlank() && normalized == null
-    val canAdd = normalized != null && normalized !in values && values.size < limit
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            ResolverAddCardHeader(
-                title = title,
-                description = description,
-                icon = icon,
-                count = values.size,
-                limit = limit
-            )
-
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it.take(512) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                isError = inputInvalid,
-                placeholder = { Text(placeholder) },
-                supportingText = if (inputInvalid) {
-                    { Text(stringResource(R.string.steam_network_resolver_invalid)) }
-                } else {
-                    null
-                }
-            )
-            FilledTonalButton(
-                onClick = {
-                    if (onAdd(input)) input = ""
-                },
-                enabled = canAdd,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text(
-                    text = stringResource(R.string.steam_network_resolver_add),
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DohResolverAddCard(
-    values: List<String>,
-    limit: Int,
-    onAdd: (String, String) -> Boolean
-) {
-    var endpointInput by rememberSaveable { mutableStateOf("") }
-    var bootstrapInput by rememberSaveable { mutableStateOf("") }
-    val normalizedEndpoint = SteamResolverInputValidator.normalizeDohEndpoint(endpointInput)
-    val normalizedBootstrap = SteamResolverInputValidator.normalizeBootstrapAddresses(bootstrapInput)
-    val endpointInvalid = endpointInput.isNotBlank() && normalizedEndpoint == null
-    val bootstrapInvalid = bootstrapInput.isNotBlank() && normalizedBootstrap == null
-    val canAdd = normalizedEndpoint != null &&
-        normalizedEndpoint !in values &&
-        normalizedBootstrap != null &&
-        values.size < limit
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            ResolverAddCardHeader(
-                title = stringResource(R.string.steam_network_custom_doh_title),
-                description = stringResource(R.string.steam_network_custom_doh_bootstrap_description),
-                icon = Icons.Default.Public,
-                count = values.size,
-                limit = limit
-            )
-
-            OutlinedTextField(
-                value = endpointInput,
-                onValueChange = { endpointInput = it.take(512) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                isError = endpointInvalid,
-                label = { Text(stringResource(R.string.steam_network_custom_doh_url_label)) },
-                placeholder = { Text(stringResource(R.string.steam_network_custom_doh_placeholder)) },
-                supportingText = if (endpointInvalid) {
-                    { Text(stringResource(R.string.steam_network_resolver_invalid)) }
-                } else {
-                    null
-                }
-            )
-
-            OutlinedTextField(
-                value = bootstrapInput,
-                onValueChange = { bootstrapInput = it.take(512) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                isError = bootstrapInvalid,
-                label = { Text(stringResource(R.string.steam_network_custom_doh_bootstrap_label)) },
-                placeholder = {
-                    Text(stringResource(R.string.steam_network_custom_doh_bootstrap_placeholder))
-                },
-                supportingText = {
-                    Text(
-                        if (bootstrapInvalid) {
-                            stringResource(R.string.steam_network_custom_doh_bootstrap_invalid)
-                        } else {
-                            stringResource(R.string.steam_network_custom_doh_bootstrap_hint)
-                        }
-                    )
-                }
-            )
-
-            FilledTonalButton(
-                onClick = {
-                    if (onAdd(endpointInput, bootstrapInput)) {
-                        endpointInput = ""
-                        bootstrapInput = ""
-                    }
-                },
-                enabled = canAdd,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text(
-                    text = stringResource(R.string.steam_network_resolver_add),
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun ResolverAddCardHeader(
-    title: String,
-    description: String,
-    icon: ImageVector,
     count: Int,
     limit: Int
 ) {
@@ -591,7 +551,7 @@ private fun ResolverAddCardHeader(
             color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Icon(
-                imageVector = icon,
+                imageVector = Icons.Default.Dns,
                 contentDescription = null,
                 modifier = Modifier.padding(10.dp).size(22.dp),
                 tint = MaterialTheme.colorScheme.onSecondaryContainer
@@ -599,12 +559,12 @@ private fun ResolverAddCardHeader(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = title,
+                text = stringResource(R.string.steam_network_custom_dns_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = description,
+                text = stringResource(R.string.steam_network_custom_dns_unified_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
