@@ -39,3 +39,14 @@ jobs:
           --tests 'takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCatalogTest'
           --tests 'takagi.ru.monica.steam.network.optimization.diagnostics.SteamDnsOptimizationScannerTest'
           --tests 'takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationIntegrationGuardTest'
+
+      - name: Build test APKs
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload test APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Monica-Steam-DNS-DoH-test-apk
+          path: app/build/outputs/apk/debug/*.APK
+          if-no-files-found: error
+          retention-days: 7
