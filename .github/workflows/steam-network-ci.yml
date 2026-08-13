@@ -13,7 +13,7 @@ permissions:
 jobs:
   network-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,14 +39,3 @@ jobs:
           --tests 'takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCatalogTest'
           --tests 'takagi.ru.monica.steam.network.optimization.diagnostics.SteamDnsOptimizationScannerTest'
           --tests 'takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationIntegrationGuardTest'
-
-      - name: Build test APKs
-        run: ./gradlew :app:assembleDebug --stacktrace
-
-      - name: Upload test APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: Monica-Steam-ECH-DoH-test-apk
-          path: app/build/outputs/apk/debug/*.[Aa][Pp][Kk]
-          if-no-files-found: error
-          retention-days: 7
