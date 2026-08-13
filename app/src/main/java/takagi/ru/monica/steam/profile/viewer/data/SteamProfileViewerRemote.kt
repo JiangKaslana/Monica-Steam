@@ -91,7 +91,9 @@ internal class SteamProfileViewerSteamRemote(
         request = SteamProtoWriter().apply {
             writeUint64(1, targetSteamId)
             writeString(2, language)
-            writePackedVarints(3, appIds.map(Int::toLong))
+            appIds.forEach { appId ->
+                writeVarint(3, appId.toLong())
+            }
             writeBool(4, true)
         },
         accessToken = accessToken,

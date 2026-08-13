@@ -396,7 +396,7 @@ class SteamLibraryModelsTest {
     }
 
     @Test
-    fun achievementRequestUsesPackedAppIdsAcceptedBySteam() {
+    fun achievementRequestUsesUnpackedAppIdsRequiredBySteam() {
         val source = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/library/SteamGameLibraryService.kt"
         ).readText()
@@ -404,8 +404,72 @@ class SteamLibraryModelsTest {
             .substringAfter("method = \"GetAchievementsProgress\"")
             .substringBefore("accessToken = accessToken")
 
-        assertTrue(request.contains("writePackedVarints(3"))
-        assertTrue(!request.contains("batch.forEach { appId -> writeVarint(3"))
+        assertTrue(request.contains("batch.forEach { appId ->"))
+        assertTrue(request.contains("writeVarint(3, appId.toLong())"))
+        assertFalse(request.contains("writePackedVarints(3"))
+    }
+
+    @Test
+    fun profileAchievementRequestUsesUnpackedAppIdsRequiredBySteam() {
+        val source = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/profile/viewer/data/SteamProfileViewerRemote.kt"
+        ).readText()
+        val request = source
+            .substringAfter("method = \"GetAchievementsProgress\"")
+            .substringBefore("accessToken = accessToken")
+
+        assertTrue(request.contains("appIds.forEach { appId ->"))
+        assertTrue(request.contains("writeVarint(3, appId.toLong())"))
+        assertFalse(request.contains("writePackedVarints(3"))
+    }
+
+    @Test
+    fun achievementSummaryOnlyShowsKnownGamesWithAchievements() {
+        val unknown = SteamGame(1, "Unknown", 0, 0)
+        val withoutAchievements = SteamGame(
+            appId = 2,
+            name = "No achievements",
+            playtimeForeverMinutes = 0,
+            playtimeRecentMinutes = 0,
+            achievementUnlockedCount = 0,
+            achievementTotalCount = 0
+        )
+
+        assertNull(unknown.achievementSummaryOrNull())
+        assertNull(withoutAchievements.achievementSummaryOrNull())
+    }
+
+    @Test
+    fun achievementSummaryCalculatesProgressAndPerfectState() {
+        val inProgress = SteamGame(
+            appId = 3,
+            name = "In progress",
+            playtimeForeverMinutes = 0,
+            playtimeRecentMinutes = 0,
+            achievementUnlockedCount = 7,
+            achievementTotalCount = 46
+        ).achievementSummaryOrNull()
+        val perfect = SteamGame(
+            appId = 4,
+            name = "Perfect",
+            playtimeForeverMinutes = 0,
+            playtimeRecentMinutes = 0,
+            achievementUnlockedCount = 13,
+            achievementTotalCount = 13
+        ).achievementSummaryOrNull()
+        val inconsistentPerfect = SteamGame(
+            appId = 5,
+            name = "Server says perfect",
+            playtimeForeverMinutes = 0,
+            playtimeRecentMinutes = 0,
+            achievementUnlockedCount = 12,
+            achievementTotalCount = 13,
+            allAchievementsUnlocked = true
+        ).achievementSummaryOrNull()
+
+        assertEquals(SteamGameAchievementSummary(7, 46, 15, false), inProgress)
+        assertEquals(SteamGameAchievementSummary(13, 13, 100, true), perfect)
+        assertEquals(SteamGameAchievementSummary(13, 13, 100, true), inconsistentPerfect)
     }
 
     @Test

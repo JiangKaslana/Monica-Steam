@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Groups
@@ -84,6 +85,7 @@ import takagi.ru.monica.steam.library.SteamAchievement
 import takagi.ru.monica.steam.library.SteamGame
 import takagi.ru.monica.steam.library.SteamGameAchievements
 import takagi.ru.monica.steam.library.SteamGamePrice
+import takagi.ru.monica.steam.library.achievementSummaryOrNull
 import takagi.ru.monica.steam.library.isSteamSouthAsiaPriceCountry
 import takagi.ru.monica.steam.library.SteamLibraryFailureReason
 import takagi.ru.monica.steam.library.SteamLibrarySnapshot
@@ -1184,6 +1186,7 @@ private fun SteamGameSectionHeader(section: SteamLibraryGameSection) {
 
 @Composable
 private fun SteamGameLibraryRow(game: SteamGame, onClick: () -> Unit) {
+    val achievementSummary = game.achievementSummaryOrNull()
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -1243,12 +1246,54 @@ private fun SteamGameLibraryRow(game: SteamGame, onClick: () -> Unit) {
                     }
                 }
             }
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = stringResource(R.string.steam_library_open_game_details),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
-            )
+            if (achievementSummary != null) {
+                val achievementColor = if (achievementSummary.isPerfect) {
+                    MaterialTheme.colorScheme.tertiary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                Column(
+                    modifier = Modifier.widthIn(min = 64.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (achievementSummary.isPerfect) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = stringResource(
+                                    R.string.steam_library_perfect_achievement
+                                ),
+                                tint = achievementColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Text(
+                            text = stringResource(
+                                R.string.steam_library_achievement_percent,
+                                achievementSummary.percent
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = achievementColor,
+                            maxLines = 1
+                        )
+                    }
+                    Text(
+                        text = stringResource(
+                            R.string.steam_library_achievement_short,
+                            achievementSummary.unlocked,
+                            achievementSummary.total
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = achievementColor,
+                        maxLines = 1
+                    )
+                }
+            }
         }
         HorizontalDivider(modifier = Modifier.padding(start = 144.dp, end = 16.dp))
     }

@@ -31,6 +31,34 @@ data class SteamGame(
     val isFamilyShared: Boolean get() = ownership == SteamGameOwnership.FAMILY_SHARED
 }
 
+internal data class SteamGameAchievementSummary(
+    val unlocked: Int,
+    val total: Int,
+    val percent: Int,
+    val isPerfect: Boolean
+)
+
+internal fun SteamGame.achievementSummaryOrNull(): SteamGameAchievementSummary? {
+    val total = achievementTotalCount?.takeIf { it > 0 } ?: return null
+    val isPerfect = isPerfectAchievementGame
+    val unlocked = if (isPerfect) {
+        total
+    } else {
+        (achievementUnlockedCount ?: 0).coerceIn(0, total)
+    }
+    val percent = if (isPerfect) {
+        100
+    } else {
+        ((unlocked.toLong() * 100L) / total.toLong()).toInt()
+    }
+    return SteamGameAchievementSummary(
+        unlocked = unlocked,
+        total = total,
+        percent = percent,
+        isPerfect = isPerfect
+    )
+}
+
 @Serializable
 enum class SteamGameOwnership {
     OWNED,

@@ -180,6 +180,11 @@ class SteamLibraryIntegrationGuardTest {
         assertTrue(gameRow.contains("formatGameHours(game.playtimeForeverMinutes)"))
         assertTrue(gameRow.contains("steam_library_recent_increment"))
         assertTrue(gameRow.contains("formatGameHours(game.playtimeRecentMinutes)"))
+        assertTrue(gameRow.contains("game.achievementSummaryOrNull()"))
+        assertTrue(gameRow.contains("Icons.Default.EmojiEvents"))
+        assertTrue(gameRow.contains("steam_library_achievement_short"))
+        assertTrue(gameRow.contains("steam_library_achievement_percent"))
+        assertFalse(gameRow.contains("KeyboardArrowRight"))
         assertFalse(gameRow.contains("game.price"))
         assertFalse(gameRow.contains("steam_library_unplayed_badge"))
         val regionalSheet = screen
