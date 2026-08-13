@@ -4784,7 +4784,10 @@
     <string name="steam_store_cached">Showing saved data</string>
     <string name="steam_store_empty">No matching games found</string>
     <string name="steam_store_open_official">Open official store</string>
-    <string name="steam_store_buy">View purchase options</string>
+    <string name="steam_store_detail_purchase_options">Purchase options</string>
+    <string name="steam_store_detail_jump_to_reviews">Jump to player reviews</string>
+    <string name="steam_store_detail_share">Share game</string>
+    <string name="steam_store_share_chooser">Share Steam game</string>
     <string name="steam_store_about">About this game</string>
     <string name="steam_store_about_expand">Show more</string>
     <string name="steam_store_about_collapse">Show less</string>

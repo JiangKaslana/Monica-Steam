@@ -39,6 +39,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -90,6 +91,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -160,6 +162,7 @@ import takagi.ru.monica.ui.components.ExpressiveTopBar
 import takagi.ru.monica.ui.navigation.easyNotesScreenEnter
 import takagi.ru.monica.ui.navigation.easyNotesScreenExit
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private sealed interface SteamStoreDestination {
     data object Home : SteamStoreDestination
@@ -396,6 +399,12 @@ fun SteamStoreScreen(
                         freeLicenseClaimResult = state.freeLicenseClaimResults[detail.appId],
                         onBack = viewModel::closeDetail,
                         onOpenOfficial = { viewModel.openStoreWeb(detail.storeUrl) },
+                        onOpenOfficialReviews = {
+                            viewModel.openStoreWeb(detail.reviewsUrl)
+                        },
+                        onShare = {
+                            shareSteamStoreGame(context, detail.name, detail.storeUrl)
+                        },
                         onOpenWebsite = { rawUrl ->
                             val normalizedUrl = normalizeSteamStoreWebsiteUrl(rawUrl)
                             when {
@@ -1059,6 +1068,8 @@ private fun SteamStoreDetailContent(
     freeLicenseClaimResult: SteamFreebieClaimResult?,
     onBack: () -> Unit,
     onOpenOfficial: () -> Unit,
+    onOpenOfficialReviews: () -> Unit,
+    onShare: () -> Unit,
     onOpenWebsite: (String) -> Unit,
     reviewFilters: SteamReviewFilterSelection,
     loadingMoreReviews: Boolean,
@@ -1097,6 +1108,9 @@ private fun SteamStoreDetailContent(
     modifier: Modifier
 ) {
     val dockContentClearance = LocalSteamDockContentClearance.current
+    val reduceAnimations = LocalReduceAnimations.current
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val heroBackgroundUrl = detail.backgroundImageUrl.ifBlank { detail.headerImageUrl }
     val heroViewerUrl = detail.headerImageUrl.ifBlank { heroBackgroundUrl }
     val aboutText = detail.about.ifBlank { detail.shortDescription }
@@ -1118,8 +1132,34 @@ private fun SteamStoreDetailContent(
     val selectedPackage = detail.packageOptions.firstOrNull {
         it.packageId == selectedPackageId
     }
+    val hasReviews = detail.reviews?.let { reviews ->
+        reviews.overall != null || reviews.recent != null || reviews.items.isNotEmpty()
+    } == true
+    val purchaseSectionIndex = 1 + listOf(
+        showTags && detail.tags.isNotEmpty(),
+        hints.isNotEmpty(),
+        cached,
+        freeLicenseOption != null
+    ).count { it }
+    val reviewSectionIndex = purchaseSectionIndex + 3 + listOf(
+        detail.fullGame != null || detail.demos.isNotEmpty() || detail.relatedDlc.isNotEmpty(),
+        detail.bundles.isNotEmpty(),
+        aboutText.isNotBlank(),
+        detail.systemRequirements.hasContent,
+        detail.screenshots.isNotEmpty()
+    ).count { it }
+    val scrollToSection: (Int) -> Unit = { index ->
+        scope.launch {
+            if (reduceAnimations) {
+                listState.scrollToItem(index)
+            } else {
+                listState.animateScrollToItem(index)
+            }
+        }
+    }
     LazyColumn(
-        modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
+        state = listState,
         contentPadding = PaddingValues(bottom = dockContentClearance + 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
@@ -1173,35 +1213,18 @@ private fun SteamStoreDetailContent(
                         )
                     }
                 }
-                Surface(
-                    onClick = onOpenOfficial,
+                SteamStoreDetailActionToolbar(
+                    onOpenPurchaseOptions = { scrollToSection(purchaseSectionIndex) },
+                    onOpenOfficialStore = onOpenOfficial,
+                    onOpenReviews = {
+                        if (hasReviews) scrollToSection(reviewSectionIndex)
+                        else onOpenOfficialReviews()
+                    },
+                    onShare = onShare,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .statusBarsPadding()
-                        .padding(end = 12.dp, top = 8.dp)
-                        .heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    tonalElevation = 3.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Storefront,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = stringResource(R.string.steam_store_buy),
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1
-                        )
-                    }
-                }
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 12.dp)
+                )
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -2274,6 +2297,24 @@ private fun showStoreWebsiteOpenFailure(context: Context) {
         R.string.steam_store_website_open_failed,
         android.widget.Toast.LENGTH_LONG
     ).show()
+}
+
+private fun shareSteamStoreGame(context: Context, gameName: String, storeUrl: String) {
+    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, gameName)
+        putExtra(Intent.EXTRA_TEXT, "$gameName\n$storeUrl")
+    }
+    runCatching {
+        context.startActivity(
+            Intent.createChooser(
+                sendIntent,
+                context.getString(R.string.steam_store_share_chooser)
+            ).apply {
+                if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

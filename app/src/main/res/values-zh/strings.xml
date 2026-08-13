@@ -4614,7 +4614,10 @@
     <string name="steam_store_cached">正在显示已缓存的数据</string>
     <string name="steam_store_empty">没有找到匹配的游戏</string>
     <string name="steam_store_open_official">打开官方商店</string>
-    <string name="steam_store_buy">查看购买选项</string>
+    <string name="steam_store_detail_purchase_options">购买选项</string>
+    <string name="steam_store_detail_jump_to_reviews">跳转到玩家评价</string>
+    <string name="steam_store_detail_share">分享游戏</string>
+    <string name="steam_store_share_chooser">分享 Steam 游戏</string>
     <string name="steam_store_about">关于此游戏</string>
     <string name="steam_store_about_expand">展开</string>
     <string name="steam_store_about_collapse">收起</string>
