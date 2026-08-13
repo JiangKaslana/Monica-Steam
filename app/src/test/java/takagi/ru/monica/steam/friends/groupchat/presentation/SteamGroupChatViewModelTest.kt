@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.friends.groupchat.presentation
 
 import java.io.IOException
+import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
@@ -153,6 +154,82 @@ class SteamGroupChatViewModelTest {
 
         assertEquals("Cached group", viewModel.state.value.groups.single().name)
         assertFalse(viewModel.state.value.groupsFailure)
+    }
+
+    @Test
+    fun transientCmHistoryFailureKeepsCachedThreadWithoutGlobalToast() =
+        runTest(dispatcher.scheduler) {
+            val cachedMessage = SteamGroupChatMessage(
+                groupId = "8",
+                chatId = "9",
+                senderSteamId = PARTNER_ID,
+                timestamp = 90L,
+                ordinal = 1,
+                body = "cached"
+            )
+            val cache = MemoryCache().apply {
+                thread = SteamGroupChatThreadSnapshot(
+                    accountSteamId = ACCOUNT_ID,
+                    groupId = "8",
+                    chatId = "9",
+                    messages = listOf(cachedMessage),
+                    moreAvailable = true,
+                    fetchedAt = 90_000L
+                )
+            }
+            val gateway = FakeGateway().apply {
+                history = { _, _ ->
+                    throw IOException("Unable to read group history", ConnectException("offline"))
+                }
+            }
+            val viewModel = viewModel(gateway, cache = cache)
+
+            viewModel.selectAccount(account())
+            runCurrent()
+            viewModel.openRoom("8", "9")
+            runCurrent()
+
+            assertEquals(listOf("cached"), viewModel.state.value.thread?.messages?.map { it.body })
+            assertFalse(viewModel.state.value.threadLoading)
+            assertEquals(null, viewModel.state.value.failure)
+        }
+
+    @Test
+    fun transientCmHistoryFailureWithoutCacheDoesNotExposeEnglishFailure() =
+        runTest(dispatcher.scheduler) {
+            val gateway = FakeGateway().apply {
+                history = { _, _ -> throw IOException("Steam CM is unavailable") }
+            }
+            val viewModel = viewModel(gateway)
+
+            viewModel.selectAccount(account())
+            runCurrent()
+            viewModel.openRoom("8", "9")
+            runCurrent()
+
+            assertTrue(viewModel.state.value.thread?.messages.orEmpty().isEmpty())
+            assertFalse(viewModel.state.value.threadLoading)
+            assertEquals(null, viewModel.state.value.failure)
+        }
+
+    @Test
+    fun transientCmActionFailureUsesFriendlyChineseMessage() = runTest(dispatcher.scheduler) {
+        val gateway = FakeGateway().apply {
+            invite = { throw IOException("Steam CM is unavailable") }
+        }
+        val viewModel = viewModel(gateway)
+
+        viewModel.selectAccount(account())
+        runCurrent()
+        viewModel.openRoom("8", "9")
+        runCurrent()
+        viewModel.inviteFriend(PARTNER_ID)
+        runCurrent()
+
+        assertEquals(
+            "Steam 聊天服务暂时不可用，正在重新连接",
+            viewModel.state.value.failure
+        )
     }
 
     @Test
@@ -471,6 +548,7 @@ class SteamGroupChatViewModelTest {
         var createdGroupId = "8"
         var lastCreate: SteamGroupChatCreateRequest? = null
         var updateAvatar: (String, ByteArray) -> Unit = { _, _ -> Unit }
+        var invite: (String) -> Unit = { _ -> Unit }
         var avatarUpdateCalls = 0
         var groupCalls = 0
             private set
@@ -492,7 +570,8 @@ class SteamGroupChatViewModelTest {
             lastCreate = request
             return createdGroupId
         }
-        override fun inviteFriend(account: SteamAccount, groupId: String, chatId: String, steamId: String) = Unit
+        override fun inviteFriend(account: SteamAccount, groupId: String, chatId: String, steamId: String) =
+            invite(steamId)
         override fun updateGroupAvatar(account: SteamAccount, groupId: String, avatarSha: ByteArray) {
             avatarUpdateCalls++
             updateAvatar(groupId, avatarSha)

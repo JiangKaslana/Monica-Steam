@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -1045,7 +1048,16 @@ class SteamGroupChatViewModel(
                 _state.value = _state.value.copy(threadLoading = false, failure = null)
                 acknowledgeLatest(current, snapshot)
             },
-            onFailure = { _state.value = _state.value.copy(threadLoading = false, failure = it.groupChatMessage()) }
+            onFailure = { error ->
+                _state.value = _state.value.copy(
+                    threadLoading = false,
+                    // A short CM outage is already recovered by the realtime supervisor
+                    // and the polling loop. Keep the cached/recovered thread usable instead
+                    // of presenting the transport failure as a fatal room error.
+                    failure = error.takeUnless(Throwable::isTransientGroupChatCmFailure)
+                        ?.groupChatMessage()
+                )
+            }
         )
     }
 
@@ -1223,8 +1235,48 @@ private data class PendingGroupAvatar(
 
 private const val AVATAR_OVERRIDE_TTL_MILLIS = 10 * 60 * 1_000L
 
-private fun Throwable.groupChatMessage(): String = message?.takeIf(String::isNotBlank)?.take(220)
-    ?: "Steam group chat is temporarily unavailable"
+internal fun Throwable.isTransientGroupChatCmFailure(): Boolean {
+    val visited = mutableSetOf<Throwable>()
+    var current: Throwable? = this
+    while (current != null && visited.add(current)) {
+        when (current) {
+            is SocketTimeoutException,
+            is ConnectException,
+            is UnknownHostException -> return true
+            is IOException -> {
+                val detail = current.message.orEmpty()
+                if (TRANSIENT_GROUP_CHAT_NETWORK_MARKERS.any { marker ->
+                        detail.contains(marker, ignoreCase = true)
+                    }
+                ) return true
+            }
+        }
+        current = current.cause
+    }
+    return false
+}
+
+private fun Throwable.groupChatMessage(): String = when {
+    isTransientGroupChatCmFailure() -> "Steam 聊天服务暂时不可用，正在重新连接"
+    else -> message
+        ?.takeIf(String::isNotBlank)
+        ?.takeUnless { it.contains("Steam CM", ignoreCase = true) }
+        ?.take(220)
+        ?: "Steam 群聊暂时不可用，请稍后重试"
+}
+
+private val TRANSIENT_GROUP_CHAT_NETWORK_MARKERS = listOf(
+    "Steam CM is unavailable",
+    "Steam CM logon timed out",
+    "timeout",
+    "timed out",
+    "connection",
+    "socket",
+    "network is unreachable",
+    "route to host",
+    "broken pipe",
+    "stream was reset"
+)
 
 private suspend inline fun <T> runCatchingCancellable(
     crossinline block: suspend () -> T
