@@ -4788,6 +4788,15 @@
     <string name="steam_store_detail_jump_to_reviews">Jump to player reviews</string>
     <string name="steam_store_detail_share">Share game</string>
     <string name="steam_store_share_chooser">Share Steam game</string>
+    <string name="steam_store_share_title">Share game</string>
+    <string name="steam_store_share_external">Share to another app</string>
+    <string name="steam_store_share_search_hint">Search Steam friends</string>
+    <string name="steam_store_share_refresh">Refresh friends</string>
+    <string name="steam_store_share_empty">No friends match this search.</string>
+    <string name="steam_store_share_account_required">Select a signed-in Steam account to share with friends.</string>
+    <string name="steam_store_share_friends_failed">Unable to load Steam friends.</string>
+    <string name="steam_store_share_failed">Unable to send this game.</string>
+    <string name="steam_store_share_success">Game shared</string>
     <string name="steam_store_about">About this game</string>
     <string name="steam_store_about_expand">Show more</string>
     <string name="steam_store_about_collapse">Show less</string>

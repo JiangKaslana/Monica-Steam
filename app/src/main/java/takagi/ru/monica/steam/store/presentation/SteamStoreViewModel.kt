@@ -1012,6 +1012,17 @@ class SteamStoreViewModel internal constructor(
 
     fun refreshGiftFriends() = loadGiftFriends(force = true)
 
+    fun prepareShareFriends() {
+        _uiState.value = _uiState.value.copy(
+            gift = _uiState.value.gift.copy(
+                pickerOpen = false,
+                pendingItem = null,
+                failure = null
+            )
+        )
+        loadGiftFriends()
+    }
+
     fun removeFromCart(appId: Int) = updateCart(_uiState.value.cart.filterNot { it.appId == appId })
     fun clearCart() = updateCart(emptyList())
     fun openCart() {

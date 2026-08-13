@@ -148,6 +148,10 @@ import takagi.ru.monica.steam.store.purchase.ui.SteamStorePurchaseContextSection
 import takagi.ru.monica.steam.store.purchase.ui.SteamStoreFreeLicenseButton
 import takagi.ru.monica.steam.store.requirements.ui.SteamStoreSystemRequirementsSection
 import takagi.ru.monica.steam.store.related.ui.SteamStoreRelatedContentSection
+import takagi.ru.monica.steam.store.share.domain.SteamStoreGameShare
+import takagi.ru.monica.steam.store.share.domain.toGameShare
+import takagi.ru.monica.steam.store.share.presentation.SteamStoreGameShareViewModel
+import takagi.ru.monica.steam.store.share.ui.SteamStoreGameShareSheet
 import takagi.ru.monica.steam.store.bundle.ui.SteamStoreBundleSection
 import takagi.ru.monica.steam.store.ui.gallery.SteamStoreScreenshotViewer
 import takagi.ru.monica.steam.store.activation.domain.SteamStoreProductActivation
@@ -187,10 +191,14 @@ fun SteamStoreScreen(
     onInitialWebUrlConsumed: () -> Unit = {},
     onPlatformViewVisibilityChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
-    viewModel: SteamStoreViewModel = viewModel(factory = SteamStoreViewModel.factory(LocalContext.current))
+    viewModel: SteamStoreViewModel = viewModel(factory = SteamStoreViewModel.factory(LocalContext.current)),
+    shareViewModel: SteamStoreGameShareViewModel = viewModel(
+        factory = SteamStoreGameShareViewModel.factory(LocalContext.current)
+    )
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val shareState by shareViewModel.uiState.collectAsStateWithLifecycle()
     val hintPreferences = remember(context) { SteamStoreHintPreferences(context) }
     val hintSettings by hintPreferences.settings.collectAsState(
         initial = SteamStoreHintSettings()
@@ -234,9 +242,21 @@ fun SteamStoreScreen(
     var searchExpanded by remember { mutableStateOf(false) }
     var showAdvancedFilters by rememberSaveable { mutableStateOf(false) }
     var freebiesOpen by rememberSaveable { mutableStateOf(false) }
+    var pendingGameShare by remember { mutableStateOf<SteamStoreGameShare?>(null) }
     var lastDetail by remember { mutableStateOf<SteamStoreDetail?>(null) }
     LaunchedEffect(state.detail) {
         state.detail?.let { lastDetail = it }
+    }
+    LaunchedEffect(shareState.sentToSteamId) {
+        if (shareState.sentToSteamId != null) {
+            android.widget.Toast.makeText(
+                context,
+                R.string.steam_store_share_success,
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            pendingGameShare = null
+            shareViewModel.consumeResult()
+        }
     }
     LaunchedEffect(initialAppId) {
         initialAppId?.let { appId ->
@@ -403,7 +423,8 @@ fun SteamStoreScreen(
                             viewModel.openStoreWeb(detail.reviewsUrl)
                         },
                         onShare = {
-                            shareSteamStoreGame(context, detail.name, detail.storeUrl)
+                            pendingGameShare = detail.toGameShare()
+                            viewModel.prepareShareFriends()
                         },
                         onOpenWebsite = { rawUrl ->
                             val normalizedUrl = normalizeSteamStoreWebsiteUrl(rawUrl)
@@ -719,6 +740,24 @@ fun SteamStoreScreen(
             onSelect = viewModel::selectGiftRecipient,
             onRefresh = viewModel::refreshGiftFriends,
             onDismiss = viewModel::dismissGiftRecipientPicker
+        )
+    }
+    pendingGameShare?.let { share ->
+        SteamStoreGameShareSheet(
+            share = share,
+            friendsState = state.gift,
+            sendState = shareState,
+            onSendToFriend = { friend ->
+                shareViewModel.sendToFriend(friend.steamId, share)
+            },
+            onShareExternal = {
+                shareSteamStoreGame(context, share)
+            },
+            onRefresh = viewModel::refreshGiftFriends,
+            onDismiss = {
+                pendingGameShare = null
+                shareViewModel.consumeResult()
+            }
         )
     }
 }
@@ -2299,11 +2338,11 @@ private fun showStoreWebsiteOpenFailure(context: Context) {
     ).show()
 }
 
-private fun shareSteamStoreGame(context: Context, gameName: String, storeUrl: String) {
+private fun shareSteamStoreGame(context: Context, share: SteamStoreGameShare) {
     val sendIntent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, gameName)
-        putExtra(Intent.EXTRA_TEXT, "$gameName\n$storeUrl")
+        putExtra(Intent.EXTRA_SUBJECT, share.name)
+        putExtra(Intent.EXTRA_TEXT, share.messageBody)
     }
     runCatching {
         context.startActivity(
