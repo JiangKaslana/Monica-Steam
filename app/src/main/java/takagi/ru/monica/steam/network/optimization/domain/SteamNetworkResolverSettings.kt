@@ -9,6 +9,7 @@ data class SteamNetworkResolverSettings(
     val useBuiltInDoh: Boolean = true,
     val customDnsServers: List<String> = emptyList(),
     val customDohEndpoints: List<String> = emptyList(),
+    val customDohBootstrapAddresses: Map<String, List<String>> = emptyMap(),
     val preferredProviderIds: List<String> = emptyList(),
     val dynamicDnsEnabled: Boolean = false,
     val disabledBuiltInProviderIds: Set<String> = emptySet(),
@@ -20,7 +21,14 @@ data class SteamNetworkResolverSettings(
             if (useSystemDns) add(SteamDnsProvider.SYSTEM)
             if (useBuiltInDoh) addAll(SteamDnsProvider.DEFAULTS.filterNot { it.isSystem })
             addAll(customDnsServers.map(SteamDnsProvider::customDns))
-            addAll(customDohEndpoints.map(SteamDnsProvider::customDoh))
+            addAll(
+                customDohEndpoints.map { endpoint ->
+                    SteamDnsProvider.customDoh(
+                        endpoint = endpoint,
+                        bootstrapAddresses = customDohBootstrapAddresses[endpoint].orEmpty()
+                    )
+                }
+            )
         }.distinctBy(SteamDnsProvider::id)
 
     val activeProviders: List<SteamDnsProvider>
@@ -57,6 +65,7 @@ data class SteamNetworkResolverSettings(
     companion object {
         const val MAX_CUSTOM_DNS = 8
         const val MAX_CUSTOM_DOH = 8
+        const val MAX_DOH_BOOTSTRAP_ADDRESSES = 8
     }
 }
 
@@ -86,6 +95,44 @@ object SteamResolverInputValidator {
         return uri.normalize().toASCIIString()
     }
 
+    /**
+     * Optional literal IPs used to bootstrap a custom DoH hostname.
+     *
+     * Supplying these addresses lets OkHttp connect to the DoH server without first resolving
+     * that resolver hostname through Android/system DNS. HTTPS still uses the hostname from the
+     * DoH URL for SNI and certificate verification.
+     */
+    fun normalizeBootstrapAddresses(raw: String): List<String>? {
+        val value = raw.trim()
+        if (value.isEmpty()) return emptyList()
+        val tokens = value
+            .split(BOOTSTRAP_SEPARATOR)
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+        if (tokens.isEmpty() || tokens.size > SteamNetworkResolverSettings.MAX_DOH_BOOTSTRAP_ADDRESSES) {
+            return null
+        }
+
+        val normalized = mutableListOf<String>()
+        for (token in tokens) {
+            val address = normalizeIpLiteral(token) ?: return null
+            if (address !in normalized) normalized += address
+        }
+        return normalized
+    }
+
+    fun normalizeIpLiteral(raw: String): String? {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty() || trimmed.any(Char::isWhitespace)) return null
+        val unwrapped = trimmed.removePrefix("[").removeSuffix("]")
+        if ('[' in unwrapped || ']' in unwrapped) return null
+        return when {
+            isIpv4(unwrapped) -> unwrapped
+            isIpv6(unwrapped) -> unwrapped.lowercase()
+            else -> null
+        }
+    }
+
     private fun isIpv4(value: String): Boolean {
         val parts = value.split('.')
         return parts.size == 4 && parts.all { part ->
@@ -108,4 +155,5 @@ object SteamResolverInputValidator {
         }
 
     private val IPV6_LITERAL = Regex("[0-9a-fA-F:.]+")
+    private val BOOTSTRAP_SEPARATOR = Regex("[,;\\s]+")
 }
