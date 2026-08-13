@@ -14,6 +14,21 @@ internal class SteamStoreIgnoreSessionException(
     message: String = "Steam 商店偏好会话已失效，请刷新账号后重试"
 ) : SteamStoreSessionException(message)
 
+internal class SteamStoreFamilyViewException(
+    message: String = "Steam 家庭监护可能仍处于锁定状态，请前往 Steam 输入 PIN 解锁"
+) : IllegalStateException(message)
+
+internal fun throwSteamStoreHttpFailure(
+    responseCode: Int,
+    steamLoginSecure: String?,
+    fallbackMessage: () -> String,
+): Nothing {
+    if (responseCode == 403 && steamLoginSecure?.isNotBlank() == true) {
+        throw SteamStoreFamilyViewException()
+    }
+    throw IllegalStateException(fallbackMessage())
+}
+
 internal data class SteamStoreAccountCredentials(
     val accessToken: String?,
     val steamLoginSecure: String?,

@@ -115,6 +115,21 @@ class SteamWebSessionPolicyTest {
     }
 
     @Test
+    fun restoresFamilyViewCookieToStoreAndCommunityDomains() {
+        val writes = SteamWebSessionCookiePolicy.cookieWrites(
+            steamLoginSecure = "76561198000000000||token",
+            sessionId = "abcdef0123456789abcdef01",
+            steamParentalCookie = "steamparental=family-session",
+        )
+
+        val parentalWrites = writes.filter { it.value.startsWith("steamparental=") }
+        assertEquals(2, parentalWrites.size)
+        assertTrue(parentalWrites.any { it.url == "https://store.steampowered.com" })
+        assertTrue(parentalWrites.any { it.url == "https://steamcommunity.com" })
+        assertTrue(parentalWrites.all { it.value.contains("Secure") })
+    }
+
+    @Test
     fun communityDesktopModeUsesBrowserUaWithoutLegacyMobileCookies() {
         val defaultUserAgent =
             "Mozilla/5.0 (Linux; Android 15; Pixel 8 Build/AP3A; wv) " +

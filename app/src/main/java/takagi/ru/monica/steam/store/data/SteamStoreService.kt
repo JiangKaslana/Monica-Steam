@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.store.data
 import android.content.Context
 import java.util.concurrent.TimeUnit
 import takagi.ru.monica.steam.web.domain.normalizeSteamCookieValue
+import takagi.ru.monica.steam.web.domain.SteamFamilyViewSessions
 import java.util.concurrent.ConcurrentHashMap
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -577,6 +578,9 @@ class SteamStoreService(
         val request = buildSteamStoreRequest(path, query, steamLoginSecure, countryCode)
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
+                if (response.code == 403 && steamLoginSecure?.isNotBlank() == true) {
+                    throw SteamStoreFamilyViewException()
+                }
                 if (response.isRedirect) {
                     throw SteamStoreSessionException("Steam 商店会话被重定向，请刷新后重试")
                 }
@@ -605,6 +609,9 @@ class SteamStoreService(
                 response.use {
                     val result = runCatching {
                         if (!response.isSuccessful) {
+                            if (response.code == 403 && steamLoginSecure?.isNotBlank() == true) {
+                                throw SteamStoreFamilyViewException()
+                            }
                             if (response.isRedirect) {
                                 throw SteamStoreSessionException(
                                     "Steam 商店会话被重定向，请刷新后重试"
@@ -851,6 +858,9 @@ internal fun buildSteamStoreRequest(
                 }
                 steamLoginSecure?.takeIf(String::isNotBlank)?.let { value ->
                     add("steamLoginSecure=${encodeSteamCookieValue(value)}")
+                    steamIdFromLoginSecure(value)
+                        ?.let(SteamFamilyViewSessions::cookieFor)
+                        ?.let(::add)
                 }
             }
             if (cookies.isNotEmpty()) {
@@ -860,6 +870,11 @@ internal fun buildSteamStoreRequest(
         .get()
         .build()
 }
+
+private fun steamIdFromLoginSecure(value: String): String? = normalizeSteamCookieValue(value)
+    .substringBefore("||", missingDelimiterValue = "")
+    .trim()
+    .takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
 
 internal fun encodeSteamCookieValue(value: String): String = URLEncoder.encode(
     normalizeSteamCookieValue(value),

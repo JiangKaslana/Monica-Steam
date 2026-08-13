@@ -6,6 +6,7 @@ import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.store.bundle.data.SteamStoreBundleParser
 import takagi.ru.monica.steam.store.bundle.domain.SteamStoreBundle
 import takagi.ru.monica.steam.store.data.buildSteamStoreRequest
+import takagi.ru.monica.steam.store.data.SteamStoreFamilyViewException
 import takagi.ru.monica.steam.store.related.data.SteamStoreRelatedContentService
 
 internal data class SteamStorePurchasePage(
@@ -54,6 +55,9 @@ internal class SteamStorePurchasePageService(
             countryCode = countryCode
         ).newBuilder().header("Accept", "text/html").build()
         val page = client.newCall(request).execute().use { response ->
+            if (response.code == 403 && steamLoginSecure?.isNotBlank() == true) {
+                throw SteamStoreFamilyViewException()
+            }
             if (!response.isSuccessful) return@use SteamStorePurchasePage()
             SteamStorePurchasePageParser.parse(response.body?.string().orEmpty())
         }
@@ -84,5 +88,8 @@ internal class SteamStorePurchasePageService(
         SteamDiagLogger.append(
             "store_purchase_page fetch_failed app_id=$appId type=${error.javaClass.simpleName}"
         )
-    }.getOrDefault(SteamStorePurchasePage())
+    }.getOrElse { error ->
+        if (error is SteamStoreFamilyViewException) throw error
+        SteamStorePurchasePage()
+    }
 }

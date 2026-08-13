@@ -4766,6 +4766,7 @@
     <string name="steam_freebie_retry">Try again</string>
     <string name="steam_store_filter_empty">No matching store items are available right now.</string>
     <string name="steam_store_retry">Retry</string>
+    <string name="steam_store_family_view_unlock">Unlock Family View on Steam</string>
     <string name="steam_store_load_more">Load more games</string>
     <string name="steam_points_shop_title">Points Shop</string>
     <string name="steam_points_shop_balance">Your points</string>

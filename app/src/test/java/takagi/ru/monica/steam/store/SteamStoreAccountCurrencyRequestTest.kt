@@ -1,6 +1,7 @@
 package takagi.ru.monica.steam.store
 
 import takagi.ru.monica.steam.store.data.*
+import takagi.ru.monica.steam.web.domain.SteamFamilyViewSessions
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -62,5 +63,35 @@ class SteamStoreAccountCurrencyRequestTest {
             countryCode = "CN"
         )
         assertEquals("CN", request.url.queryParameter("cc"))
+    }
+
+    @Test
+    fun familyViewCookieIsSentOnlyForItsSteamAccount() {
+        val firstSteamId = "76561198000000000"
+        val secondSteamId = "76561198000000001"
+        SteamFamilyViewSessions.capture(firstSteamId, "steamparental=family-session")
+        try {
+            val matchingRequest = buildSteamStoreRequest(
+                path = "/api/featuredcategories",
+                query = mapOf("l" to "schinese"),
+                steamLoginSecure = "$firstSteamId||first-token",
+            )
+            val otherAccountRequest = buildSteamStoreRequest(
+                path = "/api/featuredcategories",
+                query = mapOf("l" to "schinese"),
+                steamLoginSecure = "$secondSteamId||second-token",
+            )
+
+            assertTrue(
+                matchingRequest.header("Cookie").orEmpty()
+                    .contains("steamparental=family-session"),
+            )
+            assertFalse(
+                otherAccountRequest.header("Cookie").orEmpty()
+                    .contains("steamparental="),
+            )
+        } finally {
+            SteamFamilyViewSessions.clear(firstSteamId)
+        }
     }
 }

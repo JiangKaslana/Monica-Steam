@@ -106,8 +106,10 @@ data class SteamStoreUiState(
     val loadingMoreReviews: Boolean = false,
     val reviewLoadError: String? = null,
     val error: String? = null,
+    val familyViewUnlockRequired: Boolean = false,
     val webUrl: String? = null,
     val webRequiresAuthenticatedSession: Boolean = false,
+    val webReturnRefreshRequired: Boolean = false,
     val pointsShopOpen: Boolean = false,
     val cart: List<SteamCartItem> = emptyList(),
     val cartOpen: Boolean = false,
@@ -254,14 +256,16 @@ class SteamStoreViewModel internal constructor(
                     _uiState.value = _uiState.value.copy(
                         home = home,
                         homeFromCache = false,
-                        loadingHome = false
+                        loadingHome = false,
+                        familyViewUnlockRequired = false,
                     )
                 }
                 .onFailure { error ->
                     if (_uiState.value.selectedAccountId != accountId) return@onFailure
                     _uiState.value = _uiState.value.copy(
                         loadingHome = false,
-                        error = error.message ?: "Steam 商店连接失败"
+                        error = error.message ?: "Steam 商店连接失败",
+                        familyViewUnlockRequired = error is SteamStoreFamilyViewException,
                     )
                 }
         }
@@ -311,13 +315,14 @@ class SteamStoreViewModel internal constructor(
                     filterMetadata = metadata,
                     filterMetadataFromCache = false,
                     loadingFilterMetadata = false,
-                    filterMetadataError = null
+                    filterMetadataError = null,
                 )
             }.onFailure { error ->
                 if (!filterMetadataRequestIsCurrent(accountId, generation)) return@onFailure
                 _uiState.value = _uiState.value.copy(
                     loadingFilterMetadata = false,
-                    filterMetadataError = error.message ?: "Steam 商店筛选信息加载失败"
+                    filterMetadataError = error.message ?: "Steam 商店筛选信息加载失败",
+                    familyViewUnlockRequired = error is SteamStoreFamilyViewException,
                 )
             }
         }
@@ -370,7 +375,8 @@ class SteamStoreViewModel internal constructor(
                     ) return@onSuccess
                     _uiState.value = _uiState.value.copy(
                         searchResults = results,
-                        searching = false
+                        searching = false,
+                        familyViewUnlockRequired = false,
                     )
                 }
                 .onFailure { error ->
@@ -380,7 +386,8 @@ class SteamStoreViewModel internal constructor(
                     ) return@onFailure
                     _uiState.value = _uiState.value.copy(
                         searching = false,
-                        error = error.message ?: "搜索失败"
+                        error = error.message ?: "搜索失败",
+                        familyViewUnlockRequired = error is SteamStoreFamilyViewException,
                     )
                 }
         }
@@ -522,6 +529,7 @@ class SteamStoreViewModel internal constructor(
                         detailFromCache = false,
                         loadingDetail = false,
                         reviewLoadError = null,
+                        familyViewUnlockRequired = false,
                         ignoredSyncStates = ignoredSyncState?.let {
                             _uiState.value.ignoredSyncStates + (appId to it)
                         } ?: (_uiState.value.ignoredSyncStates - appId)
@@ -549,7 +557,8 @@ class SteamStoreViewModel internal constructor(
                     ) return@onFailure
                     _uiState.value = _uiState.value.copy(
                         loadingDetail = false,
-                        error = error.message ?: "商品详情加载失败"
+                        error = error.message ?: "商品详情加载失败",
+                        familyViewUnlockRequired = error is SteamStoreFamilyViewException,
                     )
                 }
         }
@@ -1416,14 +1425,16 @@ class SteamStoreViewModel internal constructor(
                     catalogPage = merged,
                     catalogFromCache = false,
                     loadingCatalog = false,
-                    loadingMoreCatalog = false
+                    loadingMoreCatalog = false,
+                    familyViewUnlockRequired = false,
                 )
             }.onFailure { error ->
                 if (!catalogRequestIsCurrent(accountId, filter, filters, generation)) return@onFailure
                 _uiState.value = _uiState.value.copy(
                     loadingCatalog = false,
                     loadingMoreCatalog = false,
-                    catalogError = error.message ?: "Steam 商店目录加载失败"
+                    catalogError = error.message ?: "Steam 商店目录加载失败",
+                    familyViewUnlockRequired = error is SteamStoreFamilyViewException,
                 )
             }
         }
@@ -1495,6 +1506,10 @@ class SteamStoreViewModel internal constructor(
             loadingMoreReviews = false,
             reviewLoadError = null,
             error = null,
+            familyViewUnlockRequired = false,
+            webUrl = null,
+            webRequiresAuthenticatedSession = false,
+            webReturnRefreshRequired = false,
             cart = emptyList(),
             cartOpen = false,
             collectionTab = SteamStoreCollectionTab.CART,
@@ -1629,12 +1644,42 @@ class SteamStoreViewModel internal constructor(
         }
     }
 
+    fun openFamilyViewUnlock() {
+        val account = selectedAccount() ?: return
+        if (!account.hasAuthenticatedSession) return
+        _uiState.value = _uiState.value.copy(
+            webUrl = FAMILY_VIEW_UNLOCK_URL,
+            webRequiresAuthenticatedSession = true,
+            webReturnRefreshRequired = true,
+        )
+    }
+
     fun closeStoreWeb() {
+        val shouldRefresh = _uiState.value.webReturnRefreshRequired
         _uiState.value = _uiState.value.copy(
             webUrl = null,
             webRequiresAuthenticatedSession = false,
+            webReturnRefreshRequired = false,
             checkoutLines = emptyList()
         )
+        if (shouldRefresh) refreshAfterFamilyViewUnlock()
+    }
+
+    private fun refreshAfterFamilyViewUnlock() {
+        _uiState.value = _uiState.value.copy(
+            familyViewUnlockRequired = false,
+            error = null,
+            catalogError = null,
+            filterMetadataError = null,
+        )
+        loadStoreFilterMetadata(force = true)
+        when {
+            _uiState.value.detailAppId != null -> retryDetail()
+            _uiState.value.query.isNotBlank() -> search()
+            _uiState.value.browseFilter != SteamStoreBrowseFilter.ALL ||
+                _uiState.value.storeFilters.isActive -> loadCatalog(force = true)
+            else -> loadHome(force = true)
+        }
     }
 
     private fun openGiftRecipientPicker(item: SteamCartItem) {
@@ -1988,6 +2033,8 @@ class SteamStoreViewModel internal constructor(
     }
 
     companion object {
+        internal const val FAMILY_VIEW_UNLOCK_URL =
+            "https://store.steampowered.com/parental/"
         internal val REGIONAL_PRICE_COUNTRY_CODES =
             listOf(
                 "CN", "US", "JP", "KR", "HK", "TW", "DE", "GB", "BR", "RU",

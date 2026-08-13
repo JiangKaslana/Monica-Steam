@@ -164,24 +164,31 @@ object SteamWebClientPolicy {
 }
 
 object SteamWebSessionCookiePolicy {
-    fun cookies(steamLoginSecure: String?, sessionId: String): List<String> =
+    fun cookies(
+        steamLoginSecure: String?,
+        sessionId: String,
+        steamParentalCookie: String? = null,
+    ): List<String> =
         domainCookies(
             domain = ".steampowered.com",
             steamLoginSecure = steamLoginSecure,
             sessionId = sessionId,
-            includeAgeGate = true
+            includeAgeGate = true,
+            steamParentalCookie = steamParentalCookie,
         )
 
     fun cookieWrites(
         steamLoginSecure: String?,
         sessionId: String,
-        clientMode: SteamWebClientMode = SteamWebClientMode.DEFAULT
+        clientMode: SteamWebClientMode = SteamWebClientMode.DEFAULT,
+        steamParentalCookie: String? = null,
     ): List<SteamWebCookieWrite> = buildList {
         domainCookies(
             domain = ".steampowered.com",
             steamLoginSecure = steamLoginSecure,
             sessionId = sessionId,
-            includeAgeGate = true
+            includeAgeGate = true,
+            steamParentalCookie = steamParentalCookie,
         ).forEach { value ->
             add(SteamWebCookieWrite("https://store.steampowered.com", value))
         }
@@ -190,7 +197,8 @@ object SteamWebSessionCookiePolicy {
             steamLoginSecure = steamLoginSecure,
             sessionId = sessionId,
             includeAgeGate = false,
-            includeMobileClient = clientMode != SteamWebClientMode.COMMUNITY_DESKTOP
+            includeMobileClient = clientMode != SteamWebClientMode.COMMUNITY_DESKTOP,
+            steamParentalCookie = steamParentalCookie,
         ).forEach { value ->
             add(SteamWebCookieWrite("https://steamcommunity.com", value))
         }
@@ -215,7 +223,8 @@ object SteamWebSessionCookiePolicy {
         steamLoginSecure: String?,
         sessionId: String,
         includeAgeGate: Boolean,
-        includeMobileClient: Boolean = !includeAgeGate
+        includeMobileClient: Boolean = !includeAgeGate,
+        steamParentalCookie: String? = null,
     ): List<String> = buildList {
         add("sessionid=${encode(sessionId)}; Domain=$domain; Path=/; Secure; SameSite=None")
         if (includeAgeGate) {
@@ -231,6 +240,11 @@ object SteamWebSessionCookiePolicy {
                     "Path=/; Secure; HttpOnly; SameSite=None"
             )
         }
+        steamParentalCookie
+            ?.takeIf { it.startsWith("steamparental=") }
+            ?.let { cookie ->
+                add("$cookie; Domain=$domain; Path=/; Secure; HttpOnly; SameSite=None")
+            }
     }
 
     private fun encode(value: String): String = URLEncoder.encode(

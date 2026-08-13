@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.Sync
@@ -290,13 +291,13 @@ fun SteamStoreScreen(
     }
 
     BackHandler(
-        enabled = state.regionalPriceSheetOpen ||
-            state.webUrl != null || state.cartOpen || state.detailAppId != null ||
-            state.pointsShopOpen || freebiesOpen
+        enabled = state.webUrl == null && (
+            state.regionalPriceSheetOpen || state.cartOpen || state.detailAppId != null ||
+                state.pointsShopOpen || freebiesOpen
+            )
     ) {
         when {
             state.regionalPriceSheetOpen -> viewModel.closeRegionalPrices()
-            state.webUrl != null -> viewModel.closeStoreWeb()
             state.detailAppId != null -> viewModel.closeDetail()
             state.cartOpen -> viewModel.closeCart()
             state.pointsShopOpen -> viewModel.closePointsShop()
@@ -376,8 +377,10 @@ fun SteamStoreScreen(
                     SteamStoreDetailUnavailableContent(
                         loading = state.loadingDetail,
                         error = state.error,
+                        familyViewUnlockRequired = state.familyViewUnlockRequired,
                         onBack = viewModel::closeDetail,
                         onRetry = viewModel::retryDetail,
+                        onUnlockFamilyView = viewModel::openFamilyViewUnlock,
                         onOpenOfficial = {
                             viewModel.openStoreWeb(
                                 "https://store.steampowered.com/app/${destination.appId}/"
@@ -604,8 +607,8 @@ fun SteamStoreScreen(
                         if (state.error != null || state.catalogError != null) {
                         item {
                             StoreMessage(
-                                    state.catalogError ?: state.error.orEmpty(),
-                                    onRetry = {
+                                message = state.catalogError ?: state.error.orEmpty(),
+                                onRetry = {
                                         if (state.query.isBlank() &&
                                             (state.browseFilter != SteamStoreBrowseFilter.ALL ||
                                                 state.storeFilters.isActive)
@@ -613,7 +616,12 @@ fun SteamStoreScreen(
                                             viewModel.loadCatalog(force = true)
                                         } else if (state.query.isBlank()) viewModel.loadHome(force = true)
                                         else viewModel.search()
-                                }
+                                },
+                                onUnlockFamilyView = if (state.familyViewUnlockRequired) {
+                                    viewModel::openFamilyViewUnlock
+                                } else {
+                                    null
+                                },
                             )
                         }
                     }
@@ -766,8 +774,10 @@ fun SteamStoreScreen(
 private fun SteamStoreDetailUnavailableContent(
     loading: Boolean,
     error: String?,
+    familyViewUnlockRequired: Boolean,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onUnlockFamilyView: () -> Unit,
     onOpenOfficial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -825,6 +835,17 @@ private fun SteamStoreDetailUnavailableContent(
                     )
                 }
                 Spacer(Modifier.height(24.dp))
+                if (familyViewUnlockRequired) {
+                    Button(
+                        onClick = onUnlockFamilyView,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                    ) {
+                        Icon(Icons.Default.LockOpen, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.steam_store_family_view_unlock))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
                 Button(
                     onClick = onRetry,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
@@ -2403,10 +2424,21 @@ private fun PriceRow(discount: Int, initial: String, final: String, modifier: Mo
 @Composable private fun CachedNotice() { Text(stringResource(R.string.steam_store_cached), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 16.dp)) }
 
 @Composable
-private fun StoreMessage(message: String, onRetry: (() -> Unit)? = null) {
+private fun StoreMessage(
+    message: String,
+    onRetry: (() -> Unit)? = null,
+    onUnlockFamilyView: (() -> Unit)? = null,
+) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(message)
+            if (onUnlockFamilyView != null) {
+                FilledTonalButton(onClick = onUnlockFamilyView) {
+                    Icon(Icons.Default.LockOpen, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.steam_store_family_view_unlock))
+                }
+            }
             if (onRetry != null) FilledTonalButton(onClick = onRetry) { Text(stringResource(R.string.steam_store_retry)) }
         }
     }

@@ -3,6 +3,7 @@ package takagi.ru.monica.steam.store.catalog.data
 import java.util.concurrent.ConcurrentHashMap
 import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.store.data.buildSteamStoreRequest
+import takagi.ru.monica.steam.store.data.throwSteamStoreHttpFailure
 import takagi.ru.monica.steam.store.domain.SteamStoreBrowseFilter
 import takagi.ru.monica.steam.store.domain.SteamStoreCatalogPage
 import takagi.ru.monica.steam.store.domain.SteamStoreItem
@@ -35,7 +36,9 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
         )
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("Steam 商店目录请求失败：${response.code}")
+                throwSteamStoreHttpFailure(response.code, steamLoginSecure) {
+                    "Steam 商店目录请求失败：${response.code}"
+                }
             }
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 商店目录返回空数据")
@@ -65,7 +68,9 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
         )
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("Steam 商店筛选搜索请求失败：${response.code}")
+                throwSteamStoreHttpFailure(response.code, steamLoginSecure) {
+                    "Steam 商店筛选搜索请求失败：${response.code}"
+                }
             }
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 商店筛选搜索返回空数据")
@@ -132,7 +137,9 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
         )
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("Steam 价格档位请求失败：${response.code}")
+                throwSteamStoreHttpFailure(response.code, steamLoginSecure) {
+                    "Steam 价格档位请求失败：${response.code}"
+                }
             }
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 价格档位返回空数据")
@@ -162,7 +169,9 @@ internal class SteamStoreCatalogService(private val client: OkHttpClient) {
         )
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("Steam 预算目录请求失败：${response.code}")
+                throwSteamStoreHttpFailure(response.code, steamLoginSecure) {
+                    "Steam 预算目录请求失败：${response.code}"
+                }
             }
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 预算目录返回空数据")

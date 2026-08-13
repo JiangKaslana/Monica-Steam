@@ -66,6 +66,8 @@ import takagi.ru.monica.steam.web.domain.SteamWebAccountSessionPolicy
 import takagi.ru.monica.steam.web.domain.SteamWebBrowserState
 import takagi.ru.monica.steam.web.domain.SteamWebClientMode
 import takagi.ru.monica.steam.web.domain.SteamWebFailureKind
+import takagi.ru.monica.steam.web.domain.SteamFamilyViewCookieSourcePolicy
+import takagi.ru.monica.steam.web.domain.SteamFamilyViewSessions
 import takagi.ru.monica.steam.web.domain.SteamWebNavigationCommand
 import takagi.ru.monica.steam.web.domain.SteamWebNavigationPolicy
 import takagi.ru.monica.steam.web.domain.SteamWebPageAutomation
@@ -163,6 +165,7 @@ fun SteamWebBrowserScreen(
         onPlatformViewVisibilityChanged
     )
     val downloadRequestCallback by rememberUpdatedState(onDownloadRequested)
+    val closeCallback by rememberUpdatedState(onClose)
     val externalUnavailableMessage = stringResource(R.string.steam_web_external_unavailable)
     val fileChooserUnavailableMessage = stringResource(R.string.steam_web_file_chooser_unavailable)
 
@@ -203,11 +206,25 @@ fun SteamWebBrowserScreen(
         runCatching { callback?.onCustomViewHidden() }
     }
 
+    fun captureFamilyViewSession(pageUrl: String?) {
+        val accountSteamId = expectedSteamId?.trim()?.takeIf(String::isNotBlank) ?: return
+        val allowedUrl = pageUrl?.takeIf(SteamFamilyViewCookieSourcePolicy::isAllowed) ?: return
+        SteamFamilyViewSessions.capture(
+            accountSteamId = accountSteamId,
+            cookieHeader = CookieManager.getInstance().getCookie(allowedUrl),
+        )
+    }
+
+    fun closeBrowser() {
+        captureFamilyViewSession(controller.webView?.url ?: browserState.currentUrl)
+        closeCallback()
+    }
+
     fun handleBack() {
         when {
             customView != null -> hideCustomView()
             browserState.canGoBack -> controller.goBack()
-            else -> onClose()
+            else -> closeBrowser()
         }
     }
 
@@ -308,7 +325,7 @@ fun SteamWebBrowserScreen(
         when {
             !sessionDecision.canLoad -> SteamWebSessionError(sessionDecision.problem)
             !initialUrlAllowed -> browserState.failure?.let { failure ->
-                SteamWebFailureContent(failure, onRetry = ::retry, onClose = onClose)
+                SteamWebFailureContent(failure, onRetry = ::retry, onClose = ::closeBrowser)
             }
             !platformViewReady -> Surface(
                 modifier = Modifier.fillMaxSize(),
@@ -477,6 +494,7 @@ fun SteamWebBrowserScreen(
                                         }
                                     )
                                     CookieManager.getInstance().flush()
+                                    captureFamilyViewSession(pageUrl)
                                     view.postInvalidate()
                                     saveSteamWebViewState(view)?.let { savedWebViewState = it }
                                     if (pageFailure == null) {
@@ -546,7 +564,9 @@ fun SteamWebBrowserScreen(
                                             sessionDecision.installAuthenticatedCookie
                                         },
                                         sessionId = sessionId,
-                                        clientMode = clientMode
+                                        clientMode = clientMode,
+                                        steamParentalCookie = expectedSteamId
+                                            ?.let(SteamFamilyViewSessions::cookieFor),
                                     )
                                 ) {
                                     if (controller.webView !== this@steamWebView) return@replaceSteamCookies
@@ -632,7 +652,7 @@ fun SteamWebBrowserScreen(
                     SteamWebFailureContent(
                         failure = failure,
                         onRetry = ::retry,
-                        onClose = onClose
+                        onClose = ::closeBrowser
                     )
                 }
             }
@@ -661,7 +681,7 @@ fun SteamWebBrowserScreen(
                 onOpenExternal = {
                     openExternal(browserState.currentUrl, browserOnly = true)
                 },
-                onClose = onClose,
+                onClose = ::closeBrowser,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
@@ -682,6 +702,7 @@ fun SteamWebBrowserScreen(
             customViewCallback = null
             runCatching { callback?.onCustomViewHidden() }
             controller.webView?.let { view ->
+                captureFamilyViewSession(view.url ?: browserState.currentUrl)
                 saveSteamWebViewState(view)
                 controller.detach(view)
                 destroySteamWebView(view)

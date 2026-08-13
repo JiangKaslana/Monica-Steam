@@ -4596,6 +4596,7 @@
     <string name="steam_freebie_retry">重试</string>
     <string name="steam_store_filter_empty">当前没有符合此筛选条件的商店内容。</string>
     <string name="steam_store_retry">重试</string>
+    <string name="steam_store_family_view_unlock">前往 Steam 解锁家庭监护</string>
     <string name="steam_store_load_more">加载更多游戏</string>
     <string name="steam_points_shop_title">点数商店</string>
     <string name="steam_points_shop_balance">我的点数</string>

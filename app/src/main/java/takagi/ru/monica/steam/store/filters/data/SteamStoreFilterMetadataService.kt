@@ -2,6 +2,7 @@ package takagi.ru.monica.steam.store.filters.data
 
 import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.store.data.buildSteamStoreRequest
+import takagi.ru.monica.steam.store.data.throwSteamStoreHttpFailure
 import takagi.ru.monica.steam.store.filters.domain.SteamStoreFilterMetadata
 
 internal class SteamStoreFilterMetadataService(private val client: OkHttpClient) {
@@ -21,7 +22,9 @@ internal class SteamStoreFilterMetadataService(private val client: OkHttpClient)
         )
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("Steam 商店筛选信息请求失败：${response.code}")
+                throwSteamStoreHttpFailure(response.code, steamLoginSecure) {
+                    "Steam 商店筛选信息请求失败：${response.code}"
+                }
             }
             val body = response.body?.string()?.takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("Steam 商店筛选信息返回空数据")
