@@ -26,7 +26,8 @@
     <string name="steam_network_resolver_benchmark_hint">系统 DNS、内置 DoH 和自定义解析服务器都在这一页统一选择与测速；关闭的来源不会参与动态解析或完整扫描。</string>
 
     <string name="steam_network_custom_resolver_title">添加解析服务器</string>
-    <string name="steam_network_custom_dns_unified_description">只需填写一个地址：以 https:// 开头时自动作为 DoH，否则作为普通 DNS。DoH 可选填 Bootstrap IP。</string>
+    <string name="steam_network_custom_dns_unified_description">填写一个地址即可自动识别普通 DNS 与 DoH；再次填写已有 DoH 地址可以更新 Bootstrap IP。</string>
+    <string name="steam_network_custom_resolver_capacity">DNS %1$d/%2$d · DoH %3$d/%4$d</string>
     <string name="steam_network_custom_dns_address_label">服务器地址</string>
     <string name="steam_network_custom_dns_unified_placeholder">1.1.1.1 或 https://dns.example/dns-query</string>
     <string name="steam_network_custom_dns_address_hint">自动识别普通 DNS 与 DoH，不需要切换页面或类型。</string>
@@ -36,6 +37,7 @@
     <string name="steam_network_custom_doh_bootstrap_placeholder">1.1.1.1, 1.0.0.1</string>
     <string name="steam_network_custom_doh_bootstrap_invalid">这里只能填写合法 IPv4 / IPv6；多个地址请用逗号或空格分隔。</string>
     <string name="steam_network_custom_doh_bootstrap_summary">引导 IP：%1$s</string>
+    <string name="steam_network_resolver_update">更新来源</string>
 
     <string name="steam_network_ipv6_prefer">IPv6 优先</string>
     <string name="steam_network_ipv6_prefer_description">DoH / 系统解析同时获得 IPv4 与 IPv6 时优先尝试 IPv6；不可用时仍可回落 IPv4。传统自定义 DNS 当前仍查询 A 记录。</string>

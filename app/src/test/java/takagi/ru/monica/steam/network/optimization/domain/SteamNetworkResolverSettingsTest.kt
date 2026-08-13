@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import takagi.ru.monica.steam.network.optimization.SteamDohBootstrapPreferencesCodec
 
 class SteamNetworkResolverSettingsTest {
     @Test
@@ -173,6 +174,43 @@ class SteamNetworkResolverSettingsTest {
         )
         assertNull(
             SteamResolverInputValidator.normalizeBootstrapAddresses("1.1.1.1:53")
+        )
+        assertNull(SteamResolverInputValidator.normalizeBootstrapAddresses(":::::"))
+        assertNull(SteamResolverInputValidator.normalizeBootstrapAddresses("1:2:3"))
+        assertNull(
+            SteamResolverInputValidator.normalizeBootstrapAddresses("[2606:4700:4700::1111")
+        )
+        assertNull(
+            SteamResolverInputValidator.normalizeBootstrapAddresses("2606:4700:4700::1111]")
+        )
+    }
+
+    @Test
+    fun dohBootstrapPreferencesRoundTripAndIgnoreInvalidOrOrphanEntries() {
+        val endpoint = "https://gateway.example/dns-query"
+        val encoded = SteamDohBootstrapPreferencesCodec.encode(
+            mapOf(
+                endpoint to listOf("1.1.1.1", "2606:4700:4700::1111"),
+                "invalid endpoint" to listOf("8.8.8.8"),
+                "https://empty.example/dns-query" to emptyList()
+            )
+        )
+
+        assertEquals(1, encoded.size)
+        assertEquals(
+            mapOf(endpoint to listOf("1.1.1.1", "2606:4700:4700::1111")),
+            SteamDohBootstrapPreferencesCodec.decode(
+                entries = encoded + setOf(
+                    "https://orphan.example/dns-query\t8.8.8.8",
+                    "$endpoint\tresolver.example",
+                    "malformed"
+                ),
+                validEndpoints = setOf(endpoint)
+            )
+        )
+        assertEquals(
+            emptyMap<String, List<String>>(),
+            SteamDohBootstrapPreferencesCodec.decode(encoded, emptySet())
         )
     }
 }

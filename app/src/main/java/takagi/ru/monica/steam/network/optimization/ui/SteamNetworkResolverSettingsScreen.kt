@@ -153,6 +153,7 @@ fun SteamNetworkResolverSettingsScreen(
                 CustomResolverAddCard(
                     dnsValues = settings.customDnsServers,
                     dohValues = settings.customDohEndpoints,
+                    dohBootstrapValues = settings.customDohBootstrapAddresses,
                     dnsLimit = SteamNetworkResolverSettings.MAX_CUSTOM_DNS,
                     dohLimit = SteamNetworkResolverSettings.MAX_CUSTOM_DOH,
                     onAddDns = {
@@ -194,6 +195,7 @@ fun SteamNetworkResolverSettingsScreen(
 private fun CustomResolverAddCard(
     dnsValues: List<String>,
     dohValues: List<String>,
+    dohBootstrapValues: Map<String, List<String>>,
     dnsLimit: Int,
     dohLimit: Int,
     onAddDns: (String) -> Boolean,
@@ -213,13 +215,16 @@ private fun CustomResolverAddCard(
     val normalizedBootstrap = SteamResolverInputValidator.normalizeBootstrapAddresses(bootstrapInput)
     val resolverInvalid = resolverInput.isNotBlank() && normalizedDoh == null && normalizedDns == null
     val bootstrapInvalid = bootstrapInput.isNotBlank() && normalizedBootstrap == null
+    val isUpdatingDoh = normalizedDoh != null && normalizedDoh in dohValues
     val duplicate = when {
-        normalizedDoh != null -> normalizedDoh in dohValues
+        normalizedDoh != null -> isUpdatingDoh &&
+            normalizedBootstrap != null &&
+            dohBootstrapValues[normalizedDoh].orEmpty() == normalizedBootstrap
         normalizedDns != null -> normalizedDns in dnsValues
         else -> false
     }
     val limitReached = when {
-        normalizedDoh != null -> dohValues.size >= dohLimit
+        normalizedDoh != null -> !isUpdatingDoh && dohValues.size >= dohLimit
         normalizedDns != null -> dnsValues.size >= dnsLimit
         else -> false
     }
@@ -241,8 +246,10 @@ private fun CustomResolverAddCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             ResolverAddCardHeader(
-                count = dnsValues.size + dohValues.size,
-                limit = dnsLimit + dohLimit
+                dnsCount = dnsValues.size,
+                dnsLimit = dnsLimit,
+                dohCount = dohValues.size,
+                dohLimit = dohLimit
             )
 
             OutlinedTextField(
@@ -305,9 +312,18 @@ private fun CustomResolverAddCard(
                 enabled = canAdd,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Default.Add, contentDescription = null)
+                Icon(
+                    if (isUpdatingDoh) Icons.Default.Dns else Icons.Default.Add,
+                    contentDescription = null
+                )
                 Text(
-                    text = stringResource(R.string.steam_network_resolver_add),
+                    text = stringResource(
+                        if (isUpdatingDoh) {
+                            R.string.steam_network_resolver_update
+                        } else {
+                            R.string.steam_network_resolver_add
+                        }
+                    ),
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
@@ -365,8 +381,10 @@ private fun ResolverToggleRow(
 
 @Composable
 private fun ResolverAddCardHeader(
-    count: Int,
-    limit: Int
+    dnsCount: Int,
+    dnsLimit: Int,
+    dohCount: Int,
+    dohLimit: Int
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -385,7 +403,7 @@ private fun ResolverAddCardHeader(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = stringResource(R.string.steam_network_custom_dns_title),
+                text = stringResource(R.string.steam_network_custom_resolver_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -396,7 +414,13 @@ private fun ResolverAddCardHeader(
             )
         }
         Text(
-            text = "$count/$limit",
+            text = stringResource(
+                R.string.steam_network_custom_resolver_capacity,
+                dnsCount,
+                dnsLimit,
+                dohCount,
+                dohLimit
+            ),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -76,8 +76,7 @@ object SteamResolverInputValidator {
             return null
         }
         if ('/' in trimmed || '?' in trimmed || '#' in trimmed || '@' in trimmed) return null
-        val unwrapped = trimmed.removePrefix("[").removeSuffix("]")
-        if ('[' in unwrapped || ']' in unwrapped) return null
+        val unwrapped = unwrapIpLiteral(trimmed) ?: return null
         if (isIpv4(unwrapped) || isIpv6(unwrapped)) return unwrapped.lowercase()
         if (':' in unwrapped) return null
         val normalized = runCatching {
@@ -124,13 +123,20 @@ object SteamResolverInputValidator {
     fun normalizeIpLiteral(raw: String): String? {
         val trimmed = raw.trim()
         if (trimmed.isEmpty() || trimmed.any(Char::isWhitespace)) return null
-        val unwrapped = trimmed.removePrefix("[").removeSuffix("]")
-        if ('[' in unwrapped || ']' in unwrapped) return null
+        val unwrapped = unwrapIpLiteral(trimmed) ?: return null
         return when {
             isIpv4(unwrapped) -> unwrapped
             isIpv6(unwrapped) -> unwrapped.lowercase()
             else -> null
         }
+    }
+
+    private fun unwrapIpLiteral(value: String): String? {
+        val startsWithBracket = value.startsWith('[')
+        val endsWithBracket = value.endsWith(']')
+        if (startsWithBracket != endsWithBracket) return null
+        val unwrapped = if (startsWithBracket) value.substring(1, value.lastIndex) else value
+        return unwrapped.takeIf { it.isNotEmpty() && '[' !in it && ']' !in it }
     }
 
     private fun isIpv4(value: String): Boolean {
@@ -142,7 +148,7 @@ object SteamResolverInputValidator {
     }
 
     private fun isIpv6(value: String): Boolean {
-        if (':' !in value || !value.matches(IPV6_LITERAL)) return false
+        if (value.count { it == ':' } < 2 || !value.matches(IPV6_LITERAL)) return false
         return runCatching { InetAddress.getByName(value).hostAddress }.isSuccess
     }
 

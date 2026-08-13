@@ -24,7 +24,6 @@ object SteamNetworkResolverSettingsRuntime {
     private const val KEY_DISABLED_BUILT_IN_PROVIDER_IDS = "resolver_disabled_builtin_provider_ids"
     private const val KEY_DISABLED_CUSTOM_PROVIDER_IDS = "resolver_disabled_custom_provider_ids"
     private const val KEY_PREFER_IPV6 = "resolver_prefer_ipv6"
-    private const val BOOTSTRAP_ENTRY_SEPARATOR = "\t"
 
     private val mutableSettings = MutableStateFlow(SteamNetworkResolverSettings())
     val settings: StateFlow<SteamNetworkResolverSettings> = mutableSettings.asStateFlow()
@@ -242,13 +241,18 @@ object SteamNetworkResolverSettingsRuntime {
         val value = SteamResolverInputValidator.normalizeDohEndpoint(raw) ?: return false
         val bootstrapAddresses =
             SteamResolverInputValidator.normalizeBootstrapAddresses(bootstrapRaw) ?: return false
-        val current = mutableSettings.value.customDohEndpoints
-        if (value in current || current.size >= SteamNetworkResolverSettings.MAX_CUSTOM_DOH) {
+        val currentSettings = mutableSettings.value
+        val current = currentSettings.customDohEndpoints
+        val existing = value in current
+        if (!existing && current.size >= SteamNetworkResolverSettings.MAX_CUSTOM_DOH) {
+            return false
+        }
+        if (existing && currentSettings.customDohBootstrapAddresses[value].orEmpty() == bootstrapAddresses) {
             return false
         }
 
-        val updated = (current + value).distinct().sorted()
-        val updatedBootstrap = mutableSettings.value.customDohBootstrapAddresses.toMutableMap()
+        val updated = if (existing) current else (current + value).distinct().sorted()
+        val updatedBootstrap = currentSettings.customDohBootstrapAddresses.toMutableMap()
         if (bootstrapAddresses.isEmpty()) {
             updatedBootstrap.remove(value)
         } else {
@@ -256,10 +260,13 @@ object SteamNetworkResolverSettingsRuntime {
         }
         preferences.edit()
             .putStringSet(KEY_CUSTOM_DOH, updated.toSet())
-            .putStringSet(KEY_CUSTOM_DOH_BOOTSTRAP, encodeDohBootstrapAddresses(updatedBootstrap))
+            .putStringSet(
+                KEY_CUSTOM_DOH_BOOTSTRAP,
+                SteamDohBootstrapPreferencesCodec.encode(updatedBootstrap)
+            )
             .apply()
         updateSettings(
-            mutableSettings.value.copy(
+            currentSettings.copy(
                 customDohEndpoints = updated,
                 customDohBootstrapAddresses = updatedBootstrap.toMap()
             )
@@ -267,7 +274,8 @@ object SteamNetworkResolverSettingsRuntime {
         notifyResolverChanged()
         runCatching {
             SteamDiagLogger.append(
-                "dynamic_dns custom_doh added host=${SteamDnsProvider.customDoh(value).displayName} " +
+                "dynamic_dns custom_doh ${if (existing) "updated" else "added"} " +
+                    "host=${SteamDnsProvider.customDoh(value).displayName} " +
                     "bootstrap=${bootstrapAddresses.size}"
             )
         }
@@ -284,7 +292,10 @@ object SteamNetworkResolverSettingsRuntime {
         val preferred = mutableSettings.value.preferredProviderIds - providerId
         preferences.edit()
             .putStringSet(KEY_CUSTOM_DOH, updated.toSet())
-            .putStringSet(KEY_CUSTOM_DOH_BOOTSTRAP, encodeDohBootstrapAddresses(updatedBootstrap))
+            .putStringSet(
+                KEY_CUSTOM_DOH_BOOTSTRAP,
+                SteamDohBootstrapPreferencesCodec.encode(updatedBootstrap)
+            )
             .putStringSet(KEY_DISABLED_CUSTOM_PROVIDER_IDS, disabled)
             .putString(KEY_PREFERRED_PROVIDER_IDS, preferred.joinToString("\n"))
             .apply()
@@ -367,34 +378,10 @@ object SteamNetworkResolverSettingsRuntime {
     }
 
     private fun loadDohBootstrapAddresses(validEndpoints: Set<String>): Map<String, List<String>> {
-        if (validEndpoints.isEmpty()) return emptyMap()
-        val result = linkedMapOf<String, List<String>>()
-        preferences.getStringSet(KEY_CUSTOM_DOH_BOOTSTRAP, emptySet())
-            .orEmpty()
-            .forEach { entry ->
-                val separator = entry.indexOf(BOOTSTRAP_ENTRY_SEPARATOR)
-                if (separator <= 0) return@forEach
-                val endpoint = entry.substring(0, separator)
-                if (endpoint !in validEndpoints) return@forEach
-                val rawAddresses = entry.substring(separator + BOOTSTRAP_ENTRY_SEPARATOR.length)
-                val addresses = SteamResolverInputValidator.normalizeBootstrapAddresses(rawAddresses)
-                    ?: return@forEach
-                if (addresses.isNotEmpty()) result[endpoint] = addresses
-            }
-        return result
-    }
-
-    private fun encodeDohBootstrapAddresses(
-        values: Map<String, List<String>>
-    ): Set<String> = values.mapNotNullTo(linkedSetOf()) { (endpoint, addresses) ->
-        val normalizedEndpoint = SteamResolverInputValidator.normalizeDohEndpoint(endpoint)
-            ?: return@mapNotNullTo null
-        val normalizedAddresses = SteamResolverInputValidator.normalizeBootstrapAddresses(
-            addresses.joinToString(",")
-        ) ?: return@mapNotNullTo null
-        normalizedAddresses.takeIf { it.isNotEmpty() }?.let { accepted ->
-            "$normalizedEndpoint$BOOTSTRAP_ENTRY_SEPARATOR${accepted.joinToString(",")}"
-        }
+        return SteamDohBootstrapPreferencesCodec.decode(
+            entries = preferences.getStringSet(KEY_CUSTOM_DOH_BOOTSTRAP, emptySet()).orEmpty(),
+            validEndpoints = validEndpoints
+        )
     }
 
     private fun saveStringSet(key: String, values: Collection<String>) {
@@ -420,4 +407,39 @@ object SteamNetworkResolverSettingsRuntime {
         val routeCount: Int,
         val averageLatencyMillis: Double
     )
+}
+
+internal object SteamDohBootstrapPreferencesCodec {
+    private const val ENTRY_SEPARATOR = "\t"
+
+    fun decode(
+        entries: Set<String>,
+        validEndpoints: Set<String>
+    ): Map<String, List<String>> {
+        if (entries.isEmpty() || validEndpoints.isEmpty()) return emptyMap()
+        val result = linkedMapOf<String, List<String>>()
+        entries.forEach { entry ->
+            val separator = entry.indexOf(ENTRY_SEPARATOR)
+            if (separator <= 0) return@forEach
+            val endpoint = entry.substring(0, separator)
+            if (endpoint !in validEndpoints) return@forEach
+            val addresses = SteamResolverInputValidator.normalizeBootstrapAddresses(
+                entry.substring(separator + ENTRY_SEPARATOR.length)
+            ) ?: return@forEach
+            if (addresses.isNotEmpty()) result[endpoint] = addresses
+        }
+        return result
+    }
+
+    fun encode(values: Map<String, List<String>>): Set<String> =
+        values.mapNotNullTo(linkedSetOf()) { (endpoint, addresses) ->
+            val normalizedEndpoint = SteamResolverInputValidator.normalizeDohEndpoint(endpoint)
+                ?: return@mapNotNullTo null
+            val normalizedAddresses = SteamResolverInputValidator.normalizeBootstrapAddresses(
+                addresses.joinToString(",")
+            ) ?: return@mapNotNullTo null
+            normalizedAddresses.takeIf { it.isNotEmpty() }?.let { accepted ->
+                "$normalizedEndpoint$ENTRY_SEPARATOR${accepted.joinToString(",")}"
+            }
+        }
 }

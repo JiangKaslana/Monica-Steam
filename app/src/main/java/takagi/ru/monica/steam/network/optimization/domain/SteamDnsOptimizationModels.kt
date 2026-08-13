@@ -61,7 +61,7 @@ data class SteamDnsProvider(
                 id.startsWith(CUSTOM_DNS_PREFIX) ->
                     "DNS ${id.substringAfter(CUSTOM_DNS_PREFIX)}"
                 id.startsWith(CUSTOM_DOH_PREFIX) ->
-                    "DNS ${id.substringAfter(CUSTOM_DOH_PREFIX).substringBefore('|')}"
+                    "DoH ${id.substringAfter(CUSTOM_DOH_PREFIX).substringBefore('|')}"
                 else -> id
             }
 
@@ -80,7 +80,7 @@ data class SteamDnsProvider(
                 ?: "Custom"
             return SteamDnsProvider(
                 id = "$CUSTOM_DOH_PREFIX$host|${Integer.toHexString(endpoint.hashCode())}",
-                displayName = "DNS $host",
+                displayName = "DoH $host",
                 dohUrl = endpoint,
                 bootstrapAddresses = bootstrapAddresses.distinct()
             )
