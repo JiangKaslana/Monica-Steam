@@ -14,7 +14,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,7 +38,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -133,6 +131,7 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
+
             item(key = "resolver_servers") {
                 SteamResolverServerBenchmarkCard(
                     onRemoveCustomDns = {
@@ -149,40 +148,30 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
-            item(key = "custom_dns") {
-                ResolverAddCard(
-                    title = stringResource(R.string.steam_network_custom_dns_title),
-                    description = stringResource(R.string.steam_network_custom_dns_description),
-                    placeholder = stringResource(R.string.steam_network_custom_dns_placeholder),
-                    icon = Icons.Default.Dns,
-                    values = settings.customDnsServers,
-                    limit = SteamNetworkResolverSettings.MAX_CUSTOM_DNS,
-                    normalize = SteamResolverInputValidator::normalizeDnsServer,
-                    onAdd = {
+
+            item(key = "custom_resolver") {
+                CustomResolverAddCard(
+                    dnsValues = settings.customDnsServers,
+                    dohValues = settings.customDohEndpoints,
+                    dohBootstrapValues = settings.customDohBootstrapAddresses,
+                    dnsLimit = SteamNetworkResolverSettings.MAX_CUSTOM_DNS,
+                    dohLimit = SteamNetworkResolverSettings.MAX_CUSTOM_DOH,
+                    onAddDns = {
                         SteamNetworkResolverSettingsRuntime.addCustomDns(
                             applicationContext,
                             it
                         )
-                    }
-                )
-            }
-            item(key = "custom_doh") {
-                ResolverAddCard(
-                    title = stringResource(R.string.steam_network_custom_doh_title),
-                    description = stringResource(R.string.steam_network_custom_doh_description),
-                    placeholder = stringResource(R.string.steam_network_custom_doh_placeholder),
-                    icon = Icons.Default.Public,
-                    values = settings.customDohEndpoints,
-                    limit = SteamNetworkResolverSettings.MAX_CUSTOM_DOH,
-                    normalize = SteamResolverInputValidator::normalizeDohEndpoint,
-                    onAdd = {
+                    },
+                    onAddDoh = { endpoint, bootstrapAddresses ->
                         SteamNetworkResolverSettingsRuntime.addCustomDoh(
                             applicationContext,
-                            it
+                            endpoint,
+                            bootstrapAddresses
                         )
                     }
                 )
             }
+
             item(key = "resolver_strategy") {
                 ResolverStrategyCard(
                     preferIpv6 = settings.preferIpv6,
@@ -194,8 +183,149 @@ fun SteamNetworkResolverSettingsScreen(
                     }
                 )
             }
+
             item(key = "resolver_privacy") {
                 ResolverPrivacyCard()
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomResolverAddCard(
+    dnsValues: List<String>,
+    dohValues: List<String>,
+    dohBootstrapValues: Map<String, List<String>>,
+    dnsLimit: Int,
+    dohLimit: Int,
+    onAddDns: (String) -> Boolean,
+    onAddDoh: (String, String) -> Boolean
+) {
+    var resolverInput by rememberSaveable { mutableStateOf("") }
+    var bootstrapInput by rememberSaveable { mutableStateOf("") }
+
+    val trimmedInput = resolverInput.trim()
+    val looksLikeDoh = trimmedInput.startsWith("https://", ignoreCase = true)
+    val normalizedDoh = SteamResolverInputValidator.normalizeDohEndpoint(resolverInput)
+    val normalizedDns = if (normalizedDoh == null && !looksLikeDoh) {
+        SteamResolverInputValidator.normalizeDnsServer(resolverInput)
+    } else {
+        null
+    }
+    val normalizedBootstrap = SteamResolverInputValidator.normalizeBootstrapAddresses(bootstrapInput)
+    val resolverInvalid = resolverInput.isNotBlank() && normalizedDoh == null && normalizedDns == null
+    val bootstrapInvalid = bootstrapInput.isNotBlank() && normalizedBootstrap == null
+    val isUpdatingDoh = normalizedDoh != null && normalizedDoh in dohValues
+    val duplicate = when {
+        normalizedDoh != null -> isUpdatingDoh &&
+            normalizedBootstrap != null &&
+            dohBootstrapValues[normalizedDoh].orEmpty() == normalizedBootstrap
+        normalizedDns != null -> normalizedDns in dnsValues
+        else -> false
+    }
+    val limitReached = when {
+        normalizedDoh != null -> !isUpdatingDoh && dohValues.size >= dohLimit
+        normalizedDns != null -> dnsValues.size >= dnsLimit
+        else -> false
+    }
+    val canAdd = !resolverInvalid &&
+        !bootstrapInvalid &&
+        !duplicate &&
+        !limitReached &&
+        (normalizedDoh != null || normalizedDns != null)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ResolverAddCardHeader(
+                dnsCount = dnsValues.size,
+                dnsLimit = dnsLimit,
+                dohCount = dohValues.size,
+                dohLimit = dohLimit
+            )
+
+            OutlinedTextField(
+                value = resolverInput,
+                onValueChange = { value ->
+                    resolverInput = value.take(512)
+                    if (!value.trimStart().startsWith("https://", ignoreCase = true)) {
+                        bootstrapInput = ""
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = resolverInvalid,
+                label = { Text(stringResource(R.string.steam_network_custom_dns_address_label)) },
+                placeholder = {
+                    Text(stringResource(R.string.steam_network_custom_dns_unified_placeholder))
+                },
+                supportingText = if (resolverInvalid) {
+                    { Text(stringResource(R.string.steam_network_resolver_invalid)) }
+                } else {
+                    { Text(stringResource(R.string.steam_network_custom_dns_address_hint)) }
+                }
+            )
+
+            if (looksLikeDoh) {
+                OutlinedTextField(
+                    value = bootstrapInput,
+                    onValueChange = { bootstrapInput = it.take(512) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = bootstrapInvalid,
+                    label = { Text(stringResource(R.string.steam_network_custom_dns_bootstrap_label)) },
+                    placeholder = {
+                        Text(stringResource(R.string.steam_network_custom_doh_bootstrap_placeholder))
+                    },
+                    supportingText = {
+                        Text(
+                            if (bootstrapInvalid) {
+                                stringResource(R.string.steam_network_custom_doh_bootstrap_invalid)
+                            } else {
+                                stringResource(R.string.steam_network_custom_dns_bootstrap_hint)
+                            }
+                        )
+                    }
+                )
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    val added = when {
+                        normalizedDoh != null -> onAddDoh(resolverInput, bootstrapInput)
+                        normalizedDns != null -> onAddDns(resolverInput)
+                        else -> false
+                    }
+                    if (added) {
+                        resolverInput = ""
+                        bootstrapInput = ""
+                    }
+                },
+                enabled = canAdd,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    if (isUpdatingDoh) Icons.Default.Dns else Icons.Default.Add,
+                    contentDescription = null
+                )
+                Text(
+                    text = stringResource(
+                        if (isUpdatingDoh) {
+                            R.string.steam_network_resolver_update
+                        } else {
+                            R.string.steam_network_resolver_add
+                        }
+                    ),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
             }
         }
     }
@@ -250,93 +380,50 @@ private fun ResolverToggleRow(
 }
 
 @Composable
-private fun ResolverAddCard(
-    title: String,
-    description: String,
-    placeholder: String,
-    icon: ImageVector,
-    values: List<String>,
-    limit: Int,
-    normalize: (String) -> String?,
-    onAdd: (String) -> Boolean
+private fun ResolverAddCardHeader(
+    dnsCount: Int,
+    dnsLimit: Int,
+    dohCount: Int,
+    dohLimit: Int
 ) {
-    var input by rememberSaveable(title) { mutableStateOf("") }
-    val normalized = normalize(input)
-    val inputInvalid = input.isNotBlank() && normalized == null
-    val canAdd = normalized != null && normalized !in values && values.size < limit
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.secondaryContainer
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.padding(10.dp).size(22.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Text(
-                    text = "${values.size}/$limit",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it.take(512) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                isError = inputInvalid,
-                placeholder = { Text(placeholder) },
-                supportingText = if (inputInvalid) {
-                    { Text(stringResource(R.string.steam_network_resolver_invalid)) }
-                } else {
-                    null
-                }
+            Icon(
+                imageVector = Icons.Default.Dns,
+                contentDescription = null,
+                modifier = Modifier.padding(10.dp).size(22.dp),
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
             )
-            FilledTonalButton(
-                onClick = {
-                    if (onAdd(input)) input = ""
-                },
-                enabled = canAdd,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text(
-                    text = stringResource(R.string.steam_network_resolver_add),
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
         }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.steam_network_custom_resolver_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = stringResource(R.string.steam_network_custom_dns_unified_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = stringResource(
+                R.string.steam_network_custom_resolver_capacity,
+                dnsCount,
+                dnsLimit,
+                dohCount,
+                dohLimit
+            ),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

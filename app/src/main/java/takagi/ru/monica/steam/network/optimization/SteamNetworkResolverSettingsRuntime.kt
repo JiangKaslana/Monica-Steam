@@ -18,6 +18,7 @@ object SteamNetworkResolverSettingsRuntime {
     private const val KEY_USE_BUILT_IN_DOH = "resolver_use_built_in_doh"
     private const val KEY_CUSTOM_DNS = "resolver_custom_dns"
     private const val KEY_CUSTOM_DOH = "resolver_custom_doh"
+    private const val KEY_CUSTOM_DOH_BOOTSTRAP = "resolver_custom_doh_bootstrap"
     private const val KEY_PREFERRED_PROVIDER_IDS = "resolver_preferred_provider_ids"
     private const val KEY_DYNAMIC_DNS_ENABLED = "resolver_dynamic_dns_enabled"
     private const val KEY_DISABLED_BUILT_IN_PROVIDER_IDS = "resolver_disabled_builtin_provider_ids"
@@ -52,9 +53,15 @@ object SteamNetworkResolverSettingsRuntime {
             .mapNotNull(SteamResolverInputValidator::normalizeDohEndpoint)
             .distinct()
             .sorted()
+        val customDohBootstrapAddresses = loadDohBootstrapAddresses(customDohEndpoints.toSet())
         val validCustomIds = buildSet {
             customDnsServers.mapTo(this) { SteamDnsProvider.customDns(it).id }
-            customDohEndpoints.mapTo(this) { SteamDnsProvider.customDoh(it).id }
+            customDohEndpoints.mapTo(this) { endpoint ->
+                SteamDnsProvider.customDoh(
+                    endpoint,
+                    customDohBootstrapAddresses[endpoint].orEmpty()
+                ).id
+            }
         }
         updateSettings(
             SteamNetworkResolverSettings(
@@ -62,6 +69,7 @@ object SteamNetworkResolverSettingsRuntime {
                 useBuiltInDoh = preferences.getBoolean(KEY_USE_BUILT_IN_DOH, true),
                 customDnsServers = customDnsServers,
                 customDohEndpoints = customDohEndpoints,
+                customDohBootstrapAddresses = customDohBootstrapAddresses,
                 preferredProviderIds = preferences.getString(KEY_PREFERRED_PROVIDER_IDS, "")
                     .orEmpty()
                     .lineSequence()
@@ -157,16 +165,24 @@ object SteamNetworkResolverSettingsRuntime {
     @Synchronized
     fun setCustomProviderEnabled(context: Context, providerId: String, enabled: Boolean) {
         initialize(context)
+        val current = mutableSettings.value
         val customProviders = buildList {
-            addAll(mutableSettings.value.customDnsServers.map(SteamDnsProvider::customDns))
-            addAll(mutableSettings.value.customDohEndpoints.map(SteamDnsProvider::customDoh))
+            addAll(current.customDnsServers.map(SteamDnsProvider::customDns))
+            addAll(
+                current.customDohEndpoints.map { endpoint ->
+                    SteamDnsProvider.customDoh(
+                        endpoint,
+                        current.customDohBootstrapAddresses[endpoint].orEmpty()
+                    )
+                }
+            )
         }
         val provider = customProviders.firstOrNull { it.id == providerId } ?: return
-        val disabled = mutableSettings.value.disabledCustomProviderIds.toMutableSet()
+        val disabled = current.disabledCustomProviderIds.toMutableSet()
         if (enabled) disabled.remove(provider.id) else disabled.add(provider.id)
         preferences.edit().putStringSet(KEY_DISABLED_CUSTOM_PROVIDER_IDS, disabled).apply()
         updateSettings(
-            mutableSettings.value.copy(
+            current.copy(
                 disabledCustomProviderIds = disabled.toSet()
             )
         )
@@ -216,17 +232,53 @@ object SteamNetworkResolverSettingsRuntime {
     }
 
     @Synchronized
-    fun addCustomDoh(context: Context, raw: String): Boolean {
+    fun addCustomDoh(
+        context: Context,
+        raw: String,
+        bootstrapRaw: String = ""
+    ): Boolean {
         initialize(context)
         val value = SteamResolverInputValidator.normalizeDohEndpoint(raw) ?: return false
-        val current = mutableSettings.value.customDohEndpoints
-        if (value in current || current.size >= SteamNetworkResolverSettings.MAX_CUSTOM_DOH) {
+        val bootstrapAddresses =
+            SteamResolverInputValidator.normalizeBootstrapAddresses(bootstrapRaw) ?: return false
+        val currentSettings = mutableSettings.value
+        val current = currentSettings.customDohEndpoints
+        val existing = value in current
+        if (!existing && current.size >= SteamNetworkResolverSettings.MAX_CUSTOM_DOH) {
             return false
         }
-        val updated = (current + value).distinct().sorted()
-        saveStringSet(KEY_CUSTOM_DOH, updated)
-        updateSettings(mutableSettings.value.copy(customDohEndpoints = updated))
+        if (existing && currentSettings.customDohBootstrapAddresses[value].orEmpty() == bootstrapAddresses) {
+            return false
+        }
+
+        val updated = if (existing) current else (current + value).distinct().sorted()
+        val updatedBootstrap = currentSettings.customDohBootstrapAddresses.toMutableMap()
+        if (bootstrapAddresses.isEmpty()) {
+            updatedBootstrap.remove(value)
+        } else {
+            updatedBootstrap[value] = bootstrapAddresses
+        }
+        preferences.edit()
+            .putStringSet(KEY_CUSTOM_DOH, updated.toSet())
+            .putStringSet(
+                KEY_CUSTOM_DOH_BOOTSTRAP,
+                SteamDohBootstrapPreferencesCodec.encode(updatedBootstrap)
+            )
+            .apply()
+        updateSettings(
+            currentSettings.copy(
+                customDohEndpoints = updated,
+                customDohBootstrapAddresses = updatedBootstrap.toMap()
+            )
+        )
         notifyResolverChanged()
+        runCatching {
+            SteamDiagLogger.append(
+                "dynamic_dns custom_doh ${if (existing) "updated" else "added"} " +
+                    "host=${SteamDnsProvider.customDoh(value).displayName} " +
+                    "bootstrap=${bootstrapAddresses.size}"
+            )
+        }
         return true
     }
 
@@ -235,16 +287,22 @@ object SteamNetworkResolverSettingsRuntime {
         initialize(context)
         val providerId = SteamDnsProvider.customDoh(value).id
         val updated = mutableSettings.value.customDohEndpoints - value
+        val updatedBootstrap = mutableSettings.value.customDohBootstrapAddresses - value
         val disabled = mutableSettings.value.disabledCustomProviderIds - providerId
         val preferred = mutableSettings.value.preferredProviderIds - providerId
         preferences.edit()
             .putStringSet(KEY_CUSTOM_DOH, updated.toSet())
+            .putStringSet(
+                KEY_CUSTOM_DOH_BOOTSTRAP,
+                SteamDohBootstrapPreferencesCodec.encode(updatedBootstrap)
+            )
             .putStringSet(KEY_DISABLED_CUSTOM_PROVIDER_IDS, disabled)
             .putString(KEY_PREFERRED_PROVIDER_IDS, preferred.joinToString("\n"))
             .apply()
         updateSettings(
             mutableSettings.value.copy(
                 customDohEndpoints = updated,
+                customDohBootstrapAddresses = updatedBootstrap,
                 disabledCustomProviderIds = disabled,
                 preferredProviderIds = preferred
             )
@@ -319,6 +377,13 @@ object SteamNetworkResolverSettingsRuntime {
         runCatching { SteamDiagLogger.append("dynamic_dns preference_cleared") }
     }
 
+    private fun loadDohBootstrapAddresses(validEndpoints: Set<String>): Map<String, List<String>> {
+        return SteamDohBootstrapPreferencesCodec.decode(
+            entries = preferences.getStringSet(KEY_CUSTOM_DOH_BOOTSTRAP, emptySet()).orEmpty(),
+            validEndpoints = validEndpoints
+        )
+    }
+
     private fun saveStringSet(key: String, values: Collection<String>) {
         preferences.edit().putStringSet(key, values.toSet()).apply()
     }
@@ -342,4 +407,39 @@ object SteamNetworkResolverSettingsRuntime {
         val routeCount: Int,
         val averageLatencyMillis: Double
     )
+}
+
+internal object SteamDohBootstrapPreferencesCodec {
+    private const val ENTRY_SEPARATOR = "\t"
+
+    fun decode(
+        entries: Set<String>,
+        validEndpoints: Set<String>
+    ): Map<String, List<String>> {
+        if (entries.isEmpty() || validEndpoints.isEmpty()) return emptyMap()
+        val result = linkedMapOf<String, List<String>>()
+        entries.forEach { entry ->
+            val separator = entry.indexOf(ENTRY_SEPARATOR)
+            if (separator <= 0) return@forEach
+            val endpoint = entry.substring(0, separator)
+            if (endpoint !in validEndpoints) return@forEach
+            val addresses = SteamResolverInputValidator.normalizeBootstrapAddresses(
+                entry.substring(separator + ENTRY_SEPARATOR.length)
+            ) ?: return@forEach
+            if (addresses.isNotEmpty()) result[endpoint] = addresses
+        }
+        return result
+    }
+
+    fun encode(values: Map<String, List<String>>): Set<String> =
+        values.mapNotNullTo(linkedSetOf()) { (endpoint, addresses) ->
+            val normalizedEndpoint = SteamResolverInputValidator.normalizeDohEndpoint(endpoint)
+                ?: return@mapNotNullTo null
+            val normalizedAddresses = SteamResolverInputValidator.normalizeBootstrapAddresses(
+                addresses.joinToString(",")
+            ) ?: return@mapNotNullTo null
+            normalizedAddresses.takeIf { it.isNotEmpty() }?.let { accepted ->
+                "$normalizedEndpoint$ENTRY_SEPARATOR${accepted.joinToString(",")}"
+            }
+        }
 }

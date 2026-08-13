@@ -84,8 +84,15 @@ internal class OkHttpSteamDnsResolver(
 
     private fun resolverFor(provider: SteamDnsProvider): Dns {
         if (provider.isSystem) return systemDns
+        val resolverKey = buildString {
+            append(provider.id)
+            append('|')
+            append(provider.dohUrl.orEmpty())
+            append('|')
+            append(provider.bootstrapAddresses.joinToString(","))
+        }
         return synchronized(dohResolvers) {
-            dohResolvers.getOrPut(provider.id) {
+            dohResolvers.getOrPut(resolverKey) {
                 val bootstrapHosts = provider.bootstrapAddresses.map(InetAddress::getByName)
                 val builder = DnsOverHttps.Builder()
                     .client(client)

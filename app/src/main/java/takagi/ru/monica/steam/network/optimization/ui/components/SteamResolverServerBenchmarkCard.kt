@@ -53,12 +53,20 @@ internal fun SteamResolverServerBenchmarkCard(
     val benchmark = remember { SteamResolverBenchmark() }
     val visibleProviders = remember(
         settings.customDnsServers,
-        settings.customDohEndpoints
+        settings.customDohEndpoints,
+        settings.customDohBootstrapAddresses
     ) {
         buildList {
             addAll(SteamDnsProvider.DEFAULTS)
             addAll(settings.customDnsServers.map(SteamDnsProvider::customDns))
-            addAll(settings.customDohEndpoints.map(SteamDnsProvider::customDoh))
+            addAll(
+                settings.customDohEndpoints.map { endpoint ->
+                    SteamDnsProvider.customDoh(
+                        endpoint,
+                        settings.customDohBootstrapAddresses[endpoint].orEmpty()
+                    )
+                }
+            )
         }.distinctBy(SteamDnsProvider::id)
     }
     var results by remember { mutableStateOf<Map<String, SteamResolverBenchmarkResult>>(emptyMap()) }
@@ -217,6 +225,18 @@ private fun ResolverBenchmarkRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (provider.isDoh && provider.bootstrapAddresses.isNotEmpty()) {
+                Text(
+                    text = stringResource(
+                        R.string.steam_network_custom_doh_bootstrap_summary,
+                        provider.bootstrapAddresses.joinToString(", ")
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
