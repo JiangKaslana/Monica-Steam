@@ -191,6 +191,34 @@ class SteamChatRichMediaModelsTest {
     }
 
     @Test
+    fun parsesCurrentSteamImageTagWithResponsiveAttributes() {
+        val original =
+            "https://images.steamusercontent.com/ugc/12431610482965499658/" +
+                "34654771B312467FA7E577C5564F2FCB0580F69A/"
+        val content = SteamChatRichContentParser.parse(
+            """
+            [img src=$original thumbnail_src=$original?imw=512&amp;ima=fit srcset="$original?imw=1024&amp;ima=fit 1024w" width=1260 height=2800]$original[/img]
+            """.trimIndent()
+        ) as SteamChatRichContent.Attachment
+
+        assertEquals(SteamChatAttachmentKind.IMAGE, content.kind)
+        assertEquals(original, content.url)
+        assertEquals("Steam attachment", content.label)
+    }
+
+    @Test
+    fun parsesCurrentSteamImageTagWhenClosingTagIsOmitted() {
+        val original =
+            "https://images.steamusercontent.com/ugc/12431610482965499658/" +
+                "34654771B312467FA7E577C5564F2FCB0580F69A/"
+        val content = SteamChatRichContentParser.parse(
+            "[img src=$original thumbnail_src=$original?imw=512&amp;ima=fit width=1260 height=2800]$original"
+        ) as SteamChatRichContent.Attachment
+
+        assertEquals(original, content.url)
+    }
+
+    @Test
     fun keepsOrdinaryTextUntouched() {
         val body = "hello :steamthumbsup:"
         assertEquals(SteamChatRichContent.Text(body), SteamChatRichContentParser.parse(body))

@@ -194,7 +194,14 @@ object SteamChatRichContentParser {
         "https?://(?:store\\.steampowered\\.com|store\\.steamcommunity\\.com)/app/(\\d+)(?:/[^\\s\\]\\[]*)?",
         RegexOption.IGNORE_CASE
     )
-    private val imagePattern = Regex("\\[img(?:=[^]]+)?](https?://[^\\[]+)\\[/img]", RegexOption.IGNORE_CASE)
+    private val imagePattern = Regex(
+        """\[img(?:\s+([^]]+)|=([^]]+))?](.*?)\[/img\s*]""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+    private val attributedImagePattern = Regex(
+        """\[img\s+([^]]+)]""",
+        RegexOption.IGNORE_CASE
+    )
     private val videoPattern = Regex("\\[video(?:=[^]]+)?](https?://[^\\[]+)\\[/video]", RegexOption.IGNORE_CASE)
     private val urlPattern = Regex(
         "\\[url=(https?://[^]]+)]([^\\[]+)\\[/url]",
@@ -457,13 +464,34 @@ object SteamChatRichContentParser {
 
     private fun parseAttachment(body: String, spoiler: Boolean): SteamChatRichContent.Attachment? {
         imagePattern.find(body)?.let { match ->
-            val url = normalizeAttachmentUrl(match.groupValues[1])
+            val rawAttributes = match.groupValues.getOrNull(1).orEmpty()
+                .ifBlank { match.groupValues.getOrNull(2).orEmpty() }
+            val attributes = parseAttributes(rawAttributes)
+            val url = normalizeAttachmentUrl(
+                attributes["src"]
+                    ?: match.groupValues.getOrNull(3).orEmpty()
+            )
+            if (httpUrlPattern.matchEntire(url) == null) return@let
             return SteamChatRichContent.Attachment(
                 url = url,
                 label = fileLabel(url),
                 kind = SteamChatAttachmentKind.IMAGE,
                 spoiler = spoiler
             )
+        }
+        attributedImagePattern.find(body)?.let { match ->
+            val attributes = parseAttributes(match.groupValues[1])
+            val url = normalizeAttachmentUrl(
+                attributes["src"] ?: attributes["thumbnail_src"].orEmpty()
+            )
+            if (httpUrlPattern.matchEntire(url) != null) {
+                return SteamChatRichContent.Attachment(
+                    url = url,
+                    label = fileLabel(url),
+                    kind = SteamChatAttachmentKind.IMAGE,
+                    spoiler = spoiler
+                )
+            }
         }
         videoPattern.find(body)?.let { match ->
             val url = normalizeAttachmentUrl(match.groupValues[1])
