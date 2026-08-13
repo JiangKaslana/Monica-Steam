@@ -89,7 +89,8 @@ internal fun SteamChatMessageBubble(
     val retryLabel = stringResource(R.string.steam_chat_retry_send)
     val bubbleShape = chatBubbleShape(outgoing, groupedWithPrevious, groupedWithNext)
     val richContent = remember(message.body) { SteamChatRichContentParser.parse(message.body) }
-    val standaloneCard = richContent is SteamChatRichContent.GameInvite
+    val standaloneCard = richContent is SteamChatRichContent.GameInvite ||
+        richContent is SteamChatRichContent.StoreGameShare
     val transparentMedia = richContent is SteamChatRichContent.Sticker ||
         isSingleSteamEmoticonMessage(message.body)
     val interactionModifier = Modifier.pointerInput(retryable, message.stableId) {

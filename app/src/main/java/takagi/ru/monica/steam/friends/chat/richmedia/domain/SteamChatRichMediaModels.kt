@@ -89,6 +89,14 @@ sealed interface SteamChatRichContent {
         val inviteKind: String = "gameinvite"
     ) : SteamChatRichContent
 
+    /** A standard Steam store link shared in chat, rendered as a native game card. */
+    data class StoreGameShare(
+        val appId: Int,
+        val label: String?,
+        val url: String,
+        val rawBody: String
+    ) : SteamChatRichContent
+
     data class OfficialMessage(val message: SteamChatOfficialMessage) : SteamChatRichContent
 
     data class Sticker(val name: String) : SteamChatRichContent {
@@ -180,6 +188,10 @@ object SteamChatRichContentParser {
     )
     private val steamTradeOfferUrlPattern = Regex(
         "https://steamcommunity\\.com/tradeoffer/(?:new/\\?[^\\s\\[\\]]+|\\d+/?[^\\s\\[\\]]*)",
+        RegexOption.IGNORE_CASE
+    )
+    private val steamStoreAppUrlPattern = Regex(
+        "https?://(?:store\\.steampowered\\.com|store\\.steamcommunity\\.com)/app/(\\d+)(?:/[^\\s\\]\\[]*)?",
         RegexOption.IGNORE_CASE
     )
     private val imagePattern = Regex("\\[img(?:=[^]]+)?](https?://[^\\[]+)\\[/img]", RegexOption.IGNORE_CASE)
@@ -338,11 +350,52 @@ object SteamChatRichContentParser {
             )
         }
 
+        parseStoreGameShare(body)?.let { return it }
+
         val spoiler = spoilerPattern.matchEntire(body.trim())
         parseAttachment(spoiler?.groupValues?.getOrNull(1) ?: body, spoiler != null)?.let {
             return it
         }
         return parseText(body)
+    }
+
+    private fun parseStoreGameShare(body: String): SteamChatRichContent.StoreGameShare? {
+        val trimmed = body.trim()
+        anyBbcodeUrlPattern.matchEntire(trimmed)?.let { match ->
+            val explicitUrl = match.groupValues[1]
+            val innerText = match.groupValues[2].ifBlank { match.groupValues[3] }
+            val candidateUrl = normalizeAttachmentUrl(explicitUrl.ifBlank { innerText })
+            val storeMatch = steamStoreAppUrlPattern.matchEntire(candidateUrl) ?: return@let
+            val appId = storeMatch.groupValues.getOrNull(1)?.toIntOrNull()?.takeIf { it > 0 }
+                ?: return@let
+            val label = decodeBbcodeText(innerText).trim().takeIf {
+                it.isNotBlank() && it != candidateUrl
+            }
+            return SteamChatRichContent.StoreGameShare(
+                appId = appId,
+                label = label,
+                url = candidateUrl,
+                rawBody = body
+            )
+        }
+
+        val lines = trimmed.lineSequence().map(String::trim).filter(String::isNotBlank).toList()
+        if (lines.size !in 1..2 || plainLinkPattern.findAll(trimmed).count() != 1) return null
+        val urlLineIndex = lines.indexOfFirst { line ->
+            steamStoreAppUrlPattern.matchEntire(line) != null
+        }
+        if (urlLineIndex < 0) return null
+        val storeMatch = steamStoreAppUrlPattern.matchEntire(lines[urlLineIndex]) ?: return null
+        val appId = storeMatch.groupValues.getOrNull(1)?.toIntOrNull()?.takeIf { it > 0 }
+            ?: return null
+        val url = storeMatch.value
+        val label = lines.getOrNull(1 - urlLineIndex)?.takeIf(String::isNotBlank)
+        return SteamChatRichContent.StoreGameShare(
+            appId = appId,
+            label = label,
+            url = url,
+            rawBody = body
+        )
     }
 
     private fun parseText(body: String): SteamChatRichContent.Text {
