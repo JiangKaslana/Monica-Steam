@@ -24,6 +24,13 @@
     <string name="steam_network_resolver_benchmark_unavailable">不可用</string>
     <string name="steam_network_resolver_system_endpoint">Android 当前网络 DNS</string>
     <string name="steam_network_resolver_benchmark_hint">系统 DNS、内置公共 DoH 和你添加的自定义 DNS / DoH 都在这里统一选择与测速；关闭的来源不会参与动态解析或完整扫描。</string>
+    <string name="steam_network_custom_doh_bootstrap_description">上栏直接填写 HTTPS DoH 地址；下栏可选填该 DoH 域名对应的 IP。两栏分开，填入 IP 后连接解析服务器时可以不先依赖系统 DNS。</string>
+    <string name="steam_network_custom_doh_url_label">DoH HTTPS 地址</string>
+    <string name="steam_network_custom_doh_bootstrap_label">DNS IP / 引导 IP（可选）</string>
+    <string name="steam_network_custom_doh_bootstrap_placeholder">1.1.1.1, 1.0.0.1</string>
+    <string name="steam_network_custom_doh_bootstrap_hint">仅填写 IPv4 / IPv6。多个 IP 可用逗号或空格分隔；HTTPS 仍使用 DoH URL 中的域名进行 SNI 与证书校验。</string>
+    <string name="steam_network_custom_doh_bootstrap_invalid">这里只能填写合法 IPv4 / IPv6；多个地址请用逗号或空格分隔。</string>
+    <string name="steam_network_custom_doh_bootstrap_summary">引导 IP：%1$s</string>
     <string name="steam_network_ipv6_prefer">IPv6 优先</string>
     <string name="steam_network_ipv6_prefer_description">DoH / 系统解析同时获得 IPv4 与 IPv6 时优先尝试 IPv6；不可用时仍可回落 IPv4。自定义 UDP DNS 当前仍查询 A 记录。</string>
     <string name="steam_network_dynamic_entry_title">动态 DNS / DoH</string>
