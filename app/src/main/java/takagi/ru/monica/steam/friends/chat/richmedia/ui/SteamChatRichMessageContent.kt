@@ -33,7 +33,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -47,12 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.LinkInteractionListener
-import androidx.compose.ui.text.TextLinkStyles
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import takagi.ru.monica.R
@@ -63,6 +56,10 @@ import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatRichContent
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatOfficialMessage
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatOfficialMessageKind
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatTextLink
+import takagi.ru.monica.steam.richtext.domain.SteamRichTextLink
+import takagi.ru.monica.steam.richtext.domain.SteamRichTextParser
+import takagi.ru.monica.steam.richtext.ui.SteamRichText
+import takagi.ru.monica.steam.richtext.ui.SteamRichTextInlineRange
 
 @Composable
 internal fun SteamChatRichMessageContent(
@@ -246,12 +243,20 @@ private fun SteamChatEmoticonText(
     modifier: Modifier
 ) {
     val context = LocalContext.current
-    val matches = remember(body) { emoticonPattern.findAll(body).toList() }
-    if (matches.isEmpty() && links.isEmpty()) {
-        Text(text = body, modifier = modifier, style = MaterialTheme.typography.bodyLarge)
-        return
+    val document = remember(body, links) {
+        SteamRichTextParser.parse(
+            source = body,
+            sourceLinks = links.map { link ->
+                SteamRichTextLink(
+                    start = link.start,
+                    endExclusive = link.endExclusive,
+                    url = link.url,
+                )
+            },
+        )
     }
-    if (links.isEmpty() && matches.size == 1 && matches.single().value == body.trim()) {
+    val matches = remember(document.text) { emoticonPattern.findAll(document.text).toList() }
+    if (document.links.isEmpty() && matches.size == 1 && matches.single().value == document.text.trim()) {
         val name = matches.single().groupValues[1]
         SteamChatRemoteImage(
             url = SteamChatEmoticon(name).imageUrl,
@@ -260,39 +265,6 @@ private fun SteamChatEmoticonText(
             mode = SteamChatRemoteImageMode.EMOTICON
         )
         return
-    }
-    val linkColor = MaterialTheme.colorScheme.primary
-    val linkInteractionListener = remember(context) {
-        LinkInteractionListener { annotation ->
-            (annotation as? LinkAnnotation.Url)?.url?.let { openSteamChatLink(context, it) }
-        }
-    }
-    val annotated = remember(body, matches, links, linkColor, linkInteractionListener) {
-        val builder = AnnotatedString.Builder()
-        var sourceCursor = 0
-        matches.forEachIndexed { index, match ->
-            appendSourceSegment(
-                builder = builder,
-                body = body,
-                start = sourceCursor,
-                endExclusive = match.range.first,
-                links = links,
-                linkColor = linkColor,
-                linkInteractionListener = linkInteractionListener
-            )
-            builder.appendInlineContent("steam-emoticon-$index", match.value)
-            sourceCursor = match.range.last + 1
-        }
-        appendSourceSegment(
-            builder = builder,
-            body = body,
-            start = sourceCursor,
-            endExclusive = body.length,
-            links = links,
-            linkColor = linkColor,
-            linkInteractionListener = linkInteractionListener
-        )
-        builder.toAnnotatedString()
     }
     val inline = remember(matches) {
         matches.mapIndexed { index, match ->
@@ -309,48 +281,23 @@ private fun SteamChatEmoticonText(
             }
         }.toMap()
     }
-    Text(
-        text = annotated,
-        inlineContent = inline,
-        modifier = modifier,
-        style = MaterialTheme.typography.bodyLarge
-    )
-}
-
-private fun appendSourceSegment(
-    builder: AnnotatedString.Builder,
-    body: String,
-    start: Int,
-    endExclusive: Int,
-    links: List<SteamChatTextLink>,
-    linkColor: androidx.compose.ui.graphics.Color,
-    linkInteractionListener: LinkInteractionListener
-) {
-    if (start >= endExclusive) return
-    val outputStart = builder.length
-    builder.append(body, start, endExclusive)
-    links.forEach { link ->
-        val overlapStart = maxOf(start, link.start)
-        val overlapEnd = minOf(endExclusive, link.endExclusive)
-        if (overlapStart < overlapEnd) {
-            val annotationStart = outputStart + overlapStart - start
-            val annotationEnd = outputStart + overlapEnd - start
-            builder.addLink(
-                url = LinkAnnotation.Url(
-                    url = link.url,
-                    styles = TextLinkStyles(
-                        style = SpanStyle(
-                            color = linkColor,
-                            textDecoration = TextDecoration.Underline
-                        )
-                    ),
-                    linkInteractionListener = linkInteractionListener
-                ),
-                start = annotationStart,
-                end = annotationEnd
+    val inlineRanges = remember(matches) {
+        matches.mapIndexed { index, match ->
+            SteamRichTextInlineRange(
+                id = "steam-emoticon-$index",
+                start = match.range.first,
+                endExclusive = match.range.last + 1,
             )
         }
     }
+    SteamRichText(
+        document = document,
+        onOpenLink = { url -> openSteamChatLink(context, url) },
+        modifier = modifier,
+        style = MaterialTheme.typography.bodyLarge,
+        inlineContent = inline,
+        inlineRanges = inlineRanges,
+    )
 }
 
 private fun openSteamChatLink(context: android.content.Context, url: String) {

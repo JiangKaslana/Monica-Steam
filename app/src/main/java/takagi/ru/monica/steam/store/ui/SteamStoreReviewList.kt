@@ -1,5 +1,7 @@
 package takagi.ru.monica.steam.store.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -41,6 +43,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +57,7 @@ import takagi.ru.monica.steam.store.domain.SteamReviewSentimentFilter
 import takagi.ru.monica.steam.store.domain.SteamReviewTimeFilter
 import takagi.ru.monica.steam.store.domain.SteamStoreReviews
 import takagi.ru.monica.steam.store.domain.SteamUserReview
+import takagi.ru.monica.steam.richtext.ui.SteamRichText
 import takagi.ru.monica.ui.components.MonicaModalBottomSheet
 
 @Composable
@@ -359,6 +363,7 @@ private fun SteamStoreReviewCard(
     showFullBody: Boolean,
     onOpenAuthor: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val accent = if (review.votedUp) {
         MaterialTheme.colorScheme.primary
     } else {
@@ -428,8 +433,9 @@ private fun SteamStoreReviewCard(
                 }
             }
             SelectionContainer {
-                Text(
-                    text = review.body,
+                SteamRichText(
+                    source = review.body,
+                    onOpenLink = { url -> openSteamReviewLink(context, url) },
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = if (showFullBody) Int.MAX_VALUE else 6,
                     overflow = TextOverflow.Ellipsis
@@ -466,6 +472,15 @@ private fun SteamStoreReviewCard(
             }
         }
     }
+}
+
+private fun openSteamReviewLink(context: android.content.Context, rawUrl: String) {
+    val uri = runCatching { Uri.parse(rawUrl) }.getOrNull() ?: return
+    if (uri.scheme?.lowercase() !in setOf("http", "https", "steam")) return
+    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        addCategory(Intent.CATEGORY_BROWSABLE)
+    }
+    runCatching { context.startActivity(intent) }
 }
 
 @Composable
