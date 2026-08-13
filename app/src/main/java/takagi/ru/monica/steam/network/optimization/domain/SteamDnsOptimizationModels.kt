@@ -61,7 +61,7 @@ data class SteamDnsProvider(
                 id.startsWith(CUSTOM_DNS_PREFIX) ->
                     "DNS ${id.substringAfter(CUSTOM_DNS_PREFIX)}"
                 id.startsWith(CUSTOM_DOH_PREFIX) ->
-                    "DoH ${id.substringAfter(CUSTOM_DOH_PREFIX).substringBefore('|')}"
+                    "DNS ${id.substringAfter(CUSTOM_DOH_PREFIX).substringBefore('|')}"
                 else -> id
             }
 
@@ -71,14 +71,18 @@ data class SteamDnsProvider(
             udpServer = server
         )
 
-        fun customDoh(endpoint: String): SteamDnsProvider {
+        fun customDoh(
+            endpoint: String,
+            bootstrapAddresses: List<String> = emptyList()
+        ): SteamDnsProvider {
             val host = runCatching { java.net.URI(endpoint).host }.getOrNull()
                 ?.takeIf(String::isNotBlank)
                 ?: "Custom"
             return SteamDnsProvider(
                 id = "$CUSTOM_DOH_PREFIX$host|${Integer.toHexString(endpoint.hashCode())}",
-                displayName = "DoH $host",
-                dohUrl = endpoint
+                displayName = "DNS $host",
+                dohUrl = endpoint,
+                bootstrapAddresses = bootstrapAddresses.distinct()
             )
         }
 
