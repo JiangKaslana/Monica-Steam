@@ -71,14 +71,18 @@ data class SteamDnsProvider(
             udpServer = server
         )
 
-        fun customDoh(endpoint: String): SteamDnsProvider {
+        fun customDoh(
+            endpoint: String,
+            bootstrapAddresses: List<String> = emptyList()
+        ): SteamDnsProvider {
             val host = runCatching { java.net.URI(endpoint).host }.getOrNull()
                 ?.takeIf(String::isNotBlank)
                 ?: "Custom"
             return SteamDnsProvider(
                 id = "$CUSTOM_DOH_PREFIX$host|${Integer.toHexString(endpoint.hashCode())}",
                 displayName = "DoH $host",
-                dohUrl = endpoint
+                dohUrl = endpoint,
+                bootstrapAddresses = bootstrapAddresses.distinct()
             )
         }
 
