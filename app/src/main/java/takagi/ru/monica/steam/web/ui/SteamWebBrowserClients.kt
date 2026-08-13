@@ -201,30 +201,17 @@ private fun WebView.applySteamStoreMenuScrollFix(pageUrl: String) {
 
 private val STEAM_STORE_MENU_SCROLL_FIX_SCRIPT = """
     (() => {
-        const observerKey = '__monicaSteamStoreMenuScrollFixObserver';
-        const applyFix = () => {
-            const menuRoot = document.querySelector('[data-featuretarget="store-menu-v7"]');
-            if (!menuRoot) return false;
-            const stickyContainer = Array.from(menuRoot.querySelectorAll('*')).find((element) => {
-                return window.getComputedStyle(element).position === 'sticky';
-            });
-            if (!stickyContainer) return false;
-            stickyContainer.style.setProperty('position', 'relative', 'important');
-            stickyContainer.style.setProperty('top', 'auto', 'important');
-            return true;
-        };
-        if (applyFix() || window[observerKey]) return;
-        const observer = new MutationObserver(() => {
-            if (applyFix()) {
-                observer.disconnect();
-                window[observerKey] = null;
+        const styleId = 'monica-steam-store-menu-scroll-fix';
+        if (document.getElementById(styleId)) return;
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            [data-featuretarget="store-menu-v7"] > .PlaceholderInner + * > :first-child {
+                position: absolute !important;
+                top: auto !important;
+                height: auto !important;
             }
-        });
-        window[observerKey] = observer;
-        observer.observe(document.documentElement, { childList: true, subtree: true });
-        window.setTimeout(() => {
-            observer.disconnect();
-            window[observerKey] = null;
-        }, 5000);
+        `;
+        (document.head || document.documentElement).appendChild(style);
     })();
 """.trimIndent()
