@@ -5179,6 +5179,10 @@
     <string name="steam_chat_attachment_cancel">Cancel</string>
     <string name="steam_chat_attachment_sending">Sending</string>
     <string name="steam_chat_attachment_select">Choose attachment</string>
+    <string name="steam_chat_attachment_gallery">Gallery</string>
+    <string name="steam_chat_attachment_gallery_summary">Photos and videos</string>
+    <string name="steam_chat_attachment_file">File</string>
+    <string name="steam_chat_attachment_file_summary">Image, video or ZIP</string>
     <string name="steam_chat_image_description">Chat image %1$d</string>
     <string name="steam_chat_image_viewer_close">Close image viewer</string>
     <string name="steam_chat_image_viewer_previous">Previous chat image</string>

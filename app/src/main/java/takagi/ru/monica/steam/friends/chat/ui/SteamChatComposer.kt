@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -56,9 +55,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import takagi.ru.monica.R
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaUiState
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatAttachmentPickerPanel
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatAttachmentSheet
 import takagi.ru.monica.steam.friends.chat.richmedia.ui.SteamChatRichMediaPickerPanel
-import takagi.ru.monica.steam.friends.chat.richmedia.ui.rememberSteamChatAttachmentPicker
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.rememberSteamChatFilePicker
+import takagi.ru.monica.steam.friends.chat.richmedia.ui.rememberSteamChatGalleryPicker
 
 @Composable
 internal fun SteamChatComposer(
@@ -74,8 +75,10 @@ internal fun SteamChatComposer(
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     var showRichPicker by rememberSaveable { mutableStateOf(false) }
+    var showAttachmentPicker by rememberSaveable { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val launchAttachmentPicker = rememberSteamChatAttachmentPicker(onAttachmentSelected)
+    val launchGalleryPicker = rememberSteamChatGalleryPicker(onAttachmentSelected)
+    val launchFilePicker = rememberSteamChatFilePicker(onAttachmentSelected)
     val canSend = text.isNotBlank()
     val send = {
         val body = text.trim()
@@ -85,8 +88,9 @@ internal fun SteamChatComposer(
         }
     }
 
-    BackHandler(enabled = showRichPicker) {
+    BackHandler(enabled = showRichPicker || showAttachmentPicker) {
         showRichPicker = false
+        showAttachmentPicker = false
     }
     if (richMediaState.pendingAttachment != null) {
         SteamChatAttachmentSheet(
@@ -142,18 +146,29 @@ internal fun SteamChatComposer(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
-                FilledTonalIconButton(
+                IconButton(
                     onClick = {
                         showRichPicker = false
-                        launchAttachmentPicker()
+                        showAttachmentPicker = !showAttachmentPicker
+                        if (showAttachmentPicker) focusManager.clearFocus(force = true)
                     },
                     enabled = !richMediaState.attachmentPreparing && !richMediaState.attachmentUploading,
-                    modifier = Modifier.padding(end = 8.dp, bottom = 2.dp).size(48.dp),
-                    shape = CircleShape
+                    modifier = Modifier.padding(end = 8.dp, bottom = 2.dp).size(48.dp)
                 ) {
                     Icon(
                         Icons.Default.AttachFile,
-                        contentDescription = stringResource(R.string.steam_chat_attachment_select)
+                        contentDescription = stringResource(
+                            if (showAttachmentPicker) {
+                                R.string.steam_chat_close
+                            } else {
+                                R.string.steam_chat_attachment_select
+                            }
+                        ),
+                        tint = if (showAttachmentPicker) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
                 OutlinedTextField(
@@ -163,7 +178,10 @@ internal fun SteamChatComposer(
                         .weight(1f)
                         .heightIn(min = 52.dp, max = 144.dp)
                         .onFocusChanged { focusState ->
-                            if (focusState.isFocused) showRichPicker = false
+                            if (focusState.isFocused) {
+                                showRichPicker = false
+                                showAttachmentPicker = false
+                            }
                         },
                     placeholder = { Text(stringResource(R.string.steam_chat_message_hint)) },
                     shape = RoundedCornerShape(24.dp),
@@ -173,6 +191,7 @@ internal fun SteamChatComposer(
                         IconButton(
                             onClick = {
                                 showRichPicker = !showRichPicker
+                                showAttachmentPicker = false
                                 if (showRichPicker) focusManager.clearFocus(force = true)
                             }
                         ) {
@@ -228,6 +247,28 @@ internal fun SteamChatComposer(
                         )
                     }
                 }
+            }
+            AnimatedVisibility(
+                visible = showAttachmentPicker,
+                enter = fadeIn(tween(durationMillis = 180)) + expandVertically(
+                    animationSpec = tween(durationMillis = 220),
+                    expandFrom = Alignment.Top
+                ),
+                exit = fadeOut(tween(durationMillis = 120)) + shrinkVertically(
+                    animationSpec = tween(durationMillis = 160),
+                    shrinkTowards = Alignment.Top
+                )
+            ) {
+                SteamChatAttachmentPickerPanel(
+                    onGalleryClick = {
+                        showAttachmentPicker = false
+                        launchGalleryPicker()
+                    },
+                    onFileClick = {
+                        showAttachmentPicker = false
+                        launchFilePicker()
+                    }
+                )
             }
             AnimatedVisibility(
                 visible = showRichPicker,

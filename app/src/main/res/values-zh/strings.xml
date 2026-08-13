@@ -5000,6 +5000,10 @@
     <string name="steam_chat_attachment_cancel">取消</string>
     <string name="steam_chat_attachment_sending">正在发送</string>
     <string name="steam_chat_attachment_select">选择附件</string>
+    <string name="steam_chat_attachment_gallery">相册</string>
+    <string name="steam_chat_attachment_gallery_summary">选择图片或视频</string>
+    <string name="steam_chat_attachment_file">文件</string>
+    <string name="steam_chat_attachment_file_summary">图片、视频或 ZIP</string>
     <string name="steam_chat_image_description">聊天图片 %1$d</string>
     <string name="steam_chat_image_viewer_close">关闭图片查看器</string>
     <string name="steam_chat_image_viewer_previous">上一张聊天图片</string>

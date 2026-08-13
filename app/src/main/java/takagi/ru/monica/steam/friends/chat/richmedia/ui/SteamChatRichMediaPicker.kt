@@ -1,7 +1,5 @@
 package takagi.ru.monica.steam.friends.chat.richmedia.ui
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -58,25 +56,6 @@ import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatEffect
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatSticker
 import takagi.ru.monica.steam.friends.chat.richmedia.domain.SteamChatUnicodeEmojiCatalog
 import takagi.ru.monica.steam.friends.chat.richmedia.presentation.SteamChatRichMediaUiState
-
-@Composable
-internal fun rememberSteamChatAttachmentPicker(
-    onSelected: (String) -> Unit
-): () -> Unit {
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.toString()?.let(onSelected)
-    }
-    return remember(launcher) {
-        {
-            launcher.launch(
-                arrayOf(
-                    "image/jpeg", "image/png", "image/gif", "image/webp", "image/avif",
-                    "video/webm", "video/mpeg", "video/mp4", "video/ogg", "application/zip"
-                )
-            )
-        }
-    }
-}
 
 @Composable
 internal fun SteamChatRichMediaPickerPanel(

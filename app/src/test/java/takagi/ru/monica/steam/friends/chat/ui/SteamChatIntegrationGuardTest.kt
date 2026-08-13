@@ -177,11 +177,11 @@ class SteamChatIntegrationGuardTest {
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatComposer.kt"
         ).readText()
         assertTrue(composer.contains("SteamChatRichMediaPickerPanel"))
-        assertTrue(composer.contains("BackHandler(enabled = showRichPicker)"))
+        assertTrue(composer.contains("BackHandler(enabled = showRichPicker || showAttachmentPicker)"))
         assertTrue(composer.contains("onFocusChanged"))
         assertTrue(
             composer.indexOf("SteamChatRichMediaPickerPanel(") >
-                composer.indexOf("FilledTonalIconButton(")
+                composer.indexOf("OutlinedTextField(")
         )
         val richContent = projectFile(
             "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatRichMessageContent.kt"
@@ -193,6 +193,26 @@ class SteamChatIntegrationGuardTest {
         assertTrue(attachmentContent.contains("steam_chat_spoiler_reveal"))
         assertTrue(attachmentContent.contains("Crossfade("))
         assertTrue(attachmentContent.contains("SteamFullscreenImageViewer("))
+    }
+
+    @Test
+    fun attachmentButtonExpandsGalleryAndFileChoicesBeforeOpeningSystemPicker() {
+        val composer = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/ui/SteamChatComposer.kt"
+        ).readText()
+        val attachmentPicker = projectFile(
+            "app/src/main/java/takagi/ru/monica/steam/friends/chat/richmedia/ui/SteamChatAttachmentPicker.kt"
+        ).readText()
+
+        assertTrue(composer.contains("showAttachmentPicker"))
+        assertTrue(composer.contains("SteamChatAttachmentPickerPanel("))
+        assertTrue(composer.contains("rememberSteamChatGalleryPicker("))
+        assertTrue(composer.contains("rememberSteamChatFilePicker("))
+        assertFalse(composer.contains("FilledTonalIconButton("))
+        assertTrue(attachmentPicker.contains("ActivityResultContracts.PickVisualMedia"))
+        assertTrue(attachmentPicker.contains("ActivityResultContracts.OpenDocument"))
+        assertTrue(attachmentPicker.contains("R.string.steam_chat_attachment_gallery"))
+        assertTrue(attachmentPicker.contains("R.string.steam_chat_attachment_file"))
     }
 
     @Test
