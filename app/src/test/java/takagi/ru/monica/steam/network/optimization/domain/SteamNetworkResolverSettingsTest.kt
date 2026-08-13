@@ -120,6 +120,32 @@ class SteamNetworkResolverSettingsTest {
     }
 
     @Test
+    fun echSelectorDefaultsToDnsAndCanChooseBuiltInOrCustomDohIndependently() {
+        val endpoint = "https://ech-resolver.example/dns-query"
+        val custom = SteamDnsProvider.customDoh(endpoint)
+        val defaults = SteamNetworkResolverSettings(
+            useBuiltInDoh = false
+        )
+        val customSelected = SteamNetworkResolverSettings(
+            useBuiltInDoh = false,
+            customDohEndpoints = listOf(endpoint),
+            echDohProviderId = custom.id
+        )
+        val builtInSelected = defaults.copy(
+            echDohProviderId = SteamDnsProvider.CLOUDFLARE.id
+        )
+
+        assertNull(defaults.selectedEchDohProvider)
+        assertTrue(defaults.selectableDohProviders.any { it.id == SteamDnsProvider.CLOUDFLARE.id })
+        assertEquals(custom.id, customSelected.selectedEchDohProvider?.id)
+        assertEquals(endpoint, customSelected.selectedEchDohProvider?.dohUrl)
+        assertEquals(
+            SteamDnsProvider.CLOUDFLARE.id,
+            builtInSelected.selectedEchDohProvider?.id
+        )
+    }
+
+    @Test
     fun validatesDnsAndDohWithoutAcceptingPortsOrUnsafeSchemes() {
         assertEquals("1.1.1.1", SteamResolverInputValidator.normalizeDnsServer(" 1.1.1.1 "))
         assertEquals(
