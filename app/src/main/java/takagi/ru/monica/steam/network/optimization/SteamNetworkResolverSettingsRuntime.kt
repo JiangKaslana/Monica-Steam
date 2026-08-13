@@ -19,6 +19,7 @@ object SteamNetworkResolverSettingsRuntime {
     private const val KEY_CUSTOM_DNS = "resolver_custom_dns"
     private const val KEY_CUSTOM_DOH = "resolver_custom_doh"
     private const val KEY_CUSTOM_DOH_BOOTSTRAP = "resolver_custom_doh_bootstrap"
+    private const val KEY_ECH_DOH_PROVIDER_ID = "resolver_ech_doh_provider_id"
     private const val KEY_PREFERRED_PROVIDER_IDS = "resolver_preferred_provider_ids"
     private const val KEY_DYNAMIC_DNS_ENABLED = "resolver_dynamic_dns_enabled"
     private const val KEY_DISABLED_BUILT_IN_PROVIDER_IDS = "resolver_disabled_builtin_provider_ids"
@@ -55,15 +56,22 @@ object SteamNetworkResolverSettingsRuntime {
             .distinct()
             .sorted()
         val customDohBootstrapAddresses = loadDohBootstrapAddresses(customDohEndpoints.toSet())
+        val customDohProviders = customDohEndpoints.map { endpoint ->
+            SteamDnsProvider.customDoh(
+                endpoint,
+                customDohBootstrapAddresses[endpoint].orEmpty()
+            )
+        }
         val validCustomIds = buildSet {
             customDnsServers.mapTo(this) { SteamDnsProvider.customDns(it).id }
-            customDohEndpoints.mapTo(this) { endpoint ->
-                SteamDnsProvider.customDoh(
-                    endpoint,
-                    customDohBootstrapAddresses[endpoint].orEmpty()
-                ).id
-            }
+            customDohProviders.mapTo(this, SteamDnsProvider::id)
         }
+        val validEchProviderIds = buildSet {
+            SteamDnsProvider.DEFAULTS.filter(SteamDnsProvider::isDoh).mapTo(this, SteamDnsProvider::id)
+            customDohProviders.mapTo(this, SteamDnsProvider::id)
+        }
+        val echDohProviderId = preferences.getString(KEY_ECH_DOH_PROVIDER_ID, null)
+            ?.takeIf { it in validEchProviderIds }
         updateSettings(
             SteamNetworkResolverSettings(
                 useSystemDns = preferences.getBoolean(KEY_USE_SYSTEM_DNS, true),
@@ -71,6 +79,7 @@ object SteamNetworkResolverSettingsRuntime {
                 customDnsServers = customDnsServers,
                 customDohEndpoints = customDohEndpoints,
                 customDohBootstrapAddresses = customDohBootstrapAddresses,
+                echDohProviderId = echDohProviderId,
                 preferredProviderIds = preferences.getString(KEY_PREFERRED_PROVIDER_IDS, "")
                     .orEmpty()
                     .lineSequence()
@@ -112,6 +121,27 @@ object SteamNetworkResolverSettingsRuntime {
         mutableSettings.value = mutableSettings.value.copy(preferIpv6 = enabled)
         notifyResolverChanged()
         runCatching { SteamDiagLogger.append("dynamic_dns prefer_ipv6=$enabled") }
+    }
+
+    @Synchronized
+    fun setEchDohProvider(context: Context, providerId: String?) {
+        initialize(context)
+        val accepted = providerId?.takeIf { candidate ->
+            mutableSettings.value.selectableDohProviders.any { it.id == candidate }
+        }
+        if (mutableSettings.value.echDohProviderId == accepted) return
+
+        val editor = preferences.edit()
+        if (accepted == null) {
+            editor.remove(KEY_ECH_DOH_PROVIDER_ID)
+        } else {
+            editor.putString(KEY_ECH_DOH_PROVIDER_ID, accepted)
+        }
+        editor.apply()
+        mutableSettings.value = mutableSettings.value.copy(echDohProviderId = accepted)
+        runCatching {
+            SteamDiagLogger.append("ech_doh provider=${accepted ?: "same_as_dns"}")
+        }
     }
 
     @Synchronized
@@ -282,16 +312,24 @@ object SteamNetworkResolverSettingsRuntime {
         val updatedBootstrap = mutableSettings.value.customDohBootstrapAddresses - value
         val disabled = mutableSettings.value.disabledCustomProviderIds - providerId
         val preferred = mutableSettings.value.preferredProviderIds - providerId
-        preferences.edit()
+        val echDohProviderId = mutableSettings.value.echDohProviderId
+            ?.takeUnless { it == providerId }
+        val editor = preferences.edit()
             .putStringSet(KEY_CUSTOM_DOH, updated.toSet())
             .putStringSet(KEY_CUSTOM_DOH_BOOTSTRAP, encodeDohBootstrapAddresses(updatedBootstrap))
             .putStringSet(KEY_DISABLED_CUSTOM_PROVIDER_IDS, disabled)
             .putString(KEY_PREFERRED_PROVIDER_IDS, preferred.joinToString("\n"))
-            .apply()
+        if (echDohProviderId == null) {
+            editor.remove(KEY_ECH_DOH_PROVIDER_ID)
+        } else {
+            editor.putString(KEY_ECH_DOH_PROVIDER_ID, echDohProviderId)
+        }
+        editor.apply()
         updateSettings(
             mutableSettings.value.copy(
                 customDohEndpoints = updated,
                 customDohBootstrapAddresses = updatedBootstrap,
+                echDohProviderId = echDohProviderId,
                 disabledCustomProviderIds = disabled,
                 preferredProviderIds = preferred
             )
@@ -402,11 +440,20 @@ object SteamNetworkResolverSettingsRuntime {
     }
 
     private fun updateSettings(next: SteamNetworkResolverSettings) {
-        val accepted = if (next.dynamicDnsEnabled && !next.hasResolver) {
-            preferences.edit().putBoolean(KEY_DYNAMIC_DNS_ENABLED, false).apply()
-            next.copy(dynamicDnsEnabled = false)
+        val acceptedEchProviderId = next.echDohProviderId?.takeIf { providerId ->
+            next.selectableDohProviders.any { it.id == providerId }
+        }
+        val withValidEch = if (acceptedEchProviderId != next.echDohProviderId) {
+            preferences.edit().remove(KEY_ECH_DOH_PROVIDER_ID).apply()
+            next.copy(echDohProviderId = acceptedEchProviderId)
         } else {
             next
+        }
+        val accepted = if (withValidEch.dynamicDnsEnabled && !withValidEch.hasResolver) {
+            preferences.edit().putBoolean(KEY_DYNAMIC_DNS_ENABLED, false).apply()
+            withValidEch.copy(dynamicDnsEnabled = false)
+        } else {
+            withValidEch
         }
         mutableSettings.value = accepted
     }
