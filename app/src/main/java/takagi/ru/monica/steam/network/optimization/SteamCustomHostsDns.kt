@@ -13,6 +13,8 @@ internal class SteamCustomHostsDns(
         SteamNetworkOptimizationRuntime::isSystemDnsFallbackEnabled,
     private val onCustomHostsUsed: (String) -> Unit =
         SteamNetworkOptimizationRuntime::recordHostHit,
+    private val rankAddresses: (String, List<InetAddress>) -> List<InetAddress> =
+        SteamRouteHealthRuntime::rank,
     private val logger: (String) -> Unit = SteamDiagLogger::append
 ) : Dns {
     override fun lookup(hostname: String): List<InetAddress> {
@@ -43,11 +45,13 @@ internal class SteamCustomHostsDns(
             }
             val resolved = (overrides + fallbackAddresses)
                 .distinctBy(InetAddress::getHostAddress)
+            val ranked = runCatching { rankAddresses(normalized, resolved) }
+                .getOrDefault(resolved)
             logSafely(
                 "custom_hosts applied host=$normalized custom=${overrides.size} " +
                     "fallback=${fallbackAddresses.size}"
             )
-            return resolved
+            return ranked
         }
         return systemDns.lookup(hostname)
     }
