@@ -2,6 +2,7 @@ package takagi.ru.monica.steam.network
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.optimization.SteamCustomHostsDns
@@ -12,7 +13,10 @@ object SteamHttpClientProvider {
     private val baseClientDelegate = lazy { OkHttpClient.Builder().build() }
     private val dynamicDnsDelegate = lazy { SteamDynamicDns() }
     private val customHostsDnsDelegate = lazy {
-        SteamCustomHostsDns(systemDns = dynamicDnsDelegate.value)
+        SteamCustomHostsDns(
+            unmappedDns = dynamicDnsDelegate.value,
+            fallbackDns = Dns.SYSTEM
+        )
     }
     private val clientDelegate = lazy {
         baseClientDelegate.value.newBuilder()
