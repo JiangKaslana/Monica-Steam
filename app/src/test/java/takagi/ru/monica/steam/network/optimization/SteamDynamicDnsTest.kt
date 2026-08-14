@@ -84,12 +84,7 @@ class SteamDynamicDnsTest {
     @Test
     fun harvestsAlternateAddressesFromOtherFastEnabledResolvers() {
         val resolverCalls = AtomicInteger()
-        val settings = SteamNetworkResolverSettings(
-            useSystemDns = false,
-            useBuiltInDoh = false,
-            customDnsServers = listOf("1.1.1.1", "8.8.8.8"),
-            dynamicDnsEnabled = true
-        )
+        val settings = twoResolverSettings()
         val resolver = SteamDnsResolver { provider, hostname ->
             resolverCalls.incrementAndGet()
             when (provider.udpServer) {
@@ -112,6 +107,24 @@ class SteamDynamicDnsTest {
             dns.lookup(STEAM_HOST).map(InetAddress::getHostAddress)
         )
         assertEquals(2, resolverCalls.get())
+    }
+
+    @Test
+    fun deduplicatesOverlappingAddressesHarvestedFromResolvers() {
+        val settings = twoResolverSettings()
+        val dns = SteamDynamicDns(
+            resolver = SteamDnsResolver { provider, hostname ->
+                if (provider.udpServer == "8.8.8.8") Thread.sleep(30)
+                resolution(provider, hostname, "104.18.20.10")
+            },
+            settingsProvider = { settings },
+            logger = {}
+        )
+
+        assertEquals(
+            listOf("104.18.20.10"),
+            dns.lookup(STEAM_HOST).map(InetAddress::getHostAddress)
+        )
     }
 
     @Test
@@ -167,6 +180,13 @@ class SteamDynamicDnsTest {
         useSystemDns = false,
         useBuiltInDoh = false,
         customDnsServers = listOf("1.1.1.1"),
+        dynamicDnsEnabled = true
+    )
+
+    private fun twoResolverSettings() = SteamNetworkResolverSettings(
+        useSystemDns = false,
+        useBuiltInDoh = false,
+        customDnsServers = listOf("1.1.1.1", "8.8.8.8"),
         dynamicDnsEnabled = true
     )
 
