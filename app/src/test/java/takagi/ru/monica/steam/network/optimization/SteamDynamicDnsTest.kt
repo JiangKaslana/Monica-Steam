@@ -45,6 +45,48 @@ class SteamDynamicDnsTest {
     }
 
     @Test
+    fun configuredDynamicSourceRunsBeforeSystemDnsFallback() {
+        val systemDns = RecordingDns(listOf("8.8.8.8"))
+        val resolverCalls = AtomicInteger()
+        val dns = SteamDynamicDns(
+            systemDns = systemDns,
+            resolver = SteamDnsResolver { provider, hostname ->
+                resolverCalls.incrementAndGet()
+                resolution(provider, hostname, "104.18.20.10")
+            },
+            settingsProvider = {
+                dynamicSettings().copy(useSystemDns = true)
+            },
+            logger = {}
+        )
+
+        assertEquals("104.18.20.10", dns.lookup(STEAM_HOST).single().hostAddress)
+        assertEquals(1, resolverCalls.get())
+        assertEquals(0, systemDns.calls.get())
+    }
+
+    @Test
+    fun systemDnsIsUsedWhenConfiguredDynamicSourcesFail() {
+        val systemDns = RecordingDns(listOf("8.8.8.8"))
+        val resolverCalls = AtomicInteger()
+        val dns = SteamDynamicDns(
+            systemDns = systemDns,
+            resolver = SteamDnsResolver { provider, hostname ->
+                resolverCalls.incrementAndGet()
+                SteamDnsResolutionResult(provider = provider, hostname = hostname)
+            },
+            settingsProvider = {
+                dynamicSettings().copy(useSystemDns = true)
+            },
+            logger = {}
+        )
+
+        assertEquals("8.8.8.8", dns.lookup(STEAM_HOST).single().hostAddress)
+        assertEquals(1, resolverCalls.get())
+        assertEquals(1, systemDns.calls.get())
+    }
+
+    @Test
     fun cachesSuccessfulResolutionAndCoalescesConcurrentMisses() {
         val resolverCalls = AtomicInteger()
         val resolver = SteamDnsResolver { provider, hostname ->
