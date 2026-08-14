@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  test-and-build:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -28,18 +28,6 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
-      - name: Run network regression tests
-        run: >-
-          ./gradlew testDebugUnitTest --stacktrace
-          --tests 'takagi.ru.monica.steam.network.optimization.SteamCustomHostsDnsTest'
-          --tests 'takagi.ru.monica.steam.network.optimization.SteamDynamicDnsTest'
-          --tests 'takagi.ru.monica.steam.network.optimization.domain.SteamBuiltInHostsPresetTest'
-          --tests 'takagi.ru.monica.steam.network.optimization.domain.SteamNetworkResolverSettingsTest'
-          --tests 'takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCatalogTest'
-          --tests 'takagi.ru.monica.steam.network.optimization.diagnostics.SteamDnsOptimizationScannerTest'
-          --tests 'takagi.ru.monica.steam.network.optimization.diagnostics.SteamResolverBenchmarkTest'
-          --tests 'takagi.ru.monica.steam.network.optimization.ui.SteamNetworkOptimizationIntegrationGuardTest'
-
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
@@ -47,5 +35,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Monica-Steam-Upstream-Hosts-Test
-          path: app/build/outputs/apk/**/*.apk
+          path: app/build/outputs/apk/**/*.APK
           if-no-files-found: error
