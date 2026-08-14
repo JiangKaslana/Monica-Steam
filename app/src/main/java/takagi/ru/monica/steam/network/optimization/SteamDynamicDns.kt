@@ -27,9 +27,10 @@ import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCata
  * App-scoped dynamic DNS for Steam traffic.
  *
  * Unlike the optional Hosts override, this resolver never persists an address for a Steam
- * hostname. Every cache miss races the resolver sources the user has enabled, keeps a short
- * in-memory cache, and resolves again after expiry. Non-Steam traffic is delegated to Android's
- * system resolver.
+ * hostname. Every cache miss races the enabled non-system resolver sources, keeps a short
+ * in-memory cache, and resolves again after expiry. Android system DNS is used directly when it
+ * is the only source, or as a fallback when configured dynamic sources fail. Non-Steam traffic
+ * always delegates to Android's system resolver.
  */
 internal class SteamDynamicDns(
     private val systemDns: Dns = Dns.SYSTEM,
@@ -67,10 +68,19 @@ internal class SteamDynamicDns(
             return systemDns.lookup(hostname)
         }
 
-        val providers = settings.activeProviders
+        val activeProviders = settings.activeProviders
+        if (activeProviders.isEmpty()) {
+            return systemDns.lookup(hostname)
+        }
+
+        // System DNS is a compatibility fallback, not a racer against explicitly enabled DNS/DoH
+        // sources. Racing it together with public/custom sources usually lets the local resolver
+        // win on latency alone and makes the configured dynamic optimization effectively unused.
+        val providers = activeProviders.filterNot(SteamDnsProvider::isSystem)
         if (providers.isEmpty()) {
             return systemDns.lookup(hostname)
         }
+
         val cacheKey = buildCacheKey(normalized, providers)
         val now = clockMillis()
         val cached = cache[cacheKey]
@@ -167,9 +177,9 @@ internal class SteamDynamicDns(
     ): List<InetAddress> {
         if (providers.isEmpty()) return emptyList()
 
-        // The settings UI supports up to 22 simultaneous sources (system + public DoH + custom
-        // DNS/DoH). Keep concurrency bounded, but enqueue every enabled source so a user-selected
-        // resolver is never silently ignored merely because it appears later in the list.
+        // Keep concurrency bounded, but enqueue every enabled non-system source so a user-selected
+        // traditional DNS or DoH resolver is never silently ignored merely because it appears
+        // later in the list.
         val candidates = providers.take(MAX_RACE_PROVIDERS)
         val completion = ExecutorCompletionService<List<InetAddress>>(executor)
         val futures = mutableListOf<Future<List<InetAddress>>>()
