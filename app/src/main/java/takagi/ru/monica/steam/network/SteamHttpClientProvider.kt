@@ -6,6 +6,8 @@ import okhttp3.OkHttpClient
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.optimization.SteamCustomHostsDns
 import takagi.ru.monica.steam.network.optimization.SteamDynamicDns
+import takagi.ru.monica.steam.network.optimization.SteamRouteHealthEventListener
+import takagi.ru.monica.steam.network.optimization.SteamRouteHealthRuntime
 import takagi.ru.monica.steam.network.optimization.domain.SteamNetworkTargetCatalog
 
 object SteamHttpClientProvider {
@@ -17,6 +19,7 @@ object SteamHttpClientProvider {
     private val clientDelegate = lazy {
         baseClientDelegate.value.newBuilder()
             .dns(customHostsDnsDelegate.value)
+            .eventListenerFactory { SteamRouteHealthEventListener() }
             .build()
     }
 
@@ -25,10 +28,12 @@ object SteamHttpClientProvider {
     fun newBuilder(): OkHttpClient.Builder = client.newBuilder()
 
     internal fun onCustomHostsChanged() {
+        SteamRouteHealthRuntime.clear()
         evictInitializedConnections("custom_hosts")
     }
 
     internal fun onResolverSettingsChanged() {
+        SteamRouteHealthRuntime.clear()
         if (dynamicDnsDelegate.isInitialized()) {
             runCatching { dynamicDnsDelegate.value.clearCache() }
                 .onFailure { error -> logCleanupFailure("resolver_cache", error) }
