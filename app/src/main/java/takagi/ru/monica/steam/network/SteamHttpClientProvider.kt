@@ -30,8 +30,8 @@ object SteamHttpClientProvider {
 
     internal fun onResolverSettingsChanged() {
         if (dynamicDnsDelegate.isInitialized()) {
-            runCatching { dynamicDnsDelegate.value.clearCache() }
-                .onFailure { error -> logCleanupFailure("resolver_cache", error) }
+            runCatching { dynamicDnsDelegate.value.onResolverSettingsChanged() }
+                .onFailure { error -> logCleanupFailure("resolver_state", error) }
         }
         evictInitializedConnections("resolver_settings")
     }
@@ -74,12 +74,11 @@ object SteamHttpClientProvider {
     private fun evictInitializedConnections(reason: String) {
         if (!clientDelegate.isInitialized()) return
         val initializedClient = clientDelegate.value
+        // connectionPool.evictAll() is cheap and synchronous for idle pooled connections. Running
+        // it immediately prevents a save/toggle followed by a refresh from reusing the old route
+        // before a queued cleanup task gets a chance to execute. Active calls are not cancelled.
         runCatching {
-            initializedClient.dispatcher.executorService.execute {
-                runCatching {
-                    initializedClient.connectionPool.evictAll()
-                }.onFailure { error -> logCleanupFailure(reason, error) }
-            }
+            initializedClient.connectionPool.evictAll()
         }.onFailure { error -> logCleanupFailure(reason, error) }
     }
 
