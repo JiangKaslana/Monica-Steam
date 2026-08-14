@@ -156,35 +156,55 @@ internal class SteamDynamicDns(
     ): List<InetAddress> {
         if (providers.isEmpty()) return emptyList()
 
-        // The settings UI supports up to 22 simultaneous sources (system + public DoH + custom
-        // DNS/DoH). Keep concurrency bounded, but enqueue every enabled source so a user-selected
-        // resolver is never silently ignored merely because it appears later in the list.
+        // Enqueue every enabled source. The first usable answer still wins the latency race, but
+        // keep a very small harvest window after that first answer so already-nearby resolver
+        // results can contribute alternate CDN routes. This makes the route-health layer useful
+        // across DNS/DoH sources instead of being trapped inside whichever provider answered first.
         val candidates = providers.take(MAX_RACE_PROVIDERS)
         val completion = ExecutorCompletionService<List<InetAddress>>(executor)
         val futures = mutableListOf<Future<List<InetAddress>>>()
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RACE_TIMEOUT_MILLIS)
+        val absoluteDeadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RACE_TIMEOUT_MILLIS)
+        var harvestDeadline = Long.MAX_VALUE
         var completed = 0
-        var answer: List<InetAddress> = emptyList()
+        val answers = mutableListOf<InetAddress>()
+        val seenAddresses = linkedSetOf<String>()
 
         candidates.forEach { provider ->
             futures += completion.submit(Callable { resolveProvider(provider, hostname) })
         }
 
         try {
-            while (completed < futures.size && answer.isEmpty()) {
-                val remaining = deadline - System.nanoTime()
+            while (completed < futures.size && answers.size < MAX_MERGED_ADDRESSES) {
+                val activeDeadline = if (answers.isEmpty()) {
+                    absoluteDeadline
+                } else {
+                    minOf(absoluteDeadline, harvestDeadline)
+                }
+                val remaining = activeDeadline - System.nanoTime()
                 if (remaining <= 0L) break
                 val future = completion.poll(remaining, TimeUnit.NANOSECONDS) ?: break
                 completed += 1
                 val addresses = runCatching { future.get() }.getOrDefault(emptyList())
-                if (addresses.isNotEmpty()) answer = addresses
+                if (addresses.isEmpty()) continue
+
+                val firstUsableAnswer = answers.isEmpty()
+                addresses.forEach { address ->
+                    val raw = address.hostAddress.orEmpty()
+                    if (raw.isNotEmpty() && seenAddresses.add(raw)) {
+                        answers += address
+                    }
+                }
+                if (firstUsableAnswer && answers.isNotEmpty()) {
+                    harvestDeadline = System.nanoTime() +
+                        TimeUnit.MILLISECONDS.toNanos(ANSWER_HARVEST_WINDOW_MILLIS)
+                }
             }
         } finally {
             futures.forEach { future ->
                 if (!future.isDone) future.cancel(true)
             }
         }
-        return answer
+        return answers.take(MAX_MERGED_ADDRESSES)
     }
 
     private fun resolveProvider(
@@ -245,9 +265,11 @@ internal class SteamDynamicDns(
     private companion object {
         const val MAX_PARALLEL_RESOLVERS = 8
         const val MAX_RACE_PROVIDERS = 24
+        const val MAX_MERGED_ADDRESSES = 16
         const val MAX_CACHE_ENTRIES = 256
         const val RESOLVER_TIMEOUT_MILLIS = 2_500L
         const val RACE_TIMEOUT_MILLIS = 3_000L
+        const val ANSWER_HARVEST_WINDOW_MILLIS = 120L
         const val CACHE_TTL_MILLIS = 5 * 60 * 1_000L
         const val STALE_TTL_MILLIS = 30 * 60 * 1_000L
         val threadIds = AtomicInteger(0)
