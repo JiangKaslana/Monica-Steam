@@ -16,6 +16,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.Dns
 import takagi.ru.monica.steam.diagnostics.SteamDiagLogger
 import takagi.ru.monica.steam.network.optimization.diagnostics.OkHttpSteamDnsResolver
+import takagi.ru.monica.steam.network.optimization.diagnostics.ResettableSteamDnsResolver
 import takagi.ru.monica.steam.network.optimization.diagnostics.SteamDnsResolver
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamHostsRuleParser
@@ -109,6 +110,16 @@ internal class SteamDynamicDns(
     fun clearCache() {
         cache.clear()
         logSafely("dynamic_dns cache_cleared")
+    }
+
+    /**
+     * Resolver endpoint/bootstrap changes must invalidate both answer cache and resolver transport
+     * state. Otherwise a new DoH bootstrap IP can be masked by an old pooled TLS connection.
+     */
+    fun onResolverSettingsChanged() {
+        cache.clear()
+        (resolver as? ResettableSteamDnsResolver)?.resetRuntimeState()
+        logSafely("dynamic_dns resolver_state_reset")
     }
 
     fun cacheSize(): Int = cache.size
