@@ -10,6 +10,7 @@ import okhttp3.Dns
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import takagi.ru.monica.steam.network.optimization.diagnostics.ResettableSteamDnsResolver
 import takagi.ru.monica.steam.network.optimization.diagnostics.SteamDnsResolver
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsProvider
 import takagi.ru.monica.steam.network.optimization.domain.SteamDnsResolutionResult
@@ -79,6 +80,42 @@ class SteamDynamicDnsTest {
         } finally {
             executor.shutdownNow()
         }
+    }
+
+    @Test
+    fun resolverSettingsChangeClearsAnswerCacheAndTransportState() {
+        val resolver = object : SteamDnsResolver, ResettableSteamDnsResolver {
+            var resetCount = 0
+            var resolveCount = 0
+
+            override suspend fun resolve(
+                provider: SteamDnsProvider,
+                hostname: String
+            ): SteamDnsResolutionResult {
+                resolveCount++
+                return resolution(provider, hostname, "104.18.20.10")
+            }
+
+            override fun resetRuntimeState() {
+                resetCount++
+            }
+        }
+        val dns = SteamDynamicDns(
+            resolver = resolver,
+            settingsProvider = ::dynamicSettings,
+            logger = {}
+        )
+
+        assertEquals("104.18.20.10", dns.lookup(STEAM_HOST).single().hostAddress)
+        assertEquals(1, dns.cacheSize())
+        assertEquals(1, resolver.resolveCount)
+
+        dns.onResolverSettingsChanged()
+
+        assertEquals(0, dns.cacheSize())
+        assertEquals(1, resolver.resetCount)
+        assertEquals("104.18.20.10", dns.lookup(STEAM_HOST).single().hostAddress)
+        assertEquals(2, resolver.resolveCount)
     }
 
     @Test
