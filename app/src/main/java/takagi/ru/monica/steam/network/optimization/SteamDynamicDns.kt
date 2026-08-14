@@ -74,7 +74,7 @@ internal class SteamDynamicDns(
         val now = clockMillis()
         val cached = cache[cacheKey]
         if (cached != null && now < cached.expiresAtMillis) {
-            return cached.addresses
+            return rankRoutes(normalized, cached.addresses)
         }
 
         val resolved = resolveShared(
@@ -83,12 +83,12 @@ internal class SteamDynamicDns(
             hostname = normalized
         )
         if (resolved.isNotEmpty()) {
-            return resolved
+            return rankRoutes(normalized, resolved)
         }
 
         if (cached != null && now < cached.staleUntilMillis) {
             logSafely("dynamic_dns stale_cache host=$normalized addresses=${cached.addresses.size}")
-            return cached.addresses
+            return rankRoutes(normalized, cached.addresses)
         }
 
         if (settings.useSystemDns) {
@@ -98,7 +98,7 @@ internal class SteamDynamicDns(
                 .distinctBy(InetAddress::getHostAddress)
             if (fallback.isNotEmpty()) {
                 logSafely("dynamic_dns system_fallback host=$normalized addresses=${fallback.size}")
-                return fallback
+                return rankRoutes(normalized, fallback)
             }
         }
 
@@ -198,6 +198,10 @@ internal class SteamDynamicDns(
             .filter(SteamHostsRuleParser::isUsableAddress)
             .distinctBy(InetAddress::getHostAddress)
     }
+
+    private fun rankRoutes(hostname: String, addresses: List<InetAddress>): List<InetAddress> =
+        runCatching { SteamRouteHealthRuntime.rank(hostname, addresses) }
+            .getOrDefault(addresses)
 
     private fun buildCacheKey(hostname: String, providers: List<SteamDnsProvider>): String {
         val resolverSignature = providers.joinToString(";") { provider ->
