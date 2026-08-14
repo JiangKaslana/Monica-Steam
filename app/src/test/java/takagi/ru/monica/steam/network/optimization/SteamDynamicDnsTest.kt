@@ -82,6 +82,39 @@ class SteamDynamicDnsTest {
     }
 
     @Test
+    fun harvestsAlternateAddressesFromOtherFastEnabledResolvers() {
+        val resolverCalls = AtomicInteger()
+        val settings = SteamNetworkResolverSettings(
+            useSystemDns = false,
+            useBuiltInDoh = false,
+            customDnsServers = listOf("1.1.1.1", "8.8.8.8"),
+            dynamicDnsEnabled = true
+        )
+        val resolver = SteamDnsResolver { provider, hostname ->
+            resolverCalls.incrementAndGet()
+            when (provider.udpServer) {
+                "1.1.1.1" -> resolution(provider, hostname, "104.18.20.10")
+                "8.8.8.8" -> {
+                    Thread.sleep(50)
+                    resolution(provider, hostname, "23.45.67.89")
+                }
+                else -> SteamDnsResolutionResult(provider = provider, hostname = hostname)
+            }
+        }
+        val dns = SteamDynamicDns(
+            resolver = resolver,
+            settingsProvider = { settings },
+            logger = {}
+        )
+
+        assertEquals(
+            listOf("104.18.20.10", "23.45.67.89"),
+            dns.lookup(STEAM_HOST).map(InetAddress::getHostAddress)
+        )
+        assertEquals(2, resolverCalls.get())
+    }
+
+    @Test
     fun staleCacheSurvivesAResolverFailure() {
         var now = 0L
         val resolverCalls = AtomicInteger()
